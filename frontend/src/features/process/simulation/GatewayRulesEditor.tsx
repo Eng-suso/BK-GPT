@@ -116,7 +116,7 @@ export function ConditionGroups({ id, legend, subject, groups, attributes, onCha
       <div className="grid gap-2">
         {groups.map((group, groupIndex) => (
           <div key={groupIndex} className="grid gap-1.5">
-            {groupIndex > 0 && <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{words.or}</p>}
+            {groupIndex > 0 && <p className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">{words.or}</p>}
             {group.map((rule, ruleIndex) => (
               <RuleRow
                 key={ruleIndex}
@@ -166,7 +166,7 @@ function RuleRow({ rule, attributes, prefix, branchLabel, describedBy, onChange,
   return (
     // Due righe: nel dock (360 px utili) attributo, confronto e valore su una sola si tagliano.
     <div className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-1">
-      <span className="text-[11px] text-muted-foreground">{prefix}</span>
+      <span className="text-micro text-muted-foreground">{prefix}</span>
       <select
         className={NATIVE_SELECT}
         aria-label={t("simulation.config.ruleAttribute", { branch: branchLabel })}

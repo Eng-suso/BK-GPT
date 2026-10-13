@@ -88,7 +88,7 @@ function QueuedMessages({
       className="mx-auto mt-3 flex w-full max-w-[var(--chat-measure)] flex-col gap-1.5 rounded-lg border border-dashed border-border bg-muted/40 p-3"
       aria-label={t("queue.title")}
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+      <p className="text-micro font-semibold uppercase tracking-[0.04em] text-muted-foreground">
         {t("queue.title")}
       </p>
       <ul className="flex flex-col gap-1.5">
@@ -97,7 +97,7 @@ function QueuedMessages({
             key={`${index}-${item.content.slice(0, 24)}`}
             className="flex items-start gap-2 text-sm text-foreground"
           >
-            <span className="mt-0.5 flex-none rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="mt-0.5 flex-none rounded border border-border px-1.5 py-0.5 text-2xs uppercase tracking-[0.04em] text-muted-foreground">
               {t("status.queuedLabel")}
             </span>
             <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">

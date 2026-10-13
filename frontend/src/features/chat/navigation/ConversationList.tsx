@@ -29,7 +29,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
 
   if (sessions.length === 0) {
     return (
-      <p className="px-2 py-6 text-center text-[13px] text-muted-foreground">
+      <p className="px-2 py-6 text-center text-body-sm text-muted-foreground">
         {t("threads.empty")}
       </p>
     );
@@ -39,7 +39,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
       {groups.map((group) => (
         <section key={group.key} aria-label={t(`threads.group.${group.key}`)}>
-          <h3 className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+          <h3 className="mb-1 px-2 text-micro font-semibold uppercase tracking-[0.04em] text-muted-foreground">
             {t(`threads.group.${group.key}`)}
           </h3>
           <ul className="flex flex-col gap-0.5" role="list">
@@ -62,7 +62,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                   >
                     <span
                       className={cn(
-                        "truncate text-[13px] leading-5",
+                        "truncate text-body-sm leading-5",
                         isActive
                           ? "font-medium text-foreground"
                           : "text-muted-foreground group-hover:text-foreground",
@@ -71,7 +71,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                       {session.title}
                     </span>
                     {when ? (
-                      <span className="text-[11px] tabular-nums text-muted-foreground">
+                      <span className="text-micro tabular-nums text-muted-foreground">
                         {when}
                       </span>
                     ) : null}

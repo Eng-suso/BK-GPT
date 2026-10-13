@@ -67,7 +67,7 @@ export function GlobalSidebar({
               title={t(item.labelKey)}
               onClick={() => onSectionChange(item.id)}
               className={cn(
-                "ui-nav-item relative flex h-10 items-center justify-center gap-[11px] rounded-2xl text-[13.5px] font-normal text-muted-foreground",
+                "ui-nav-item relative flex h-10 items-center justify-center gap-[11px] rounded-2xl text-body-sm font-normal text-muted-foreground",
                 expanded,
                 "hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
                 isActive &&
@@ -93,7 +93,7 @@ export function GlobalSidebar({
           title={t("nav.help")}
           aria-haspopup="dialog"
           onClick={onOpenHelp}
-          className={cn("flex h-10 items-center justify-center gap-[11px] rounded-2xl text-[13.5px] text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring", expanded)}
+          className={cn("flex h-10 items-center justify-center gap-[11px] rounded-2xl text-body-sm text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring", expanded)}
         >
           <HelpCircle className="size-[17px] shrink-0 opacity-70" strokeWidth={1.6} />
           <span className={label}>{t("nav.help")}</span>
@@ -104,7 +104,7 @@ export function GlobalSidebar({
           aria-current={settingsActive ? "page" : undefined}
           onClick={onOpenSettings}
           className={cn(
-            "flex h-10 items-center justify-center gap-[11px] rounded-2xl text-[13.5px] text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
+            "flex h-10 items-center justify-center gap-[11px] rounded-2xl text-body-sm text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
             expanded,
             settingsActive && "font-medium text-primary",
           )}

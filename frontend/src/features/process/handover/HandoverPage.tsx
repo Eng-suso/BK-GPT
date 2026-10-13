@@ -245,7 +245,7 @@ function Handover({ projectId, process }: { projectId: string; process: ProjectP
                   <StatTile label={t("handover.summary.simulation")} value={runs.filter((run) => run.status === "completed").length} />
                 </div>
                 <Surface variant="panel" className="handover-owner">
-                  <h3 className="text-[13px] font-semibold">{t("handover.summary.findings")}</h3>
+                  <h3 className="text-body-sm font-semibold">{t("handover.summary.findings")}</h3>
                   {findings.length === 0 ? <p className="text-xs text-muted-foreground">{t("handover.summary.noFindings")}</p> : (
                     <ul className="handover-findings">{findings.slice(0, 5).map((item) => <li key={item.id}>{item.finding}</li>)}</ul>
                   )}

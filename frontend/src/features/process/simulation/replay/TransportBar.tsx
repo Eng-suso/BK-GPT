@@ -201,7 +201,7 @@ function Chip({
 }) {
   return (
     <div className="flex items-baseline gap-1.5">
-      <dt className="text-[11px] text-muted-foreground">{label}</dt>
+      <dt className="text-micro text-muted-foreground">{label}</dt>
       <dd
         className={cn(
           "m-0 font-semibold tabular-nums",

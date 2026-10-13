@@ -25,7 +25,7 @@ export function InlineNotice({
     >
       <Icon className="ui-inline-notice-icon size-4 shrink-0" aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-semibold text-foreground">{title}</p>
+        <p className="text-body-sm font-semibold text-foreground">{title}</p>
         {children && <div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{children}</div>}
       </div>
       {action && <div className="ui-inline-notice-action">{action}</div>}

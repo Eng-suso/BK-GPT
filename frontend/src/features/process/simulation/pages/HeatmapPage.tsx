@@ -157,7 +157,7 @@ export function HeatmapPage({ embedded = false, onDecorations, onMetric }: { emb
               </SelectContent>
             </Select>
           </label>
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-micro text-muted-foreground">
             <span>{t("simulation.heatmap.legendLow")}</span>
             {HEAT_SWATCH.map((c, i) => (
               <span
@@ -183,7 +183,7 @@ export function HeatmapPage({ embedded = false, onDecorations, onMetric }: { emb
         {selected && (
           <div className="border-b border-border px-4 py-3">
             <div className="flex items-start justify-between gap-2">
-              <h3 className="text-[15px] font-semibold leading-tight text-foreground">
+              <h3 className="text-subtitle font-semibold leading-tight text-foreground">
                 {selected.name}
               </h3>
               {selected.el === bottleneckEl && (
@@ -195,7 +195,7 @@ export function HeatmapPage({ embedded = false, onDecorations, onMetric }: { emb
               )}
             </div>
             {selected.el === bottleneckEl && (
-              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+              <p className="mt-1 text-micro leading-snug text-muted-foreground">
                 {t("simulation.heatmap.diagnostic")}
               </p>
             )}
@@ -224,7 +224,7 @@ export function HeatmapPage({ embedded = false, onDecorations, onMetric }: { emb
                 <ul className="grid gap-1.5">
                   {FACTOR_ORDER.filter((k) => k in bottleneckFactors).map((k) => (
                     <li key={k} className="grid gap-1">
-                      <span className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                      <span className="flex items-center justify-between gap-2 text-micro text-muted-foreground">
                         {t(`simulation.heatmap.factor.${k}`)}
                         <span className="tabular-nums">
                           {Math.round((bottleneckFactors[k] ?? 0) * 100)}%
@@ -317,7 +317,7 @@ function Gate({
 function Kv({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
+      <dt className="truncate text-2xs uppercase tracking-wide text-muted-foreground">
         {label}
       </dt>
       <dd className="m-0 text-xs font-medium tabular-nums text-foreground">{value}</dd>

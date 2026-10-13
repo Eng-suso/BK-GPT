@@ -25,7 +25,7 @@ export function TopBar({ compact = false, navigationExpanded, onToggleNavigation
       {/* Sul telefono la navigazione sta in un cassetto: un rail fisso si
           prendeva un sesto della larghezza a ogni schermata. */}
       {onOpenMobileNavigation && <button type="button" onClick={onOpenMobileNavigation} aria-label={t("nav.open")} aria-haspopup="dialog" className="grid size-[34px] shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-ring md:hidden"><Menu className="size-[18px]" strokeWidth={1.7} /></button>}
-      {onOpenMobileNavigation && <DelirLogo className="text-[18px] md:hidden" />}
+      {onOpenMobileNavigation && <DelirLogo className="text-lg md:hidden" />}
       {onToggleNavigation && <button type="button" onClick={onToggleNavigation} aria-label={t("nav.toggle")} aria-expanded={navigationExpanded} className="hidden size-8 shrink-0 place-items-center rounded-md hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring lg:grid"><PanelLeft className="size-4" /></button>}
       {/* Un bottone e non un campo: la ricerca vive in un pannello che sa
           raggruppare i risultati e si percorre da tastiera. Un input qui
@@ -41,8 +41,8 @@ export function TopBar({ compact = false, navigationExpanded, onToggleNavigation
         )}
       >
         <Search className="size-[15px] shrink-0" strokeWidth={1.8} />
-        <span className="min-w-0 flex-1 truncate text-[13px]">{t("actions.search")}</span>
-        <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] lg:block">
+        <span className="min-w-0 flex-1 truncate text-body-sm">{t("actions.search")}</span>
+        <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-2xs lg:block">
           {searchShortcutLabel()}
         </kbd>
       </button>

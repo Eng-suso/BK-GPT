@@ -22,7 +22,7 @@ export function BpmnElementNavigator({ elements, selectedId, isReady, onSelect, 
         const Icon = el.kind === "gateway" ? Diamond : el.kind === "start" || el.kind === "end" ? Circle : el.kind === "automation" ? Cog : Square;
         return <li key={el.id}><Button variant={selectedId === el.id ? "secondary" : "ghost"} className="h-auto min-h-11 w-full justify-start whitespace-normal rounded-lg px-2 py-2 text-left" aria-pressed={selectedId === el.id} onClick={() => onSelect(el.id)}>
           <Icon aria-hidden className={`size-4 shrink-0 process-element-icon--${el.kind}`} />
-          <span className="min-w-0"><span className="block break-words text-xs">{el.name || t("canvas.elements.unnamed", { type: el.type })}</span><span className="block text-[11px] font-normal text-muted-foreground">{el.type}</span></span>
+          <span className="min-w-0"><span className="block break-words text-xs">{el.name || t("canvas.elements.unnamed", { type: el.type })}</span><span className="block text-micro font-normal text-muted-foreground">{el.type}</span></span>
         </Button></li>;
       })}</ul> : <p className="p-2 text-sm text-muted-foreground">{t(query ? "canvas.elements.noMatches" : "canvas.elements.empty")}</p>}
     </div>

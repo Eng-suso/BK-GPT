@@ -68,21 +68,21 @@ export function HelpDialog({
         <section aria-labelledby="help-workflow">
           <h3
             id="help-workflow"
-            className="mb-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
+            className="mb-2 text-micro font-semibold uppercase tracking-[0.04em] text-muted-foreground"
           >
             {t("help.workflow.title")}
           </h3>
           <ol className="flex flex-col gap-2">
             {WORKFLOW_STEPS.map((step, index) => (
               <li key={step} className="flex gap-3">
-                <span className="grid size-6 shrink-0 place-items-center rounded-full border border-border text-[11px] font-semibold tabular-nums text-muted-foreground">
+                <span className="grid size-6 shrink-0 place-items-center rounded-full border border-border text-micro font-semibold tabular-nums text-muted-foreground">
                   {index + 1}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[13px] font-medium text-foreground">
+                  <p className="text-body-sm font-medium text-foreground">
                     {t(`help.workflow.${step}.title`)}
                   </p>
-                  <p className="text-[12.5px] leading-5 text-muted-foreground">
+                  <p className="text-xs leading-5 text-muted-foreground">
                     {t(`help.workflow.${step}.body`)}
                   </p>
                 </div>
@@ -107,7 +107,7 @@ export function HelpDialog({
         <section aria-labelledby="help-shortcuts">
           <h3
             id="help-shortcuts"
-            className="mb-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
+            className="mb-2 text-micro font-semibold uppercase tracking-[0.04em] text-muted-foreground"
           >
             {t("help.shortcuts.title")}
           </h3>
@@ -117,14 +117,14 @@ export function HelpDialog({
                 key={shortcut.id}
                 className="flex items-center justify-between gap-3 border-b border-border py-2 last:border-b-0"
               >
-                <dt className="text-[12.5px] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   {t(`help.shortcuts.${shortcut.id}`)}
                 </dt>
                 <dd className="flex shrink-0 gap-1">
                   {shortcut.keys.map((key) => (
                     <kbd
                       key={key}
-                      className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground"
+                      className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-micro text-foreground"
                     >
                       {NAMED_KEYS.has(key) ? t(`help.keys.${key}`) : key}
                     </kbd>
@@ -138,11 +138,11 @@ export function HelpDialog({
         <section aria-labelledby="help-trouble">
           <h3
             id="help-trouble"
-            className="mb-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
+            className="mb-2 text-micro font-semibold uppercase tracking-[0.04em] text-muted-foreground"
           >
             {t("help.trouble.title")}
           </h3>
-          <p className="text-[12.5px] leading-5 text-muted-foreground">{t("help.trouble.body")}</p>
+          <p className="text-xs leading-5 text-muted-foreground">{t("help.trouble.body")}</p>
           <Button
             type="button"
             variant="outline"

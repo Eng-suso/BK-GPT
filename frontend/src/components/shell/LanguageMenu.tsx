@@ -26,7 +26,7 @@ export function LanguageMenu(): React.JSX.Element {
           <DropdownMenuItem
             key={lng}
             onSelect={() => void i18n.changeLanguage(lng)}
-            className="text-[13px]"
+            className="text-body-sm"
             data-active={current === lng}
           >
             {t(`language.${lng}`)}

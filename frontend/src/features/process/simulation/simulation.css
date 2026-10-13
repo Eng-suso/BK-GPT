@@ -38,8 +38,8 @@
 .sim-config-workspace { border: 0; border-radius: 0; container: scenario / inline-size; }
 .sim-config-body { width: 100%; max-width: 1280px; margin-inline: auto; padding: 0 24px 24px; }
 .sim-config-body > section { scroll-margin-top: 100px; padding-block: 24px; }
-.sim-config-body .eyebrow { font-size: 13px; color: var(--foreground); }
-.sim-config-body input, .sim-config-body [role="combobox"] { min-height: 38px; font-size: 14px; }
+.sim-config-body .eyebrow { font-size: var(--font-size-200); color: var(--foreground); }
+.sim-config-body input, .sim-config-body [role="combobox"] { min-height: 38px; font-size: var(--font-size-300); }
 .sim-config-body .sim-general-fields { max-width: 720px; }
 .sim-config-body .sim-task-row { padding: 16px; background: var(--card); }
 .sim-config-body .sim-task-name { min-width: 0; gap: 8px; }
@@ -75,7 +75,7 @@
   border: 1px solid var(--color-border-subtle);
   background: var(--color-surface-primary);
   box-shadow: 0 2px 6px rgba(14, 20, 32, 0.16);
-  font-size: 11px;
+  font-size: var(--font-size-75);
   font-weight: 700;
   line-height: 1.3;
   white-space: nowrap;
@@ -243,7 +243,7 @@
   border-radius: var(--radius-control);
   box-shadow: 0 4px 14px rgba(14, 20, 32, 0.14);
   padding: 6px 9px;
-  font-size: 11px;
+  font-size: var(--font-size-75);
   line-height: 1.4;
   color: var(--color-text-primary);
 }
@@ -371,7 +371,7 @@
 .sim-scrubber:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: 4px; }
 @media (max-width: 640px) {
   .sim-transport-controls .sim-scrubber { order: 5; flex-basis: 100%; }
-  .sim-transport-controls > span { margin-left: auto; font-size: 11px; }
+  .sim-transport-controls > span { margin-left: auto; font-size: var(--font-size-75); }
   .sim-transport-controls [role="combobox"] { width: 88px; }
 }
 
@@ -380,18 +380,18 @@
 .sim-scenario-tabs-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .sim-scenario-tablist { display: flex; gap: 4px; min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: thin; }
 .sim-scenario-tablist > button { flex: 0 0 auto; max-width: 180px; }
-.sim-scenario-label { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; font-weight: 600; }
+.sim-scenario-label { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--font-size-100); font-weight: 600; }
 .sim-scenario-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sim-scenario-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
-.sim-scenario-error { font-size: 12px; color: var(--state-invalid-text); }
-.sim-scenario-notice { font-size: 12px; padding: 6px 10px; border-radius: var(--radius-control); color: var(--state-warning-text); background: var(--state-warning-surface); border: 1px solid var(--state-warning-border); }
-.sim-scenario-changes > summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+.sim-scenario-error { font-size: var(--font-size-100); color: var(--state-invalid-text); }
+.sim-scenario-notice { font-size: var(--font-size-100); padding: 6px 10px; border-radius: var(--radius-control); color: var(--state-warning-text); background: var(--state-warning-surface); border: 1px solid var(--state-warning-border); }
+.sim-scenario-changes > summary { cursor: pointer; font-size: var(--font-size-200); font-weight: 500; color: var(--color-text-primary); }
 .sim-scenario-changes > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
 .sim-scenario-changes ul { display: grid; gap: 2px; margin-top: 6px; }
-.sim-scenario-changes li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; line-height: 1.4; padding: 4px 0; border-top: 1px solid var(--color-border-subtle); }
+.sim-scenario-changes li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--font-size-100); line-height: 1.4; padding: 4px 0; border-top: 1px solid var(--color-border-subtle); }
 .sim-scenario-changes li small { display: block; color: var(--state-warning-text); }
 .sim-scenario-changes li.is-conflict > span { color: var(--color-text-muted); text-decoration: line-through; text-decoration-color: var(--state-warning-icon); }
-.sim-scenario-conflicts { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; padding: 6px 8px; font-size: 12px; border-radius: var(--radius-control); color: var(--state-warning-text); background: var(--state-warning-surface); border: 1px solid var(--state-warning-border); }
+.sim-scenario-conflicts { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; padding: 6px 8px; font-size: var(--font-size-100); border-radius: var(--radius-control); color: var(--state-warning-text); background: var(--state-warning-surface); border: 1px solid var(--state-warning-border); }
 .djs-element.sim-scenario-changed .djs-visual > rect,
 .djs-element.sim-scenario-changed .djs-visual > path:first-of-type {
   stroke: var(--sim-info) !important;
@@ -401,10 +401,10 @@
 .sim-workspace-seed { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; }
 .sim-workspace-table { overflow-x: auto; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); }
 .sim-workspace-table:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.sim-workspace-table table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 12.5px; }
-.sim-workspace-table caption { caption-side: bottom; padding: 8px 10px; text-align: left; font-size: 12px; color: var(--color-text-muted); }
+.sim-workspace-table table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: var(--font-size-100); }
+.sim-workspace-table caption { caption-side: bottom; padding: 8px 10px; text-align: left; font-size: var(--font-size-100); color: var(--color-text-muted); }
 .sim-workspace-table th, .sim-workspace-table td { padding: 8px 10px; text-align: left; vertical-align: top; border-top: 1px solid var(--color-border-subtle); }
-.sim-workspace-table thead th { border-top: 0; font-size: 11.5px; font-weight: 500; color: var(--color-text-muted); background: var(--color-surface-muted, transparent); }
+.sim-workspace-table thead th { border-top: 0; font-size: var(--font-size-75); font-weight: 500; color: var(--color-text-muted); background: var(--color-surface-muted, transparent); }
 .sim-workspace-table tbody th { font-weight: 500; min-width: 170px; }
 .sim-workspace-table td { min-width: 128px; }
 .sim-workspace-table tbody tr:first-child { background: color-mix(in oklab, var(--sim-info) 5%, transparent); }

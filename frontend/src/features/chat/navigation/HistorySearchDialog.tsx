@@ -201,12 +201,12 @@ const SearchPanel: React.FC<SearchPanelProps> = ({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {!enabled ? (
-          <p className="px-1 py-6 text-center text-[13px] text-muted-foreground">
+          <p className="px-1 py-6 text-center text-body-sm text-muted-foreground">
             {t("search.hint", { min: MIN_QUERY_LENGTH })}
           </p>
         ) : results.isPending ? (
           <p
-            className="flex items-center justify-center gap-2 px-1 py-6 text-[13px] text-muted-foreground"
+            className="flex items-center justify-center gap-2 px-1 py-6 text-body-sm text-muted-foreground"
             role="status"
           >
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -214,7 +214,7 @@ const SearchPanel: React.FC<SearchPanelProps> = ({
           </p>
         ) : results.isError ? (
           <div className="flex flex-col items-center gap-2 px-1 py-6 text-center">
-            <p className="text-[13px] text-muted-foreground">{t("search.failed")}</p>
+            <p className="text-body-sm text-muted-foreground">{t("search.failed")}</p>
             <Button
               type="button"
               size="sm"
@@ -225,7 +225,7 @@ const SearchPanel: React.FC<SearchPanelProps> = ({
             </Button>
           </div>
         ) : hits.length === 0 ? (
-          <p className="px-1 py-6 text-center text-[13px] text-muted-foreground">
+          <p className="px-1 py-6 text-center text-body-sm text-muted-foreground">
             {t("search.empty", { query: debounced })}
           </p>
         ) : (
@@ -255,23 +255,23 @@ const SearchPanel: React.FC<SearchPanelProps> = ({
                     onClick={() => openThread(hit.threadId)}
                   >
                     <span className="flex items-baseline gap-2">
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
+                      <span className="min-w-0 flex-1 truncate text-body-sm font-medium text-foreground">
                         <Highlighted text={hit.title} terms={terms} />
                       </span>
                       {hit.threadId === currentThreadId ? (
-                        <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
+                        <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-2xs uppercase tracking-[0.04em] text-muted-foreground">
                           {t("search.current")}
                         </span>
                       ) : null}
                       {when ? (
-                        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                        <span className="shrink-0 text-micro tabular-nums text-muted-foreground">
                           {when}
                         </span>
                       ) : null}
                     </span>
                     {hit.snippet ? (
-                      <span className="line-clamp-2 text-[12.5px] leading-5 text-muted-foreground">
-                        <span className="mr-1 text-[10px] uppercase tracking-[0.04em]">
+                      <span className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+                        <span className="mr-1 text-2xs uppercase tracking-[0.04em]">
                           {t(
                             hit.snippetRole === "assistant"
                               ? "search.fromAssistant"
@@ -281,7 +281,7 @@ const SearchPanel: React.FC<SearchPanelProps> = ({
                         <Highlighted text={hit.snippet} terms={terms} />
                       </span>
                     ) : (
-                      <span className="text-[12.5px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {t("search.titleMatch")}
                       </span>
                     )}

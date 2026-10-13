@@ -140,12 +140,12 @@ export function ComparePage({ embedded = false, compact = false, onDecorations }
           <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
             <p className="eyebrow">{t("simulation.diagram.title")}</p>
             {mode === "delta" ? (
-              <span className="flex items-center gap-3 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-3 text-micro text-muted-foreground">
                 <Legend color="var(--color-status-success)" label={t("simulation.compare.better")} />
                 <Legend color="var(--color-status-danger)" label={t("simulation.compare.worse")} />
               </span>
             ) : (
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-micro text-muted-foreground">
                 {t("simulation.diagram.legendWait")}
               </span>
             )}
@@ -206,7 +206,7 @@ function Verdict({ runA, runB }: { runA: SimulationRun; runB: SimulationRun }) {
       : "—";
 
   return (
-    <p className="shrink-0 ui-surface ui-surface-panel px-4 py-2.5 text-[13px] leading-relaxed text-foreground">
+    <p className="shrink-0 ui-surface ui-surface-panel px-4 py-2.5 text-body-sm leading-relaxed text-foreground">
       <strong className="font-semibold">{runB.scenario_name}</strong>
       {": "}
       {t("simulation.compare.verdict", {
@@ -310,7 +310,7 @@ function DeltaCell({
         {value}
       </span>
       {pct && direction !== "same" && (
-        <span className="text-[10px] opacity-80">{pct}</span>
+        <span className="text-2xs opacity-80">{pct}</span>
       )}
     </span>
   );

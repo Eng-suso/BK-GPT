@@ -130,10 +130,9 @@
 }
 
 /*
- * Workspace type ramp. The primitive `--font-size-*` scale is complete but was
- * bypassed by ~80 arbitrary `text-[12.5px]` literals. These four semantic steps
- * cover the dense list/panel surfaces; `text-xs` (12) / `text-sm` (14) /
- * `text-2xl` (24) from Tailwind's default theme cover the rest.
+ * Workspace type ramp. No component writes a pixel size: CSS uses the
+ * primitive `--font-size-*` scale, Tailwind these four steps plus `text-xs`
+ * (12) / `text-sm` (14) / `text-base` (16) / `text-lg` (18) / `text-2xl` (24).
  */
 @theme {
   /* Workspace list screens only mount the right detail panel once there is
@@ -272,7 +271,7 @@
   .product-eyebrow {
     margin: 0;
     color: var(--color-text-tertiary);
-    font-size: 11px;
+    font-size: var(--font-size-75);
     font-weight: var(--font-weight-semibold);
     line-height: var(--line-height-100);
     letter-spacing: 0.04em;
