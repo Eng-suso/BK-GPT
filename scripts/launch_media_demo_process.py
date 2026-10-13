@@ -111,8 +111,24 @@ def understanding() -> ProcessUnderstanding:
                 question="Richiesta completa?",
                 outcomes=["Sì", "No"],
                 outcome_details=[
-                    ProcessDecisionOutcome(id="Completa_Si", label="Sì", condition="richiesta completa", target_ref="Task_Valuta"),
+                    ProcessDecisionOutcome(id="Completa_Si", label="Sì", condition="richiesta completa", target_ref="Decision_Necessaria"),
                     ProcessDecisionOutcome(id="Completa_No", label="No", target_path_id="Path_Integrazione", is_default=True),
+                ],
+            ),
+            # Francesca: «Sopra una certa cifra devo chiedere una autorizzazione al
+            # mio responsabile.» Non tutte le richieste passano dal responsabile;
+            # la soglia nessuno la dice, quindi la condizione la nomina senza un numero.
+            ProcessDecision(
+                id="Decision_Necessaria",
+                label="Autorizzazione necessaria?",
+                question="Autorizzazione necessaria?",
+                outcomes=["Sì", "No"],
+                outcome_details=[
+                    ProcessDecisionOutcome(
+                        id="Necessaria_Si", label="Sì", condition="importo sopra la soglia di autorizzazione (soglia da chiarire)",
+                        target_ref="Task_Valuta",
+                    ),
+                    ProcessDecisionOutcome(id="Necessaria_No", label="No", target_path_id="Path_Senza_Autorizzazione", is_default=True),
                 ],
             ),
             ProcessDecision(
@@ -128,12 +144,18 @@ def understanding() -> ProcessUnderstanding:
         ],
         flow_edges=[
             ProcessFlowEdge(id="Edge_Verifica", source_id="Task_Verifica", target_id="Decision_Completa", label=""),
+            ProcessFlowEdge(id="Edge_Completa", source_id="Decision_Completa", target_id="Decision_Necessaria", label="Sì"),
             ProcessFlowEdge(id="Edge_Valuta", source_id="Task_Valuta", target_id="Decision_Autorizzata", label=""),
         ],
         alternative_paths=[
             ProcessPath(
                 id="Path_Integrazione", label="Richiesta incompleta",
                 sequence=["Task_Richiedi", "Task_Integra"], rejoins_at="Task_Verifica",
+            ),
+            # Sotto soglia si ordina subito: un ramo senza attivita' che rientra su "Emetti".
+            ProcessPath(
+                id="Path_Senza_Autorizzazione", label="Sotto soglia",
+                sequence=[], rejoins_at="Task_Emetti",
             ),
             ProcessPath(
                 id="Path_Rifiuto", label="Spesa non autorizzata",
