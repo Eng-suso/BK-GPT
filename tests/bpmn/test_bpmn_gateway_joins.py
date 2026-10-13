@@ -117,14 +117,18 @@ def test_a_complex_gateway_carries_its_activation_rule_and_a_default():
     assert f'default="{split.defaultFlowId}"' in xml
 
 
-def test_an_exclusive_split_merges_without_a_join():
+def test_an_exclusive_split_merges_through_an_unnamed_exclusive_merge():
     model = _compile(_order("exclusive"))
 
     ship = _node(model, "Spedisci")
-    assert {flow.sourceRef for flow in _into(model, ship.id)} == {
+    [into_ship] = _into(model, ship.id)
+    merge = next(node for node in model.flowNodes if node.id == into_ship.sourceRef)
+    assert merge.type == "exclusiveGateway" and not merge.name
+    assert {flow.sourceRef for flow in _into(model, merge.id)} == {
         _node(model, "Prepara la merce").id,
         _node(model, "Emetti la fattura").id,
     }
+    assert analyze_control_flow(model).warnings == []
 
 
 def test_an_event_based_gateway_can_start_the_process_and_wait_for_every_event():
