@@ -709,8 +709,12 @@
 .process-section-menu { display: none; }
 @media (max-width: 620px) { .process-section-menu { display: inline-flex; } }
 @media (max-width: 620px) {
-  .process-studio-header { gap: 4px; padding-inline: 8px; }
+  /* Titolo sulla prima riga, comandi sulla seconda: in una riga sola il nome
+     del processo restava una lettera. */
+  .process-studio-header { gap: 4px; row-gap: 6px; padding-inline: 8px; flex-wrap: wrap; }
   .process-studio-header h1 { font-size: var(--font-size-200); }
+  .process-studio-header > :last-child { flex-basis: 100%; }
+  .process-studio-header > :last-child > :last-child { margin-left: auto; }
   .process-view-label { display: none; }
   .process-section-link { display: none; }
   .process-workspace--embedded { padding: 6px; }
