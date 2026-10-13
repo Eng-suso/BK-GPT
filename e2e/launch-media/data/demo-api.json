@@ -89,14 +89,31 @@
     "type": "exclusiveGateway",
     "branches": [
      {
-      "flow_id": "Flow_Decision_Completa_to_Task_Valuta",
+      "flow_id": "Flow_Decision_Completa_to_Decision_Necessaria",
       "flow_name": "Sì",
-      "target_name": "Valuta la richiesta di spesa"
+      "target_name": "Autorizzazione necessaria?"
      },
      {
       "flow_id": "Flow_Decision_Completa_to_Path_Integrazione_Task_Richiedi",
       "flow_name": "No",
       "target_name": "Richiedi integrazione"
+     }
+    ]
+   },
+   {
+    "element_id": "Decision_Necessaria",
+    "name": "Autorizzazione necessaria?",
+    "type": "exclusiveGateway",
+    "branches": [
+     {
+      "flow_id": "Flow_Decision_Necessaria_to_Task_Valuta",
+      "flow_name": "Sì",
+      "target_name": "Valuta la richiesta di spesa"
+     },
+     {
+      "flow_id": "Flow_Decision_Necessaria_to_Task_Emetti",
+      "flow_name": "No",
+      "target_name": "Emetti l'ordine di acquisto"
      }
     ]
    },
@@ -216,6 +233,16 @@
    {
     "element_id": "Decision_Completa",
     "name": "Richiesta completa?",
+    "bpmn_type": "exclusiveGateway",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "exclusiveGateway",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Decision_Necessaria",
+    "name": "Autorizzazione necessaria?",
     "bpmn_type": "exclusiveGateway",
     "status": "preserved",
     "impact": "none",
@@ -344,7 +371,17 @@
     "note": ""
    },
    {
-    "element_id": "Flow_Decision_Completa_to_Task_Valuta",
+    "element_id": "Flow_Decision_Completa_to_Decision_Necessaria",
+    "name": "Sì",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_Decision_Necessaria_to_Task_Valuta",
     "name": "Sì",
     "bpmn_type": "sequenceFlow",
     "status": "preserved",
@@ -414,6 +451,16 @@
     "note": ""
    },
    {
+    "element_id": "Flow_Decision_Necessaria_to_Task_Emetti",
+    "name": "No",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
     "element_id": "Flow_Decision_Autorizzata_to_Path_Rifiuto_Task_Rifiuto",
     "name": "No",
     "bpmn_type": "sequenceFlow",
@@ -455,7 +502,7 @@
    }
   ],
   "counts": {
-   "preserved": 24,
+   "preserved": 27,
    "approximated": 2,
    "flattened": 0,
    "removed": 6

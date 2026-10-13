@@ -2,8 +2,16 @@
 
 Stessa pipeline di `scripts/launch_media_simulate.py` (BPMN normalizzato,
 modello IR, Prosimos, summary e replay dal log), sul processo semplice
-"Gestione richiesta di acquisto". I parametri citano le interviste del golden
-set quando le dicono; il resto e' assunzione del consulente, dichiarata.
+"Gestione richiesta di acquisto". Ogni parametro dice da dove viene:
+
+- `declared` solo per cio' che una fonte dice davvero;
+- un numero che il consulente sceglie partendo da una fonte e' `manual` con la
+  fonte allegata e la nota "La fonte dice ... Valore scelto dal consulente ..."
+  (`estimated` qui sotto): la citazione regge il fatto, non il valore;
+- cio' che nessuna fonte tocca e' `manual` senza fonti (`assumed`).
+
+Nessun parametro si ritocca per far tornare i numeri: il risultato e' quello
+che il modello produce.
 
 Esce `e2e/launch-media/data/demo-runs.json` (run) e `demo-api.json` (template,
 provenienza e compatibilita' come le darebbe il backend).
@@ -23,7 +31,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from launch_media_simulate import (  # noqa: E402
+    AUTH_SHARE,
     DATA,
+    RESPONSABILE_AS_IS,
+    RESPONSABILE_TO_BE,
     WORKDAY,
     assumed,
     declared,
@@ -41,43 +52,73 @@ from backend.simulation.scenario_builder import baseline_for_bpmn, describe_scen
 
 SOURCE = DATA / "demo.bpmn"
 
-# Minuti di lavoro per attivita'. Le interviste dicono dove si perde tempo
-# (ricostruire la richiesta, rimbalzarla, aspettare l'autorizzazione), non
-# quanto dura ogni gesto: i gesti brevi sono assunzioni.
+
+def estimated(*who: str, said: str, chosen: str) -> dict:
+    """Un numero scelto dal consulente a partire da cio' che la fonte dice.
+
+    La fonte regge il fatto, non il valore: origine `manual` (il numero e' del
+    consulente), con la fonte da cui parte e la nota che separa le due cose.
+    """
+    return {
+        **declared(*who, note=f"La fonte dice: {said} Valore scelto dal consulente: {chosen}"),
+        "origin": "manual",
+        "confidence": "low",
+    }
+
+
+# Minuti di lavoro (processing time) per attivita'. Le interviste dicono che il
+# passo esiste e dove si perde tempo, non quanto dura il gesto: le durate sono
+# tutte del consulente, con la fonte del passo quando c'e'.
 DURATIONS = {
     "Task_Compila": (
         lognormal(15, 12, 120),
-        declared("laura", note="\"Comincia il giro di telefonate. A volte lo risolvo in dieci minuti, a volte ci metto due giorni.\""),
+        estimated(
+            "laura",
+            said="\"Quindi comincia il giro di telefonate.\" e da dieci minuti a due giorni.",
+            chosen="lavoro effettivo da 15 minuti a 2 ore. I due giorni sono tempo trascorso in attesa delle "
+            "risposte, che qui non e' modellato: il ciclo simulato lo sottostima.",
+        ),
     ),
-    "Task_Invia": (normal(5, 1), declared("paolo", note="\"Mail. Sempre mail, a Laura.\"")),
-    "Task_Verifica": (normal(10, 3), declared("francesca", note="\"Leggo e verifico se e' lavorabile.\"")),
-    "Path_Integrazione_Task_Richiedi": (normal(10, 3), declared("francesca", note="\"Rimbalzare indietro le richieste per completarle.\"")),
-    "Path_Integrazione_Task_Integra": (lognormal(20, 15, 240), assumed("Tempo per integrare la richiesta: assunzione del consulente.")),
+    "Task_Invia": (normal(5, 1), estimated("paolo", said="\"Mail. Sempre mail, a Laura.\"", chosen="5 minuti.")),
+    "Task_Verifica": (normal(10, 3), estimated("francesca", said="\"Leggo e verifico se e' lavorabile.\"", chosen="10 minuti.")),
+    "Path_Integrazione_Task_Richiedi": (
+        normal(10, 3),
+        estimated("francesca", said="che rimanda indietro le richieste incomplete.", chosen="10 minuti."),
+    ),
+    "Path_Integrazione_Task_Integra": (lognormal(20, 15, 240), assumed("Nessuna fonte descrive il passo: durata del consulente.")),
     "Task_Valuta": (
-        normal(5, 1),
-        declared("francesca", note="\"E' una mail che mando e una risposta che aspetto.\" Durata della risposta: assunzione."),
+        normal(10, 3),
+        estimated("francesca", said="\"e' una mail che mando e una risposta che aspetto.\"", chosen="10 minuti di lavoro del responsabile."),
     ),
-    "Path_Rifiuto_Task_Rifiuto": (normal(5, 1), assumed("Durata della comunicazione: assunzione del consulente.")),
-    "Task_Emetti": (normal(10, 3), declared("francesca", note="\"Emetto l'ordine e via.\"")),
+    "Path_Rifiuto_Task_Rifiuto": (normal(5, 1), assumed("Nessuna fonte descrive il rifiuto: durata del consulente.")),
+    "Task_Emetti": (normal(10, 3), estimated("francesca", said="\"emetto l'ordine e via.\"", chosen="10 minuti.")),
 }
 
-# Qui ogni richiesta completa passa dal responsabile (nel modello esteso solo
-# quelle sopra soglia): c'e' due pomeriggi a settimana e nessuno lo sostituisce
-# (Francesca). Nel To-Be un delegato autorizza ogni giorno.
-RESPONSABILE_AS_IS = [
-    {"from_day": "TUESDAY", "to_day": "TUESDAY", "begin": "16:00:00.000", "end": "18:00:00.000"},
-    {"from_day": "THURSDAY", "to_day": "THURSDAY", "begin": "16:00:00.000", "end": "18:00:00.000"},
-]
-RESPONSABILE_TO_BE = [{"from_day": "MONDAY", "to_day": "FRIDAY", "begin": "16:00:00.000", "end": "17:00:00.000"}]
+# Il responsabile: la fonte dice che manca a lungo e che nessuno lo sostituisce,
+# non quando c'e'. Il calendario e' quello del modello esteso
+# (scripts/launch_media_simulate.py), dichiarato come scelta del consulente.
+RESPONSABILE_PROVENANCE = estimated(
+    "francesca",
+    said="\"Se e' fuori, possono essere giorni. Non c'e' un sostituto formale\".",
+    chosen="disponibile un'ora il martedi' e un'ora il giovedi'. Nessuna fonte quantifica la presenza.",
+)
 
 # corsia -> (persone, costo orario): nessuna fonte lo dice
 RESOURCES = {"Reparto richiedente": (4, 38.0), "Ufficio Acquisti": (1, 45.0), "Responsabile Acquisti": (1, 70.0)}
 
-COMPLETA_SI, COMPLETA_NO = "Flow_Decision_Completa_to_Task_Valuta", "Flow_Decision_Completa_to_Path_Integrazione_Task_Richiedi"
+COMPLETA_SI, COMPLETA_NO = "Flow_Decision_Completa_to_Decision_Necessaria", "Flow_Decision_Completa_to_Path_Integrazione_Task_Richiedi"
+NECESSARIA_SI, NECESSARIA_NO = "Flow_Decision_Necessaria_to_Task_Valuta", "Flow_Decision_Necessaria_to_Task_Emetti"
 AUTORIZZATA_SI, AUTORIZZATA_NO = "Flow_Decision_Autorizzata_to_Task_Emetti", "Flow_Decision_Autorizzata_to_Path_Rifiuto_Task_Rifiuto"
+incomplete = estimated("francesca", said="\"A sensazione, piu' della meta'.\" (oltre il 50%)", chosen="55%.")
+threshold = assumed(
+    "Quota sopra la soglia di autorizzazione: la soglia e' una lacuna aperta (nessuna fonte la dice) e la "
+    "distribuzione degli importi non e' nota. Un terzo, come nel modello esteso: parametro incerto da far variare."
+)
 BRANCHES = {
-    COMPLETA_NO: (0.55, declared("francesca", note="\"A sensazione, piu' della meta'.\"")),
-    COMPLETA_SI: (0.45, declared("francesca", note="\"A sensazione, piu' della meta'.\"")),
+    COMPLETA_NO: (0.55, incomplete),
+    COMPLETA_SI: (0.45, incomplete),
+    NECESSARIA_SI: (AUTH_SHARE, threshold),
+    NECESSARIA_NO: (1 - AUTH_SHARE, threshold),
     AUTORIZZATA_SI: (0.9, assumed("Quota di richieste autorizzate: nessuna fonte la dice, assunzione del consulente.")),
     AUTORIZZATA_NO: (0.1, assumed("Quota di richieste respinte: nessuna fonte la dice, assunzione del consulente.")),
 }
@@ -95,9 +136,7 @@ def as_is_model(base: SimulationModel) -> SimulationModel:
             resource["provenance"] = assumed("Persone e costo orario: assunzione del consulente.")
             if resource["name"] == "Responsabile Acquisti":
                 resource["calendar_id"] = "responsabile-assente"
-                resource["provenance"] = declared(
-                    "francesca", note="\"Se e' fuori, possono essere giorni. Non c'e' un sostituto formale.\""
-                )
+                resource["provenance"] = RESPONSABILE_PROVENANCE
     for activity in data["activities"]:
         duration, provenance = DURATIONS[activity["element_id"]]
         for assignment in activity["assignments"]:
@@ -109,17 +148,20 @@ def as_is_model(base: SimulationModel) -> SimulationModel:
 
 
 def to_be_model(as_is: SimulationModel) -> SimulationModel:
-    """Solo cio' che gli intervistati hanno chiesto: richiesta completa e autorizzazione visibile."""
+    """Una richiesta delle fonti e un'ipotesi del consulente, ciascuna con la sua provenienza.
+
+    - Richiesta completa all'origine: la chiede Francesca. L'effetto sui rimbalzi
+      e sul tempo di compilazione e' una stima del consulente.
+    - Delega dell'autorizzazione: ipotesi del consulente, non di Francesca. Parte
+      dal problema che lei descrive (nessun sostituto formale). La sua richiesta
+      di un'autorizzazione "che si vede" non cambia nessun parametro: non e' simulata.
+    """
     data = as_is.model_dump(mode="json")
-    form = {
-        **declared(
-            "francesca",
-            note="To-Be: \"Farei in modo che la richiesta nasca gia' completa, con i campi obbligatori.\" "
-            "Effetto stimato (rimbalzi dal 55% al 25%): assunzione del consulente.",
-        ),
-        "origin": "manual",
-        "confidence": "low",
-    }
+    form = estimated(
+        "francesca",
+        said="\"Farei in modo che la richiesta nasca gia' completa, con i campi obbligatori.\"",
+        chosen="rimbalzi dal 55% al 25%, compilazione da 15 a 8 minuti.",
+    )
     for gateway in data["gateways"]:
         for branch in gateway["branches"]:
             if branch["flow_id"] == COMPLETA_NO:
@@ -130,20 +172,16 @@ def to_be_model(as_is: SimulationModel) -> SimulationModel:
         if activity["element_id"] == "Task_Compila":
             for assignment in activity["assignments"]:
                 assignment["duration"], assignment["provenance"] = normal(8, 3), form
+    delegate = estimated(
+        "francesca",
+        said="\"Non c'e' un sostituto formale\": e' il problema, la delega non la propone lei.",
+        chosen="ipotesi del consulente: un delegato autorizza un'ora ogni giorno lavorativo.",
+    )
     data["calendars"].append({"id": "responsabile-con-delega", "name": "Autorizzazione ogni giorno (delega)", "periods": RESPONSABILE_TO_BE})
     for pool in data["pools"]:
         for resource in pool["resources"]:
             if resource["name"] == "Responsabile Acquisti":
-                resource["calendar_id"] = "responsabile-con-delega"
-                resource["provenance"] = {
-                    **declared(
-                        "francesca",
-                        note="To-Be: \"E vorrei che l'autorizzazione fosse una cosa che si vede, non una mail che aspetto.\" "
-                        "Delega con una finestra al giorno: assunzione del consulente.",
-                    ),
-                    "origin": "manual",
-                    "confidence": "low",
-                }
+                resource["calendar_id"], resource["provenance"] = "responsabile-con-delega", delegate
     return SimulationModel.model_validate(data)
 
 
