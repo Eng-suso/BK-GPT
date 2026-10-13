@@ -66,6 +66,7 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
         [(flow_id, source, target) for flow_id, kind, source, target in routable if kind == "sequenceFlow"],
         boxes,
         attachments=[(flow_id, source, target) for flow_id, kind, source, target in routable if kind != "sequenceFlow"],
+        gateways={key for key in boxes if local_name(elements[key]).endswith("Gateway")},
         reserved={e.get("attachedToRef"): {"bottom"} for e in elements.values() if local_name(e) == "boundaryEvent"},
         pools=pools,
     )
