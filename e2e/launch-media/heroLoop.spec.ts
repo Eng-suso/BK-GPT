@@ -288,7 +288,9 @@ async function momentReview(page: Page, lang: Lang, format: Format, id: string):
   await record(page, id, async (rec) => {
     await rec.focus(area, 4, format === "16x9" ? 40 : 12);
     await page.waitForTimeout(600);
-    await moveTo(page, first);
+    // Il cursore indica l'opzione senza coprirne il testo.
+    const option = await box(first);
+    await moveTo(page, { x: area.x + area.width - 36, y: option.y + option.height / 2 });
     await page.waitForTimeout(3200);
   });
 }
