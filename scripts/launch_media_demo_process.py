@@ -6,7 +6,9 @@ Versione rivista su OMG BPMN 2.0.2 (revisione di Sohayb, 13 ottobre 2026):
   nome, le corsie sono i ruoli;
 - il processo parte da un evento condizionale ("Fabbisogno di acquisto rilevato");
 - la richiesta incompleta passa da "Richiedi integrazione" (Acquisti) prima di
-  "Integra la richiesta" (Reparto) e rientra da un merge esplicito;
+  "Integra la richiesta" (Reparto) e rientra direttamente in "Verifica la
+  completezza": i due ingressi sono alternativi, quindi niente rombo di merge
+  (OMG 10.5.2). Nel diagramma i rombi sono solo i punti in cui il processo decide;
 - "Valuta l'autorizzazione della spesa" e' un'azione, "Spesa autorizzata?" la
   decisione: il rifiuto ha il suo ramo e la sua fine;
 - ogni gateway esclusivo ha una condizione sul "Sì" e il "No" come default;
