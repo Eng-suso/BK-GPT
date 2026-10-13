@@ -42,3 +42,38 @@ Il piano chiede clip da 20–30 s: Evidenze, Contesto, Decisioni e Scenari
 superano il limite. O si consegnano piu' clip per tab (il sito lo supporta,
 con i pulsanti 01…n), o si tagliano scene. Da decidere con Sohayb prima del
 montaggio.
+
+## Hero: cosa arriva al team landing
+
+L'hero segue il piano: 20 s in loop, quattro momenti da 5 s. Si genera con
+`npx playwright test -c playwright.launch.config.ts heroLoop` e
+`python3 scripts/launch_media_montage.py hero`.
+
+| File | Formato | Lingua |
+| --- | --- | --- |
+| `hero-loop.{mp4,webm,jpg,webp}` | 16:9, 1920×1080 | italiano (stesso nome di oggi) |
+| `hero-loop.en.{mp4,webm,jpg,webp}` | 16:9, 1920×1080 | inglese |
+| `hero-loop-4x5.{mp4,webm,jpg,webp}` | 4:5, 1080×1350 | italiano |
+| `hero-loop-4x5.en.{mp4,webm,jpg,webp}` | 4:5, 1080×1350 | inglese |
+
+Il nome inglese segue la convenzione dei VTT (`<id>.<lingua>`). Modifiche
+richieste al sito, tutte nel codice e nessuna nel copy:
+
+- `Hero.tsx`: le quattro frasi passano a 0/5/10/15 s, in entrambe le lingue;
+- `productClips.ts`: `duration: 20` per `hero`;
+- `ProductFilm.tsx`: la sorgente per lingua (`hero-loop.en.mp4` quando la
+  lingua e' l'inglese) e la variante 4:5 sotto i 768 px.
+
+Come sono fatti:
+
+- velocita' 1×, cursore da 1,2 s, nessuna accelerazione;
+- il 4:5 non e' un ritaglio del 16:9: e' una ripresa del prodotto su un
+  telefono (390×844) con la camera che segue l'azione. Con il ritaglio del
+  desktop una riga da 620 px, mostrata a 350 px, scendeva a 7 px;
+- `scripts/launch_media_montage.py` si ferma se un testo inquadrato scende
+  sotto gli 11 px alla dimensione del sito (756 px per il 16:9, il tablet;
+  350 px per il 4:5), se un colpo d'insieme dura piu' di 2 s o se il logo
+  bpmn.io entra in quadro;
+- la dicitura "Caso dimostrativo · valori simulati" ("Demo case · simulated
+  values") e' dentro il video, nella fascia in basso che la camera lascia
+  libera.
