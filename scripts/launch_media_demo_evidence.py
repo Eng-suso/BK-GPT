@@ -37,9 +37,11 @@ BINDINGS = {
     "Task_Verifica": ["verifica_lavorabilita"],
     "Decision_Completa": ["richiesta_lavorabile"],
     "Path_Integrazione_Task_Richiedi": ["richiedi_integrazione"],
+    # «Sopra una certa cifra devo chiedere una autorizzazione»: non tutte le
+    # richieste passano dal responsabile. La soglia e' la lacuna aperta.
+    "Decision_Necessaria": ["serve_autorizzazione", "richiedi_autorizzazione"],
     "Task_Valuta": ["richiedi_autorizzazione"],
-    # La risposta del responsabile e' l'esito. "Dipende dall'importo"
-    # (serve_autorizzazione) parla della soglia, che e' la lacuna aperta.
+    # La risposta del responsabile e' l'esito.
     "Decision_Autorizzata": ["autorizza_spesa"],
     "Task_Emetti": ["emetti_ordine"],
     "Event_Emesso": ["emetti_ordine"],

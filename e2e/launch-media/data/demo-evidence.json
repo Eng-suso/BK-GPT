@@ -103,6 +103,25 @@
    ]
   },
   {
+   "element_id": "Decision_Necessaria",
+   "label": "Autorizzazione necessaria?",
+   "status": "fonte",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Ufficio Acquisti",
+     "quote": "Dipende dall'importo e dal tipo di acquisto."
+    },
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Ufficio Acquisti",
+     "quote": "Sopra una certa cifra devo chiedere una autorizzazione al mio responsabile"
+    }
+   ]
+  },
+  {
    "element_id": "Task_Valuta",
    "label": "Valuta la richiesta di spesa",
    "status": "fonte",
