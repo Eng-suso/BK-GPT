@@ -87,12 +87,13 @@ def _compile(process: ProcessUnderstanding) -> BPMNSemanticModel:
 def test_decision_without_a_gateway_type_still_compiles_to_an_exclusive_gateway():
     model = _compile(_process("exclusive"))
     gateways = [node for node in model.flowNodes if node.type.endswith("Gateway")]
-    assert [g.type for g in gateways] == ["exclusiveGateway"]
+    # the decision, and the merge where the correction comes back to the review
+    assert sorted((g.type, bool(g.name)) for g in gateways) == [("exclusiveGateway", False), ("exclusiveGateway", True)]
 
 
 def test_inclusive_decision_compiles_to_an_inclusive_gateway():
     model = _compile(_process("inclusive"))
-    gateway = next(node for node in model.flowNodes if node.type.endswith("Gateway"))
+    gateway = next(node for node in model.flowNodes if node.type == "inclusiveGateway")
     assert gateway.type == "inclusiveGateway"
     outgoing = [flow for flow in model.sequenceFlows if flow.sourceRef == gateway.id]
     assert len(outgoing) >= 2
@@ -105,8 +106,7 @@ def test_inclusive_decision_compiles_to_an_inclusive_gateway():
 
 def test_event_based_decision_forks_onto_catch_events():
     model = _compile(_process("event_based", outcome_label="Nessuna risposta dopo 5 giorni"))
-    gateway = next(node for node in model.flowNodes if node.type.endswith("Gateway"))
-    assert gateway.type == "eventBasedGateway"
+    gateway = next(node for node in model.flowNodes if node.type == "eventBasedGateway")
 
     node_by_id = {node.id: node for node in model.flowNodes}
     branch_targets = [
