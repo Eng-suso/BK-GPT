@@ -96,6 +96,13 @@ def test_a_decision_after_a_branch_step_becomes_a_gateway_on_that_branch():
     assert not any("non mappabile" in warning for warning in model.model_warnings)
 
 
+def test_a_branch_step_keeps_its_traceability_to_the_plan():
+    """Il pannello delle evidenze ritrova un passo del ramo dal suo riferimento."""
+    model = _compile(_invoice())
+
+    assert _node(model, "Rivedi la fattura").sourceRefs == ["steps:rivedi"]
+
+
 def test_a_reviewed_invoice_never_ends_as_paid():
     model = _compile(_invoice())
 

@@ -876,6 +876,9 @@ def _add_alternative_paths(
                     laneId=lane_id,
                     owner=actor_label(actors, source_step.actor_ids),
                     loopCharacteristics=_loop_characteristics(source_step),
+                    # Come i passi del percorso principale: il pannello delle
+                    # evidenze ritrova il nodo dal suo riferimento.
+                    sourceRefs=[source_ref_id("steps", source_step.id)],
                 )
                 nodes.append(branch_node)
                 registry.map(source_step.id, branch_node.id)
