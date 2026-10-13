@@ -12,7 +12,12 @@ Esce `e2e/launch-media/data/demo-evidence.json` e, per il sito in inglese,
 dalle interviste tradotte (`data/en/quotes.json`, verificato da
 `scripts/launch_media_quotes_en.py`).
 
-    python3 scripts/launch_media_demo_evidence.py
+Ogni elemento porta il suo riferimento di tracciabilita' (`source_ref`, quello
+che il compilatore scrive nella documentazione del nodo) e l'esito entra nel
+disegno con la funzione del prodotto (`mark_provenance`): `demo.marked.bpmn` e
+`demo.en.marked.bpmn`, dove le ipotesi del consulente sono segnate "da confermare".
+
+    PYTHONPATH=. uv run python scripts/launch_media_demo_evidence.py
 """
 
 from __future__ import annotations
@@ -21,6 +26,8 @@ import json
 import re
 import sys
 from pathlib import Path
+
+from backend.workspace_services.bpmn_provenance_marks import mark_provenance
 
 GOLDEN = Path("tests/golden/esaote_ciclo_passivo")
 BPMN = Path("e2e/launch-media/data/demo.bpmn")
@@ -64,11 +71,32 @@ CONSULTANT_HYPOTHESES = {
 }
 
 
+def source_refs(xml: str) -> dict[str, str]:
+    """Il riferimento di tracciabilita' di ogni nodo, dalla sua documentazione."""
+    refs = {}
+    for element_id, body in re.findall(r'<bpmn:\w+ id="([^"]+)"[^>]*>(.*?)</bpmn:', xml, re.S):
+        found = re.search(r'DeliR traceability:\s*(\{.*?\})\s*$', body.split("</bpmn:documentation>")[0], re.S)
+        values = [ref for ref in json.loads(found.group(1)).get("source_refs", []) if isinstance(ref, str)] if found else []
+        if values:
+            refs[element_id] = values[0]
+    return refs
+
+
+def mark(path: Path, elements: list[dict]) -> None:
+    """Scrive l'esito di ogni elemento nel disegno, come fa il backend."""
+    statuses = {item["source_ref"]: "verified" if item["evidence"] else "unverified" for item in elements}
+    xml, counts = mark_provenance(path.read_text(encoding="utf-8"), statuses)
+    out = path.with_suffix(".marked.bpmn")
+    out.write_text('<?xml version="1.0" encoding="UTF-8"?>\n' + xml, encoding="utf-8")
+    print(f"ok {out}: {counts}")
+
+
 def main() -> int:
     expected = json.loads((GOLDEN / "expected.json").read_text(encoding="utf-8"))
     texts = {name: (GOLDEN / "sources" / name).read_text(encoding="utf-8") for name in INTERVIEWS}
     xml = BPMN.read_text(encoding="utf-8")
     labels = dict(re.findall(r'<bpmn:\w+ id="([^"]+)" name="([^"]+)"', xml))
+    refs = source_refs(xml)
     by_step: dict[str, list[dict]] = {}
     for binding in expected["expected_evidence_bindings"]:
         by_step.setdefault(binding["element"], []).append(binding)
@@ -84,11 +112,12 @@ def main() -> int:
                 evidence.append({"source_id": source_id, "person": person, "role": role, "quote": binding["quote"]})
         if not evidence:
             missing.append(f"{element_id}: nessuna citazione")
-        elements.append({"element_id": element_id, "label": labels.get(element_id, element_id), "status": "fonte", "evidence": evidence})
+        elements.append({"element_id": element_id, "source_ref": refs.get(element_id), "label": labels.get(element_id, element_id), "status": "fonte", "evidence": evidence})
     for element_id, note in CONSULTANT_HYPOTHESES.items():
-        elements.append({"element_id": element_id, "label": labels.get(element_id, element_id), "status": "ipotesi del consulente", "note": note, "evidence": []})
+        elements.append({"element_id": element_id, "source_ref": refs.get(element_id), "label": labels.get(element_id, element_id), "status": "ipotesi del consulente", "note": note, "evidence": []})
 
     unknown = [element_id for element_id in (*BINDINGS, *CONSULTANT_HYPOTHESES) if element_id not in labels]
+    missing += [f"{item['element_id']}: nessun riferimento di tracciabilita'" for item in elements if not item["source_ref"]]
     if missing or unknown:
         for line in [*missing, *(f"{element_id}: non e' nel BPMN" for element_id in unknown)]:
             print("!", line)
@@ -98,6 +127,8 @@ def main() -> int:
         encoding="utf-8",
     )
     write_english(elements)
+    mark(BPMN, elements)
+    mark(BPMN.with_name("demo.en.bpmn"), elements)
     sourced = sum(1 for item in elements if item["status"] == "fonte")
     print(f"ok {OUT}: {sourced} elementi con fonte, {len(CONSULTANT_HYPOTHESES)} ipotesi del consulente")
     return 0
@@ -113,6 +144,7 @@ def write_english(elements: list[dict]) -> None:
         hypothesis = item["status"] != "fonte"
         english.append({
             "element_id": item["element_id"],
+            "source_ref": item["source_ref"],
             "label": labels[item["element_id"]],
             "status": "consultant hypothesis" if hypothesis else "source",
             **({"note": HYPOTHESES_EN[item["element_id"]]} if hypothesis else {}),
