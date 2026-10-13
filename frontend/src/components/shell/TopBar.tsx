@@ -1,6 +1,7 @@
-import { Search, PanelLeft } from "lucide-react";
+import { Menu, Search, PanelLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { DelirLogo } from "@/components/brand/DelirLogo";
 import { AccountMenu } from "@/features/identity/AccountMenu";
 import { PeriodMenu } from "@/features/period/PeriodMenu";
 import { NotificationsMenu } from "@/features/notifications/NotificationsMenu";
@@ -16,11 +17,15 @@ import { cn } from "@/lib/utils";
  * @param onToggleNavigation - Callback invoked when the navigation toggle is activated.
  * @returns The product header element.
  */
-export function TopBar({ compact = false, navigationExpanded, onToggleNavigation, onOpenSearch, onNavigate, onOpenSettings, periodApplies = false }: { compact?: boolean; periodApplies?: boolean; navigationExpanded?: boolean; onToggleNavigation?: () => void; onOpenSearch?: () => void; onNavigate?: (href: string) => void; onOpenSettings?: () => void } = {}): React.JSX.Element {
+export function TopBar({ compact = false, navigationExpanded, onToggleNavigation, onOpenSearch, onNavigate, onOpenSettings, onOpenMobileNavigation, periodApplies = false }: { compact?: boolean; onOpenMobileNavigation?: () => void; periodApplies?: boolean; navigationExpanded?: boolean; onToggleNavigation?: () => void; onOpenSearch?: () => void; onNavigate?: (href: string) => void; onOpenSettings?: () => void } = {}): React.JSX.Element {
   const { t } = useTranslation("common");
 
   return (
     <header className="app-chrome flex min-w-0 items-center gap-2 border-b px-3 sm:gap-3.5">
+      {/* Sul telefono la navigazione sta in un cassetto: un rail fisso si
+          prendeva un sesto della larghezza a ogni schermata. */}
+      {onOpenMobileNavigation && <button type="button" onClick={onOpenMobileNavigation} aria-label={t("nav.open")} aria-haspopup="dialog" className="grid size-[34px] shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-ring md:hidden"><Menu className="size-[18px]" strokeWidth={1.7} /></button>}
+      {onOpenMobileNavigation && <DelirLogo className="text-[18px] md:hidden" />}
       {onToggleNavigation && <button type="button" onClick={onToggleNavigation} aria-label={t("nav.toggle")} aria-expanded={navigationExpanded} className="hidden size-8 shrink-0 place-items-center rounded-md hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring lg:grid"><PanelLeft className="size-4" /></button>}
       {/* Un bottone e non un campo: la ricerca vive in un pannello che sa
           raggruppare i risultati e si percorre da tastiera. Un input qui

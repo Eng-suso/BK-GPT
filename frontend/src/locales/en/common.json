@@ -9,7 +9,8 @@
     "archive": "Archive",
     "help": "Help",
     "profile": "Settings",
-    "toggle": "Expand or collapse navigation"
+    "toggle": "Expand or collapse navigation",
+    "open": "Open navigation"
   },
   "actions": {
     "new": "New",

@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+import { primaryNav } from "./fixtures/primaryNav";
+
 /**
  * Chiudere un incarico, riaprirlo, eliminarlo.
  *
@@ -270,7 +272,7 @@ test("il consulente chiude un cliente e lo ritrova in Archivio", async ({ page }
   await expect(dialog).toBeHidden();
   await expect(page.getByRole("cell", { name: "Esaote" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Archivio" }).click();
+  await (await primaryNav(page)).getByRole("button", { name: "Archivio" }).click();
   await expect(page.getByText("Esaote")).toBeVisible();
   await expect(page.getByText("Incarico concluso a giugno")).toBeVisible();
 });
@@ -288,7 +290,7 @@ test("un cliente archiviato si riapre dall'Archivio", async ({ page }) => {
   await dialog.getByRole("button", { name: "Ripristina", exact: true }).click();
 
   await expect(dialog).toBeHidden();
-  await page.getByRole("button", { name: "Clienti" }).click();
+  await (await primaryNav(page)).getByRole("button", { name: "Clienti" }).click();
   await expect(page.getByRole("cell", { name: "Esaote" }).first()).toBeVisible();
 });
 

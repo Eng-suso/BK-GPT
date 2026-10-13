@@ -1,5 +1,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Dialog as DialogPrimitive } from "radix-ui";
+import { useTranslation } from "react-i18next";
 
 import { ErrorBoundary } from "@/components/feedback";
 import { GlobalSidebar } from "@/components/shell/GlobalSidebar";
@@ -43,6 +45,8 @@ export function AppLayout(): React.JSX.Element {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const { t } = useTranslation("common");
 
   // La ricerca si apre da tastiera ovunque nel prodotto: e' il gesto con cui si
   // salta a un altro incarico senza tornare a un elenco.
@@ -59,9 +63,10 @@ export function AppLayout(): React.JSX.Element {
 
   return (
     <>
-    <div className={cn("app-material grid h-dvh grid-cols-[60px_minmax(0,1fr)] overflow-hidden text-foreground", !compactNav && "lg:grid-cols-[212px_minmax(0,1fr)]")}>
+    <div className={cn("app-material grid h-dvh grid-cols-[minmax(0,1fr)] overflow-hidden text-foreground md:grid-cols-[60px_minmax(0,1fr)]", !compactNav && "lg:grid-cols-[212px_minmax(0,1fr)]")}>
       <GlobalSidebar
         compact={compactNav}
+        className="max-md:hidden"
         activeSection={activeSection}
         onSectionChange={(section) => navigate(SECTION_PATH[section])}
         settingsActive={settingsActive}
@@ -69,7 +74,7 @@ export function AppLayout(): React.JSX.Element {
         onOpenSettings={() => navigate(ROUTES.settings)}
       />
       <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden", isStudio ? "grid-rows-[48px_minmax(0,1fr)]" : "grid-rows-[60px_minmax(0,1fr)]")}>
-        <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} onOpenSearch={() => setIsSearchOpen(true)} onNavigate={(href) => navigate(href)} onOpenSettings={() => navigate(ROUTES.settings)} periodApplies={periodApplies} />
+        <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} onOpenSearch={() => setIsSearchOpen(true)} onNavigate={(href) => navigate(href)} onOpenSettings={() => navigate(ROUTES.settings)} onOpenMobileNavigation={() => setIsMobileNavOpen(true)} periodApplies={periodApplies} />
         <main className="min-h-0 overflow-hidden">
           {/* La rete sta qui dentro e non intorno alla shell: una schermata che
               si ferma non deve portarsi via navigazione, ricerca e chat. La
@@ -92,6 +97,22 @@ export function AppLayout(): React.JSX.Element {
         della griglia il suo `<section>` prendeva una riga implicita e
         schiacciava di 125px sidebar e contenuto. */}
     <Toaster position="bottom-right" />
+    <DialogPrimitive.Root open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 ui-dialog-scrim md:hidden" />
+        <DialogPrimitive.Content aria-describedby={undefined} className="fixed inset-y-0 left-0 z-50 w-[min(280px,82vw)] shadow-xl outline-none md:hidden">
+          <DialogPrimitive.Title className="sr-only">{t("nav.primary")}</DialogPrimitive.Title>
+          <GlobalSidebar
+            drawer
+            activeSection={activeSection}
+            onSectionChange={(section) => { setIsMobileNavOpen(false); navigate(SECTION_PATH[section]); }}
+            settingsActive={settingsActive}
+            onOpenHelp={() => { setIsMobileNavOpen(false); setIsHelpOpen(true); }}
+            onOpenSettings={() => { setIsMobileNavOpen(false); navigate(ROUTES.settings); }}
+          />
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
     <HelpDialog
       open={isHelpOpen}
       onOpenChange={setIsHelpOpen}
@@ -111,9 +132,9 @@ export function AppLayout(): React.JSX.Element {
 /** Lo scheletro di una schermata che sta arrivando. */
 function ScreenLoading(): React.JSX.Element {
   return (
-    <div className="flex h-full flex-col gap-4 px-7 py-6" aria-busy="true">
-      <Skeleton className="h-8 w-64" />
-      <Skeleton className="h-4 w-96" />
+    <div className="flex h-full flex-col gap-4 px-4 py-6 sm:px-7" aria-busy="true">
+      <Skeleton className="h-8 w-64 max-w-full" />
+      <Skeleton className="h-4 w-96 max-w-full" />
       <Skeleton className="h-full w-full" />
     </div>
   );
