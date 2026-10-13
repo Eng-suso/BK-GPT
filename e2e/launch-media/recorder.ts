@@ -40,7 +40,13 @@ function smallestText(area: Rect): number | null {
     const r = range.getBoundingClientRect();
     if (r.width === 0 || r.right < area.x || r.left > area.x + area.width || r.bottom < area.y || r.top > area.y + area.height) continue;
     const style = getComputedStyle(parent);
-    if (style.visibility === "hidden" || Number(style.opacity) === 0) continue;
+    if (style.visibility === "hidden") continue;
+    // Testo nascosto da un antenato trasparente (es. elementi che entrano dopo).
+    let hidden = false;
+    for (let el: Element | null = parent; el && el !== document.body; el = el.parentElement) {
+      if (Number(getComputedStyle(el).opacity) === 0) { hidden = true; break; }
+    }
+    if (hidden) continue;
     // Nel canvas BPMN il testo e' SVG scalato dallo zoom: conta l'altezza disegnata.
     const svg = parent.closest("svg");
     const size = svg ? r.height / 1.2 : parseFloat(style.fontSize);
@@ -53,7 +59,7 @@ export class Recorder {
   private session: CDPSession | null = null;
   private frames: { file: string; t: number }[] = [];
   private marks: Record<string, number> = {};
-  private camera: { t: number; rect: Rect | null; zoom?: number; narrow?: Rect; minFont?: number | null }[] = [];
+  private camera: { t: number; rect: Rect | null; zoom?: number; narrow?: Rect; minFont?: number | null; overview?: boolean }[] = [];
   private started = 0;
   private pending: Promise<unknown>[] = [];
 
@@ -91,13 +97,14 @@ export class Recorder {
    * Opzioni del piano video (scripts/launch_media_montage.py):
    * - `narrow`: l'area da tenere nel formato 4:5 del telefono, se diversa;
    * - il testo piu' piccolo dentro l'area (`minFont`, px CSS), per verificare
-   *   che a schermo non scenda sotto gli 11 px.
+   *   che a schermo non scenda sotto gli 11 px;
+   * - `overview`: colpo d'insieme per orientarsi (al massimo 2 s, testo libero).
    */
   async focus(
     target: Locator | Rect,
     zoom = 1.6,
     pad = 48,
-    options: { narrow?: Locator | Rect; narrowPad?: number } = {},
+    options: { narrow?: Locator | Rect; narrowPad?: number; overview?: boolean } = {},
   ): Promise<void> {
     const box = await rectOf(target);
     if (!box) return;
@@ -105,8 +112,10 @@ export class Recorder {
     const padded = (r: Rect, p: number) => ({ x: r.x - p, y: r.y - p, width: r.width + 2 * p, height: r.height + 2 * p });
     const rect = padded(box, pad);
     const narrow = narrowBox ? padded(narrowBox, options.narrowPad ?? pad) : null;
-    const minFont = await this.page.evaluate(smallestText, narrow ?? rect).catch(() => null);
-    this.camera.push({ t: Date.now() / 1000 - this.started, rect, zoom, ...(narrow ? { narrow } : {}), minFont });
+    // Un colpo d'insieme serve a orientarsi: niente verifica del testo, ma il
+    // montaggio lo tiene al massimo 2 s (piano video).
+    const minFont = options.overview ? null : await this.page.evaluate(smallestText, narrow ?? rect).catch(() => null);
+    this.camera.push({ t: Date.now() / 1000 - this.started, rect, zoom, ...(narrow ? { narrow } : {}), minFont, ...(options.overview ? { overview: true } : {}) });
   }
 
   /** Ritorno al campo largo. */
