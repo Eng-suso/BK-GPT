@@ -1,8 +1,8 @@
 {
   "fps": 30,
   "formats": {
-    "16x9": { "size": [1920, 1080], "display": 756 },
-    "4x5": { "size": [1080, 1350], "display": 350 }
+    "16x9": { "size": [1920, 1080], "display": 756, "reserve": 0.07 },
+    "4x5": { "size": [1080, 1350], "display": 350, "reserve": 0.07 }
   },
   "cuts": {
     "hero": {

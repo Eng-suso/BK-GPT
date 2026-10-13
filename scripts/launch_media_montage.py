@@ -17,7 +17,8 @@ Ogni taglio esce in ogni lingua del sito (italiano e inglese), in
 poster jpg/webp. Nomi come i VTT del sito: `hero-loop.mp4` (it),
 `hero-loop.en.mp4`, `hero-loop-4x5.mp4`, `hero-loop-4x5.en.mp4`.
 
-    python3 scripts/launch_media_montage.py hero
+    python3 scripts/launch_media_montage.py hero        # tutte le lingue
+    python3 scripts/launch_media_montage.py hero it     # solo italiano
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ CONFIG = json.loads(Path("e2e/launch-media/montage.json").read_text(encoding="ut
 FPS = CONFIG.get("fps", 30)
 CAMERA_MOVE = 0.9  # secondi di un movimento di camera
 MIN_TEXT_PX = 11  # testo UI minimo alla dimensione mostrata
+MAX_OVERVIEW = 2.0  # secondi di inquadratura larga, solo per orientarsi
 
 
 def ease_in_out(x: float) -> float:
@@ -132,6 +134,10 @@ class Shot:
         for key in meta.get("camera", []):
             rect = key.get("narrow") if portrait and key.get("narrow") else key.get("rect")
             target = Box(rect["x"], rect["y"], rect["width"], rect["height"]) if rect else None
+            # La fascia in basso resta alla dicitura "caso dimostrativo": l'area da
+            # mostrare sta sopra.
+            if target and fmt.get("reserve"):
+                target = Box(target.x, target.y, target.w, target.h / (1 - fmt["reserve"]))
             window = window_for(target, aspect, self.vw, self.vh, key.get("zoom", 1.6), forbidden)
             t = key["t"] - self.offset - self.start
             self.camera.append((t, window))
@@ -140,6 +146,14 @@ class Shot:
                 shown = font * fmt["display"] / window.w
                 if shown < MIN_TEXT_PX:
                     self.problems.append(f"{name}/{self.id} a {max(t, 0):.1f} s: testo {font:.1f} px mostrato a {shown:.1f} px (minimo {MIN_TEXT_PX})")
+        # Colpo d'insieme (o campo largo): al massimo 2 s, poi la camera stringe.
+        keys = meta.get("camera", [])
+        for index, key in enumerate(keys):
+            if key.get("overview") or not key.get("rect"):
+                start = key["t"] - self.offset - self.start
+                end = keys[index + 1]["t"] - self.offset - self.start if index + 1 < len(keys) else self.duration
+                if min(end, self.duration) - max(start, 0) > MAX_OVERVIEW + CAMERA_MOVE:
+                    self.problems.append(f"{name}/{self.id} a {max(start, 0):.1f} s: inquadratura larga per {min(end, self.duration) - max(start, 0):.1f} s (massimo {MAX_OVERVIEW})")
         if not self.camera or self.camera[0][0] > 0:
             self.camera.insert(0, (-1.0, window_for(None, aspect, self.vw, self.vh, 1.0, forbidden)))
 
@@ -153,7 +167,9 @@ class Shot:
             w = math.exp(math.log(current.w) + (math.log(box.w) - math.log(current.w)) * p)
             cx = current.cx + (box.cx - current.cx) * p
             cy = current.cy + (box.cy - current.cy) * p
-            current = Box(cx - w / 2, cy - w * (box.h / box.w) / 2, w, w * box.h / box.w)
+            h = w * box.h / box.w
+            # A meta' movimento la finestra resta dentro lo schermo.
+            current = Box(min(max(cx - w / 2, 0), self.vw - w), min(max(cy - h / 2, 0), self.vh - h), w, h)
         return current
 
     def frame(self, t: float) -> np.ndarray:
@@ -162,7 +178,9 @@ class Shot:
         image = load_frame(self.frames_file[index])
         scale = image.width / self.vw
         box = self.window(t)
-        crop = (box.x * scale, box.y * scale, (box.x + box.w) * scale, (box.y + box.h) * scale)
+        # Arrotondamenti: la finestra non esce mai dal fotogramma.
+        crop = (max(0.0, box.x * scale), max(0.0, box.y * scale),
+                min(image.width, (box.x + box.w) * scale), min(image.height, (box.y + box.h) * scale))
         out = image.resize((self.out_w, self.out_h), Image.LANCZOS, box=crop)
         return np.asarray(out, dtype=np.float32) / 255.0
 
@@ -183,7 +201,13 @@ def render(name: str, cut: dict, fmt_name: str, lang: str) -> list[str]:
     size = tuple(fmt["size"])
     # `{lang}` nei nomi: ogni lingua ha la sua ripresa (interfaccia e caso tradotti).
     localize = lambda text: text.replace("{lang}", lang)
-    shots = [Shot(entry | {"scene": localize(entry["scene"])}, fmt, f"{name}-{lang}-{fmt_name}") for entry in cut["shots"]]
+    # Una scena puo' avere la sua ripresa per il formato (`<scena>-4x5`, dal
+    # telefono): vince sul ritaglio del desktop.
+    def take(scene: str) -> str:
+        own = f"{scene}-{fmt_name}"
+        return own if (RAW / own / "scene.json").exists() else scene
+
+    shots = [Shot(entry | {"scene": take(localize(entry["scene"]))}, fmt, f"{name}-{lang}-{fmt_name}") for entry in cut["shots"]]
     problems = [p for shot in shots for p in shot.problems]
     if problems:
         return problems
@@ -240,12 +264,15 @@ def web_export(master: Path, base: Path, poster: float) -> None:
 
 
 def main() -> int:
-    only = set(sys.argv[1:])
+    args = set(sys.argv[1:])
+    # `it` / `en` fra gli argomenti limitano le lingue.
+    langs = args & {"it", "en"}
+    only = args - langs
     problems: list[str] = []
     for name, cut in CONFIG["cuts"].items():
         if only and name not in only:
             continue
-        for lang in cut.get("languages", ["it"]):
+        for lang in [lang for lang in cut.get("languages", ["it"]) if not langs or lang in langs]:
             for fmt_name in cut["files"]:
                 problems += render(name, cut, fmt_name, lang)
     for line in problems:
