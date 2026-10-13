@@ -1,0 +1,466 @@
+{
+ "simulation_template": {
+  "resources": [
+   {
+    "id": "bpmn-lane-4933da987a4bdf16",
+    "name": "Reparto richiedente",
+    "kind": "lane",
+    "bpmn_id": "Actor_Reparto",
+    "pool_name": "Vetrano Industriale S.p.A.",
+    "parent_name": null,
+    "task_ids": [
+     "Task_Compila",
+     "Task_Invia",
+     "Path_Integrazione_Task_Integra"
+    ]
+   },
+   {
+    "id": "bpmn-lane-1a881fcef1af2cf3",
+    "name": "Ufficio Acquisti",
+    "kind": "lane",
+    "bpmn_id": "Actor_Acquisti",
+    "pool_name": "Vetrano Industriale S.p.A.",
+    "parent_name": null,
+    "task_ids": [
+     "Task_Verifica",
+     "Task_Emetti",
+     "Path_Integrazione_Task_Richiedi"
+    ]
+   },
+   {
+    "id": "bpmn-lane-6e4089d9968bd645",
+    "name": "Responsabile Acquisti",
+    "kind": "lane",
+    "bpmn_id": "Actor_Responsabile",
+    "pool_name": "Vetrano Industriale S.p.A.",
+    "parent_name": null,
+    "task_ids": [
+     "Task_Valuta",
+     "Path_Rifiuto_Task_Rifiuto"
+    ]
+   }
+  ],
+  "tasks": [
+   {
+    "element_id": "Task_Compila",
+    "name": "Compila la richiesta di acquisto",
+    "type": "task"
+   },
+   {
+    "element_id": "Task_Invia",
+    "name": "Invia la richiesta",
+    "type": "task"
+   },
+   {
+    "element_id": "Task_Verifica",
+    "name": "Verifica la completezza della richiesta",
+    "type": "task"
+   },
+   {
+    "element_id": "Task_Valuta",
+    "name": "Valuta la richiesta di spesa",
+    "type": "task"
+   },
+   {
+    "element_id": "Task_Emetti",
+    "name": "Emetti l'ordine di acquisto",
+    "type": "task"
+   },
+   {
+    "element_id": "Path_Integrazione_Task_Richiedi",
+    "name": "Richiedi integrazione",
+    "type": "task"
+   },
+   {
+    "element_id": "Path_Integrazione_Task_Integra",
+    "name": "Integra la richiesta",
+    "type": "task"
+   },
+   {
+    "element_id": "Path_Rifiuto_Task_Rifiuto",
+    "name": "Comunica il rifiuto",
+    "type": "task"
+   }
+  ],
+  "gateways": [
+   {
+    "element_id": "Decision_Completa",
+    "name": "Richiesta completa?",
+    "type": "exclusiveGateway",
+    "branches": [
+     {
+      "flow_id": "Flow_Decision_Completa_to_Task_Valuta",
+      "flow_name": "Sì",
+      "target_name": "Valuta la richiesta di spesa"
+     },
+     {
+      "flow_id": "Flow_Decision_Completa_to_Path_Integrazione_Task_Richiedi",
+      "flow_name": "No",
+      "target_name": "Richiedi integrazione"
+     }
+    ]
+   },
+   {
+    "element_id": "Decision_Autorizzata",
+    "name": "Spesa autorizzata?",
+    "type": "exclusiveGateway",
+    "branches": [
+     {
+      "flow_id": "Flow_Decision_Autorizzata_to_Task_Emetti",
+      "flow_name": "Sì",
+      "target_name": "Emetti l'ordine di acquisto"
+     },
+     {
+      "flow_id": "Flow_Decision_Autorizzata_to_Path_Rifiuto_Task_Rifiuto",
+      "flow_name": "No",
+      "target_name": "Comunica il rifiuto"
+     }
+    ]
+   }
+  ],
+  "standard_calendar": {
+   "id": "delir-calendar-standard",
+   "name": "Standard office calendar",
+   "periods": [
+    {
+     "from_day": "MONDAY",
+     "to_day": "FRIDAY",
+     "begin": "09:00",
+     "end": "17:00"
+    }
+   ]
+  }
+ },
+ "simulation_compatibility": {
+  "elements": [
+   {
+    "element_id": "Process_richiesta_acquisto_LaneSet",
+    "name": "",
+    "bpmn_type": "laneSet",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "Actor_Reparto",
+    "name": "Reparto richiedente",
+    "bpmn_type": "lane",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "Actor_Acquisti",
+    "name": "Ufficio Acquisti",
+    "bpmn_type": "lane",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "Actor_Responsabile",
+    "name": "Responsabile Acquisti",
+    "bpmn_type": "lane",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "StartEvent_1",
+    "name": "Fabbisogno di acquisto rilevato",
+    "bpmn_type": "startEvent",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "startEvent",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Task_Compila",
+    "name": "Compila la richiesta di acquisto",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "Task_Invia",
+    "name": "Invia la richiesta",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "Task_Verifica",
+    "name": "Verifica la completezza della richiesta",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "Decision_Completa",
+    "name": "Richiesta completa?",
+    "bpmn_type": "exclusiveGateway",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "exclusiveGateway",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Task_Valuta",
+    "name": "Valuta la richiesta di spesa",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "Decision_Autorizzata",
+    "name": "Spesa autorizzata?",
+    "bpmn_type": "exclusiveGateway",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "exclusiveGateway",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Task_Emetti",
+    "name": "Emetti l'ordine di acquisto",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "Event_Emesso",
+    "name": "Ordine emesso",
+    "bpmn_type": "endEvent",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "endEvent",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Event_Respinta",
+    "name": "Richiesta respinta",
+    "bpmn_type": "endEvent",
+    "status": "approximated",
+    "impact": "none",
+    "simulated_as": "Event_Emesso",
+    "parent_id": null,
+    "note": "Unito all'evento di fine Event_Emesso: il motore ne accetta uno solo."
+   },
+   {
+    "element_id": "Path_Integrazione_Task_Richiedi",
+    "name": "Richiedi integrazione",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "Path_Integrazione_Task_Integra",
+    "name": "Integra la richiesta",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "Path_Rifiuto_Task_Rifiuto",
+    "name": "Comunica il rifiuto",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "Flow_StartEvent_1_to_Task_Compila",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_Task_Compila_to_Task_Invia",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_Task_Invia_to_Task_Verifica",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_Task_Verifica_to_Decision_Completa",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_Decision_Completa_to_Task_Valuta",
+    "name": "Sì",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_Task_Valuta_to_Decision_Autorizzata",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_Decision_Autorizzata_to_Task_Emetti",
+    "name": "Sì",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_Task_Emetti_to_Event_Emesso",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_Decision_Completa_to_Path_Integrazione_Task_Richiedi",
+    "name": "No",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_Path_Integrazione_Task_Richiedi_to_Path_Integrazione_Task_Integra",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_Path_Integrazione_Task_Integra_to_Task_Verifica",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_Decision_Autorizzata_to_Path_Rifiuto_Task_Rifiuto",
+    "name": "No",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_Path_Rifiuto_Task_Rifiuto_to_Event_Respinta",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "approximated",
+    "impact": "none",
+    "simulated_as": "Path_Rifiuto_Task_Rifiuto → Event_Emesso",
+    "parent_id": null,
+    "note": "Ricollegato: da Path_Rifiuto_Task_Rifiuto → Event_Respinta a Path_Rifiuto_Task_Rifiuto → Event_Emesso."
+   },
+   {
+    "element_id": "Data_Richiesta",
+    "name": "Richiesta di acquisto",
+    "bpmn_type": "dataObjectReference",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Elemento descrittivo: il motore non lo simula e i KPI non cambiano."
+   },
+   {
+    "element_id": "Data_Ordine",
+    "name": "Ordine di acquisto",
+    "bpmn_type": "dataObjectReference",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Elemento descrittivo: il motore non lo simula e i KPI non cambiano."
+   }
+  ],
+  "counts": {
+   "preserved": 24,
+   "approximated": 2,
+   "flattened": 0,
+   "removed": 6
+  },
+  "kpi_affecting": 0,
+  "undeclared": 0
+ }
+}
