@@ -5,12 +5,14 @@ on one horizontal line and draw every alternative branch on a track of its
 own beside it. Each node inherits the track of the parent it continues; a
 gateway's main successor (the one with the longest way still ahead, then the
 default flow) continues the gateway's track and the other successors take the
-nearest free track below, then above.
+nearest free track below, then above. A rework step stacked in its
+decision's column steps toward the lane its loop heads for, so the loop
+never runs back through the decision.
 """
 from .policy import local_name, tag
 
 
-def assign_tracks(process, nodes, ranks, feedback, owner) -> dict[str, int]:
+def assign_tracks(process, nodes, ranks, feedback, owner, rework=frozenset(), band_order=()) -> dict[str, int]:
     """Track (row offset from the lane's main line) of every node that is not a boundary event."""
     children: dict[str, list[tuple[str, str]]] = {node_id: [] for node_id in nodes}
     for flow in process.findall(tag("sequenceFlow")):
@@ -56,6 +58,8 @@ def assign_tracks(process, nodes, ranks, feedback, owner) -> dict[str, int]:
             parent = max(placed, key=lambda i: (ranks[i], i))
             desired = tracks[parent] if owner.get(parent) == band else 0
             steps = (0, 1, -1, 2, -2, 3, -3) if owner.get(parent) != band else (1, -1, 2, -2, 3, -3)
+            if node_id in rework and owner.get(parent) == band and _heads_up(node_id, children, rework, owner, band_order):
+                steps = (-1, 1, -2, 2, -3, 3)
         else:
             desired, steps = 0, (0, 1, -1, 2, -2, 3, -3)
         track = next(
@@ -65,3 +69,20 @@ def assign_tracks(process, nodes, ranks, feedback, owner) -> dict[str, int]:
         taken.add((band, ranks[node_id], track))
         tracks[node_id] = track
     return tracks
+
+
+def _heads_up(node_id, children, rework, owner, band_order) -> bool:
+    """Whether the rework that starts here continues in a lane above this one."""
+    order = {band: index for index, band in enumerate(band_order)}
+    here = order.get(owner.get(node_id))
+    seen, stack = set(), [target for target, _ in children[node_id]]
+    while stack:
+        current = stack.pop()
+        if current in seen or current not in rework:
+            continue
+        seen.add(current)
+        there = order.get(owner.get(current))
+        if here is not None and there is not None and there != here:
+            return there < here
+        stack.extend(target for target, _ in children[current])
+    return False

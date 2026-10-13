@@ -68,7 +68,7 @@ def layout_process(process, top: float, connections):
     p = ENTERPRISE_POLICY
     initial_top = top
     nodes = {e.get("id"): e for e in process if local_name(e) in FLOW_TYPES and e.tag.startswith("{" + BPMN + "}")}
-    ranks, feedback, parents = rank_process(process, nodes)
+    ranks, feedback, parents, rework = rank_process(process, nodes)
     ordinary = {node_id: node for node_id, node in nodes.items() if local_name(node) != "boundaryEvent"}
     terminal = max((ranks[i] for i in ordinary), default=0) + 1
     lane_set = process.find(tag("laneSet"))
@@ -94,7 +94,7 @@ def layout_process(process, top: float, connections):
     bands = [lane.get("id") for lane in lane_order]
     if any(node_id not in owner for node_id in ordinary) or not bands:
         bands.append(None)  # Unassigned work stays unassigned; never invent a role.
-    tracks = assign_tracks(process, nodes, ranks, feedback, owner)
+    tracks = assign_tracks(process, nodes, ranks, feedback, owner, rework=rework, band_order=bands)
     sizes = {node_id: _size(node) for node_id, node in ordinary.items()}
     column_widths = defaultdict(lambda: p.event_size)
     for node_id in ordinary:
