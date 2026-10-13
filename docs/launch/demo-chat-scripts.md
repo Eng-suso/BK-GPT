@@ -40,7 +40,7 @@ Ho letto le tre interviste ed estratto **38 affermazioni**, ognuna con la sua fr
 **Il processo**
 - La richiesta nasce nel reparto e arriva ad Acquisti per mail: Paolo, «Mail. Sempre mail, a Laura.»
 - Acquisti verifica se e' lavorabile e, se manca qualcosa, la rimanda indietro: Francesca, «Leggo e verifico se e' lavorabile.»
-- Sopra una certa cifra serve l'autorizzazione del responsabile.
+- Non tutte le richieste passano dal responsabile: Francesca, «Sopra una certa cifra devo chiedere una autorizzazione al mio responsabile» e «Dipende dall'importo e dal tipo di acquisto.»
 
 **Da chiarire prima del workshop**
 - **Divergenza:** chi regolarizza un acquisto urgente. Laura: «So che poi la parte di carta viene messa a posto dopo, ma non so da chi.» Francesca: «La parte di ordine si', la faccio io.»
@@ -54,7 +54,7 @@ Ho letto le tre interviste ed estratto **38 affermazioni**, ognuna con la sua fr
 **DeliR**
 
 ```markdown
-**10 elementi su 13 hanno una citazione.** Tre no:
+**11 elementi su 14 hanno una citazione.** Tre no:
 
 | Elemento | Perche' non ha fonte |
 | --- | --- |
@@ -72,13 +72,15 @@ Li tengo come **ipotesi del consulente**, non come fatti. Ti propongo di verific
 **DeliR**
 
 ```markdown
-**Non e' la valutazione: e' l'attesa.**
+**Non e' la valutazione: e' l'attesa.** E riguarda solo le richieste sopra soglia.
 
 Francesca: «Se e' fuori, possono essere giorni.» e «Non c'e' un sostituto formale».
 
-Nella simulazione As-Is una richiesta aspetta qui in media **1g 8h**, su un attraversamento di **2g 3h**. E' il collo di bottiglia del processo.
+Nella simulazione As-Is una richiesta su tre passa dal responsabile e li' aspetta in media **3g 2h**. Il processo intero dura in media **1g 15h**, ma una richiesta su dieci supera i **5 giorni**.
 
-*Valori simulati: volume e costi sono assunzioni del consulente.*
+**Cosa e' evidenza e cosa no**
+- Dalle fonti: serve l'autorizzazione sopra una soglia, il responsabile puo' mancare per giorni, nessuno lo sostituisce.
+- Scelte mie, nello scenario: quante richieste superano la soglia (un terzo: la soglia nessuno la dice), quando c'e' il responsabile (un'ora il martedi' e il giovedi'), volume e costi.
 ```
 
 ## S16 · Ipotesi To-Be
@@ -88,14 +90,16 @@ Nella simulazione As-Is una richiesta aspetta qui in media **1g 8h**, su un attr
 **DeliR**
 
 ```markdown
-Due ipotesi, entrambe da Francesca:
+**Dalle interviste emergono due richieste precise**, entrambe di Francesca:
 
 1. **Richiesta completa all'origine.** «Farei in modo che la richiesta nasca gia' completa, con i campi obbligatori.»
-2. **Autorizzazione visibile e con un delegato.** «E vorrei che l'autorizzazione fosse una cosa che si vede, non una mail che aspetto.»
+2. **Autorizzazione visibile e tracciabile.** «E vorrei che l'autorizzazione fosse una cosa che si vede, non una mail che aspetto.»
+
+**Aggiungo un'ipotesi mia da testare:** una delega quando il responsabile non c'e', perche' Francesca segnala che oggi «Non c'e' un sostituto formale». La delega non l'ha chiesta nessuno.
 
 Attenzione: Laura ha gia' provato un modulo e dice che «Gli altri non lo compilano.» Il campo obbligatorio deve stare nello strumento che usano, non in un file a parte.
 
-L'effetto sui rimbalzi (dal 55% al 25%) e la finestra giornaliera del delegato sono **assunzioni mie**: le metto nello scenario come tali.
+Nello scenario sono **stime mie**: rimbalzi dal 55% al 25%, un'ora di delega ogni giorno lavorativo. L'autorizzazione "che si vede" non cambia i tempi e non la simulo.
 ```
 
 ## S18 · La decisione
@@ -109,11 +113,21 @@ Sulle stesse 360 richieste:
 
 | | As-Is | To-Be | Differenza |
 | --- | --- | --- | --- |
-| Attraversamento medio | 2g 3h | 14h 13min | **−72%** |
-| Attesa su "Valuta la richiesta di spesa" | 1g 8h | 3h 44min | −88% |
-| Costo per richiesta | 65,25 € | 37,97 € | **−42%** |
+| Attraversamento medio | 1g 15h | 5h 8min | **−87%** |
+| Attesa su "Valuta la richiesta di spesa" (richieste sopra soglia) | 3g 2h | 3h 30min | −95% |
+| Costo per richiesta | 59,37 € | 33,72 € | **−43%** |
 
-Il collo di bottiglia si sposta su "Emetti l'ordine di acquisto".
+Le due leve fanno cose diverse (stessa simulazione, una leva alla volta):
+
+| Scenario | Attraversamento | Costo per richiesta |
+| --- | --- | --- |
+| Solo richiesta completa | 2g 18h | 34,46 € |
+| Solo delega | 10h 19min | 62,14 € |
+| Entrambe | 5h 8min | 33,72 € |
+
+Il **costo** scende con la richiesta completa, che chiedono le fonti. Il **tempo** scende con la delega, che e' **un'ipotesi mia**: da sola, la richiesta completa porta le richieste prima dal responsabile e la coda li' si allunga. La delega va validata con Laura prima di proporla, insieme alla soglia.
+
+Attenzione: il modello non conta l'attesa delle risposte quando si ricostruisce una richiesta (Laura: «Quindi comincia il giro di telefonate.»), quindi entrambi i tempi sono sottostimati.
 
 *Valori simulati, non risultati garantiti: dipendono dalle assunzioni dichiarate nello scenario.*
 ```
@@ -121,7 +135,9 @@ Il collo di bottiglia si sposta su "Emetti l'ordine di acquisto".
 ## Da decidere
 
 - **La soglia di autorizzazione** resta una domanda aperta in tutte le scene:
-  nessun numero a schermo.
+  nessun numero a schermo. La quota di richieste sopra soglia (un terzo) e'
+  un parametro incerto: nella scena degli scenari si puo' mostrare che cosa
+  cambia facendola variare.
 - **S09**: le tre ipotesi del consulente le scrive il consulente nella
   revisione OMG; se preferisci, DeliR puo' proporle lui come domande per il
   workshop.
