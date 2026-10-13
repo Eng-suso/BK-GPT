@@ -1,14 +1,17 @@
-"""Il processo demo unico dei video: "Richiesta d'acquisto" di Vetrano Industriale.
+"""Il processo demo dei video: la "Richiesta d'acquisto" del video hero, in italiano.
 
-Il piano video (docs/launch/video-plan-review.md) vuole un solo processo piccolo
-per tutte le scene: 2 pool, la prima divisa in 2 corsie, una decisione con il
-suo ritorno. Il modello esce dalla pipeline del prodotto, non da un disegno a
-mano: ProcessUnderstanding -> compilatore -> validazione -> layout enterprise
--> lint visivo -> schema XSD ufficiale OMG BPMN 2.0.
+Il processo e' quello gia' fatto per l'hero (`e2e/launch-media/data/hero.bpmn`,
+`scripts/launch_media_hero_process.py`): una pool, tre corsie, cinque
+attivita', una decisione con il suo giro di rilavorazione, gia' simulato con
+Prosimos. Qui si tengono gli stessi id (le run restano agganciate) e si cambia
+solo cio' che serve alla demo in italiano e a OMG BPMN 2.0:
 
-Il Fornitore e' una pool chiusa: le sue attivita' non si vedono, si vedono i
-messaggi (ordine in uscita, conferma e merce in entrata).
+- nomi in italiano;
+- un gateway di merge davanti a "Verifica la richiesta", dove rientra il ritorno;
+- la condizione sul ramo "No" (ogni uscita non di default di un gateway
+  esclusivo ne ha una, OMG 10.5.2), in linguaggio naturale (tExpression).
 
+Poi layout enterprise del prodotto, lint visivo e schema XSD ufficiale OMG.
 Esce `e2e/launch-media/data/demo.bpmn`.
 
     PYTHONPATH=. uv run python scripts/launch_media_demo_process.py
@@ -22,129 +25,90 @@ from pathlib import Path
 
 from lxml import etree
 
-from backend.bpmn import build_bpmn_semantic_model
 from backend.bpmn.canvas_layout import apply_enterprise_layout, lint_visual_model
-from backend.bpmn.soundness import analyze_control_flow
-from backend.bpmn.validation import validate_bpmn_semantic_model
-from backend.process_understanding import (
-    BpmnLaneCandidate,
-    BpmnMessageFlowCandidate,
-    BpmnParticipantTopology,
-    BpmnPoolCandidate,
-    ProcessActor,
-    ProcessBoundaries,
-    ProcessDecision,
-    ProcessDecisionOutcome,
-    ProcessEvent,
-    ProcessFlowEdge,
-    ProcessPath,
-    ProcessStep,
-    ProcessUnderstanding,
-)
 
+HERO = Path("e2e/launch-media/data/hero.bpmn")
 OUT = Path("e2e/launch-media/data/demo.bpmn")
 # Lo schema ufficiale OMG BPMN 2.0 (BPMN20.xsd e gli import DI/DC), da bpmn-moddle.
 OMG_XSD = Path("frontend/node_modules/bpmn-moddle/resources/bpmn/xsd/BPMN20.xsd")
-PROCESS_ID = "Process_richiesta_acquisto"
+
+BPMN = "http://www.omg.org/spec/BPMN/20100524/MODEL"
+BPMNDI = "http://www.omg.org/spec/BPMN/20100524/DI"
+XSI = "http://www.w3.org/2001/XMLSchema-instance"
 PROCESS_NAME = "Richiesta d'acquisto"
 
-REPARTO, ACQUISTI, FORNITORE = "Actor_Reparto", "Actor_Acquisti", "Actor_Fornitore"
+# id -> nome italiano (le parole del caso acquisti, come in heroLocale.ts)
+NAMES = {
+    "Participant_hero": PROCESS_NAME,
+    "Process_hero": PROCESS_NAME,
+    "requester": "Reparto",
+    "purchasing": "Ufficio Acquisti",
+    "manager": "Responsabile Acquisti",
+    "start": "Fabbisogno rilevato",
+    "send_request": "Invia richiesta ad Acquisti",
+    "check_request": "Verifica la richiesta",
+    "gw_complete": "Richiesta completa?",
+    "complete_request": "Completa la richiesta",
+    "approve_spend": "Autorizza la spesa",
+    "issue_po": "Emetti l'ordine al fornitore",
+    "end": "Ordine inviato",
+    "f_complete": "Sì",
+    "f_incomplete": "No",
+}
+MERGE = "gw_check_merge"
+NO_CONDITION = "mancano dati nella richiesta"
 
 
-def understanding() -> ProcessUnderstanding:
-    steps = [
-        ProcessStep(id="Task_Compila", label="Compila la richiesta d'acquisto", actor_ids=[REPARTO], type="user_task"),
-        ProcessStep(id="Task_Verifica", label="Verifica la completezza", actor_ids=[ACQUISTI], type="user_task"),
-        ProcessStep(id="Task_Integra", label="Integra la richiesta", actor_ids=[REPARTO], type="user_task"),
-        ProcessStep(id="Task_Autorizza", label="Autorizza la spesa", actor_ids=[ACQUISTI], type="user_task"),
-        ProcessStep(id="Task_Emetti", label="Emetti l'ordine", actor_ids=[ACQUISTI], type="send_task"),
-        ProcessStep(id="Task_Ricevi", label="Ricevi la merce", actor_ids=[ACQUISTI], type="receive_task"),
-    ]
-    main = ["Task_Compila", "Task_Verifica", "Task_Autorizza", "Task_Emetti", "Task_Ricevi"]
-    return ProcessUnderstanding(
-        title=PROCESS_NAME,
-        objective="Dal materiale mancante all'ordine al fornitore",
-        actors=[
-            ProcessActor(id=REPARTO, label="Reparto richiedente", kind="team"),
-            ProcessActor(id=ACQUISTI, label="Ufficio Acquisti", kind="team"),
-            ProcessActor(id=FORNITORE, label="Fornitore", kind="external_party"),
-        ],
-        events=[
-            ProcessEvent(id="Event_Start", label="Materiale mancante", type="start"),
-            ProcessEvent(id="Event_End", label="Merce ricevuta", type="end"),
-        ],
-        steps=steps,
-        sequence=main,
-        main_success_path=main,
-        boundaries=ProcessBoundaries(start_event="Materiale mancante", success_end="Merce ricevuta"),
-        decisions=[
-            ProcessDecision(
-                id="Decision_Completa",
-                label="Richiesta completa?",
-                question="Richiesta completa?",
-                outcomes=["Sì", "No"],
-                outcome_details=[
-                    ProcessDecisionOutcome(id="Out_Si", label="Sì", target_ref="Task_Autorizza", is_default=True),
-                    ProcessDecisionOutcome(id="Out_No", label="No", condition="mancano dati", target_path_id="Path_Integra"),
-                ],
-            )
-        ],
-        flow_edges=[
-            ProcessFlowEdge(id="Edge_Verifica", source_id="Task_Verifica", target_id="Decision_Completa", label=""),
-        ],
-        alternative_paths=[
-            ProcessPath(
-                id="Path_Integra",
-                label="Richiesta incompleta",
-                sequence=["Task_Integra"],
-                rejoins_at="Task_Verifica",
-            )
-        ],
-        bpmn_topology=BpmnParticipantTopology(
-            pools=[
-                BpmnPoolCandidate(
-                    id="Pool_Vetrano", label="Vetrano – Acquisti", participant_id="Participant_Vetrano",
-                    actor_ids=[REPARTO, ACQUISTI],
-                ),
-                BpmnPoolCandidate(
-                    id="Pool_Fornitore", label="Fornitore", participant_id="Participant_Fornitore",
-                    actor_ids=[FORNITORE], is_external=True, rendering_intent="black_box",
-                ),
-            ],
-            lanes=[
-                BpmnLaneCandidate(id="Lane_Reparto", label="Reparto richiedente", pool_id="Pool_Vetrano", actor_ids=[REPARTO]),
-                BpmnLaneCandidate(id="Lane_Acquisti", label="Ufficio Acquisti", pool_id="Pool_Vetrano", actor_ids=[ACQUISTI]),
-            ],
-            message_flows=[
-                BpmnMessageFlowCandidate(
-                    id="Message_Ordine", label="Ordine", from_participant_id="Participant_Vetrano",
-                    to_participant_id="Participant_Fornitore", source_ref="Task_Emetti", artifact="Ordine d'acquisto",
-                ),
-                BpmnMessageFlowCandidate(
-                    id="Message_Merce", label="Merce e conferma di consegna", from_participant_id="Participant_Fornitore",
-                    to_participant_id="Participant_Vetrano", target_ref="Task_Ricevi",
-                ),
-            ],
-            black_box_participant_ids=["Participant_Fornitore"],
-        ),
-    )
+def q(name: str) -> str:
+    return f"{{{BPMN}}}{name}"
+
+
+def demo_semantics() -> str:
+    root = ET.fromstring(HERO.read_text(encoding="utf-8"))
+    for diagram in root.findall(f"{{{BPMNDI}}}BPMNDiagram"):
+        root.remove(diagram)  # il layout lo rifa' il prodotto
+    by_id = {e.get("id"): e for e in root.iter() if e.get("id")}
+    for element_id, name in NAMES.items():
+        by_id[element_id].set("name", name)
+
+    # Il ritorno da "Completa la richiesta" rientra da un merge esplicito.
+    process = by_id["Process_hero"]
+    check = by_id["check_request"]
+    merge = ET.Element(q("exclusiveGateway"), {"id": MERGE})
+    for flow_id in ("f_send", "f_back"):
+        by_id[flow_id].set("targetRef", MERGE)
+        ET.SubElement(merge, q("incoming")).text = flow_id
+    ET.SubElement(merge, q("outgoing")).text = "f_merge"
+    for incoming in check.findall(q("incoming")):
+        check.remove(incoming)
+    entry = ET.Element(q("incoming"))
+    entry.text = "f_merge"
+    check.insert(0, entry)
+    process.insert(list(process).index(check), merge)
+    process.append(ET.Element(q("sequenceFlow"), {"id": "f_merge", "sourceRef": MERGE, "targetRef": "check_request"}))
+    lane_ref = ET.Element(q("flowNodeRef"))
+    lane_ref.text = MERGE
+    by_id["purchasing"].insert(0, lane_ref)
+
+    condition = ET.SubElement(by_id["f_incomplete"], q("conditionExpression"), {f"{{{XSI}}}type": "bpmn:tExpression"})
+    condition.text = NO_CONDITION
+    ET.register_namespace("bpmn", BPMN)
+    ET.register_namespace("xsi", XSI)
+    return ET.tostring(root, encoding="unicode")
 
 
 def main() -> int:
-    model = build_bpmn_semantic_model(process_id=PROCESS_ID, process_name=PROCESS_NAME, process=understanding())
-    problems = validate_bpmn_semantic_model(model)
-    soundness = analyze_control_flow(model)
-    xml = apply_enterprise_layout(model, process_name=PROCESS_NAME)
-    lint = lint_visual_model(ET.fromstring(xml))
+    xml = apply_enterprise_layout(demo_semantics(), process_name=PROCESS_NAME)
+    problems = list(lint_visual_model(ET.fromstring(xml))["issues"])
     schema = etree.XMLSchema(etree.parse(str(OMG_XSD)))
     if not schema.validate(etree.fromstring(xml.encode())):
-        problems = [*problems, *(f"XSD OMG riga {e.line}: {e.message}" for e in schema.error_log)]
-    for line in [*model.model_warnings, *problems, *(f"{i.code}: {i.message}" for i in soundness.errors), *lint["issues"]]:
+        problems += [f"XSD OMG riga {e.line}: {e.message}" for e in schema.error_log]
+    for line in problems:
         print("!", line)
-    if problems or soundness.warnings or not soundness.is_sound or not lint["valid"]:
+    if problems:
         return 1
-    OUT.write_text(xml)
-    print(f"ok {OUT}: {len(model.flowNodes)} nodi, {len(model.sequenceFlows)} flussi, {len(model.messageFlows)} messaggi")
+    OUT.write_text(xml, encoding="utf-8")
+    print(f"ok {OUT}")
     return 0
 
 
