@@ -23,7 +23,7 @@
   {
    "element_id": "Task_Compila",
    "source_ref": "steps:Task_Compila",
-   "label": "Fill in the purchase request",
+   "label": "Fill in the request",
    "status": "source",
    "evidence": [
     {
@@ -97,7 +97,7 @@
   {
    "element_id": "Path_Integrazione_Task_Richiedi",
    "source_ref": "steps:Task_Richiedi",
-   "label": "Ask for missing information",
+   "label": "Ask for missing details",
    "status": "source",
    "evidence": [
     {
@@ -131,7 +131,7 @@
   {
    "element_id": "Task_Valuta",
    "source_ref": "steps:Task_Valuta",
-   "label": "Assess the spending request",
+   "label": "Assess the spend",
    "status": "source",
    "evidence": [
     {
@@ -159,7 +159,7 @@
   {
    "element_id": "Task_Emetti",
    "source_ref": "steps:Task_Emetti",
-   "label": "Issue the purchase order",
+   "label": "Issue the order",
    "status": "source",
    "evidence": [
     {
@@ -195,7 +195,7 @@
   {
    "element_id": "Path_Rifiuto_Task_Rifiuto",
    "source_ref": "steps:Task_Rifiuto",
-   "label": "Communicate the rejection",
+   "label": "Send the rejection",
    "status": "consultant hypothesis",
    "note": "The spending rejection: no source says what happens when authorization is denied.",
    "evidence": []

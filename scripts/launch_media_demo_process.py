@@ -60,6 +60,8 @@ PARTICIPANT = "Vetrano Industriale S.p.A."
 REPARTO, ACQUISTI, RESPONSABILE = "Actor_Reparto", "Actor_Acquisti", "Actor_Responsabile"
 
 # Il sito e' in italiano e in inglese: stesso processo, stessi id, testi tradotti.
+# In inglese le attivita' sono corte (verbo + oggetto): su due righe la prima
+# finirebbe sotto l'icona del compito, che bpmn-js non scansa.
 TEXT = {
     "it": {
         "process": "Gestione richiesta di acquisto",
@@ -103,14 +105,14 @@ TEXT = {
         "start_condition": "a purchasing need exists",
         "Event_Emesso": "Order issued",
         "Event_Respinta": "Request rejected",
-        "Task_Compila": "Fill in the purchase request",
+        "Task_Compila": "Fill in the request",
         "Task_Invia": "Send the request",
         "Task_Verifica": "Check the request is complete",
-        "Task_Richiedi": "Ask for missing information",
+        "Task_Richiedi": "Ask for missing details",
         "Task_Integra": "Complete the request",
-        "Task_Valuta": "Assess the spending request",
-        "Task_Rifiuto": "Communicate the rejection",
-        "Task_Emetti": "Issue the purchase order",
+        "Task_Valuta": "Assess the spend",
+        "Task_Rifiuto": "Send the rejection",
+        "Task_Emetti": "Issue the order",
         "Data_Richiesta": "Purchase request",
         "Data_Ordine": "Purchase order",
         "Decision_Completa": "Request complete?",
