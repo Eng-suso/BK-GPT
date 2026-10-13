@@ -44,7 +44,7 @@ export function CanvasWorkspaceShell({ label, commands, children, inspector, pla
   return <section data-workspace-layer="workspace" aria-label={label} className={cn("ui-scrollbar flex h-full min-h-0 min-w-0 flex-col gap-2", className)}>
     <h2 className="sr-only">{label}</h2>{commands}<div ref={body} data-workspace-layer="body" className={cn("flex min-h-0 min-w-0 flex-1 gap-3", bodyClassName)}>
       <div ref={stage} data-workspace-layer="stage" className={cn("ui-workspace-stage relative flex min-h-0 min-w-0 flex-1 flex-col", stageClassName)} style={size ? { flex: `0 0 ${current.width}px`, height: current.height, alignSelf: "flex-start" } : undefined}>{children}
-        {resizeLabel && <CanvasResizeHandle className="ui-workspace-stage-resize" label={resizeLabel} hint={resizeHint} aria-description={`${Math.round(current.width)} × ${Math.round(current.height)} px`} onPointerDown={event => {
+        {resizeLabel && <CanvasResizeHandle className="ui-workspace-stage-resize max-[1199px]:hidden" label={resizeLabel} hint={resizeHint} aria-description={`${Math.round(current.width)} × ${Math.round(current.height)} px`} onPointerDown={event => {
           if (event.button !== 0 || !stage.current) return;
           const rect = stage.current.getBoundingClientRect();
           gesture.current = { x: event.clientX, y: event.clientY, width: rect.width, height: rect.height };
