@@ -240,7 +240,7 @@
 .sim-chart-tooltip {
   border: 1px solid var(--color-border-subtle);
   background: var(--color-surface-primary);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   box-shadow: 0 4px 14px rgba(14, 20, 32, 0.14);
   padding: 6px 9px;
   font-size: 11px;
@@ -384,14 +384,14 @@
 .sim-scenario-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sim-scenario-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
 .sim-scenario-error { font-size: 12px; color: var(--state-invalid-text); }
-.sim-scenario-notice { font-size: 12px; padding: 6px 10px; border-radius: var(--radius-control, 8px); color: var(--state-warning-text); background: var(--state-warning-surface); border: 1px solid var(--state-warning-border); }
+.sim-scenario-notice { font-size: 12px; padding: 6px 10px; border-radius: var(--radius-control); color: var(--state-warning-text); background: var(--state-warning-surface); border: 1px solid var(--state-warning-border); }
 .sim-scenario-changes > summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
 .sim-scenario-changes > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
 .sim-scenario-changes ul { display: grid; gap: 2px; margin-top: 6px; }
 .sim-scenario-changes li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; line-height: 1.4; padding: 4px 0; border-top: 1px solid var(--color-border-subtle); }
 .sim-scenario-changes li small { display: block; color: var(--state-warning-text); }
 .sim-scenario-changes li.is-conflict > span { color: var(--color-text-muted); text-decoration: line-through; text-decoration-color: var(--state-warning-icon); }
-.sim-scenario-conflicts { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; padding: 6px 8px; font-size: 12px; border-radius: var(--radius-control, 8px); color: var(--state-warning-text); background: var(--state-warning-surface); border: 1px solid var(--state-warning-border); }
+.sim-scenario-conflicts { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; padding: 6px 8px; font-size: 12px; border-radius: var(--radius-control); color: var(--state-warning-text); background: var(--state-warning-surface); border: 1px solid var(--state-warning-border); }
 .djs-element.sim-scenario-changed .djs-visual > rect,
 .djs-element.sim-scenario-changed .djs-visual > path:first-of-type {
   stroke: var(--sim-info) !important;
@@ -399,7 +399,7 @@
   stroke-dasharray: 6 3;
 }
 .sim-workspace-seed { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; }
-.sim-workspace-table { overflow-x: auto; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control, 8px); }
+.sim-workspace-table { overflow-x: auto; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); }
 .sim-workspace-table:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .sim-workspace-table table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 12.5px; }
 .sim-workspace-table caption { caption-side: bottom; padding: 8px 10px; text-align: left; font-size: 12px; color: var(--color-text-muted); }

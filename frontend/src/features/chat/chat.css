@@ -1289,7 +1289,7 @@
   height: 36px;
   flex: none;
   place-items: center;
-  border-radius: 10px;
+  border-radius: var(--radius-raised);
   background: var(--blue-50);
   color: var(--color-action-primary);
 }
@@ -1336,7 +1336,7 @@
   height: 28px;
   flex: none;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--blue-50);
   color: var(--color-action-primary);
   font-size: var(--font-size-100);
@@ -1734,7 +1734,7 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
 .bpmn-review-sheet-icon {
   width: 40px;
   height: 40px;
-  border-radius: 12px;
+  border-radius: var(--radius-raised);
   background: var(--blue-50);
 }
 

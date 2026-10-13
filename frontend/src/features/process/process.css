@@ -326,7 +326,7 @@
   max-width: 420px;
   margin: 0;
   border: 1px solid var(--red-200);
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   background: var(--red-50);
   color: var(--red-800);
   padding: 10px 12px;

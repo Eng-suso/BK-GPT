@@ -4,7 +4,7 @@
 .sim-eventlog-upload { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
 .sim-eventlog-list { display: grid; gap: 6px; }
 .sim-eventlog-list li { display: flex; align-items: center; gap: 4px; }
-.sim-eventlog-item { flex: 1; min-width: 0; display: grid; gap: 2px; text-align: left; padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--card); font-size: 13px; }
+.sim-eventlog-item { flex: 1; min-width: 0; display: grid; gap: 2px; text-align: left; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); font-size: 13px; }
 .sim-eventlog-item span { font-size: 12px; color: var(--muted-foreground); }
 .sim-eventlog-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sim-eventlog-item:hover, .sim-eventlog-item:focus-visible { border-color: var(--ring); }
@@ -12,7 +12,7 @@
 .sim-eventlog-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; min-width: 0; }
 .sim-eventlog-head strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sim-eventlog-steps { display: flex; flex-wrap: wrap; gap: 4px; }
-.sim-eventlog-steps button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 8px; border-radius: 6px; font-size: 12px; color: var(--muted-foreground); }
+.sim-eventlog-steps button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 8px; border-radius: var(--radius-control); font-size: 12px; color: var(--muted-foreground); }
 .sim-eventlog-steps button span { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); font-size: 11px; }
 .sim-eventlog-steps button[aria-current="step"] { background: var(--secondary); color: var(--foreground); font-weight: 600; }
 .sim-eventlog-steps button:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -29,7 +29,7 @@
 .sim-eventlog-attribute { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 6px; }
 .sim-eventlog-attribute-column { align-self: center; font-size: 12px; font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sim-eventlog-template { display: grid; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
-.sim-eventlog-preview { overflow-x: auto; border: 1px solid var(--border); border-radius: 7px; max-width: 100%; }
+.sim-eventlog-preview { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-control); max-width: 100%; }
 .sim-eventlog-preview:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .sim-eventlog-preview table, .sim-eventlog-matches { border-collapse: collapse; font-size: 12px; width: 100%; }
 .sim-eventlog-preview th, .sim-eventlog-preview td { padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; text-align: left; }
@@ -45,12 +45,12 @@
 .sim-eventlog-matches thead th { font-weight: 600; color: var(--muted-foreground); }
 .sim-eventlog-matches tbody th { font-weight: 500; overflow-wrap: anywhere; }
 .sim-eventlog-matches small { display: block; color: var(--muted-foreground); font-weight: 400; }
-.sim-eventlog-matches select { width: 100%; min-width: 0; min-height: 34px; border: 1px solid var(--border); border-radius: 7px; background: var(--card); color: var(--foreground); padding: 4px 6px; font-size: 12px; }
+.sim-eventlog-matches select { width: 100%; min-width: 0; min-height: 34px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); color: var(--foreground); padding: 4px 6px; font-size: 12px; }
 .sim-eventlog-matches select:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .sim-eventlog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 
 /* Reale contro simulato: verdetto, tabelle degli scarti e overlay sul disegno, con i token di validazione. */
-.sim-fidelity-verdict { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--domain-validation-pass-border); border-left-width: 3px; border-radius: var(--radius-control, 7px); background: var(--domain-validation-pass-surface); color: var(--domain-validation-pass-text); font-size: 12px; }
+.sim-fidelity-verdict { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--domain-validation-pass-border); border-left-width: 3px; border-radius: var(--radius-control); background: var(--domain-validation-pass-surface); color: var(--domain-validation-pass-text); font-size: 12px; }
 .sim-fidelity-verdict strong { font-size: 13px; }
 .sim-fidelity-verdict[data-fidelity="calibrate"] { border-color: var(--domain-validation-warning-border); background: var(--domain-validation-warning-surface); color: var(--domain-validation-warning-text); }
 .sim-fidelity-verdict[data-fidelity="far"] { border-color: var(--domain-validation-fail-border); background: var(--domain-validation-fail-surface); color: var(--domain-validation-fail-text); }

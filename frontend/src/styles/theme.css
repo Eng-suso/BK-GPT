@@ -27,10 +27,12 @@
   --primary: var(--brand-blue);
 
   /* Satin identity: slate materials, blue reserved for actions and focus. */
-  --radius: 1rem;
-  --material-radius-control: 0.875rem;
-  --material-radius-panel: 1.25rem;
-  --material-radius-frame: 1.75rem;
+  /* One radius scale for the whole product: 8px controls, 12px panels, 18px
+     frames. Tailwind's rounded-sm/md/lg/xl derive from --radius (6/8/10/14). */
+  --radius: 10px;
+  --material-radius-control: var(--radius-300);
+  --material-radius-panel: var(--radius-400);
+  --material-radius-frame: var(--radius-600);
   --material-edge: rgb(255 255 255 / 0.9);
   --material-divider: rgb(38 43 52 / 0.09);
   --material-control-edge: rgb(38 43 52 / 0.15);
