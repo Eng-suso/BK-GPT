@@ -1,0 +1,190 @@
+{
+ "elements": [
+  {
+   "element_id": "StartEvent_1",
+   "label": "Fabbisogno di acquisto rilevato",
+   "status": "fonte",
+   "evidence": [
+    {
+     "source_id": "src-paolo-marchetti",
+     "person": "Paolo Marchetti",
+     "role": "Manutenzione",
+     "quote": "Se durante il giro vedo che manca qualcosa, o che un componente e' da sostituire prima che diventi un problema, me lo segno."
+    },
+    {
+     "source_id": "src-laura-conti",
+     "person": "Laura Conti",
+     "role": "Ufficio Tecnico",
+     "quote": "Un capoturno vede che sta finendo il materiale di consumo"
+    }
+   ]
+  },
+  {
+   "element_id": "Task_Compila",
+   "label": "Compila la richiesta di acquisto",
+   "status": "fonte",
+   "evidence": [
+    {
+     "source_id": "src-laura-conti",
+     "person": "Laura Conti",
+     "role": "Ufficio Tecnico",
+     "quote": "La prima cosa che faccio e' capire se ho abbastanza informazioni per portarla avanti."
+    },
+    {
+     "source_id": "src-laura-conti",
+     "person": "Laura Conti",
+     "role": "Ufficio Tecnico",
+     "quote": "Quindi comincia il giro di telefonate."
+    }
+   ]
+  },
+  {
+   "element_id": "Task_Invia",
+   "label": "Invia la richiesta",
+   "status": "fonte",
+   "evidence": [
+    {
+     "source_id": "src-paolo-marchetti",
+     "person": "Paolo Marchetti",
+     "role": "Manutenzione",
+     "quote": "Mail. Sempre mail, a Laura."
+    },
+    {
+     "source_id": "src-laura-conti",
+     "person": "Laura Conti",
+     "role": "Ufficio Tecnico",
+     "quote": "Poi la richiesta arriva a me, e arriva in tre modi diversi a seconda di chi la manda."
+    },
+    {
+     "source_id": "src-laura-conti",
+     "person": "Laura Conti",
+     "role": "Ufficio Tecnico",
+     "quote": "La passo ad Acquisti. Gli mando una mail con quello che sono riuscita a mettere insieme"
+    }
+   ]
+  },
+  {
+   "element_id": "Task_Verifica",
+   "label": "Verifica la completezza della richiesta",
+   "status": "fonte",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Ufficio Acquisti",
+     "quote": "Leggo e verifico se e' lavorabile."
+    }
+   ]
+  },
+  {
+   "element_id": "Decision_Completa",
+   "label": "Richiesta completa?",
+   "status": "fonte",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Ufficio Acquisti",
+     "quote": "Lavorabile vuol dire che capisco cosa devo comprare e da chi posso comprarlo."
+    }
+   ]
+  },
+  {
+   "element_id": "Path_Integrazione_Task_Richiedi",
+   "label": "Richiedi integrazione",
+   "status": "fonte",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Ufficio Acquisti",
+     "quote": "Se manca qualcosa richiedo, e questo e' il grosso del mio lavoro sugli indiretti: rimbalzare indietro le richieste per completarle."
+    }
+   ]
+  },
+  {
+   "element_id": "Task_Valuta",
+   "label": "Valuta la richiesta di spesa",
+   "status": "fonte",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Ufficio Acquisti",
+     "quote": "Sopra una certa cifra devo chiedere una autorizzazione al mio responsabile"
+    }
+   ]
+  },
+  {
+   "element_id": "Decision_Autorizzata",
+   "label": "Spesa autorizzata?",
+   "status": "fonte",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Ufficio Acquisti",
+     "quote": "e' una mail che mando e una risposta che aspetto."
+    }
+   ]
+  },
+  {
+   "element_id": "Task_Emetti",
+   "label": "Emetti l'ordine di acquisto",
+   "status": "fonte",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Ufficio Acquisti",
+     "quote": "Per le cose piccole e ricorrenti ho margine per procedere da sola: emetto l'ordine e via."
+    }
+   ]
+  },
+  {
+   "element_id": "Event_Emesso",
+   "label": "Ordine emesso",
+   "status": "fonte",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Ufficio Acquisti",
+     "quote": "Per le cose piccole e ricorrenti ho margine per procedere da sola: emetto l'ordine e via."
+    }
+   ]
+  },
+  {
+   "element_id": "Path_Integrazione_Task_Integra",
+   "label": "Integra la richiesta",
+   "status": "ipotesi del consulente",
+   "note": "Chi fa la richiesta la completa quando Acquisti la rimanda indietro: nessuna fonte descrive il passo.",
+   "evidence": []
+  },
+  {
+   "element_id": "Path_Rifiuto_Task_Rifiuto",
+   "label": "Comunica il rifiuto",
+   "status": "ipotesi del consulente",
+   "note": "Il rifiuto della spesa: nessuna fonte racconta cosa succede quando l'autorizzazione e' negata.",
+   "evidence": []
+  },
+  {
+   "element_id": "Event_Respinta",
+   "label": "Richiesta respinta",
+   "status": "ipotesi del consulente",
+   "note": "Esito aggiunto con il ramo di rifiuto.",
+   "evidence": []
+  }
+ ],
+ "open_gaps": [
+  {
+   "question": "Qual e' la soglia di importo sopra cui serve l'autorizzazione, e chi autorizza quando il responsabile e' assente?",
+   "closed_by_aliases": [
+    "sostituto autorizza",
+    "autorizza vicario",
+    "delega autorizzazione"
+   ],
+   "why": "nessun sostituto formale esiste secondo Francesca: disegnarlo chiude una lacuna inventando"
+  }
+ ]
+}
