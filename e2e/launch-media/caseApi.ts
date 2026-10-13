@@ -1,21 +1,23 @@
 import type { Page, Route } from "@playwright/test";
 
 import { API, unhandled } from "./mockApi";
-import { IDS, demoCase, type Lang } from "./vetrano";
+import { IDS, demoCase, simulationLayout, simulationLayoutKey, type Lang, type SimulationLayoutKind } from "./vetrano";
 
 /**
  * Il mock delle API per i nuovi video (caso `vetrano.ts`), in italiano o in
  * inglese. Copre le schermate che le scene mostrano; una richiesta scoperta
  * finisce in `unhandled` e lo spec la stampa, cosi' un buco si vede.
  */
-export async function installCaseApi(page: Page, lang: Lang): Promise<void> {
+export async function installCaseApi(page: Page, lang: Lang, options: { layout?: SimulationLayoutKind } = {}): Promise<void> {
   const data = demoCase(lang);
   await page.addInitScript(
-    ({ base, lng }) => {
+    ({ base, lng, layoutKey, layout }) => {
       Object.assign(window, { DELIR_API_BASE: base });
       window.localStorage.setItem("delir-language", lng);
+      // La tela di simulazione salvata dal consulente: processo e KPI a tutto schermo.
+      window.localStorage.setItem(layoutKey, layout);
     },
-    { base: API, lng: lang },
+    { base: API, lng: lang, layoutKey: simulationLayoutKey, layout: JSON.stringify(simulationLayout(lang, options.layout)) },
   );
 
   await page.route(`${API}/**`, async (route: Route) => {

@@ -146,6 +146,51 @@ type Run = {
   experiments: unknown;
 };
 
+/**
+ * La tela di simulazione del video: il processo grande e i KPI, nessun bianco
+ * intorno ("Modifica canvas -> Salva layout" scrive lo stesso JSON,
+ * `layoutSchema` in dashboard/dashboardModel.ts). Le pagine hanno aree diverse:
+ * - `wide`: Osserva e replay, tela a tutta larghezza (circa 2,3:1): il processo
+ *   e due KPI in colonna a destra;
+ * - `panel`: Confronto e pagine col pannello laterale (circa 4:3): il processo
+ *   a tutta larghezza (e' largo, circa 1,9:1) e quattro KPI in riga sotto.
+ */
+export const simulationLayoutKey = `delir:simulation:dashboard:${IDS.project}:${IDS.process}`;
+export type SimulationLayoutKind = "wide" | "panel";
+const KPI_TITLES = {
+  it: { cycle: "Tempo medio di attraversamento", queued: "Richieste in coda", cost: "Costo accumulato", resourceBusy: "Occupazione delle risorse" },
+  en: { cycle: "Average cycle time", queued: "Queued requests", cost: "Accrued cost", resourceBusy: "Resource utilization" },
+} as const;
+
+export function simulationLayout(lang: Lang, kind: SimulationLayoutKind = "wide") {
+  const titles = KPI_TITLES[lang];
+  type Rect = { x: number; y: number; width: number; height: number };
+  const widget = (metric: keyof typeof titles, chart: string, color: string, canvas: Rect) => ({
+    id: `video-${metric}`, title: titles[metric], kind: chart, metric, width: "half", text: "**${metric}**", metricExpression: "", target: 100,
+    followFilter: false, activityId: "", showLabels: true, color, canvas,
+  });
+  const GAP = 24;
+  const PROCESS = kind === "wide" ? { width: 1180, height: 720 } : { width: 1500, height: 720 };
+  let cells: Rect[];
+  if (kind === "wide") {
+    const column = { x: PROCESS.width + GAP, width: 520, height: (PROCESS.height - GAP) / 2 };
+    cells = [0, 1].map((index) => ({ x: column.x, y: index * (column.height + GAP), width: column.width, height: column.height }));
+  } else {
+    const row = { y: PROCESS.height + GAP, height: 380, width: (PROCESS.width - 3 * GAP) / 4 };
+    cells = [0, 1, 2, 3].map((index) => ({ x: index * (row.width + GAP), y: row.y, width: row.width, height: row.height }));
+  }
+  const widgets = [
+    widget("cycle", "line", "blue", cells[0]),
+    widget("queued", "area", "amber", cells[1]),
+    ...(cells.length > 2 ? [widget("cost", "area", "blue", cells[2]), widget("resourceBusy", "column", "teal", cells[3])] : []),
+  ];
+  return {
+    version: 1,
+    process: { canvas: { x: 0, y: 0, ...PROCESS }, groupId: "video", beforeId: "__first__", width: "full", height: PROCESS.height },
+    groups: [{ id: "video", title: "", widgets }],
+  };
+}
+
 /** Tutto quello che il mock serve, in una lingua. */
 export function demoCase(lang: Lang) {
   const t = TEXT[lang];
