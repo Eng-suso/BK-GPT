@@ -9,7 +9,8 @@
     "archive": "Archivio",
     "help": "Aiuto",
     "profile": "Impostazioni",
-    "toggle": "Espandi o riduci navigazione"
+    "toggle": "Espandi o riduci navigazione",
+    "open": "Apri la navigazione"
   },
   "actions": {
     "new": "Nuovo",

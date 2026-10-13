@@ -151,12 +151,12 @@ function SearchPanel({ onOpen }: { onOpen: (href: string) => void }): React.JSX.
 
       <div className="min-h-0 flex-1 overflow-y-auto" ref={listRef}>
         {!enabled ? (
-          <p className="px-1 py-6 text-center text-[13px] text-muted-foreground">
+          <p className="px-1 py-6 text-center text-body-sm text-muted-foreground">
             {t("search.hint", { min: MIN_QUERY_LENGTH })}
           </p>
         ) : results.isPending ? (
           <p
-            className="flex items-center justify-center gap-2 px-1 py-6 text-[13px] text-muted-foreground"
+            className="flex items-center justify-center gap-2 px-1 py-6 text-body-sm text-muted-foreground"
             role="status"
           >
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -164,13 +164,13 @@ function SearchPanel({ onOpen }: { onOpen: (href: string) => void }): React.JSX.
           </p>
         ) : results.isError ? (
           <div className="flex flex-col items-center gap-2 px-1 py-6 text-center">
-            <p className="text-[13px] text-muted-foreground">{t("search.failed")}</p>
+            <p className="text-body-sm text-muted-foreground">{t("search.failed")}</p>
             <Button type="button" size="sm" variant="outline" onClick={() => void results.refetch()}>
               {t("actions.retry")}
             </Button>
           </div>
         ) : flat.length === 0 ? (
-          <p className="px-1 py-6 text-center text-[13px] text-muted-foreground">
+          <p className="px-1 py-6 text-center text-body-sm text-muted-foreground">
             {t("search.empty", { query: debounced })}
           </p>
         ) : null}
@@ -189,7 +189,7 @@ function SearchPanel({ onOpen }: { onOpen: (href: string) => void }): React.JSX.
                 {/* Il gruppo e' gia' nominato da `aria-label`: il titolo e' per gli occhi. */}
                 <h3
                   aria-hidden="true"
-                  className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
+                  className="px-3 pb-1 pt-3 text-micro font-semibold uppercase tracking-[0.04em] text-muted-foreground"
                 >
                   {t(`search.kind.${group.kind}`)}
                 </h3>
@@ -217,10 +217,10 @@ function SearchPanel({ onOpen }: { onOpen: (href: string) => void }): React.JSX.
                         >
                           <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] font-medium text-foreground">
+                            <span className="block truncate text-body-sm font-medium text-foreground">
                               {hit.title}
                             </span>
-                            <span className="block truncate text-[12px] text-muted-foreground">
+                            <span className="block truncate text-xs text-muted-foreground">
                               {hit.kind === "source" && hit.sourceType
                                 ? `${hit.sourceType} · ${hit.context}`
                                 : hit.context}

@@ -340,7 +340,8 @@ test("avatar opens on demand and chat resizing persists across tasks", async ({ 
   await handle.focus();
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowDown");
-  await expect(chat).toHaveCSS("height", `${Math.round(before.height - 40)}px`);
+  // La chat non scende sotto i 320px: su un telefono basso parte gia' vicina al minimo.
+  await expect(chat).toHaveCSS("height", `${Math.round(Math.max(Math.min(320, before.height), before.height - 40))}px`);
   if (info.project.name === "chromium") {
     await page.keyboard.press("ArrowLeft");
     await expect(chat).toHaveCSS("width", `${Math.round(before.width + 20)}px`);

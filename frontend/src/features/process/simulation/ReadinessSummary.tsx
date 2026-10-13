@@ -73,7 +73,7 @@ export function ReadinessSummary({
       </div>
 
       {!confidence.hasDiscovery && (
-        <p className="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-2 text-[11px] leading-snug text-muted-foreground">
+        <p className="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-2 text-micro leading-snug text-muted-foreground">
           <Info aria-hidden className="mt-0.5 size-3.5 shrink-0" />
           {t("simulation.readiness.noDiscovery")}
         </p>
@@ -83,7 +83,7 @@ export function ReadinessSummary({
       <ul className="grid gap-2">
         {readiness.rows.map((row) => (
           <li key={row.key} className="grid gap-1">
-            <div className="flex items-center justify-between gap-2 text-[11px]">
+            <div className="flex items-center justify-between gap-2 text-micro">
               <span className="font-medium text-foreground">
                 {t(`simulation.readiness.row.${row.key}`)}
               </span>
@@ -103,7 +103,7 @@ export function ReadinessSummary({
       )}
 
       {!dense && openGatewayQuestions > 0 && (
-        <p className="text-[11px] text-[var(--state-warning-text)]">
+        <p className="text-micro text-[var(--state-warning-text)]">
           {t("simulation.readiness.gatewaysToValidate", { count: openGatewayQuestions })}
         </p>
       )}
@@ -147,7 +147,7 @@ function FactList({ title, items }: { title: string; items: string[] }): React.J
         {items.map((item) => (
           <li
             key={item}
-            className="flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground"
+            className="flex items-start gap-1.5 text-micro leading-snug text-muted-foreground"
           >
             <span
               aria-hidden

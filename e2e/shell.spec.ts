@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { primaryNav } from './fixtures/primaryNav';
+
 /**
  * Frontend-only smoke of the current app shell.
  *
@@ -12,6 +14,7 @@ import { expect, test } from '@playwright/test';
 
 const projectsHeading = { name: 'Progetti', level: 1 as const };
 
+
 test.describe('App shell', () => {
   test('/ redirects to the projects portfolio', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
@@ -22,26 +25,24 @@ test.describe('App shell', () => {
   test('renders the global sidebar and top bar', async ({ page }) => {
     await page.goto('/projects', { waitUntil: 'domcontentloaded' });
 
-    const sidebar = page.getByRole('complementary', {
-      name: 'Navigazione principale',
-    });
+    const sidebar = await primaryNav(page);
     await expect(sidebar).toBeVisible();
     // Label collapses to an icon below the `lg` breakpoint, but `title` keeps
     // the accessible name on every viewport.
     await expect(sidebar.getByRole('button', { name: 'Progetti' })).toBeVisible();
+    // Il cassetto del telefono e' modale: chiuso, la barra torna raggiungibile.
+    await page.keyboard.press('Escape');
     await expect(page.getByRole('banner')).toBeVisible();
   });
 
   test('primary navigation switches sections', async ({ page }) => {
     await page.goto('/projects', { waitUntil: 'domcontentloaded' });
-    const sidebar = page.getByRole('complementary', {
-      name: 'Navigazione principale',
-    });
+    const sidebar = await primaryNav(page);
 
     await sidebar.getByRole('button', { name: 'Clienti' }).click();
     await expect(page).toHaveURL(/\/clients$/);
 
-    await sidebar.getByRole('button', { name: 'Home' }).click();
+    await (await primaryNav(page)).getByRole('button', { name: 'Home' }).click();
     await expect(page).toHaveURL(/\/home$/);
   });
 
@@ -60,18 +61,17 @@ test.describe('App shell', () => {
 
   test('settings opens a real page from the sidebar footer', async ({ page }) => {
     await page.goto('/projects', { waitUntil: 'domcontentloaded' });
-    const sidebar = page.getByRole('complementary', {
-      name: 'Navigazione principale',
-    });
+    const sidebar = await primaryNav(page);
 
     await sidebar.getByRole('button', { name: 'Impostazioni' }).click();
 
     await expect(page).toHaveURL(/\/settings$/);
     await expect(page.getByRole('heading', { name: 'Impostazioni', level: 1 })).toBeVisible();
-    await expect(sidebar.getByRole('button', { name: 'Impostazioni' })).toHaveAttribute(
+    await expect((await primaryNav(page)).getByRole('button', { name: 'Impostazioni' })).toHaveAttribute(
       'aria-current',
       'page',
     );
+    await page.keyboard.press('Escape');
     // With or without a backend the panel must reach a verdict, never stay on
     // "checking": the dev server compiles on first navigation, so the window is
     // generous on purpose.
@@ -152,9 +152,7 @@ test.describe('App shell', () => {
 
   test('help opens and leads to the service status', async ({ page }) => {
     await page.goto('/projects', { waitUntil: 'domcontentloaded' });
-    const sidebar = page.getByRole('complementary', {
-      name: 'Navigazione principale',
-    });
+    const sidebar = await primaryNav(page);
 
     await sidebar.getByRole('button', { name: 'Aiuto' }).click();
     const help = page.getByRole('dialog', { name: 'Aiuto' });

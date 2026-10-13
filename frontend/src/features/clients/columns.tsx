@@ -34,7 +34,7 @@ export function buildClientColumns(
       header: t("list.columns.client"),
       cell: ({ row }) => (
         <span className="block max-w-[280px]">
-          <span className="block truncate text-[13.5px] font-semibold tracking-[-0.012em] text-primary">
+          <span className="block truncate text-body-sm font-semibold tracking-[-0.012em] text-primary">
             {row.original.name}
           </span>
           <span className="block truncate text-xs text-muted-foreground">

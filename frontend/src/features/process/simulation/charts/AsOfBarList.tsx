@@ -56,7 +56,7 @@ export function AsOfBarList({
       <figcaption className="mb-2 flex items-baseline justify-between gap-2">
         <span className="text-xs font-semibold text-foreground">{title}</span>
         {legend && (
-          <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-2 text-micro text-muted-foreground">
             <Swatch color={color} label={legend.primary} />
             {legend.secondary && secondaryColor && (
               <Swatch color={secondaryColor} label={legend.secondary} />

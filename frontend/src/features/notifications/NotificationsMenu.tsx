@@ -79,7 +79,7 @@ export function NotificationsMenu({ onNavigate }: NotificationsMenuProps): React
         >
           <Bell className="size-[17px]" strokeWidth={1.7} />
           {unread > 0 ? (
-            <span className="absolute right-0.5 top-0.5 grid min-w-[15px] place-items-center rounded-full border-2 border-card bg-[var(--color-status-danger)] px-[3px] text-[9px] font-bold text-white">
+            <span className="absolute right-0.5 top-0.5 grid min-w-[15px] place-items-center rounded-full border-2 border-card bg-[var(--color-status-danger)] px-[3px] text-2xs font-bold text-white">
               {unread > 9 ? "9+" : unread}
             </span>
           ) : null}
@@ -88,7 +88,7 @@ export function NotificationsMenu({ onNavigate }: NotificationsMenuProps): React
 
       <PopoverContent align="end" className="w-[min(28rem,calc(100vw-2rem))] p-0">
         <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-          <p className="text-[13px] font-semibold text-foreground">{t("notifications.title")}</p>
+          <p className="text-body-sm font-semibold text-foreground">{t("notifications.title")}</p>
           {items.some((item) => !item.read) ? (
             <Button
               type="button"
@@ -105,7 +105,7 @@ export function NotificationsMenu({ onNavigate }: NotificationsMenuProps): React
         <div className="max-h-[60dvh] overflow-y-auto">
           {feed.isPending ? (
             <p
-              className="flex items-center justify-center gap-2 px-3 py-6 text-[13px] text-muted-foreground"
+              className="flex items-center justify-center gap-2 px-3 py-6 text-body-sm text-muted-foreground"
               role="status"
             >
               <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -113,7 +113,7 @@ export function NotificationsMenu({ onNavigate }: NotificationsMenuProps): React
             </p>
           ) : feed.isError ? (
             <div className="flex flex-col items-center gap-2 px-3 py-6 text-center">
-              <p className="text-[13px] text-muted-foreground">{t("notifications.failed")}</p>
+              <p className="text-body-sm text-muted-foreground">{t("notifications.failed")}</p>
               <Button type="button" size="sm" variant="outline" onClick={() => void feed.refetch()}>
                 {t("actions.retry")}
               </Button>
@@ -124,10 +124,10 @@ export function NotificationsMenu({ onNavigate }: NotificationsMenuProps): React
                 className="size-5 text-[var(--color-status-success)]"
                 aria-hidden="true"
               />
-              <p className="text-[13px] font-medium text-foreground">
+              <p className="text-body-sm font-medium text-foreground">
                 {t("notifications.empty.title")}
               </p>
-              <p className="text-[12.5px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {t("notifications.empty.description")}
               </p>
             </div>
@@ -159,7 +159,7 @@ export function NotificationsMenu({ onNavigate }: NotificationsMenuProps): React
                       />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline gap-2">
-                          <span className="min-w-0 flex-1 text-[13px] font-medium text-foreground">
+                          <span className="min-w-0 flex-1 text-body-sm font-medium text-foreground">
                             {describe(item)}
                           </span>
                           {!item.read ? (
@@ -174,10 +174,10 @@ export function NotificationsMenu({ onNavigate }: NotificationsMenuProps): React
                             </>
                           ) : null}
                         </span>
-                        <span className="block truncate text-[12px] text-muted-foreground">
+                        <span className="block truncate text-xs text-muted-foreground">
                           {item.clientName} · {item.projectName} · {item.processName}
                         </span>
-                        <span className="block text-[11px] tabular-nums text-muted-foreground">
+                        <span className="block text-micro tabular-nums text-muted-foreground">
                           {formatDate(item.occurredAt, locale)}
                           {isFailure && item.detail ? ` · ${item.detail}` : ""}
                         </span>

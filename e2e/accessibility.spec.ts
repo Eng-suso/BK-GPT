@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { primaryNav } from './fixtures/primaryNav';
 
 /**
  * Chi non usa il mouse deve poter lavorare.
@@ -59,7 +60,7 @@ test.describe('Accessibilita (WCAG 2.1 AA)', () => {
     await page.goto('/projects');
     await expect(page.locator('main [aria-busy="true"]')).toHaveCount(0);
 
-    const sidebar = page.getByRole('complementary', { name: 'Navigazione principale' });
+    const sidebar = await primaryNav(page);
     await sidebar.getByRole('button', { name: 'Aiuto' }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
 

@@ -55,9 +55,9 @@ export function AccountMenu({ compact = false, onOpenSettings }: AccountMenuProp
             <CircleUserRound className="size-4" strokeWidth={1.7} />
           </span>
           <span className={cn("hidden max-w-[160px] leading-tight", !compact && "lg:block")}>
-            <span className="block truncate text-[12.5px] font-semibold">{workspace}</span>
+            <span className="block truncate text-xs font-semibold">{workspace}</span>
             {accessLabel ? (
-              <span className="block truncate text-[11px] text-muted-foreground">{accessLabel}</span>
+              <span className="block truncate text-micro text-muted-foreground">{accessLabel}</span>
             ) : null}
           </span>
         </button>
@@ -67,8 +67,8 @@ export function AccountMenu({ compact = false, onOpenSettings }: AccountMenuProp
         <DropdownMenuLabel className="flex items-start gap-2">
           <Building2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <span className="min-w-0">
-            <span className="block text-[12.5px] font-semibold text-foreground">{workspace}</span>
-            <span className="block text-[11.5px] font-normal text-muted-foreground">
+            <span className="block text-xs font-semibold text-foreground">{workspace}</span>
+            <span className="block text-micro font-normal text-muted-foreground">
               {t("identity.workspaceHint")}
             </span>
           </span>
@@ -89,10 +89,10 @@ export function AccountMenu({ compact = false, onOpenSettings }: AccountMenuProp
             />
           )}
           <span className="min-w-0">
-            <span className="block text-[12.5px] text-foreground">
+            <span className="block text-xs text-foreground">
               {accessLabel ?? t("identity.unknown")}
             </span>
-            <span className="block text-[11.5px] text-muted-foreground">
+            <span className="block text-micro text-muted-foreground">
               {t("identity.noPersonYet")}
             </span>
           </span>

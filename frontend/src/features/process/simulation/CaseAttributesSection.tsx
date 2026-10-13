@@ -166,7 +166,7 @@ function CategoryFields({ attribute, invalid, describedBy, onChange }: {
                   aria-describedby={describedBy}
                   onChange={(e) => patch(index, { percent: e.target.value === "" ? Number.NaN : Number(e.target.value) })}
                 />
-                <span aria-hidden className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">%</span>
+                <span aria-hidden className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-micro text-muted-foreground">%</span>
               </span>
             </label>
             <Button

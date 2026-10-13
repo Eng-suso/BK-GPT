@@ -63,7 +63,7 @@ export function OwnerLinkPanel({ processId }: { processId: string }): React.JSX.
           )}
           {link?.active ? (
             <div className="grid gap-1 text-xs text-muted-foreground">
-              <p className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-foreground"><Link2 aria-hidden className="size-4" />{k("created", { date: day(link.created_at) })}</p>
+              <p className="inline-flex items-center gap-1.5 text-body-sm font-semibold text-foreground"><Link2 aria-hidden className="size-4" />{k("created", { date: day(link.created_at) })}</p>
               <p>{k("expires", { date: day(link.expires_at) })}</p>
               <p className="inline-flex items-center gap-1.5"><Eye aria-hidden className="size-3.5" />{link.view_count > 0 ? k("viewed", { count: link.view_count, date: day(link.last_viewed_at) }) : k("notViewed")}</p>
             </div>

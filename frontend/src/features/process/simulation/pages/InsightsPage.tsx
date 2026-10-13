@@ -110,7 +110,7 @@ export function InsightsPage({ embedded = false }: { embedded?: boolean } = {}):
             <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
               {FACTOR_ORDER.filter((k) => k in (report.factors ?? {})).map((k) => (
                 <li key={k} className="grid gap-1">
-                  <span className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <span className="flex items-center justify-between gap-2 text-micro text-muted-foreground">
                     {t(`simulation.heatmap.factor.${k}`)}
                     <span className="tabular-nums">
                       {Math.round((report.factors[k] ?? 0) * 100)}%
@@ -192,7 +192,7 @@ function ExperimentCard({
           tone={costPct > 0 ? "bad" : "neutral"}
         />
       </dl>
-      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+      <p className="mt-1.5 text-2xs uppercase tracking-wide text-muted-foreground">
         {t("simulation.insights.estimateNote")}
       </p>
 
@@ -215,7 +215,7 @@ function Estimate({
 }) {
   return (
     <div>
-      <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dt className="text-2xs uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd
         className="m-0 text-sm font-semibold tabular-nums"
         style={{

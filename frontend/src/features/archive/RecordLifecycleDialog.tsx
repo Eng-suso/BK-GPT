@@ -197,7 +197,7 @@ function ImpactSummary({
       className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3"
       aria-label={t("lifecycle.impact.title")}
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+      <p className="text-micro font-semibold uppercase tracking-[0.04em] text-muted-foreground">
         {t("lifecycle.impact.title")}
       </p>
       {rows.length === 0 ? (

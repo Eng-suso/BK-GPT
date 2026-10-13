@@ -40,7 +40,7 @@ export function ProvenanceChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 text-[11px] leading-none text-muted-foreground",
+        "inline-flex items-center gap-1.5 text-micro leading-none text-muted-foreground",
         className,
       )}
       title={`${t("simulation.provenance.sourceLabel", { source, confidence })} — ${provenanceTip(field, t)}`}

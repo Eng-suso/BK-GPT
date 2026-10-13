@@ -26,10 +26,10 @@ function SettingsSection({
       className="ui-surface ui-surface-panel grid gap-4 p-5 md:grid-cols-[minmax(0,260px)_minmax(0,1fr)]"
     >
       <div>
-        <h2 id={`${id}-title`} className="text-[14px] font-semibold text-foreground">
+        <h2 id={`${id}-title`} className="text-sm font-semibold text-foreground">
           {title}
         </h2>
-        <p className="mt-1 text-[12.5px] leading-5 text-muted-foreground">{description}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
       </div>
       <div className="min-w-0">{children}</div>
     </section>
@@ -71,7 +71,7 @@ export function SettingsPage(): React.JSX.Element {
                 <label
                   key={lng}
                   className={cn(
-                    "flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-[13px] focus-within:ring-2 focus-within:ring-ring",
+                    "flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-body-sm focus-within:ring-2 focus-within:ring-ring",
                     checked ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:bg-muted",
                   )}
                 >
@@ -127,7 +127,7 @@ function AccessPanel(): React.JSX.Element {
   const identity = useIdentityQuery();
 
   if (identity.isError) {
-    return <p className="text-[13px] text-muted-foreground">{t("identity.section.failed")}</p>;
+    return <p className="text-body-sm text-muted-foreground">{t("identity.section.failed")}</p>;
   }
 
   const data = identity.data;
@@ -157,12 +157,12 @@ function AccessPanel(): React.JSX.Element {
             key={label}
             className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border py-2 last:border-b-0"
           >
-            <dt className="text-[12.5px] text-muted-foreground">{label}</dt>
-            <dd className="text-[13px] text-foreground">{value}</dd>
+            <dt className="text-xs text-muted-foreground">{label}</dt>
+            <dd className="text-body-sm text-foreground">{value}</dd>
           </div>
         ))}
       </dl>
-      <p className="mt-3 text-[12.5px] leading-5 text-muted-foreground">
+      <p className="mt-3 text-xs leading-5 text-muted-foreground">
         {t("identity.section.pending")}
       </p>
     </div>

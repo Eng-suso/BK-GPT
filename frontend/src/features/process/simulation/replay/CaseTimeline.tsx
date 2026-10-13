@@ -44,7 +44,7 @@ export function CaseTimeline({ engine }: CaseTimelineProps): React.JSX.Element |
             id: status?.focusCaseId ?? "",
           })}
         </p>
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-micro text-muted-foreground">
           {t("simulation.replay.timeline.cycle", {
             value: formatDuration(span.cycleSec, lang),
           })}
@@ -60,7 +60,7 @@ export function CaseTimeline({ engine }: CaseTimelineProps): React.JSX.Element |
         <ul className="grid gap-1">
           {rows.map((row, i) => (
             <li key={i} className="grid grid-cols-[140px_minmax(0,1fr)] items-center gap-2">
-              <span className="truncate text-[11px] text-foreground" title={row.name}>
+              <span className="truncate text-micro text-foreground" title={row.name}>
                 {row.name}
               </span>
               <span className="relative h-3.5 rounded-sm bg-muted/50">
@@ -86,7 +86,7 @@ export function CaseTimeline({ engine }: CaseTimelineProps): React.JSX.Element |
         </ul>
       </div>
 
-      <div className="flex items-center gap-3 pt-1.5 text-[10px] text-muted-foreground">
+      <div className="flex items-center gap-3 pt-1.5 text-2xs text-muted-foreground">
         <Legend color="var(--sim-token-queued)" label={t("simulation.replay.timeline.waitLabel")} />
         <Legend color="var(--sim-token)" label={t("simulation.replay.timeline.workLabel")} />
       </div>

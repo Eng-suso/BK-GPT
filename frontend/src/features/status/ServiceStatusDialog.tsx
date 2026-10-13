@@ -58,9 +58,9 @@ function StatusRow({
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium text-foreground">{label}</p>
-        <p className="text-[12.5px] text-muted-foreground">{value}</p>
-        {detail ? <div className="mt-1 text-[12px] text-muted-foreground">{detail}</div> : null}
+        <p className="text-body-sm font-medium text-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground">{value}</p>
+        {detail ? <div className="mt-1 text-xs text-muted-foreground">{detail}</div> : null}
       </div>
     </div>
   );
@@ -157,7 +157,7 @@ export const ServiceStatusPanel: React.FC<ServiceStatusPanelProps> = ({
 
         {isChecking ? (
           <p
-            className="flex items-center gap-2 py-3 text-[13px] text-muted-foreground"
+            className="flex items-center gap-2 py-3 text-body-sm text-muted-foreground"
             role="status"
           >
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -194,7 +194,7 @@ export const ServiceStatusPanel: React.FC<ServiceStatusPanelProps> = ({
 
             {queues.isPending ? (
               <p
-                className="flex items-center gap-2 py-2.5 text-[12.5px] text-muted-foreground"
+                className="flex items-center gap-2 py-2.5 text-xs text-muted-foreground"
                 role="status"
               >
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />

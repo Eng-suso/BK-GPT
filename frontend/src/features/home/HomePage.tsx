@@ -78,7 +78,7 @@ export function HomePage(): React.JSX.Element {
                 key={m.key}
                 className="ui-surface ui-surface-panel p-4 "
               >
-                <div className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+                <div className="text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                   {t(`home.metrics.${m.key}`)}
                 </div>
                 <div className="mt-2 text-2xl font-semibold tabular-nums tracking-[-0.02em]">
@@ -88,7 +88,7 @@ export function HomePage(): React.JSX.Element {
                     m.value
                   )}
                 </div>
-                <div className="mt-1.5 text-[11.5px] text-muted-foreground">
+                <div className="mt-1.5 text-micro text-muted-foreground">
                   {t(`home.metrics.${m.key}Note`)}
                 </div>
               </div>
@@ -160,10 +160,10 @@ function HomeList({
   return (
     <section className="flex flex-col ui-surface ui-surface-panel ">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
+        <h3 className="text-2xs font-semibold uppercase tracking-[0.055em] text-muted-foreground">
           {title}
         </h3>
-        <Link to={seeAllTo} className="text-[12px] font-medium text-primary hover:text-primary/85">
+        <Link to={seeAllTo} className="text-xs font-medium text-primary hover:text-primary/85">
           {seeAllLabel}
         </Link>
       </div>
