@@ -58,7 +58,7 @@ export function TimeSeriesChart({
         <div className="flex items-center justify-between gap-2">
           <span className="eyebrow">{title}</span>
           {series.length > 1 ? (
-            <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-2 text-micro text-muted-foreground">
               {series.map((s) => (
                 <span key={s.key} className="inline-flex items-center gap-1">
                   <span

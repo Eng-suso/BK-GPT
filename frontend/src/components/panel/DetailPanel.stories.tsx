@@ -52,7 +52,7 @@ export const ProjectSummary: Story = {
             </button>
           }
         >
-          <ul className="flex flex-col text-[12.5px]">
+          <ul className="flex flex-col text-xs">
             <li className="flex items-center gap-2 border-b border-border/60 py-2">
               Requisiti integrazione WMS
               <PriorityTag priority="alta" className="ml-auto" />

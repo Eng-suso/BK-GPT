@@ -255,9 +255,12 @@
   --font-family-brand: "Hanken Grotesk Variable", "Hanken Grotesk", var(--font-family-geist);
   --font-family-geist-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
+  --font-size-50: 10px;
+  --font-size-75: 11px;
   --font-size-100: 12px;
   --font-size-200: 13px;
   --font-size-300: 14px;
+  --font-size-350: 15px;
   --font-size-400: 16px;
   --font-size-500: 18px;
   --font-size-600: 20px;

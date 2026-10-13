@@ -551,7 +551,7 @@ export function SimulationConfigRail({
                       ) : (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--state-warning-text)] hover:underline"
+                          className="inline-flex items-center gap-1.5 text-micro font-medium text-[var(--state-warning-text)] hover:underline"
                           onClick={() => {
                             const flows = gateway.branches.map((b) => b.flow_id);
                             const total = flows.reduce((acc, f) => acc + (cfg[f] ?? 0), 0);
@@ -585,7 +585,7 @@ export function SimulationConfigRail({
                           className="grid grid-cols-[minmax(0,1fr)_72px] items-center gap-1.5"
                         >
                           <span
-                            className="truncate text-[11px] text-muted-foreground"
+                            className="truncate text-micro text-muted-foreground"
                             title={branch.target_name || branch.flow_name}
                           >
                             {branch.target_name || branch.flow_name || branch.flow_id}
@@ -610,7 +610,7 @@ export function SimulationConfigRail({
                                 })
                               }
                             />
-                            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-micro text-muted-foreground">
                               %
                             </span>
                           </div>
@@ -651,7 +651,7 @@ export function SimulationConfigRail({
                       tone={RUN_TONE[run.status]}
                       label={run.scenario_name}
                     />
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-micro text-muted-foreground">
                       {formatDate(run.created_at)}
                     </span>
                   </span>

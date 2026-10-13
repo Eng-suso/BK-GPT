@@ -58,17 +58,17 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           className="size-5 shrink-0 text-muted-foreground"
           aria-hidden="true"
         />
-        <p className="text-[15px] font-semibold text-foreground text-balance">
+        <p className="text-subtitle font-semibold text-foreground text-balance">
           {title}
         </p>
       </div>
-      <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground text-pretty">
+      <p className="mt-1.5 text-body-sm leading-relaxed text-muted-foreground text-pretty">
         {description}
       </p>
 
       {promptList.length > 0 && (
         <div className="mt-4">
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+          <p className="mb-1.5 text-micro font-semibold uppercase tracking-[0.04em] text-muted-foreground">
             {t("empty.tryLabel")}
           </p>
           <ul className="flex flex-col gap-1">
@@ -79,7 +79,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                   type="button"
                   onClick={() => onSelectPrompt?.(prompt)}
                   disabled={!onSelectPrompt}
-                  className="group flex h-auto min-h-10 w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-[13px] font-normal whitespace-normal"
+                  className="group flex h-auto min-h-10 w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-body-sm font-normal whitespace-normal"
                 >
                   <span className="min-w-0">{prompt}</span>
                   <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />

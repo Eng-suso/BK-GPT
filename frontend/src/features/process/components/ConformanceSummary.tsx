@@ -156,7 +156,7 @@ function StatusBody({
   if (working || status.running) {
     return (
       <Verdict tone="neutral" icon={<Loader2 aria-hidden className="size-4 animate-spin text-muted-foreground" />}>
-        <p className="text-[13px] font-medium text-foreground">
+        <p className="text-body-sm font-medium text-foreground">
           {repairing ? t("canvas.conformance.repairing") : t("canvas.conformance.inProgress")}
         </p>
         <p className="text-xs text-muted-foreground">
@@ -169,7 +169,7 @@ function StatusBody({
   if (!report) {
     return (
       <Verdict tone="neutral" icon={<CircleDashed aria-hidden className="size-4 text-muted-foreground" />}>
-        <p className="text-[13px] font-medium text-foreground">{t("canvas.conformance.verdict.none")}</p>
+        <p className="text-body-sm font-medium text-foreground">{t("canvas.conformance.verdict.none")}</p>
         <p className="text-xs text-muted-foreground">{t("canvas.conformance.noneHint")}</p>
       </Verdict>
     );
@@ -187,14 +187,14 @@ function StatusBody({
     <div className="grid gap-2">
       {report.verdict === "conformant" ? (
         <Verdict tone="ok" icon={<CheckCircle2 aria-hidden className="size-4 text-[var(--color-status-success)]" />}>
-          <p className="text-[13px] font-medium text-foreground">
+          <p className="text-body-sm font-medium text-foreground">
             {t("canvas.conformance.verdict.conformant")}
           </p>
           <p className="text-xs text-muted-foreground">{checkedOn}</p>
         </Verdict>
       ) : report.verdict === "conformant_with_divergences" ? (
         <Verdict tone="ok" icon={<CheckCircle2 aria-hidden className="size-4 text-[var(--color-status-success)]" />}>
-          <p className="text-[13px] font-medium text-foreground">
+          <p className="text-body-sm font-medium text-foreground">
             {t("canvas.conformance.verdict.withDivergences", { count: report.findings.length })}
           </p>
           <p className="text-xs text-muted-foreground">{checkedOn}</p>
@@ -204,14 +204,14 @@ function StatusBody({
           tone="attention"
           icon={<TriangleAlert aria-hidden className="size-4 text-[var(--color-status-warning)]" />}
         >
-          <p className="text-[13px] font-medium text-foreground">
+          <p className="text-body-sm font-medium text-foreground">
             {t("canvas.conformance.verdict.notConformant", { count: report.findings.length })}
           </p>
           <p className="text-xs text-muted-foreground">{checkedOn}</p>
         </Verdict>
       ) : (
         <Verdict tone="neutral" icon={<CircleDashed aria-hidden className="size-4 text-muted-foreground" />}>
-          <p className="text-[13px] font-medium text-foreground">
+          <p className="text-body-sm font-medium text-foreground">
             {t("canvas.conformance.verdict.incomplete")}
           </p>
           {report.note && <p className="text-xs text-muted-foreground">{capitalize(report.note)}</p>}
@@ -219,7 +219,7 @@ function StatusBody({
       )}
 
       {!status.isCurrent && (
-        <p className="rounded-md border border-border bg-muted px-2 py-1.5 text-[11px] leading-relaxed text-foreground">
+        <p className="rounded-md border border-border bg-muted px-2 py-1.5 text-micro leading-relaxed text-foreground">
           {t("canvas.conformance.outdated")}
         </p>
       )}
@@ -244,7 +244,7 @@ function StatusBody({
             <Wand2 aria-hidden className="size-3.5" />
             {t("canvas.conformance.repair", { count: repairable })}
           </Button>
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
+          <p className="text-micro leading-relaxed text-muted-foreground">
             {t("canvas.conformance.repairHint")}
           </p>
         </div>

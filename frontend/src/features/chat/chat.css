@@ -1074,7 +1074,7 @@
   border-radius: 999px;
   background: var(--state-warning-surface);
   color: var(--color-text-primary);
-  font-size: 10px;
+  font-size: var(--font-size-50);
 }
 
 .bpmn-review-sheet-body {
@@ -1147,7 +1147,7 @@
 .bpmn-review-hero-score em {
   margin-top: 4px;
   color: var(--color-text-tertiary);
-  font-size: 10px;
+  font-size: var(--font-size-50);
   font-style: normal;
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.04em;
@@ -1289,7 +1289,7 @@
   height: 36px;
   flex: none;
   place-items: center;
-  border-radius: 10px;
+  border-radius: var(--radius-raised);
   background: var(--blue-50);
   color: var(--color-action-primary);
 }
@@ -1336,7 +1336,7 @@
   height: 28px;
   flex: none;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--blue-50);
   color: var(--color-action-primary);
   font-size: var(--font-size-100);
@@ -1734,7 +1734,7 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
 .bpmn-review-sheet-icon {
   width: 40px;
   height: 40px;
-  border-radius: 12px;
+  border-radius: var(--radius-raised);
   background: var(--blue-50);
 }
 
@@ -1811,7 +1811,7 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
 .bpmn-review-score-label {
   margin-top: 4px;
   color: var(--color-text-tertiary);
-  font-size: 10px;
+  font-size: var(--font-size-50);
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -2448,7 +2448,7 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
 @container composer-wrap (max-width: 640px) {
   .composer-bottom-bar { gap: var(--space-200); }
   .chat-mode-trigger { min-height: 32px; }
-  .composer-wrap textarea { font-size: 16px; }
+  .composer-wrap textarea { font-size: var(--font-size-400); }
 }
 @media (max-width: 540px) {
   .viewport .welcome, .embedded-chat-panel .welcome { padding-block: 12px; }

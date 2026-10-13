@@ -157,24 +157,24 @@ export function EvidenceReviewPanel({
               else rowRefs.current.delete(item.sourceRef);
             }}
             onClick={() => locate(item)}
-            className="flex min-w-0 items-start gap-1.5 rounded-sm text-left text-[13px] font-medium text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+            className="flex min-w-0 items-start gap-1.5 rounded-sm text-left text-body-sm font-medium text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring"
             title={t("canvas.evidence.locate")}
           >
             <Crosshair aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
             <span className="min-w-0 break-words">{item.label || item.elementId}</span>
           </button>
           <span
-            className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_TONE[item.markStatus]}`}
+            className={`shrink-0 rounded-full border px-2 py-0.5 text-2xs font-medium ${STATUS_TONE[item.markStatus]}`}
           >
             {t(`canvas.evidence.status.${item.markStatus}`)}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+          <Badge variant="outline" className="text-2xs uppercase tracking-wide">
             {t(`canvas.evidence.kind.${item.kind}`)}
           </Badge>
           {item.sourceName && (
-            <span className="truncate text-[11px] text-muted-foreground">{item.sourceName}</span>
+            <span className="truncate text-micro text-muted-foreground">{item.sourceName}</span>
           )}
         </div>
         {item.quote ? (
@@ -232,15 +232,15 @@ export function EvidenceReviewPanel({
           </div>
         )}
         {rejecting && (
-          <p className="rounded-md border border-warning-border bg-warning-surface px-2 py-1.5 text-[11px] leading-relaxed text-foreground">
+          <p className="rounded-md border border-warning-border bg-warning-surface px-2 py-1.5 text-micro leading-relaxed text-foreground">
             {t("canvas.evidence.rejectWarning")}
           </p>
         )}
         {actions && item.removable && hasUnsavedChanges && (
-          <p className="text-[11px] text-muted-foreground">{t("canvas.evidence.saveFirst")}</p>
+          <p className="text-micro text-muted-foreground">{t("canvas.evidence.saveFirst")}</p>
         )}
         {actions && !item.removable && (
-          <p className="text-[11px] text-muted-foreground">{t("canvas.evidence.notRemovable")}</p>
+          <p className="text-micro text-muted-foreground">{t("canvas.evidence.notRemovable")}</p>
         )}
       </li>
     );
@@ -311,7 +311,7 @@ function PanelFrame({
             {t("canvas.evidence.title")}
           </h3>
           {snapshotLabel && (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-micro text-muted-foreground">
               {t("canvas.evidence.plan", { label: snapshotLabel })}
             </p>
           )}

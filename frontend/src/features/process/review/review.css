@@ -14,20 +14,13 @@
 .review-canvas .djs-shape.review-downstream:not(.review-selected) .djs-visual > :first-child { stroke: var(--review-color-downstream) !important; stroke-width: var(--stroke-width-default) !important; stroke-dasharray: 2 3 !important; }
 .review-canvas .djs-shape.review-document .djs-visual > :first-child { stroke: var(--review-color-downstream) !important; stroke-width: var(--stroke-width-emphasis) !important; }
 .review-canvas-controls { position: absolute; right: var(--space-300); bottom: var(--space-400); display: flex; align-items: center; gap: var(--space-100); padding: var(--space-100); }
-.review-mascot-orbit { display: block; width: 48px; height: 48px; animation: review-mascot-orbit var(--motion-duration-deliberate) var(--motion-easing-standard) 1; }
-.review-mascot-body { fill: var(--color-surface-primary); stroke: var(--review-color-selected); stroke-width: var(--stroke-width-default); }
-.review-mascot-spine { fill: var(--review-color-selected); }
-.review-mascot-fold { fill: var(--review-surface-selected); }
-.review-mascot-eyes { fill: var(--color-text-primary); }
-.review-mascot-shadow { fill: var(--color-border-subtle); }
-.review-mascot-arm, .review-mascot-feet, .review-mascot-seam { fill: none; stroke: var(--review-color-selected); stroke-width: var(--stroke-width-default); stroke-linecap: round; stroke-linejoin: round; }
-.review-mascot-smile { fill: none; stroke: var(--color-text-primary); stroke-width: var(--stroke-width-default); stroke-linecap: round; }
-@keyframes review-mascot-orbit {
-  0% { transform: translate(0, 0) rotate(0deg); }
-  25% { transform: translate(4px, -3px) rotate(12deg); }
-  50% { transform: translate(0, -6px) rotate(0deg); }
-  75% { transform: translate(-4px, -3px) rotate(-12deg); }
-  100% { transform: translate(0, 0) rotate(0deg); }
+.review-mascot-orbit { display: block; width: 48px; height: 48px; animation: review-mascot-arrive var(--motion-duration-deliberate) var(--motion-easing-standard) 1; }
+/* Il disco scala con il contenitore: la stessa marca va da 24 a 64px. */
+.review-mascot { display: inline-grid; place-items: center; flex: none; aspect-ratio: 1; border-radius: var(--radius-full); background: var(--material-selected); border: 1px solid var(--color-border); container-type: size; }
+.review-mascot [role="img"] { font-size: 46cqh; }
+@keyframes review-mascot-arrive {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) { .review-mascot-orbit { animation: none; } }
 .review-start-hint { position: absolute; top: var(--space-1200); left: var(--space-300); right: var(--space-300); display: flex; align-items: center; gap: var(--space-200); width: fit-content; max-width: calc(100% - 24px); padding: var(--space-300); pointer-events: none; }

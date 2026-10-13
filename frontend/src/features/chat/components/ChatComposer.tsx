@@ -687,19 +687,19 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-muted/40">
-              <div className="flex h-8 items-center border-b border-border px-3 text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
+              <div className="flex h-8 items-center border-b border-border px-3 text-2xs font-semibold uppercase tracking-[0.055em] text-muted-foreground">
                 {t("composer.audio.liveHeading")}
               </div>
-              <div className="h-[112px] overflow-y-auto whitespace-pre-wrap p-3 text-[13px] leading-normal text-foreground @max-[540px]/composer-wrap:h-[92px]">
+              <div className="h-[112px] overflow-y-auto whitespace-pre-wrap p-3 text-body-sm leading-normal text-foreground @max-[540px]/composer-wrap:h-[92px]">
                 {liveTranscript ||
                   t("composer.audio.livePlaceholder")}
               </div>
             </div>
             <div className="min-w-0 overflow-hidden rounded-lg border border-[var(--green-200)] bg-[var(--green-50)]">
-              <div className="flex h-8 items-center border-b border-border px-3 text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
+              <div className="flex h-8 items-center border-b border-border px-3 text-2xs font-semibold uppercase tracking-[0.055em] text-muted-foreground">
                 {t("composer.audio.finalHeading")}
               </div>
-              <div className="h-[112px] overflow-y-auto whitespace-pre-wrap p-3 text-[13px] leading-normal text-foreground @max-[540px]/composer-wrap:h-[92px]">
+              <div className="h-[112px] overflow-y-auto whitespace-pre-wrap p-3 text-body-sm leading-normal text-foreground @max-[540px]/composer-wrap:h-[92px]">
                 {finalTranscript ||
                   t("composer.audio.finalPlaceholder")}
               </div>
@@ -1023,7 +1023,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         }}
       />
 
-      <div className="footnote mt-2 text-center text-[11px] text-muted-foreground">
+      <div className="footnote mt-2 text-center text-micro text-muted-foreground">
         {t("composer.disclaimer")}
       </div>
     </div>

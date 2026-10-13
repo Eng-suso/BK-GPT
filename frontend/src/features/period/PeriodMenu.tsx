@@ -55,7 +55,7 @@ export function PeriodMenu({ compact = false }: PeriodMenuProps): React.JSX.Elem
           // di un periodo, cambiarlo non puo' dipendere dalla larghezza dello
           // schermo. Sotto `md` resta l'icona, con l'intervallo nel menu.
           className={cn(
-            "inline-flex h-[34px] max-w-[42vw] items-center gap-2 whitespace-nowrap ui-button-glass rounded-full px-2.5 text-[12.5px] font-medium text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring",
+            "inline-flex h-[34px] max-w-[42vw] items-center gap-2 whitespace-nowrap ui-button-glass rounded-full px-2.5 text-xs font-medium text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring",
             compact && "xl:max-w-none",
           )}
         >
@@ -73,11 +73,11 @@ export function PeriodMenu({ compact = false }: PeriodMenuProps): React.JSX.Elem
         {PERIOD_IDS.map((id: PeriodId) => {
           const itemRange = periodRange(id);
           return (
-            <DropdownMenuRadioItem key={id} value={id} className="text-[13px]">
+            <DropdownMenuRadioItem key={id} value={id} className="text-body-sm">
               <span className="min-w-0">
                 <span className="block">{t(`period.${id}`)}</span>
                 {itemRange.from && itemRange.to ? (
-                  <span className="block text-[11.5px] text-muted-foreground">
+                  <span className="block text-micro text-muted-foreground">
                     {day(itemRange.from, locale)} – {day(itemRange.to, locale)}
                   </span>
                 ) : null}

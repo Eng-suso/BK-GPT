@@ -133,7 +133,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
               aria-label={t("simulation.replay.nodeInspector")}
             >
               <div className="mb-2 flex items-start justify-between gap-2 border-b border-border pb-2">
-                <strong className="min-w-0 truncate text-[13px] text-foreground">
+                <strong className="min-w-0 truncate text-body-sm text-foreground">
                   {(activity?.name as string) ?? selectedId}
                 </strong>
                 <Button

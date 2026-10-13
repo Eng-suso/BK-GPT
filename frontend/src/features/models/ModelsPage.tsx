@@ -76,7 +76,7 @@ export function ModelsPage(): React.JSX.Element {
         header: t("models.columns.model"),
         cell: ({ row }) => (
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-medium text-foreground">
+            <p className="truncate text-body-sm font-medium text-foreground">
               {row.original.processName}
             </p>
             <p className="truncate text-xs text-muted-foreground">

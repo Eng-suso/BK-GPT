@@ -27,10 +27,12 @@
   --primary: var(--brand-blue);
 
   /* Satin identity: slate materials, blue reserved for actions and focus. */
-  --radius: 1rem;
-  --material-radius-control: 0.875rem;
-  --material-radius-panel: 1.25rem;
-  --material-radius-frame: 1.75rem;
+  /* One radius scale for the whole product: 8px controls, 12px panels, 18px
+     frames. Tailwind's rounded-sm/md/lg/xl derive from --radius (6/8/10/14). */
+  --radius: 10px;
+  --material-radius-control: var(--radius-300);
+  --material-radius-panel: var(--radius-400);
+  --material-radius-frame: var(--radius-600);
   --material-edge: rgb(255 255 255 / 0.9);
   --material-divider: rgb(38 43 52 / 0.09);
   --material-control-edge: rgb(38 43 52 / 0.15);
@@ -128,10 +130,9 @@
 }
 
 /*
- * Workspace type ramp. The primitive `--font-size-*` scale is complete but was
- * bypassed by ~80 arbitrary `text-[12.5px]` literals. These four semantic steps
- * cover the dense list/panel surfaces; `text-xs` (12) / `text-sm` (14) /
- * `text-2xl` (24) from Tailwind's default theme cover the rest.
+ * Workspace type ramp. No component writes a pixel size: CSS uses the
+ * primitive `--font-size-*` scale, Tailwind these four steps plus `text-xs`
+ * (12) / `text-sm` (14) / `text-base` (16) / `text-lg` (18) / `text-2xl` (24).
  */
 @theme {
   /* Workspace list screens only mount the right detail panel once there is
@@ -270,7 +271,7 @@
   .product-eyebrow {
     margin: 0;
     color: var(--color-text-tertiary);
-    font-size: 11px;
+    font-size: var(--font-size-75);
     font-weight: var(--font-weight-semibold);
     line-height: var(--line-height-100);
     letter-spacing: 0.04em;

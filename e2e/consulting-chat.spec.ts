@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+import { primaryNav } from "./fixtures/primaryNav";
+
 /**
  * Il turno della Consulting Chat, dal punto di vista del consulente.
  *
@@ -203,9 +205,9 @@ test("cambiare pagina non azzera il turno in corso", async ({ page }) => {
 
   // Via mentre l'agente lavora, e ritorno — dentro l'app, come farebbe un
   // consulente che va a controllare un progetto mentre aspetta.
-  await page.getByRole("button", { name: "Progetti" }).click();
+  await (await primaryNav(page)).getByRole("button", { name: "Progetti" }).click();
   await expect(page).toHaveURL(/\/projects/);
-  await page.getByRole("button", { name: "Consulente" }).click();
+  await (await primaryNav(page)).getByRole("button", { name: "Consulente" }).click();
   await expect(page).toHaveURL(/\/consultant/);
 
   await expect(

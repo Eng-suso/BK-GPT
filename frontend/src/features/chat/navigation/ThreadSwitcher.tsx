@@ -27,7 +27,7 @@ interface ThreadSwitcherProps {
 }
 
 const GROUP_LABEL_CLASS =
-  "px-2 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground";
+  "px-2 pt-2 pb-1 text-micro font-semibold uppercase tracking-[0.04em] text-muted-foreground";
 
 /**
  * Compact thread control for the embedded chat panel: one trigger that opens the

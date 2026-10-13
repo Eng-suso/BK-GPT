@@ -148,7 +148,7 @@ export function SimulationResults({
                     {resource.name}
                   </span>
                   {resource.pool && (
-                    <span className="block truncate text-[11px] text-muted-foreground">
+                    <span className="block truncate text-micro text-muted-foreground">
                       {resource.pool}
                     </span>
                   )}
@@ -272,7 +272,7 @@ function TaskRow({
     >
       <TableCell className="max-w-[180px] pl-1">
         <span className="block truncate font-medium text-foreground">{task.name}</span>
-        <span className="text-[11px] tabular-nums text-muted-foreground">
+        <span className="text-micro tabular-nums text-muted-foreground">
           {formatCount(task.volume, lang)}×
         </span>
       </TableCell>

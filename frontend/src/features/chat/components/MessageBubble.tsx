@@ -54,7 +54,7 @@ function formatClock(iso: string | undefined, locale: string): string {
 }
 
 const META_LABEL_CLASS =
-  "text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground";
+  "text-micro font-semibold uppercase tracking-[0.04em] text-muted-foreground";
 
 function ActivityIcon({ icon, running }: { icon?: string; running: boolean }) {
   const className = cn("size-3.5 flex-none", running ? "text-primary" : "text-muted-foreground");
@@ -213,7 +213,7 @@ function ActivityTimeline({
                 <span className="text-muted-foreground"> · {item.detail}</span>
               ) : null}
             </span>
-            <span className="ml-auto flex-none tabular-nums text-[11px] text-muted-foreground">
+            <span className="ml-auto flex-none tabular-nums text-micro text-muted-foreground">
               {elapsed}
             </span>
           </div>
@@ -245,7 +245,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   if (message.role === "error") {
     return (
       <div className="message error-bubble w-full">
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-3 text-[13px] text-destructive">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-3 text-body-sm text-destructive">
           <span className="flex items-center gap-2">
             <TriangleAlert className="size-4 flex-none" />
             {message.content ||
@@ -275,7 +275,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         <div className="mb-1.5 flex items-center gap-2 leading-none">
           <span className={META_LABEL_CLASS}>{t("message.assistant")}</span>
           {time ? (
-            <span className="text-[11px] tabular-nums text-muted-foreground">
+            <span className="text-micro tabular-nums text-muted-foreground">
               {time}
             </span>
           ) : null}
@@ -331,7 +331,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <div className="mb-1 flex items-center gap-2 pr-0.5 leading-none">
         <span className={META_LABEL_CLASS}>{t("message.you")}</span>
         {time ? (
-          <span className="text-[11px] tabular-nums text-muted-foreground">
+          <span className="text-micro tabular-nums text-muted-foreground">
             {time}
           </span>
         ) : null}

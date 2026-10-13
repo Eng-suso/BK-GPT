@@ -20,10 +20,10 @@ export function BpmnVersionHistory({
   return (
     <aside className="process-bpmn-history" aria-label="Cronologia BPMN">
       <div className="border-b border-border p-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        <p className="text-2xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Versioni
         </p>
-        <strong className="mt-0.5 block text-[13px] font-semibold text-foreground">
+        <strong className="mt-0.5 block text-body-sm font-semibold text-foreground">
           Cronologia
         </strong>
       </div>
@@ -42,10 +42,10 @@ export function BpmnVersionHistory({
                 <strong className="text-xs font-semibold text-foreground">
                   v{version.id}
                 </strong>
-                <span className="text-[11px] font-medium text-muted-foreground">
+                <span className="text-micro font-medium text-muted-foreground">
                   {formatVersionDate(version.createdAt)}
                 </span>
-                <small className="truncate text-[11px] font-medium text-muted-foreground">
+                <small className="truncate text-micro font-medium text-muted-foreground">
                   {version.changeSummary}
                 </small>
               </div>

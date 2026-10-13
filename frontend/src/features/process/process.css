@@ -270,7 +270,7 @@
 }
 
 .process-bpmn-canvas .djs-container {
-  font-size: 13px;
+  font-size: var(--font-size-200);
 }
 
 /*
@@ -326,11 +326,11 @@
   max-width: 420px;
   margin: 0;
   border: 1px solid var(--red-200);
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   background: var(--red-50);
   color: var(--red-800);
   padding: 10px 12px;
-  font-size: 12px;
+  font-size: var(--font-size-100);
   font-weight: 700;
 }
 
@@ -351,7 +351,7 @@
 }
 
 .process-bpmn-properties-host .bio-properties-panel-group-header {
-  font-size: 13px;
+  font-size: var(--font-size-200);
   font-weight: 600;
   color: var(--color-text-primary);
   border-bottom: 1px solid var(--color-border-subtle);
@@ -365,7 +365,7 @@
 
 .process-bpmn-properties-host .bio-properties-panel-label,
 .process-bpmn-properties-host label {
-  font-size: 11px;
+  font-size: var(--font-size-75);
   font-weight: 700;
   color: var(--color-text-tertiary);
   margin-bottom: 5px;
@@ -383,7 +383,7 @@
   background: var(--material-field);
   color: var(--color-text-primary);
   padding: 7px 10px;
-  font-size: 12px;
+  font-size: var(--font-size-100);
   font-family: inherit;
 }
 
@@ -669,7 +669,7 @@
 .process-bpmn-stage { display: grid; grid-template-columns: 52px minmax(0, 1fr); min-width: 0; min-height: 0; }
 .process-creation-tools { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 0; overflow-y: auto; padding: 8px 4px; border-right: 1px solid var(--material-divider); }
 .process-creation-tools > button { flex-shrink: 0; }
-.process-creation-glyph { font-size: 20px; }
+.process-creation-glyph { font-size: var(--font-size-600); }
 
 .process-bpmn-stage:has(.process-creation-tools--expanded) { grid-template-columns: 256px minmax(0, 1fr); }
 .process-creation-tools--expanded { align-items: stretch; gap: 12px; padding: 8px 0; }
@@ -709,8 +709,12 @@
 .process-section-menu { display: none; }
 @media (max-width: 620px) { .process-section-menu { display: inline-flex; } }
 @media (max-width: 620px) {
-  .process-studio-header { gap: 4px; padding-inline: 8px; }
+  /* Titolo sulla prima riga, comandi sulla seconda: in una riga sola il nome
+     del processo restava una lettera. */
+  .process-studio-header { gap: 4px; row-gap: 6px; padding-inline: 8px; flex-wrap: wrap; }
   .process-studio-header h1 { font-size: var(--font-size-200); }
+  .process-studio-header > :last-child { flex-basis: 100%; }
+  .process-studio-header > :last-child > :last-child { margin-left: auto; }
   .process-view-label { display: none; }
   .process-section-link { display: none; }
   .process-workspace--embedded { padding: 6px; }

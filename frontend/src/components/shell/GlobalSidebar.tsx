@@ -8,6 +8,9 @@ import type { ShellSection } from "./types";
 
 export type GlobalSidebarProps = {
   compact?: boolean;
+  /** Dentro il cassetto del telefono: etichette sempre visibili. */
+  drawer?: boolean;
+  className?: string;
   /** `null` quando la pagina aperta non e' una sezione (es. impostazioni). */
   activeSection: ShellSection | null;
   onSectionChange: (section: ShellSection) => void;
@@ -27,6 +30,8 @@ export type GlobalSidebarProps = {
  */
 export function GlobalSidebar({
   compact = false,
+  drawer = false,
+  className,
   activeSection,
   onSectionChange,
   settingsActive = false,
@@ -34,15 +39,20 @@ export function GlobalSidebar({
   onOpenSettings,
 }: GlobalSidebarProps): React.JSX.Element {
   const { t } = useTranslation("common");
+  // Il rail mostra le etichette solo da lg in su; il cassetto sempre.
+  const expanded = drawer ? "justify-start px-2.5" : !compact && "lg:justify-start lg:px-2.5";
+  const label = drawer ? "inline" : compact ? "hidden" : "hidden lg:inline";
 
   return (
     <aside
       aria-label={t("nav.primary")}
-      className={cn("app-chrome flex flex-col items-center border-r px-2 py-4", !compact && "lg:items-stretch lg:px-3")}
+      className={cn("app-chrome flex flex-col items-center border-r px-2 py-4", drawer ? "h-full items-stretch px-3" : !compact && "lg:items-stretch lg:px-3", className)}
     >
       <div className="pb-[18px] pt-1 lg:px-2">
-        <DelirLogo compact className={compact ? "" : "lg:hidden"} />
-        <DelirLogo className={compact ? "hidden" : "hidden lg:inline-flex"} />
+        {drawer ? <DelirLogo /> : <>
+          <DelirLogo compact className={compact ? "" : "lg:hidden"} />
+          <DelirLogo className={compact ? "hidden" : "hidden lg:inline-flex"} />
+        </>}
       </div>
 
       <nav className="flex w-full flex-col gap-0.5">
@@ -57,8 +67,8 @@ export function GlobalSidebar({
               title={t(item.labelKey)}
               onClick={() => onSectionChange(item.id)}
               className={cn(
-                "ui-nav-item relative flex h-10 items-center justify-center gap-[11px] rounded-2xl text-[13.5px] font-normal text-muted-foreground",
-                !compact && "lg:justify-start lg:px-2.5",
+                "ui-nav-item relative flex h-10 items-center justify-center gap-[11px] rounded-lg text-body-sm font-normal text-muted-foreground",
+                expanded,
                 "hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
                 isActive &&
                   "font-medium text-primary",
@@ -71,7 +81,7 @@ export function GlobalSidebar({
                 )}
                 strokeWidth={1.6}
               />
-              <span className={compact ? "hidden" : "hidden lg:inline"}>{t(item.labelKey)}</span>
+              <span className={label}>{t(item.labelKey)}</span>
             </button>
           );
         })}
@@ -83,10 +93,10 @@ export function GlobalSidebar({
           title={t("nav.help")}
           aria-haspopup="dialog"
           onClick={onOpenHelp}
-          className={cn("flex h-10 items-center justify-center gap-[11px] rounded-2xl text-[13.5px] text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring", !compact && "lg:justify-start lg:px-2.5")}
+          className={cn("flex h-10 items-center justify-center gap-[11px] rounded-lg text-body-sm text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring", expanded)}
         >
           <HelpCircle className="size-[17px] shrink-0 opacity-70" strokeWidth={1.6} />
-          <span className={compact ? "hidden" : "hidden lg:inline"}>{t("nav.help")}</span>
+          <span className={label}>{t("nav.help")}</span>
         </button>
         <button
           type="button"
@@ -94,13 +104,13 @@ export function GlobalSidebar({
           aria-current={settingsActive ? "page" : undefined}
           onClick={onOpenSettings}
           className={cn(
-            "flex h-10 items-center justify-center gap-[11px] rounded-2xl text-[13.5px] text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
-            !compact && "lg:justify-start lg:px-2.5",
+            "flex h-10 items-center justify-center gap-[11px] rounded-lg text-body-sm text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
+            expanded,
             settingsActive && "font-medium text-primary",
           )}
         >
           <Settings className={cn("size-[17px] shrink-0", settingsActive ? "opacity-100" : "opacity-70")} strokeWidth={1.6} />
-          <span className={compact ? "hidden" : "hidden lg:inline"}>{t("nav.profile")}</span>
+          <span className={label}>{t("nav.profile")}</span>
         </button>
       </div>
     </aside>
