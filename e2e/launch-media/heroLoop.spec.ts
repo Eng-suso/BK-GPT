@@ -210,16 +210,14 @@ async function momentSources(page: Page, lang: Lang, id: string): Promise<void> 
       .map((el) => ({ el, rect: el.getBoundingClientRect() }))
       .filter(({ rect }) => rect.width > 0 || rect.height > 0);
     elements.forEach(({ el }) => el.classList.add("hero-el"));
-    // Due colonne al centro del processo: a sinistra le interviste, a destra i file.
-    const W = 340, GAP = 16, ROW = 82;
-    const rows = Math.ceil(cards.length / 2);
-    const left = pool.x + pool.width / 2 - W - GAP / 2;
-    const top = Math.max(90, pool.y + pool.height / 2 - (rows * ROW) / 2);
+    // Una colonna al centro del processo: prima le interviste, poi i file. In
+    // colonna entra intera anche nel 4:5.
+    const W = 340, ROW = 78;
+    const left = pool.x + pool.width / 2 - W / 2;
+    const top = Math.max(90, pool.y + pool.height / 2 - (cards.length * ROW) / 2);
     const start = document.querySelector(".process-bpmn-canvas [data-element-id='StartEvent_1']")!.getBoundingClientRect();
     const db = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>';
     const made = cards.map((card, index) => {
-      const column = index < rows ? 0 : 1;
-      const row = index % rows;
       const el = document.createElement("div");
       el.className = "hero-card";
       const icon = document.createElement("i");
@@ -231,8 +229,8 @@ async function momentSources(page: Page, lang: Lang, id: string): Promise<void> 
       detail.textContent = card.detail;
       text.append(card.title, detail);
       el.append(icon, text);
-      const x = left + column * (W + GAP);
-      const y = top + row * ROW;
+      const x = left;
+      const y = top + index * ROW;
       el.style.left = `${x}px`;
       el.style.top = `${y}px`;
       el.dataset.to = `translate(${start.left - x - 150}px, ${start.top - y - 20}px) scale(.12)`;
@@ -262,7 +260,7 @@ async function momentSources(page: Page, lang: Lang, id: string): Promise<void> 
   await page.waitForTimeout(400);
   const cards = page.locator(".hero-card");
   await record(page, id, async (rec) => {
-    await rec.focus(union(await box(cards.first()), await box(cards.last())), 4, 28);
+    await rec.focus(union(await box(cards.first()), await box(cards.last())), 4, 20);
     await page.evaluate(() => (window as unknown as { heroPlay: () => void }).heroPlay());
     await rec.wait(1150);
     // Il processo intero, a tutto schermo, mentre si compone (nel 4:5 il centro).
@@ -270,7 +268,9 @@ async function momentSources(page: Page, lang: Lang, id: string): Promise<void> 
     await rec.focus(poolNow, 4, 8, { overview: true });
     await rec.wait(1900);
     const first = union(...(await Promise.all(["StartEvent_1", "Task_Compila", "Task_Invia"].map((key) => box(node(page, key))))));
-    await rec.focus(first, 4, 24);
+    // Nel 4:5 le prime due: le etichette restano leggibili.
+    const opening = union(await box(node(page, "StartEvent_1")), await box(node(page, "Task_Compila")));
+    await rec.focus(first, 4, 24, { narrow: opening, narrowPad: 10 });
     await rec.wait(1700);
   });
 }
@@ -352,14 +352,20 @@ async function momentEvidence(page: Page, lang: Lang, id: string): Promise<void>
       },
     });
   }, { ease: EASE, from: quoteBox, to: taskBox });
-  const scene = union(taskBox, await box(row));
+  const rowBox2 = await box(row);
+  const scene = union(taskBox, rowBox2);
+  // Nel 4:5 attivita' e citazione insieme non entrano leggibili: la camera
+  // parte dalla citazione e segue la linea fino all'attivita'.
+  const linkEnd = union(taskBox, { x: quoteBox.x, y: quoteBox.y, width: 70, height: Math.min(quoteBox.height, 44) });
   await record(page, id, async (rec) => {
     // Una sola inquadratura: l'attivita' nel processo e la frase che la regge.
-    await rec.focus(scene, 4, 8);
+    await rec.focus(scene, 4, 2, { narrow: rowBox2, narrowPad: 0 });
     await rec.wait(300);
     await moveTo(page, quote);
     await page.evaluate(() => (window as unknown as { heroLink: () => void }).heroLink());
-    await rec.wait(1400);
+    await rec.wait(500);
+    await rec.focus(scene, 4, 2, { narrow: linkEnd, narrowPad: 4 });
+    await rec.wait(900);
     await moveTo(page, task);
     await rec.wait(1100);
   });
@@ -381,7 +387,8 @@ async function momentSimulation(page: Page, lang: Lang, id: string): Promise<voi
   await page.waitForTimeout(800);
   await page.evaluate(() => document.getElementById("launch-cursor")?.style.setProperty("display", "none"));
   await calm(page);
-  const charts = page.locator(".sim-widget-chart");
+  // I quattro KPI (il tempo di attraversamento si disegna al primo caso chiuso).
+  const charts = page.locator(".sim-widget");
   await expect(charts).toHaveCount(4);
   // Tutta la pagina della simulazione: processo, KPI e riproduzione, nessuno
   // zoom. Nel 4:5 (`narrow`) prima il cuore del processo, poi i quattro KPI.
@@ -432,7 +439,7 @@ async function momentSend(page: Page, lang: Lang, id: string): Promise<void> {
     const confirm = dialog.getByRole("button", { name: UI[lang].sent });
     await rec.waitUntil(() => confirm.isEnabled());
     await showPublicLink(page);
-    await rec.focus(await box(dialog), 4, 16);
+    await rec.focus(await box(dialog), 4, 16, { narrow: await box(dialog), narrowPad: -12 });
     await rec.wait(700);
     await clickOn(page, confirm, 800);
     await rec.waitUntil(async () => !(await dialog.isVisible()));
