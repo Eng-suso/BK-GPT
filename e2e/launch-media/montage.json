@@ -10,15 +10,84 @@
       "loop": true,
       "dissolve": 0.3,
       "shots": [
-        { "scene": "hero-{lang}-1-fonti", "duration": 4.2, "long_overview": true, "tag": "tag-{lang}-1" },
-        { "scene": "hero-{lang}-2-evidenze", "duration": 5, "tag": "tag-{lang}-2" },
-        { "scene": "hero-{lang}-3-simulazione", "duration": 6, "long_overview": true, "tag": "tag-{lang}-3" },
-        { "scene": "hero-{lang}-4-tobe", "duration": 4.8, "long_overview": true, "tag": "tag-{lang}-4" },
-        { "scene": "hero-{lang}-5-invio", "duration": 5, "tag": "tag-{lang}-5" }
+        {"scene": "hero-{lang}-1-fonti", "duration": 4.2, "long_overview": true, "tag": "tag-{lang}-1"},
+        {"scene": "hero-{lang}-2-evidenze", "duration": 5, "tag": "tag-{lang}-2"},
+        {"scene": "hero-{lang}-3-simulazione", "duration": 6, "long_overview": true, "tag": "tag-{lang}-3"},
+        {"scene": "hero-{lang}-4-tobe", "duration": 4.8, "long_overview": true, "tag": "tag-{lang}-4"},
+        {"scene": "hero-{lang}-5-invio", "duration": 5, "tag": "tag-{lang}-5"}
       ],
       "overlays": ["dimostrativo-{lang}"],
       "files": {"16x9": "hero-loop"},
       "poster": 19
+    },
+    "tab-contesto": {
+      "languages": ["it", "en"],
+      "loop": true,
+      "dissolve": 0.3,
+      "formats": {"16x9": {"display": 724}},
+      "shots": [
+        {"scene": "film-{lang}-01-home", "tags": [{"tag": "mtag-{lang}-contesto-1", "at": 0.0}]},
+        {"scene": "film-{lang}-02-consulente", "tags": [{"tag": "mtag-{lang}-contesto-2", "at": 0.0}]},
+        {"scene": "film-{lang}-18-ritrova", "tags": [{"tag": "mtag-{lang}-contesto-3", "at": 0.0}]}
+      ],
+      "overlays": ["dimostrativo-{lang}"],
+      "files": {"16x9": "memoria"},
+      "poster": 1.5
+    },
+    "tab-evidenze": {
+      "languages": ["it", "en"],
+      "loop": true,
+      "dissolve": 0.3,
+      "formats": {"16x9": {"display": 724}},
+      "shots": [
+        {"scene": "hero-{lang}-1-fonti", "duration": 4.2, "long_overview": true, "tags": [{"tag": "mtag-{lang}-evidenze-1", "at": 0.0}, {"tag": "mtag-{lang}-evidenze-2", "at": 1.6}]},
+        {"scene": "hero-{lang}-2-evidenze", "duration": 5, "long_overview": true, "tags": [{"tag": "mtag-{lang}-evidenze-3", "at": 0.0}]}
+      ],
+      "overlays": ["dimostrativo-{lang}"],
+      "files": {"16x9": "evidenze-sul-processo"},
+      "poster": 1.5
+    },
+    "tab-lacune": {
+      "languages": ["it", "en"],
+      "loop": true,
+      "dissolve": 0.3,
+      "formats": {"16x9": {"display": 724}},
+      "shots": [
+        {"scene": "film-{lang}-05-discussione", "tags": [{"tag": "mtag-{lang}-lacune-1", "at": 0.0}]},
+        {"scene": "film-{lang}-08-da-confermare", "tags": [{"tag": "mtag-{lang}-lacune-2", "at": 0.0}]}
+      ],
+      "overlays": ["dimostrativo-{lang}"],
+      "files": {"16x9": "lacuna-aperta"},
+      "poster": 1.5
+    },
+    "tab-scenari": {
+      "languages": ["it", "en"],
+      "loop": true,
+      "dissolve": 0.3,
+      "formats": {"16x9": {"display": 724}},
+      "shots": [
+        {"scene": "hero-{lang}-3-simulazione", "duration": 6, "long_overview": true, "tags": [{"tag": "mtag-{lang}-scenari-1", "at": 0.0}]},
+        {"scene": "film-{lang}-09-review", "long_overview": true, "tags": [{"tag": "mtag-{lang}-scenari-2", "at": 0.0}]},
+        {"scene": "hero-{lang}-4-tobe", "duration": 4.8, "long_overview": true, "tags": [{"tag": "mtag-{lang}-scenari-3", "at": 0.0}]}
+      ],
+      "overlays": ["dimostrativo-{lang}"],
+      "files": {"16x9": "confronto"},
+      "poster": 1.5
+    },
+    "tab-decisioni": {
+      "languages": ["it", "en"],
+      "loop": true,
+      "dissolve": 0.3,
+      "formats": {"16x9": {"display": 724}},
+      "shots": [
+        {"scene": "film-{lang}-12-ipotesi", "tags": [{"tag": "mtag-{lang}-decisioni-1", "at": 0.0}]},
+        {"scene": "hero-{lang}-5-invio", "duration": 5, "long_overview": true, "tags": [{"tag": "mtag-{lang}-decisioni-2", "at": 0.0}]},
+        {"scene": "film-{lang}-16-cruscotto", "tags": [{"tag": "mtag-{lang}-decisioni-3", "at": 0.0}]},
+        {"scene": "film-{lang}-17-approvato", "tags": [{"tag": "mtag-{lang}-decisioni-4", "at": 0.0}]}
+      ],
+      "overlays": ["dimostrativo-{lang}"],
+      "files": {"16x9": "review-to-be"},
+      "poster": 1.5
     },
     "film": {
       "languages": ["it", "en"],
@@ -26,38 +95,26 @@
       "music": true,
       "formats": {"16x9": {"display": 1280}},
       "shots": [
-        { "card": "fcard-{lang}-intro", "duration": 4.5 },
-        { "card": "fcard-{lang}-1", "duration": 3 },
-        { "scene": "film-{lang}-01-home", "tag": "ftag-{lang}-01-home" },
-        { "scene": "film-{lang}-02-consulente", "tag": "ftag-{lang}-02-consulente" },
-        { "scene": "film-{lang}-03-progetto", "tag": "ftag-{lang}-03-progetto" },
-        { "card": "fcard-{lang}-2", "duration": 3 },
-        { "scene": "film-{lang}-04-fonti", "tag": "ftag-{lang}-04-fonti" },
-        { "scene": "film-{lang}-05-discussione", "tag": "ftag-{lang}-05-discussione" },
-        { "card": "fcard-{lang}-3", "duration": 3 },
-        { "scene": "hero-{lang}-1-fonti", "duration": 4.2, "long_overview": true, "tag": "ftag-{lang}-06-disegno" },
-        { "scene": "hero-{lang}-2-evidenze", "duration": 5, "long_overview": true, "tag": "ftag-{lang}-07-evidenze" },
-        { "scene": "film-{lang}-08-da-confermare", "tag": "ftag-{lang}-08-da-confermare" },
-        { "card": "fcard-{lang}-4", "duration": 3 },
-        { "scene": "film-{lang}-09-review", "long_overview": true, "tag": "ftag-{lang}-09-review" },
-        { "card": "fcard-{lang}-5", "duration": 3 },
-        { "scene": "hero-{lang}-3-simulazione", "duration": 6, "long_overview": true, "tag": "ftag-{lang}-10-as-is" },
-        { "scene": "film-{lang}-11-insight", "tag": "ftag-{lang}-11-insight" },
-        { "card": "fcard-{lang}-6", "duration": 3 },
-        { "scene": "film-{lang}-12-ipotesi", "tag": "ftag-{lang}-12-ipotesi" },
-        { "scene": "hero-{lang}-4-tobe", "duration": 4.8, "long_overview": true, "tag": "ftag-{lang}-13-to-be" },
-        { "card": "fcard-{lang}-7", "duration": 3 },
-        { "scene": "film-{lang}-14-pronto", "tag": "ftag-{lang}-14-pronto" },
-        { "scene": "hero-{lang}-5-invio", "duration": 5, "long_overview": true, "tag": "ftag-{lang}-15-invio" },
-        { "scene": "film-{lang}-16-cruscotto", "tag": "ftag-{lang}-16-cruscotto" },
-        { "scene": "film-{lang}-17-approvato", "tag": "ftag-{lang}-17-approvato" },
-        { "card": "fcard-{lang}-8", "duration": 3 },
-        { "scene": "film-{lang}-18-ritrova", "tag": "ftag-{lang}-18-ritrova" },
-        { "card": "fcard-{lang}-outro", "duration": 4 }
+        {"card": "fcard-{lang}-intro", "duration": 4.5},
+        {"scene": "film-{lang}-01-home", "tags": [{"tag": "ftag-{lang}-contesto-1", "at": 0.0}]},
+        {"scene": "film-{lang}-02-consulente", "tags": [{"tag": "ftag-{lang}-contesto-2", "at": 0.0}]},
+        {"scene": "film-{lang}-18-ritrova", "tags": [{"tag": "ftag-{lang}-contesto-3", "at": 0.0}]},
+        {"scene": "hero-{lang}-1-fonti", "duration": 4.2, "long_overview": true, "tags": [{"tag": "ftag-{lang}-evidenze-1", "at": 0.0}, {"tag": "ftag-{lang}-evidenze-2", "at": 1.6}]},
+        {"scene": "hero-{lang}-2-evidenze", "duration": 5, "long_overview": true, "tags": [{"tag": "ftag-{lang}-evidenze-3", "at": 0.0}]},
+        {"scene": "film-{lang}-05-discussione", "tags": [{"tag": "ftag-{lang}-lacune-1", "at": 0.0}]},
+        {"scene": "film-{lang}-08-da-confermare", "tags": [{"tag": "ftag-{lang}-lacune-2", "at": 0.0}]},
+        {"scene": "hero-{lang}-3-simulazione", "duration": 6, "long_overview": true, "tags": [{"tag": "ftag-{lang}-scenari-1", "at": 0.0}]},
+        {"scene": "film-{lang}-09-review", "long_overview": true, "tags": [{"tag": "ftag-{lang}-scenari-2", "at": 0.0}]},
+        {"scene": "hero-{lang}-4-tobe", "duration": 4.8, "long_overview": true, "tags": [{"tag": "ftag-{lang}-scenari-3", "at": 0.0}]},
+        {"scene": "film-{lang}-12-ipotesi", "tags": [{"tag": "ftag-{lang}-decisioni-1", "at": 0.0}]},
+        {"scene": "hero-{lang}-5-invio", "duration": 5, "long_overview": true, "tags": [{"tag": "ftag-{lang}-decisioni-2", "at": 0.0}]},
+        {"scene": "film-{lang}-16-cruscotto", "tags": [{"tag": "ftag-{lang}-decisioni-3", "at": 0.0}]},
+        {"scene": "film-{lang}-17-approvato", "tags": [{"tag": "ftag-{lang}-decisioni-4", "at": 0.0}]},
+        {"card": "fcard-{lang}-outro", "duration": 4.5}
       ],
       "overlays": ["dimostrativo-{lang}"],
       "files": {"16x9": "delir-film"},
-      "poster": 0
+      "poster": 6
     }
   }
 }

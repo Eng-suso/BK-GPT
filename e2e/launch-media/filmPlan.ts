@@ -1,97 +1,88 @@
 /**
- * Il film del prodotto: l'incarico intero, dal portafoglio dello studio
- * all'approvazione del cliente, in capitoli. Ogni scena ha la sua targhetta
- * blu, numerata con il capitolo, che dice cosa succede (piano video: una
- * frase per scena, nel video).
+ * Il prodotto in 5 moduli, uno per tab della sezione "La soluzione, nel tuo
+ * lavoro" di delir.it (delir-landing, src/components/Journey.tsx). Ogni
+ * modulo e' una clip autonoma con il nome della clip iniziale della sua tab,
+ * cosi' il sito la prende senza cambiare codice; il film del prodotto e' la
+ * somma dei moduli, con un'apertura e una chiusura.
  *
- * `take` e' la ripresa da montare: le scene nuove sono in film.spec.ts, le
- * altre riusano i momenti dell'hero (stesso prodotto, stesso caso).
+ * Le targhette (testi approvati da Sohayb il 14 ottobre) dicono cosa fai e
+ * cosa ottieni, in seconda persona e senza gergo. Il titolo della tab resta
+ * sul sito, nel DOM: il video non lo ripete.
+ *
+ * Una ripresa puo' portare piu' targhette in sequenza (`at`: secondi
+ * dall'inizio della ripresa). `take` con `hero-` riusa i momenti dell'hero.
  */
 import type { Lang } from "./vetrano";
 
-export type FilmScene = { id: string; take: string; tag: Record<Lang, string> };
-export type FilmChapter = { title: Record<Lang, string>; line: Record<Lang, string>; scenes: FilmScene[] };
+export type FilmTag = { at: number; text: Record<Lang, string> };
+export type FilmShot = { take: string; tags: FilmTag[] };
+export type FilmModule = { id: string; file: string; name: Record<Lang, string>; shots: FilmShot[] };
 
-const scene = (id: string, it: string, en: string, take = `film-{lang}-${id}`): FilmScene => ({ id, take, tag: { it, en } });
+const tag = (at: number, it: string, en: string): FilmTag => ({ at, text: { it, en } });
+const film = (id: string) => `film-{lang}-${id}`;
 
-export const FILM_INTRO = {
-  it: { title: "Settimane per capire come lavora davvero il cliente.", line: "Interviste, procedure, mail: un incarico di processo parte sempre cosi'." },
-  en: { title: "Weeks to understand how the client really works.", line: "Interviews, procedures, emails: every process engagement starts like this." },
-} as const;
-
-export const FILM_OUTRO = {
-  it: { title: "DeliR.", line: "Dalle fonti alla proposta che il cliente approva. delir.it" },
-  en: { title: "DeliR.", line: "From the sources to the proposal the client approves. delir.it" },
-} as const;
-
-export const FILM: FilmChapter[] = [
+export const MODULES: FilmModule[] = [
   {
-    title: { it: "Lo studio", en: "The practice" },
-    line: { it: "Clienti, incarichi e processi in un posto solo", en: "Clients, engagements and processes in one place" },
-    scenes: [
-      scene("01-home", "Tutti i clienti e gli incarichi dello studio", "Every client and engagement in the practice"),
-      scene("02-consulente", "Chiedi a DeliR: apre cliente e progetto per te", "Ask DeliR: it opens the client and project for you"),
-      scene("03-progetto", "Obiettivo, avanzamento e processi dell'incarico", "The engagement's goal, progress and processes"),
+    id: "contesto",
+    file: "memoria",
+    name: { it: "Contesto", en: "Context" },
+    shots: [
+      { take: film("01-home"), tags: [tag(0, "Tutti i tuoi clienti in un colpo d'occhio", "All your clients at a glance")] },
+      { take: film("02-consulente"), tags: [tag(0, "Scrivi a DeliR: apre cliente e progetto", "Write to DeliR: it opens client and project")] },
+      { take: film("18-ritrova"), tags: [tag(0, "Cerchi un nome, ritrovi tutto", "Search a name, find everything")] },
     ],
   },
   {
-    title: { it: "Le fonti", en: "The sources" },
-    line: { it: "Ogni affermazione con la sua frase esatta", en: "Every statement with its exact sentence" },
-    scenes: [
-      scene("04-fonti", "Ogni affermazione ha la sua citazione verificata", "Every statement has its verified quote"),
-      scene("05-discussione", "Dalle interviste l'As-Is, con le domande aperte", "From the interviews to the As-Is, with open questions"),
+    id: "evidenze",
+    file: "evidenze-sul-processo",
+    name: { it: "Evidenze", en: "Evidence" },
+    shots: [
+      { take: "hero-{lang}-1-fonti", tags: [tag(0, "Carichi interviste e file del cliente", "Upload interviews and client files"), tag(1.6, "DeliR disegna il processo", "DeliR draws the process")] },
+      { take: "hero-{lang}-2-evidenze", tags: [tag(0, "Clicchi un'attività: vedi chi l'ha detto", "Click an activity: see who said it")] },
     ],
   },
   {
-    title: { it: "L'As-Is", en: "The As-Is" },
-    line: { it: "Il processo disegnato, con le sue fonti", en: "The process drawn, with its sources" },
-    scenes: [
-      scene("06-disegno", "Interviste e file del cliente diventano il processo", "Interviews and client files become the process", "hero-{lang}-1-fonti"),
-      scene("07-evidenze", "Ogni attività con la frase che la regge", "Every activity with the sentence behind it", "hero-{lang}-2-evidenze"),
-      scene("08-da-confermare", "Ciò che nessuna fonte dice resta da confermare", "What no source says stays to be confirmed"),
+    id: "lacune",
+    file: "lacuna-aperta",
+    name: { it: "Lacune", en: "Gaps" },
+    shots: [
+      { take: film("05-discussione"), tags: [tag(0, "DeliR ti dice dove le versioni non tornano", "DeliR tells you where the accounts don't match")] },
+      { take: film("08-da-confermare"), tags: [tag(0, "Ciò che nessuno ha detto non lo inventa", "What nobody said, it doesn't invent")] },
     ],
   },
   {
-    title: { it: "La review", en: "The review" },
-    line: { it: "Rivedi ogni attività con DeliR", en: "Review every activity with DeliR" },
-    scenes: [
-      scene("09-review", "DeliR risponde con le fonti e i dati simulati", "DeliR answers with the sources and simulated data"),
+    id: "scenari",
+    file: "confronto",
+    name: { it: "Scenari", en: "Scenarios" },
+    shots: [
+      { take: "hero-{lang}-3-simulazione", tags: [tag(0, "Simuli il processo: ecco dove si blocca", "Simulate the process: here's where it stalls")] },
+      { take: film("09-review"), tags: [tag(0, "Chiedi a DeliR perché: risponde con le fonti", "Ask DeliR why: it answers with the sources")] },
+      { take: "hero-{lang}-4-tobe", tags: [tag(0, "Con le modifiche: −87% di tempo", "With the changes: −87% time")] },
     ],
   },
   {
-    title: { it: "La simulazione", en: "The simulation" },
-    line: { it: "Dove si ferma il processo, misurato", en: "Where the process stalls, measured" },
-    scenes: [
-      scene("10-as-is", "Simula l'As-Is: ecco il collo di bottiglia", "Simulate the As-Is: here is the bottleneck", "hero-{lang}-3-simulazione"),
-      scene("11-insight", "Cosa provare, con l'effetto stimato", "What to try, with the estimated effect"),
-    ],
-  },
-  {
-    title: { it: "Il To-Be", en: "The To-Be" },
-    line: { it: "Le proposte nascono da chi lavora nel processo", en: "Proposals come from the people in the process" },
-    scenes: [
-      scene("12-ipotesi", "Le proposte, con le parole di chi le chiede", "The proposals, in the words of those who ask for them"),
-      scene("13-to-be", "Il To-Be: da rosso a verde, −87% di tempo", "The To-Be: from red to green, −87% time", "hero-{lang}-4-tobe"),
-    ],
-  },
-  {
-    title: { it: "La consegna", en: "The handover" },
-    line: { it: "Al cliente, una proposta che puoi spiegare", en: "A proposal you can explain, to the client" },
-    scenes: [
-      scene("14-pronto", "DeliR controlla che sia pronto per il cliente", "DeliR checks it's ready for the client"),
-      scene("15-invio", "Invia al cliente con un link privato", "Send it to the client with a private link", "hero-{lang}-5-invio"),
-      scene("16-cruscotto", "Il cliente legge cosa cambia e perché", "The client reads what changes and why"),
-      scene("17-approvato", "Il cliente approva: è la versione di riferimento", "The client approves: it's the reference version"),
-    ],
-  },
-  {
-    title: { it: "Tutto resta", en: "Everything stays" },
-    line: { it: "Nel portafoglio dello studio, e si ritrova", en: "In the practice's portfolio, easy to find" },
-    scenes: [
-      scene("18-ritrova", "Modelli e ricerca: ogni incarico si ritrova", "Models and search: every engagement can be found"),
+    id: "decisioni",
+    file: "review-to-be",
+    name: { it: "Decisioni", en: "Decisions" },
+    shots: [
+      { take: film("12-ipotesi"), tags: [tag(0, "Ogni proposta parte dalle parole del cliente", "Every proposal starts from the client's words")] },
+      { take: "hero-{lang}-5-invio", tags: [tag(0, "Mandi al cliente un link privato", "Send the client a private link")] },
+      { take: film("16-cruscotto"), tags: [tag(0, "Il cliente vede cosa cambia e perché", "The client sees what changes and why")] },
+      { take: film("17-approvato"), tags: [tag(0, "Il cliente approva", "The client approves")] },
     ],
   },
 ];
 
-/** Le scene girate per il film (le altre sono riprese dell'hero). */
-export const FILM_TAKES = FILM.flatMap((chapter) => chapter.scenes).filter((item) => item.take.startsWith("film-"));
+/** L'ordine del film segue il lavoro: contesto, fonti, lacune, simulazione, decisione. */
+export const FILM_ORDER = ["contesto", "evidenze", "lacune", "scenari", "decisioni"] as const;
+
+export const FILM_INTRO = {
+  it: { title: "Settimane per capire come lavora davvero il cliente.", line: "Con DeliR parti dalle interviste e arrivi a una proposta che il cliente approva." },
+  en: { title: "Weeks to understand how the client really works.", line: "With DeliR you start from the interviews and reach a proposal the client approves." },
+} as const;
+
+export const FILM_OUTRO = {
+  // L'invito all'azione e' quello del sito (delir-landing, src/lib/publicOffer.ts).
+  it: { title: "Dalle interviste alla proposta approvata.", line: "Entra nella lista d'attesa · delir.it" },
+  en: { title: "From the interviews to the approved proposal.", line: "Join the waitlist · delir.it" },
+} as const;

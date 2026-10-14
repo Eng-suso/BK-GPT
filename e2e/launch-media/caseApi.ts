@@ -96,7 +96,10 @@ export async function installCaseApi(page: Page, lang: Lang, options: { layout?:
     if (path === `${W}/processes/${IDS.process}/provenance`) return json(data.provenance);
     if (path === `${W}/processes/${IDS.process}/conformance`) return json(data.conformance);
     if (path === `${W}/processes/${IDS.process}/impact-review`) return json(data.impactReview);
-    if (path === `${W}/processes/${IDS.process}/owner-dashboard`) return json(data.ownerDashboard);
+    // Il cruscotto segue lo stato del processo: dopo l'invio non e' piu' "in preparazione".
+    if (path === `${W}/processes/${IDS.process}/owner-dashboard`) {
+      return json({ ...data.ownerDashboard, process: { ...data.ownerDashboard.process, status: data.processItem.status } });
+    }
     // Il link privato per il responsabile: non esiste finche' il consulente non lo crea.
     if (path === `${W}/processes/${IDS.process}/owner-link`) {
       if (method === "POST") {

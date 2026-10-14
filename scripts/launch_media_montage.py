@@ -11,7 +11,8 @@ Per ogni taglio e ogni formato:
 - il testo piu' piccolo inquadrato (`minFont`, nel 4:5 `narrowFont`) deve
   restare almeno 11 px alla dimensione mostrata sul sito (`display` del
   formato; `min_text` lo abbassa): sotto, lo script si ferma;
-- la targhetta blu della scena (`tag`) entra e esce in dissolvenza;
+- le targhette blu della scena (`tag`, o `tags` in sequenza) entrano ed escono
+  in dissolvenza;
 - fra due scene taglio netto o dissolvenza di 0,3 s; nessuna accelerazione.
 
 Ogni taglio esce in ogni lingua del sito (italiano e inglese), in
@@ -281,8 +282,21 @@ def render(name: str, cut: dict, fmt_name: str, lang: str) -> list[str]:
         at += shot.duration
     total = at
     layers = [o for o in (overlay(f"{localize(n)}-{fmt_name}", size) for n in cut.get("overlays", [])) if o]
-    # La targhetta di ogni scena (`tag`): entra poco dopo l'inizio, esce prima della fine.
-    tags = [overlay(f"{localize(entry['tag'])}-{fmt_name}", size) if entry.get("tag") else None for entry in cut["shots"]]
+    # Le targhette di ogni scena: `tag` per una sola, `tags` ([{tag, at}]) per piu'
+    # targhette in sequenza. Ognuna entra poco dopo il suo inizio ed esce prima
+    # della successiva (o della fine della scena), in dissolvenza.
+    def windows(entry: dict, shot) -> list[tuple[float, float, tuple]]:
+        items = entry.get("tags") or ([{"tag": entry["tag"], "at": 0}] if entry.get("tag") else [])
+        out = []
+        for i, item in enumerate(items):
+            end = items[i + 1]["at"] if i + 1 < len(items) else shot.duration
+            image = overlay(f"{localize(item['tag'])}-{fmt_name}", size)
+            if image is None:
+                raise SystemExit(f"! manca la targhetta {localize(item['tag'])}: genera le scritte")
+            out.append((item["at"], end, image))
+        return out
+
+    tags = [windows(entry, shot) for entry, shot in zip(cut["shots"], shots)]
     first = shots[0].frame(0.0)
 
     VIDEO.mkdir(parents=True, exist_ok=True)
@@ -307,11 +321,10 @@ def render(name: str, cut: dict, fmt_name: str, lang: str) -> list[str]:
                 canvas = canvas * (1 - mix) + following * mix
         for rgb, alpha in layers:
             canvas = canvas * (1 - alpha) + rgb * alpha
-        if tags[index] is not None:
-            local = t - starts[index]
-            show = ease_in_out((local - TAG_IN) / TAG_FADE) * (1 - ease_in_out((local - (shots[index].duration - TAG_OUT)) / TAG_FADE))
+        local = t - starts[index]
+        for begin, end, (rgb, alpha) in tags[index]:
+            show = ease_in_out((local - begin - TAG_IN) / TAG_FADE) * (1 - ease_in_out((local - (end - TAG_OUT)) / TAG_FADE))
             if show > 0:
-                rgb, alpha = tags[index]
                 canvas = canvas * (1 - alpha * show) + rgb * alpha * show
         encoder.stdin.write((np.clip(canvas, 0, 1) * 255 + 0.5).astype(np.uint8).tobytes())
     encoder.stdin.close()

@@ -47,13 +47,13 @@ const PHASES = {
 /** Cosa scrive il consulente, scena per scena. */
 export const PROMPTS = {
   it: {
-    consultant: "Nuovo incarico: Vetrano Industriale, acquisti indiretti. Referente Laura Conti, responsabile dell'Ufficio Tecnico.",
-    process: "Ho caricato le interviste a Laura, Paolo e Francesca. Ricostruisci l'As-Is senza mettere niente che nessuno dice.",
+    consultant: "Nuovo cliente: Vetrano Industriale, acquisti indiretti. Referente Laura Conti.",
+    process: "Ricostruisci l'As-Is dalle tre interviste, senza inventare.",
     review: "Perché le richieste si fermano qui?",
   },
   en: {
-    consultant: "New engagement: Vetrano Industriale, indirect purchasing. Contact Laura Conti, head of the Technical Office.",
-    process: "I've uploaded the interviews with Laura, Paolo and Francesca. Rebuild the As-Is without adding anything nobody says.",
+    consultant: "New client: Vetrano Industriale, indirect purchasing. Contact Laura Conti.",
+    process: "Rebuild the As-Is from the three interviews, without inventing.",
     review: "Why do requests get stuck here?",
   },
 } as const;
