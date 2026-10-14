@@ -105,7 +105,9 @@ async function converse(page: Page, rec: VirtualRecorder, lang: Lang, kind: Chat
   // Fino al box di scrittura, o alla fascia della decisione sopra di lui.
   const decision = page.getByText(lang === "it" ? "Serve una tua decisione" : "Your decision is needed").first();
   const bottom = Math.min((await box(composer)).y, (await decision.isVisible()) ? (await box(decision)).y - 10 : Infinity) - 8;
-  await rec.focus({ x: input.x - 24, y: start.y - 10, width: input.width + 32, height: Math.max(160, bottom - start.y + 10) }, 4, 0);
+  // Margine sopra per la targhetta; una risposta breve non porta con se' il vuoto sotto.
+  const height = Math.min(Math.max(160, bottom - start.y + 44), kind === "consultant" ? 230 : 460);
+  await rec.focus({ x: input.x - 24, y: start.y - 44, width: input.width + 32, height }, 4, 0);
   await rec.waitUntil(() => page.getByText(done, { exact: false }).last().isVisible(), 40_000);
 }
 
