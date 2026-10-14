@@ -453,14 +453,22 @@ async function momentToBe(page: Page, lang: Lang, id: string): Promise<void> {
  * quello di sviluppo. A schermo va il dominio vero, delir.it.
  */
 async function showPublicLink(page: Page): Promise<void> {
+  // Gia' quando il campo riceve il valore: nessun fotogramma con l'indirizzo locale.
   await page.evaluate((origin) => {
-    for (const input of document.querySelectorAll<HTMLInputElement>("[role=dialog] input[readonly]")) {
-      input.value = input.value.replace(origin, "https://delir.it");
-    }
+    const swap = (value: unknown) => (typeof value === "string" ? value.replace(origin, "https://delir.it") : value);
+    const property = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!;
+    Object.defineProperty(HTMLInputElement.prototype, "value", {
+      ...property,
+      set(this: HTMLInputElement, value: string) { property.set!.call(this, swap(value) as string); },
+    });
+    const setAttribute = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = function (name: string, value: string) {
+      return setAttribute.call(this, name, name === "value" ? (swap(value) as string) : value);
+    };
   }, new URL(page.url()).origin);
 }
 
-// --- 4. Il processo va al cliente: link privato, poi "in attesa della risposta".
+// --- 5. Il processo va al cliente: link privato, poi "in attesa della risposta".
 
 async function momentSend(page: Page, lang: Lang, id: string): Promise<void> {
   await page.goto(`${P}/handover`);
@@ -473,6 +481,7 @@ async function momentSend(page: Page, lang: Lang, id: string): Promise<void> {
   // Il cursore parte vicino al bottone: il primo gesto e' breve.
   const sendBox = await box(send);
   await moveTo(page, { x: sendBox.x - 120, y: sendBox.y + sendBox.height + 60 }, 10);
+  await showPublicLink(page);
   await record(page, id, async (rec) => {
     // L'intestazione della consegna, con il bottone.
     await rec.focus(top, 4, 16, { overview: true, narrow: sendBox, narrowPad: 160 });
@@ -480,7 +489,6 @@ async function momentSend(page: Page, lang: Lang, id: string): Promise<void> {
     const dialog = page.getByRole("dialog");
     const confirm = dialog.getByRole("button", { name: UI[lang].sent });
     await rec.waitUntil(() => confirm.isEnabled());
-    await showPublicLink(page);
     await rec.focus(await box(dialog), 4, 16, { narrow: await box(dialog), narrowPad: -12 });
     await rec.wait(700);
     await clickOn(page, confirm, 800);
