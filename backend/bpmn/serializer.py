@@ -116,7 +116,7 @@ def _loop_characteristics_xml(kind: str, condition: str | None = None) -> list[s
         if condition and condition.strip():
             return [
                 "      <bpmn:standardLoopCharacteristics>",
-                '        <bpmn:loopCondition xsi:type="bpmn:tFormalExpression">'
+                '        <bpmn:loopCondition xsi:type="bpmn:tExpression">'
                 f"{escape(condition.strip())}</bpmn:loopCondition>",
                 "      </bpmn:standardLoopCharacteristics>",
             ]
@@ -160,7 +160,7 @@ def _event_definition_xml(
             raise ValueError("Conditional BPMN events require an explicit condition expression")
         return (
             "      <bpmn:conditionalEventDefinition>\n"
-            '        <bpmn:condition xsi:type="bpmn:tFormalExpression">'
+            '        <bpmn:condition xsi:type="bpmn:tExpression">'
             f"{escape(condition)}</bpmn:condition>\n"
             "      </bpmn:conditionalEventDefinition>"
         )
@@ -213,8 +213,25 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
             xml_parts.append("      </bpmn:lane>")
         xml_parts.append("    </bpmn:laneSet>")
 
+    # An activity reads and writes a data object through data associations it
+    # owns (OMG BPMN 2.0, 10.4.1): in BPMN 2.0 a data object is not an artifact,
+    # so a plain association to it would be the BPMN 1.x notation.
+    data_ids = {item.id for item in [*model.dataObjects, *model.dataStores]}
+    activity_ids = {node.id for node in model.flowNodes if node.type in _ACTIVITY_NODE_TYPES}
+    data_inputs: dict[str, list] = {}
+    data_outputs: dict[str, list] = {}
+    plain_associations = []
+    for association in model.associations:
+        if association.sourceRef in data_ids and association.targetRef in activity_ids:
+            data_inputs.setdefault(association.targetRef, []).append(association)
+        elif association.sourceRef in activity_ids and association.targetRef in data_ids:
+            data_outputs.setdefault(association.sourceRef, []).append(association)
+        else:
+            plain_associations.append(association)
+
     for node in model.flowNodes:
-        attrs = f' id="{escape(node.id)}" name="{escape(node.name)}"'
+        # An unnamed node (a merge) carries no name attribute at all.
+        attrs = f' id="{escape(node.id)}"' + (f' name="{escape(node.name)}"' if node.name else "")
         if node.type == "boundaryEvent" and node.attachedToRef:
             attrs += f' attachedToRef="{escape(node.attachedToRef)}"'
             if not node.cancelActivity:
@@ -241,6 +258,7 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
                 xml_parts.append(f"      <bpmn:incoming>{escape(flow_id)}</bpmn:incoming>")
         for flow_id in outgoing[node.id]:
             xml_parts.append(f"      <bpmn:outgoing>{escape(flow_id)}</bpmn:outgoing>")
+        xml_parts.extend(_data_associations_xml(node.id, data_inputs.get(node.id, []), data_outputs.get(node.id, [])))
         if node.loopCharacteristics != "none" and node.type in _ACTIVITY_NODE_TYPES:
             xml_parts.extend(
                 _loop_characteristics_xml(node.loopCharacteristics, node.loopConditionExpression)
@@ -249,7 +267,7 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
             xml_parts.extend(_event_sub_process_start_xml(node.eventSubProcessStart, event_ref_by_node))
         if node.type == "complexGateway" and node.activationCondition and node.activationCondition.strip():
             xml_parts.append(
-                '      <bpmn:activationCondition xsi:type="bpmn:tFormalExpression">'
+                '      <bpmn:activationCondition xsi:type="bpmn:tExpression">'
                 f"{escape(node.activationCondition.strip())}</bpmn:activationCondition>"
             )
         if node.eventDefinition and node.type in _EVENT_DEFINITION_HOSTS:
@@ -276,8 +294,10 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
         if flow.name and not visible_name:
             body.extend(documentation_xml(flow.name, indent="      "))
         if flow.conditionExpression:
+            # Conditions are the consultant's words, not code in the definitions'
+            # expression language: tExpression, not tFormalExpression (OMG BPMN 2.0, 8.3.6).
             body.append(
-                '      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">'
+                '      <bpmn:conditionExpression xsi:type="bpmn:tExpression">'
                 f"{escape(flow.conditionExpression)}</bpmn:conditionExpression>"
             )
         open_tag = (
@@ -305,7 +325,7 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
         xml_parts.extend(body)  # <bpmn:documentation> must precede <bpmn:text> per XSD
         xml_parts.append(f"      <bpmn:text>{escape(annotation.text)}</bpmn:text>")
         xml_parts.append("    </bpmn:textAnnotation>")
-    for association in model.associations:
+    for association in plain_associations:
         direction = (
             f' associationDirection="{_ASSOCIATION_DIRECTION[association.direction]}"'
             if association.direction != "none"
@@ -322,6 +342,32 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
         return semantic_xml
     from backend.bpmn.canvas_layout import apply_enterprise_layout
     return apply_enterprise_layout(semantic_xml)
+
+
+def _data_associations_xml(activity_id: str, inputs: list, outputs: list) -> list[str]:
+    """The activity's data input and output associations, in XSD order.
+
+    A data input association must name its target (XSD `targetRef` 1..1): the
+    activity gets a placeholder property for it, as bpmn-js writes it.
+    """
+    lines: list[str] = []
+    if inputs:
+        placeholder = f"{activity_id}_DataInputTarget"
+        lines.append(f'      <bpmn:property id="{escape(placeholder)}" name="__targetRef_placeholder" />')
+        for association in inputs:
+            lines += [
+                f'      <bpmn:dataInputAssociation id="{escape(association.id)}">',
+                f"        <bpmn:sourceRef>{escape(association.sourceRef)}</bpmn:sourceRef>",
+                f"        <bpmn:targetRef>{escape(placeholder)}</bpmn:targetRef>",
+                "      </bpmn:dataInputAssociation>",
+            ]
+    for association in outputs:
+        lines += [
+            f'      <bpmn:dataOutputAssociation id="{escape(association.id)}">',
+            f"        <bpmn:targetRef>{escape(association.targetRef)}</bpmn:targetRef>",
+            "      </bpmn:dataOutputAssociation>",
+        ]
+    return lines
 
 
 def _event_sub_process_start_xml(start, event_ref_by_node: dict[str, str]) -> list[str]:
@@ -360,22 +406,21 @@ def _collaboration_semantic_xml(model: BPMNSemanticModel) -> list[str]:
             f'name="{escape(participant.name)}"{process_ref} />'
         )
     for message_flow in model.messageFlows:
+        # The label is the OMG `name` attribute, the one modelers draw on the flow.
+        name = f' name="{escape(message_flow.name)}"' if message_flow.name else ""
         header = (
-            f'    <bpmn:messageFlow id="{escape(message_flow.id)}" '
+            f'    <bpmn:messageFlow id="{escape(message_flow.id)}"{name} '
             f'sourceRef="{escape(message_flow.sourceRef)}" '
             f'targetRef="{escape(message_flow.targetRef)}"'
         )
-        if message_flow.documentation or message_flow.sourceRefs or message_flow.name:
+        if message_flow.documentation or message_flow.sourceRefs:
             lines.append(header + ">")
-            if message_flow.documentation or message_flow.sourceRefs:
-                lines.extend(
-                    documentation_xml(
-                        element_documentation(message_flow.documentation, message_flow.sourceRefs),
-                        indent="      ",
-                    )
+            lines.extend(
+                documentation_xml(
+                    element_documentation(message_flow.documentation, message_flow.sourceRefs),
+                    indent="      ",
                 )
-            if message_flow.name:
-                lines.extend(documentation_xml(message_flow.name, indent="      "))
+            )
             lines.append("    </bpmn:messageFlow>")
         else:
             lines.append(header + " />")

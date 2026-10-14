@@ -1,0 +1,212 @@
+{
+ "elements": [
+  {
+   "element_id": "StartEvent_1",
+   "source_ref": "events:Event_Start",
+   "label": "Purchasing need identified",
+   "status": "source",
+   "evidence": [
+    {
+     "source_id": "src-paolo-marchetti",
+     "person": "Paolo Marchetti",
+     "role": "Maintenance",
+     "quote": "If during the round I see that something is missing, or that a component needs replacing before it becomes a problem, I make a note of it."
+    },
+    {
+     "source_id": "src-laura-conti",
+     "person": "Laura Conti",
+     "role": "Technical Office",
+     "quote": "A shift supervisor sees that consumables are running out"
+    }
+   ]
+  },
+  {
+   "element_id": "Task_Compila",
+   "source_ref": "steps:Task_Compila",
+   "label": "Fill in the request",
+   "status": "source",
+   "evidence": [
+    {
+     "source_id": "src-laura-conti",
+     "person": "Laura Conti",
+     "role": "Technical Office",
+     "quote": "The first thing I do is figure out whether I have enough information to move it forward."
+    },
+    {
+     "source_id": "src-laura-conti",
+     "person": "Laura Conti",
+     "role": "Technical Office",
+     "quote": "So the round of phone calls begins."
+    }
+   ]
+  },
+  {
+   "element_id": "Task_Invia",
+   "source_ref": "steps:Task_Invia",
+   "label": "Send the request",
+   "status": "source",
+   "evidence": [
+    {
+     "source_id": "src-paolo-marchetti",
+     "person": "Paolo Marchetti",
+     "role": "Maintenance",
+     "quote": "Email. Always email, to Laura."
+    },
+    {
+     "source_id": "src-laura-conti",
+     "person": "Laura Conti",
+     "role": "Technical Office",
+     "quote": "Then the request comes to me, and it comes in three different ways depending on who sends it."
+    },
+    {
+     "source_id": "src-laura-conti",
+     "person": "Laura Conti",
+     "role": "Technical Office",
+     "quote": "I pass it to Purchasing. I send them an email with what I've managed to put together"
+    }
+   ]
+  },
+  {
+   "element_id": "Task_Verifica",
+   "source_ref": "steps:Task_Verifica",
+   "label": "Check the request is complete",
+   "status": "source",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Purchasing Office",
+     "quote": "I read it and check whether it's workable."
+    }
+   ]
+  },
+  {
+   "element_id": "Decision_Completa",
+   "source_ref": "decisions:Decision_Completa",
+   "label": "Request complete?",
+   "status": "source",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Purchasing Office",
+     "quote": "Workable means I understand what I have to buy and who I can buy it from."
+    }
+   ]
+  },
+  {
+   "element_id": "Path_Integrazione_Task_Richiedi",
+   "source_ref": "steps:Task_Richiedi",
+   "label": "Ask for missing details",
+   "status": "source",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Purchasing Office",
+     "quote": "If something is missing I ask for it, and that's the bulk of my work on indirect purchases: bouncing requests back to get them completed."
+    }
+   ]
+  },
+  {
+   "element_id": "Decision_Necessaria",
+   "source_ref": "decisions:Decision_Necessaria",
+   "label": "Authorization required?",
+   "status": "source",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Purchasing Office",
+     "quote": "It depends on the amount and the type of purchase."
+    },
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Purchasing Office",
+     "quote": "Above a certain amount I have to ask my manager for authorization"
+    }
+   ]
+  },
+  {
+   "element_id": "Task_Valuta",
+   "source_ref": "steps:Task_Valuta",
+   "label": "Assess the spend",
+   "status": "source",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Purchasing Office",
+     "quote": "Above a certain amount I have to ask my manager for authorization"
+    }
+   ]
+  },
+  {
+   "element_id": "Decision_Autorizzata",
+   "source_ref": "decisions:Decision_Autorizzata",
+   "label": "Spending authorized?",
+   "status": "source",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Purchasing Office",
+     "quote": "it's an email I send and a reply I wait for."
+    }
+   ]
+  },
+  {
+   "element_id": "Task_Emetti",
+   "source_ref": "steps:Task_Emetti",
+   "label": "Issue the order",
+   "status": "source",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Purchasing Office",
+     "quote": "For small, recurring things I have leeway to go ahead on my own: I issue the order and that's it."
+    }
+   ]
+  },
+  {
+   "element_id": "Event_Emesso",
+   "source_ref": "events:Event_Emesso",
+   "label": "Order issued",
+   "status": "source",
+   "evidence": [
+    {
+     "source_id": "src-francesca-neri",
+     "person": "Francesca Neri",
+     "role": "Purchasing Office",
+     "quote": "For small, recurring things I have leeway to go ahead on my own: I issue the order and that's it."
+    }
+   ]
+  },
+  {
+   "element_id": "Path_Integrazione_Task_Integra",
+   "source_ref": "steps:Task_Integra",
+   "label": "Complete the request",
+   "status": "consultant hypothesis",
+   "note": "Whoever made the request completes it when Purchasing sends it back: no source describes the step.",
+   "evidence": []
+  },
+  {
+   "element_id": "Path_Rifiuto_Task_Rifiuto",
+   "source_ref": "steps:Task_Rifiuto",
+   "label": "Send the rejection",
+   "status": "consultant hypothesis",
+   "note": "The spending rejection: no source says what happens when authorization is denied.",
+   "evidence": []
+  },
+  {
+   "element_id": "Event_Respinta",
+   "source_ref": "events:Event_Respinta",
+   "label": "Request rejected",
+   "status": "consultant hypothesis",
+   "note": "Outcome added with the rejection branch.",
+   "evidence": []
+  }
+ ]
+}

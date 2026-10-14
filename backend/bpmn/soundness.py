@@ -138,6 +138,19 @@ def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
                 grew = True
     report.coreachable_node_ids = coreachable
 
+    # Only a split that can run several branches at once can send two tokens
+    # into the same activity. Behind exclusive splits the incoming flows are
+    # alternatives and the activity merges them correctly (OMG BPMN 2.0, 10.5.2):
+    # no gateway is needed there, and DeliR draws one only where the process decides.
+    concurrent_splits = {
+        node.id for node in model.flowNodes
+        if out_degree[node.id] > 1 and (
+            node.type in {"parallelGateway", "inclusiveGateway", "complexGateway"}
+            or (node.type == "eventBasedGateway" and node.eventGatewayType == "Parallel")
+            or node.type not in _GATEWAY_TYPES
+        )
+    }
+
     for node in model.flowNodes:
         if node.type == "boundaryEvent" or node.triggeredByEvent or node.isForCompensation:
             continue  # started by an event, not by the sequence flow
@@ -162,7 +175,8 @@ def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
                     "in BPMN e' uno split parallelo implicito, serve un gateway esplicito.",
                 )
             )
-        if in_degree[node.id] > 1 and node.type != "endEvent":
+        upstream = _traverse(predecessors.get(node.id, []), predecessors)
+        if in_degree[node.id] > 1 and node.type != "endEvent" and upstream & concurrent_splits:
             report.warnings.append(
                 ControlFlowIssue(
                     "uncontrolled_merge", node.id, node.name,

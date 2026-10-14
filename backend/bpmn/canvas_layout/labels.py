@@ -13,26 +13,28 @@ def label_size(name):
 
 def branch_label(points, name, boxes, labels, routes, container=None, lane_boundaries=()):
     width, height = label_size(name)
-    candidates = []
-    for a, b in pairwise(points):
+    # A branch label belongs next to the split it names (BPMN convention). The
+    # placements that hug the route (gap up to 20) go segment by segment from
+    # the gateway, so on a bent branch the label is not pushed onto the last
+    # stretch, where it reads as the label of a flow running nearby. Dense
+    # diagrams may reserve a segment midpoint for another label: nearby
+    # positions along the same segment come before the next segment; the rest
+    # is ordered by distance.
+    ranked = []
+    for index, (a, b) in enumerate(pairwise(points)):
         cx, cy = (a[0]+b[0])/2, (a[1]+b[1])/2
-        for gap in (8, 20, 36, 52, 68, 100, 140):
-            if a[1] == b[1]:
-                candidates += [Box(cx-width/2, cy-height-gap, width, height), Box(cx-width/2, cy+gap, width, height)]
-            else:
-                candidates += [Box(cx+gap, cy-height/2, width, height), Box(cx-width-gap, cy-height/2, width, height)]
-    # Dense real-world diagrams may reserve the segment midpoint for another
-    # branch label. Search nearby along the same segment before adding space
-    # to the diagram or giving up. Keep the closest placements first.
-    for a, b in pairwise(points):
-        cx, cy = (a[0]+b[0])/2, (a[1]+b[1])/2
-        for shift in (24, -24, 48, -48, 72, -72, 96, -96):
+        for shift in (0, 24, -24, 48, -48, 72, -72, 96, -96):
             for gap in (8, 20, 36, 52, 68, 100, 140):
                 if a[1] == b[1]:
-                    candidates += [Box(cx+shift-width/2, cy-height-gap, width, height), Box(cx+shift-width/2, cy+gap, width, height)]
+                    boxes_here = [Box(cx+shift-width/2, cy-height-gap, width, height), Box(cx+shift-width/2, cy+gap, width, height)]
                 else:
-                    candidates += [Box(cx+gap, cy+shift-height/2, width, height), Box(cx-width-gap, cy+shift-height/2, width, height)]
-    candidates.sort(key=lambda box: _distance_to_route(box, points))
+                    boxes_here = [Box(cx+gap, cy+shift-height/2, width, height), Box(cx-width-gap, cy+shift-height/2, width, height)]
+                for box in boxes_here:
+                    hugging = gap <= 20
+                    distance = _distance_to_route(box, points)
+                    ranked.append(((0, index, distance) if hugging else (1, 0, distance), box))
+    ranked.sort(key=lambda item: item[0])
+    candidates = [box for _, box in ranked]
     for candidate in candidates:
         if container and not (container.x <= candidate.x and container.y <= candidate.y and container.right >= candidate.right and container.bottom >= candidate.bottom):
             continue

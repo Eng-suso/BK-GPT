@@ -12,6 +12,7 @@ from backend.process_understanding import (
     ProcessBoundaries,
     ProcessDecision,
     ProcessDecisionOutcome,
+    ProcessEvent,
     ProcessFlowEdge,
     ProcessPath,
     ProcessStep,
@@ -96,6 +97,20 @@ def test_a_decision_after_a_branch_step_becomes_a_gateway_on_that_branch():
     assert not any("non mappabile" in warning for warning in model.model_warnings)
 
 
+def test_a_branch_step_keeps_its_traceability_to_the_plan():
+    """Il pannello delle evidenze ritrova un passo del ramo dal suo riferimento."""
+    model = _compile(_invoice())
+
+    assert _node(model, "Rivedi la fattura").sourceRefs == ["steps:rivedi"]
+
+
+def test_the_start_event_keeps_its_traceability_to_the_plan():
+    start = ProcessEvent(id="arrivo", label="Fattura ricevuta", type="start")
+    model = _compile(_invoice(events=[start]))
+
+    assert next(node for node in model.flowNodes if node.type == "startEvent").sourceRefs == ["events:arrivo"]
+
+
 def test_a_reviewed_invoice_never_ends_as_paid():
     model = _compile(_invoice())
 
@@ -167,3 +182,55 @@ def test_task_types_follow_the_plan():
     assert _node(model, "Assegna l'approvatore").type == "businessRuleTask"
     assert _node(model, "Approva la fattura").type == "userTask"
     assert _node(model, "Archivia la fattura").type == "serviceTask"
+
+
+def test_a_decision_can_follow_another_and_skip_to_a_later_step():
+    """Request complete? -> approval needed? -> (yes) approve / (no) straight to the order."""
+    process = ProcessUnderstanding(
+        title="Richiesta di acquisto",
+        actors=[ProcessActor(id="acquisti", label="Acquisti", kind="team")],
+        steps=[
+            ProcessStep(id="verifica", label="Verifica la richiesta", actor_ids=["acquisti"]),
+            ProcessStep(id="integra", label="Integra la richiesta", actor_ids=["acquisti"]),
+            ProcessStep(id="valuta", label="Valuta la spesa", actor_ids=["acquisti"]),
+            ProcessStep(id="ordina", label="Emetti l'ordine", actor_ids=["acquisti"]),
+        ],
+        main_success_path=["verifica", "valuta", "ordina"],
+        sequence=["verifica", "valuta", "ordina"],
+        boundaries=ProcessBoundaries(success_end="Ordine emesso"),
+        decisions=[
+            ProcessDecision(
+                id="completa",
+                label="Richiesta completa?",
+                outcome_details=[
+                    ProcessDecisionOutcome(id="c_si", label="Sì", condition="completa", target_ref="necessaria"),
+                    ProcessDecisionOutcome(id="c_no", label="No", target_path_id="integrazione", is_default=True),
+                ],
+            ),
+            ProcessDecision(
+                id="necessaria",
+                label="Autorizzazione necessaria?",
+                outcome_details=[
+                    ProcessDecisionOutcome(id="n_si", label="Sì", condition="sopra soglia", target_ref="valuta"),
+                    ProcessDecisionOutcome(id="n_no", label="No", target_path_id="sotto_soglia", is_default=True),
+                ],
+            ),
+        ],
+        flow_edges=[
+            ProcessFlowEdge(id="e1", source_id="verifica", target_id="completa", label=""),
+            ProcessFlowEdge(id="e2", source_id="completa", target_id="necessaria", label="Sì"),
+        ],
+        alternative_paths=[
+            ProcessPath(id="integrazione", label="Incompleta", sequence=["integra"], rejoins_at="verifica"),
+            ProcessPath(id="sotto_soglia", label="Sotto soglia", sequence=[], rejoins_at="ordina"),
+        ],
+    )
+    model = _compile(process)
+
+    assert not model.model_warnings
+    yes = _flow(model, "Richiesta completa?", "Autorizzazione necessaria?")
+    assert yes.name == "Sì" and yes.conditionExpression == "completa"
+    assert _flow(model, "Autorizzazione necessaria?", "Valuta la spesa").conditionExpression == "sopra soglia"
+    skip = _flow(model, "Autorizzazione necessaria?", "Emetti l'ordine")
+    assert skip.name == "No" and _node(model, "Autorizzazione necessaria?").defaultFlowId == skip.id
+    assert analyze_control_flow(model).is_sound

@@ -125,6 +125,21 @@ def test_an_exclusive_split_merges_without_a_join():
         _node(model, "Prepara la merce").id,
         _node(model, "Emetti la fattura").id,
     }
+    # Alternative branches converge on the activity: correct BPMN, nothing to warn about.
+    assert not [issue for issue in analyze_control_flow(model).warnings if issue.code == "uncontrolled_merge"]
+
+
+def test_parallel_branches_entering_an_activity_without_their_join_are_flagged():
+    model = _compile(_order("parallel"))
+    join = next(n for n in model.flowNodes if n.type == "parallelGateway" and len(_into(model, n.id)) > 1)
+    [exit_flow] = [f for f in model.sequenceFlows if f.sourceRef == join.id]
+    for flow in _into(model, join.id):
+        flow.targetRef = exit_flow.targetRef
+    model.sequenceFlows.remove(exit_flow)
+    model.flowNodes.remove(join)
+
+    merges = [i for i in analyze_control_flow(model).warnings if i.code == "uncontrolled_merge"]
+    assert [issue.node_id for issue in merges] == [_node(model, "Spedisci").id]
 
 
 def test_an_event_based_gateway_can_start_the_process_and_wait_for_every_event():

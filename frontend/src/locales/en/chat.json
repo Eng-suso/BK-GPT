@@ -255,7 +255,8 @@
     "blocking": "Blocking",
     "ownLabel": "Answer in your own words",
     "submit": "Answer",
-    "ofTotal": " of {{total}}"
+    "ofTotal": " of {{total}}",
+    "topic": "What changes in the model: {{topic}}"
   },
   "review": {
     "cardLabelStale": "BPMN plan from the last run that worked",

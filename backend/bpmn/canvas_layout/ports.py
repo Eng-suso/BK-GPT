@@ -6,7 +6,10 @@ leave from distinct vertices, and a rework flow enters a task from another side
 than the forward flow. Each node hands out its four sides (the vertices of a
 gateway diamond, the edge midpoints of a task or event) one flow at a time:
 outgoing flows first, the straightest one taking the right side, then incoming
-flows, the straightest taking the left side.
+flows, the straightest taking the left side. A gateway branch that is not
+level with the diamond leaves from the vertex facing its target (top or
+bottom), as in the OMG reference diagrams: through the right vertex it would
+have to bend on the shape and its label would float away from it.
 """
 from dataclasses import dataclass
 
@@ -39,6 +42,7 @@ def assign_ports(
     attachments: list[tuple[str, str, str]] = (),
     reserved: dict[str, set[str]] | None = None,
     pools: dict[str, Box] | None = None,
+    gateways: set[str] | frozenset[str] = frozenset(),
 ) -> dict[str, tuple[Port, Port]]:
     """Give each `(flow_id, source, target)` a source and a target port, never shared on a node.
 
@@ -77,11 +81,33 @@ def assign_ports(
     for flow_id, source, target in ordered:
         (sx, sy), (tx, ty) = boxes[source].center, boxes[target].center
         near, far = vertical(ty - sy)
-        out_side[flow_id] = take(source, ("right", near, far) if tx >= sx else ("top", "bottom", "right"))
+        level = abs(ty - sy) <= boxes[source].height / 2
+        stacked = abs(tx - sx) <= min(boxes[source].width, boxes[target].width) / 2
+        if stacked and not level:
+            # Same column (a rework loop kept local): straight up or down.
+            preferences = (near, far, "right")
+        elif tx < sx and not level:
+            # A return to another row leaves sideways, toward the activity it repeats.
+            preferences = ("left", near, "top")
+        elif tx < sx:
+            preferences = ("top", "bottom", "right")
+        elif source in gateways and not level:
+            preferences = (near, "right", far)
+        else:
+            preferences = ("right", near, far)
+        out_side[flow_id] = take(source, preferences)
     for flow_id, source, target in ordered:
         (sx, sy), (tx, ty) = boxes[source].center, boxes[target].center
         near, far = vertical(sy - ty)
-        sides[flow_id] = (out_side[flow_id], take(target, ("left", near, far) if tx >= sx else ("top", "bottom", "left")))
+        stacked = abs(tx - sx) <= min(boxes[source].width, boxes[target].width) / 2
+        level = abs(ty - sy) <= boxes[target].height / 2
+        if stacked and not level:
+            entry = (near, far, "left")
+        elif tx >= sx:
+            entry = ("left", near, far)
+        else:
+            entry = (near, "top", "bottom", "left") if not level else ("top", "bottom", "left")
+        sides[flow_id] = (out_side[flow_id], take(target, entry))
     ports = {
         flow_id: (Port(side_point(boxes[source], out), out), Port(side_point(boxes[target], into), into))
         for flow_id, source, target in flows

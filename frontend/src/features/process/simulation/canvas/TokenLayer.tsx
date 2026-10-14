@@ -20,8 +20,15 @@ const QUEUE_SIGNAL_DOTS = 3;
 const QUEUE_SIGNAL_GAP = 10;
 /** Marker on a sequence flow while at least one token travels along it. */
 const LIVE_FLOW = "sim-flow-live";
+/** Marker on a flow a token has just left: the trail fades out in CSS. */
+const RECENT_FLOW = "sim-flow-recent";
+/** How long a travelled flow keeps its trail, in wall-clock milliseconds. */
+const TRAIL_MS = 1400;
+
+/** Starts and stops gently: a hop reads as a movement, not a jump. */
+const easeInOut = (p: number): number => (p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2);
 /** Minimum distance between two tokens travelling the same route, aura included. */
-const TRAIN_GAP = TOKEN_R * 2 + 6;
+const TRAIN_GAP = TOKEN_R * 2 + 4;
 
 type TokenLayerProps = {
   viewer: BpmnViewer | null;
@@ -56,6 +63,13 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
     const dots = new Map<string, SVGCircleElement>();
     const paths = new Map<string, TokenRoute | null>();
     let liveFlows = new Set<string>();
+    // flow id -> when its trail ends (performance.now() ms)
+    const trails = new Map<string, number>();
+    // A flow's label ("Sì", "No") lights up with its line.
+    const withLabel = (flow: string): string[] => (registry.get(`${flow}_label`) ? [flow, `${flow}_label`] : [flow]);
+    const mark = (flow: string, marker: string, on: boolean): void => {
+      for (const id of withLabel(flow)) (on ? canvas.addMarker : canvas.removeMarker).call(canvas, id, marker);
+    };
     const routeFor = (from: string | null, to: string | null): TokenRoute | null => {
       const key = `${from ?? "^"}>${to ?? "$"}`;
       if (!paths.has(key)) paths.set(key, routeBetween(registry, from, to));
@@ -109,7 +123,7 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
             const key = route.flows.join(">");
             const train = trains.get(key) ?? { route, tokens: [], progress: [] };
             train.tokens.push(token);
-            train.progress.push(token.at.progress);
+            train.progress.push(easeInOut(token.at.progress));
             trains.set(key, train);
             continue;
           }
@@ -128,24 +142,34 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
         const total = routeLength(route.points);
         const slots = spreadAlong(progress.map((p) => p * total), total, TRAIN_GAP);
         riders.forEach((token, i) => {
-          const { d, lane } = slots[i];
-          const at = pointAlong(route.points, total ? d / total : 0);
-          if (lane !== 0) {
-            // side lanes: offset across the line, perpendicular to its direction
-            const ahead = pointAlong(route.points, total ? Math.min(total, d + 1) / total : 0);
-            const behind = pointAlong(route.points, total ? Math.max(0, d - 1) / total : 0);
-            const len = Math.hypot(ahead.x - behind.x, ahead.y - behind.y) || 1;
-            at.x += (-(ahead.y - behind.y) / len) * lane * TRAIN_GAP;
-            at.y += ((ahead.x - behind.x) / len) * lane * TRAIN_GAP;
-          }
-          place(token.caseId, at, "moving");
+          // Always on the line: a train longer than the route overlaps instead
+          // of running beside it, where the dots would look like flying.
+          const { d } = slots[i];
+          place(token.caseId, pointAlong(route.points, total ? d / total : 0), "moving");
         });
         for (const flow of route.flows) live.add(flow);
       }
 
-      // the aura: light up the flows tokens are travelling along right now
-      for (const flow of liveFlows) if (!live.has(flow)) canvas.removeMarker(flow, LIVE_FLOW);
-      for (const flow of live) if (!liveFlows.has(flow)) canvas.addMarker(flow, LIVE_FLOW);
+      // the aura: light up the flows tokens are travelling along right now,
+      // and leave a short trail on the ones they have just left
+      const now = performance.now();
+      for (const flow of liveFlows) {
+        if (live.has(flow)) continue;
+        mark(flow, LIVE_FLOW, false);
+        mark(flow, RECENT_FLOW, true);
+        trails.set(flow, now + TRAIL_MS);
+      }
+      for (const flow of live) {
+        if (liveFlows.has(flow)) continue;
+        mark(flow, RECENT_FLOW, false);
+        trails.delete(flow);
+        mark(flow, LIVE_FLOW, true);
+      }
+      for (const [flow, until] of trails) {
+        if (until > now) continue;
+        mark(flow, RECENT_FLOW, false);
+        trails.delete(flow);
+      }
       liveFlows = live;
 
       for (const [caseId, dot] of dots) {
@@ -163,7 +187,8 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
       unsubscribe();
       for (const dot of dots.values()) dot.remove();
       dots.clear();
-      for (const flow of liveFlows) canvas.removeMarker(flow, LIVE_FLOW);
+      for (const flow of liveFlows) mark(flow, LIVE_FLOW, false);
+      for (const flow of trails.keys()) mark(flow, RECENT_FLOW, false);
     };
   }, [viewer, engine]);
 

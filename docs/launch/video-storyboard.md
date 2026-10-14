@@ -27,7 +27,8 @@ storia si regge su cio' che le fonti dicono davvero:
 2. **La lacuna che DeliR non riempie.** Nessuna fonte dice la soglia di
    autorizzazione: resta una domanda aperta, non un numero inventato.
 3. **Il To-Be l'hanno chiesto loro.** Richiesta completa con campi
-   obbligatori (Laura, Francesca), autorizzazione visibile (Francesca).
+   obbligatori e autorizzazione visibile (Francesca; Laura dice che il suo
+   modulo Excel: "Gli altri non lo compilano.")
 
 ## Il copy: il dolore del consulente, poi il risultato
 

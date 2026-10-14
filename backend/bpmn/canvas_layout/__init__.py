@@ -66,6 +66,7 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
         [(flow_id, source, target) for flow_id, kind, source, target in routable if kind == "sequenceFlow"],
         boxes,
         attachments=[(flow_id, source, target) for flow_id, kind, source, target in routable if kind != "sequenceFlow"],
+        gateways={key for key in boxes if local_name(elements[key]).endswith("Gateway")},
         reserved={e.get("attachedToRef"): {"bottom"} for e in elements.values() if local_name(e) == "boundaryEvent"},
         pools=pools,
     )
@@ -92,6 +93,11 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
             attrs["isHorizontal"] = "true"
         if kind in CONTAINER_TYPES:
             attrs["isExpanded"] = "false"
+        if kind == "exclusiveGateway":
+            # La X dichiarata nel DI (OMG BPMN 2.0, 12.1.3): bpmn-js la disegna solo
+            # se c'e' l'attributo; l'editor la aggiungeva da se', il visualizzatore
+            # della simulazione e gli strumenti esterni no.
+            attrs["isMarkerVisible"] = "true"
         shape = ET.SubElement(plane, f"{{{BPMNDI}}}BPMNShape", attrs)
         _bounds(shape, box)
         if elements[element_id].get("name") and (kind.endswith("Event") or kind.endswith("Gateway") or kind in {"dataObjectReference", "dataStoreReference"}):

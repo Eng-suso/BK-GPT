@@ -14,6 +14,9 @@
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.LAUNCH_STREAM_PORT ?? 8000);
+// Pausa fra due pezzi del testo (ms). Il piano video chiede la velocita' reale
+// del prodotto e niente accelerazioni al montaggio: si regola qui.
+const PIECE_MS = Number(process.env.LAUNCH_STREAM_PIECE_MS ?? 38);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const CORS = {
@@ -77,7 +80,7 @@ createServer(async (req, res) => {
   }
   for (const piece of tokens(script.answer)) {
     send({ type: "delta", content: piece });
-    await sleep(/[.:;]\s*$/.test(piece) ? 160 : /\n/.test(piece) ? 120 : 38);
+    await sleep(/[.:;]\s*$/.test(piece) ? PIECE_MS * 4 : /\n/.test(piece) ? PIECE_MS * 3 : PIECE_MS);
   }
   send({ type: "done", message: script.answer });
   res.end();

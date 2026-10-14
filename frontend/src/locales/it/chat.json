@@ -255,7 +255,8 @@
     "blocking": "Bloccante",
     "ownLabel": "Rispondi con parole tue",
     "submit": "Rispondi",
-    "ofTotal": " di {{total}}"
+    "ofTotal": " di {{total}}",
+    "topic": "Cosa cambia nel modello: {{topic}}"
   },
   "review": {
     "cardLabelStale": "Piano BPMN dell'ultimo giro riuscito",

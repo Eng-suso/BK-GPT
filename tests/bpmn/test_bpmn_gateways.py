@@ -139,7 +139,7 @@ def test_event_based_decision_forks_onto_catch_events():
     xml = semantic_model_to_bpmn_xml(model)
     assert "<bpmn:eventBasedGateway" in xml
     assert "<bpmn:conditionalEventDefinition>" in xml
-    assert '<bpmn:condition xsi:type="bpmn:tFormalExpression">' in xml
+    assert '<bpmn:condition xsi:type="bpmn:tExpression">' in xml
     assert "<bpmn:conditionalEventDefinition />" not in xml
 
 
