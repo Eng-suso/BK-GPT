@@ -83,12 +83,11 @@ async function showPublicLink(page: Page): Promise<void> {
   }, new URL(page.url()).origin);
 }
 
-/** La colonna della conversazione, dal messaggio del consulente al box di scrittura. */
-async function thread(page: Page, prompt: string, composer: Locator, rows = 0): Promise<Rect> {
+/** La conversazione dalla domanda in giu', larga quanto il box di scrittura: dove arriva la risposta. */
+async function thread(page: Page, prompt: string, composer: Locator, rows = 360): Promise<Rect> {
   const input = await box(composer);
   const asked = await box(page.getByText(prompt, { exact: true }).last());
-  const top = rows ? input.y - rows : asked.y - 12;
-  return { x: input.x - 8, y: top, width: input.width + 16, height: input.y - top };
+  return { x: input.x - 8, y: asked.y - 12, width: input.width + 16, height: rows };
 }
 
 /** Scrive al consulente come una persona e aspetta che DeliR finisca di rispondere. */
@@ -132,7 +131,7 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
     await page.waitForTimeout(800);
     await calm(page);
     await record(page, id, async (rec) => {
-      await converse(page, rec, PROMPTS[lang].consultant, UI[lang].consultantDone, composer);
+      await converse(page, rec, PROMPTS[lang].consultant, UI[lang].consultantDone, composer, 300);
       await rec.wait(3000);
     });
   },
@@ -194,12 +193,13 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
     await calm(page);
     await record(page, id, async (rec) => {
       // La finestra segue la coda della risposta mentre arriva.
-      await converse(page, rec, PROMPTS[lang].process, UI[lang].processDone, composer, 380);
+      await converse(page, rec, PROMPTS[lang].process, UI[lang].processDone, composer, 420);
       await rec.wait(800);
-      // Le domande aperte: la divergenza e la lacuna.
-      const open = page.getByText(UI[lang].open).last();
-      const end = page.getByText(UI[lang].processDone, { exact: false }).last();
-      await rec.focus(union(await box(open), await box(end)), 4, 16);
+      // Le domande aperte: la divergenza e la lacuna, a tutta larghezza.
+      const open = await box(page.getByText(UI[lang].open).last());
+      const end = await box(page.getByText(UI[lang].processDone, { exact: false }).last());
+      const input = await box(composer);
+      await rec.focus({ x: input.x - 8, y: open.y - 10, width: input.width + 16, height: end.y + end.height - open.y + 20 }, 4, 8);
       await rec.wait(4000);
     });
   },
@@ -409,12 +409,12 @@ const tagHtml = (number: number, text: string, size = 36) => `<div style="positi
   <span style="display:grid;place-items:center;width:${size * 1.35}px;height:${size * 1.35}px;border-radius:999px;background:#fff;color:#004580;font-weight:700">${number}</span>
   <span>${text}</span></div>`;
 
-const cardHtml = (eyebrow: string, title: string, line: string) => `<div style="position:fixed;inset:0;background:#0B1021;color:#fff;display:flex;flex-direction:column;justify-content:center;padding:0 160px;
-  font-family:'Hanken Grotesk',system-ui,sans-serif">
-  ${eyebrow ? `<div style="font:600 30px/1.2 inherit;color:#7FB2E5;letter-spacing:.06em;text-transform:uppercase;margin-bottom:28px">${eyebrow}</div>` : ""}
-  <div style="font:700 84px/1.08 inherit;max-width:1500px">${title}</div>
-  <div style="font:400 38px/1.35 inherit;color:#C9D6E6;margin-top:32px;max-width:1400px">${line}</div>
-  <div style="position:absolute;left:160px;bottom:90px;font:700 40px/1 inherit">DeliR<span style="color:#0071E3">.</span></div></div>`;
+const FONT = "'Hanken Grotesk',system-ui,sans-serif";
+const cardHtml = (eyebrow: string, title: string, line: string) => `<div style="position:fixed;inset:0;background:#0B1021;color:#fff;display:flex;flex-direction:column;justify-content:center;padding:0 160px">
+  ${eyebrow ? `<div style="font:600 30px/1.2 ${FONT};color:#7FB2E5;letter-spacing:.06em;text-transform:uppercase;margin-bottom:28px">${eyebrow}</div>` : ""}
+  <div style="font:700 84px/1.08 ${FONT};max-width:1500px">${title}</div>
+  <div style="font:400 38px/1.35 ${FONT};color:#C9D6E6;margin-top:32px;max-width:1400px">${line}</div>
+  <div style="position:absolute;left:160px;bottom:90px;font:700 40px/1 ${FONT}">DeliR<span style="color:#0071E3">.</span></div></div>`;
 
 test("film-overlays", async ({ page }) => {
   mkdirSync(OVERLAYS, { recursive: true });
