@@ -94,7 +94,7 @@ async function converse(page: Page, rec: import("./recorder").VirtualRecorder, p
   await rec.waitUntil(() => page.getByText(done, { exact: false }).last().isVisible(), 40_000);
 }
 
-const CHAT_VIEWPORT = { width: 860, height: 700 };
+const CHAT_VIEWPORT = { width: 820, height: 700 };
 
 const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<void>> = {
   // --- Contesto
