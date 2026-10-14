@@ -25,6 +25,24 @@ export default defineConfig({
     deviceScaleFactor: 2,
     launchOptions: { executablePath },
   },
+  /**
+   * Lo screencast di Chromium manda i fotogrammi in pixel CSS anche con
+   * `deviceScaleFactor`: la densita' vera la da' il flag del browser. Desktop
+   * a 2 (fotogrammi 2880x1800); le riprese da telefono (`-4x5`) a 1080/390,
+   * cosi' il 4:5 esce a 1080 px di larghezza reale.
+   */
+  projects: [
+    {
+      name: "desktop",
+      grepInvert: /-4x5$/,
+      use: { launchOptions: { executablePath, args: ["--force-device-scale-factor=2"] } },
+    },
+    {
+      name: "telefono",
+      grep: /-4x5$/,
+      use: { launchOptions: { executablePath, args: [`--force-device-scale-factor=${1080 / 390}`] } },
+    },
+  ],
   webServer: [
     {
       command: "npm run dev:frontend",
