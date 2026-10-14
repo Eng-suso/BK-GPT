@@ -50,6 +50,20 @@ export async function installCaseApi(page: Page, lang: Lang, options: { layout?:
     if (otherClient) return json(path === `${W}/clients/${otherClient.id}` ? otherClient : []);
     if (path === `${W}/models`) return json([vetranoModel(lang), ...studio.models]);
     if (path === `${W}/archive`) return json(studio.archive);
+    if (path === `${W}/search`) {
+      const query = (new URL(request.url()).searchParams.get("q") ?? "").toLowerCase();
+      const hit = (kind: string, id: string, title: string, context: string, extra: Record<string, string | null>) =>
+        ({ kind, id, title, context, client_id: null, client_name: null, project_id: null, project_name: null, process_id: null, source_type: null, ...extra });
+      const hits = [
+        ...clients.map((item) => hit("client", item.id, item.name, item.sector, { client_id: item.id, client_name: item.name })),
+        ...projects.map((item) => hit("project", item.id, item.name, item.client, { client_id: item.client_id, client_name: item.client, project_id: item.id, project_name: item.name })),
+        ...projects.flatMap((item) => item.process_items.map((process) => hit("process", process.id, process.name, `${item.client} · ${item.name}`,
+          { client_id: item.client_id, client_name: item.client, project_id: item.id, project_name: item.name, process_id: process.id }))),
+        ...data.sources.map((item) => hit("source", item.id, item.name, `${data.project.client} · ${data.project.name}`,
+          { client_id: IDS.client, client_name: data.project.client, project_id: IDS.project, project_name: data.project.name, source_type: item.type })),
+      ];
+      return json(hits.filter((item) => `${item.title} ${item.context}`.toLowerCase().includes(query)));
+    }
     // La pagina del consulente senza progetto scelto.
     if (path === `${W}/projects/` || path === `${W}/projects//sources`) return json([]);
     if (path === `${W}/clients/${IDS.client}/sources`) return json([]);
@@ -69,7 +83,8 @@ export async function installCaseApi(page: Page, lang: Lang, options: { layout?:
     if (sourceMatch) {
       const [, sourceId, part] = sourceMatch;
       if (part === "document") return json(data.sourceDocument(sourceId));
-      if (part) return json([]);
+      if (part === "claims") return json(data.claims(sourceId));
+      if (part === "relations") return json(data.relations(sourceId));
       return json(data.sources.find((source) => source.id === sourceId) ?? null);
     }
 

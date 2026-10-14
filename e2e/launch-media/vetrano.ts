@@ -495,9 +495,45 @@ export function demoCase(lang: Lang) {
     generated_at: "2026-10-13T09:00:00Z",
   };
 
+  // Le affermazioni di ogni fonte: una per citazione del disegno, piu' le due
+  // versioni dell'acquisto urgente (la divergenza fra Laura e Francesca).
+  const urgent = {
+    laura: "So che poi la parte di carta viene messa a posto dopo, ma non so da chi.",
+    francesca: "La parte di ordine si', la faccio io.",
+  };
+  const q = (text: string) => (lang === "it" ? text : quoteEn(text));
+  const claimRows: { id: number; source_id: string; statement: string; quote: string }[] = [];
+  for (const item of evidence) {
+    for (const ev of item.evidence) {
+      claimRows.push({ id: claimRows.length + 1, source_id: ev.source_id, statement: lang === "it" ? `Descrive «${item.label}»` : `Describes «${item.label}»`, quote: ev.quote });
+    }
+  }
+  const lauraUrgent = claimRows.push({ id: claimRows.length + 1, source_id: "src-laura-conti", statement: lang === "it" ? "Non sa chi regolarizza un acquisto urgente" : "Doesn't know who regularizes an urgent purchase", quote: q(urgent.laura) });
+  const francescaUrgent = claimRows.push({ id: claimRows.length + 1, source_id: "src-francesca-neri", statement: lang === "it" ? "Regolarizza lei l'ordine di un acquisto urgente" : "She regularizes the order of an urgent purchase", quote: q(urgent.francesca) });
+  const claims = (sourceId: string) => claimRows.filter((row) => row.source_id === sourceId).map((row) => ({
+    ...row, segment_ordinal: row.id, anchor_ref: "", quote_verified: true, extracted_at: "2026-09-05T10:00:00Z",
+  }));
+  const side = (row: (typeof claimRows)[number]) => ({
+    claim_id: row.id, source_id: row.source_id, source_name: sourceName(INTERVIEWS.find((item) => item.id === row.source_id)!.person),
+    statement: row.statement, anchor_ref: "", quote: row.quote, quote_verified: true,
+  });
+  const divergence = {
+    id: 1, kind: "divergence", divergence_type: "incompatible", divergence_label: null, declared_type: null, reasons: [],
+    explanation: lang === "it" ? "Le due fonti descrivono in modo diverso chi regolarizza un acquisto urgente." : "The two sources describe differently who regularizes an urgent purchase.",
+  };
+  const relations = (sourceId: string) => {
+    const laura = claimRows[lauraUrgent - 1];
+    const francesca = claimRows[francescaUrgent - 1];
+    if (sourceId === laura.source_id) return [{ ...divergence, claim: side(laura), other: side(francesca) }];
+    if (sourceId === francesca.source_id) return [{ ...divergence, claim: side(francesca), other: side(laura) }];
+    return [];
+  };
+
   return {
     lang,
     processName,
+    claims,
+    relations,
     bpmnXml,
     processItem,
     project,
