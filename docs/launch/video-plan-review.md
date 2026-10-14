@@ -87,3 +87,29 @@ Come sono fatti:
 - la dicitura "Caso dimostrativo · valori simulati" ("Demo case · simulated
   values") e' dentro il video, nella fascia in basso che la camera lascia
   libera.
+
+## Film del prodotto: cosa arriva al team landing
+
+Il film per "Apri il video completo" (e per YouTube e LinkedIn): 3'07" in
+italiano, 3'06" in inglese, 16:9 1920×1080, con musica strumentale generata
+dallo script di montaggio (nessuna licenza di terzi).
+
+| File | Lingua |
+| --- | --- |
+| `delir-film.{mp4,webm,jpg,webp}` | italiano |
+| `delir-film.en.{mp4,webm,jpg,webp}` | inglese |
+
+Si genera con `npx playwright test -c playwright.launch.config.ts film.spec
+--project=desktop` (riprese, `e2e/launch-media/film.spec.ts`) e
+`python3 scripts/launch_media_montage.py film`. Il piano dei capitoli e delle
+targhette e' in `e2e/launch-media/filmPlan.ts`.
+
+- 8 capitoli con un cartello ciascuno, piu' apertura (il problema) e chiusura:
+  lo studio, le fonti, l'As-Is, la review, la simulazione, il To-Be, la
+  consegna, tutto resta;
+- una targhetta blu numerata per scena, che dice cosa succede;
+- la chat di DeliR in streaming alla velocita' del prodotto, con le citazioni
+  alla lettera delle interviste;
+- 5 scene riusano le riprese dell'hero (stesso caso, stessi dati);
+- il testo minimo e' misurato a 1280 px di larghezza (il film si guarda a
+  schermo intero), non ai 756 px dello slot del sito.
