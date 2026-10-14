@@ -12,8 +12,8 @@
       "shots": [
         { "scene": "hero-{lang}-1-fonti", "duration": 4.2, "long_overview": true, "tag": "tag-{lang}-1" },
         { "scene": "hero-{lang}-2-evidenze", "duration": 5, "tag": "tag-{lang}-2" },
-        { "scene": "hero-{lang}-3-simulazione", "duration": 6.5, "long_overview": true, "tag": "tag-{lang}-3" },
-        { "scene": "hero-{lang}-4-tobe", "duration": 5.5, "long_overview": true, "tag": "tag-{lang}-4" },
+        { "scene": "hero-{lang}-3-simulazione", "duration": 6, "long_overview": true, "tag": "tag-{lang}-3" },
+        { "scene": "hero-{lang}-4-tobe", "duration": 4.8, "long_overview": true, "tag": "tag-{lang}-4" },
         { "scene": "hero-{lang}-5-invio", "duration": 5, "tag": "tag-{lang}-5" }
       ],
       "overlays": ["dimostrativo-{lang}"],

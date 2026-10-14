@@ -423,6 +423,8 @@ async function momentSimulation(page: Page, lang: Lang, id: string): Promise<voi
     await rec.wait(300);
     await zoomSimulation(page, simNode(page, "Task_Valuta"), 3);
     await page.mouse.move(-10, -10);
+    // La camera sul processo: il rosso si legge.
+    await rec.focus(await box(page.locator(".sim-analytical-canvas").first()), 4, 8, { overview: true });
     await rec.wait(1500);
   });
 }
@@ -446,9 +448,8 @@ async function momentToBe(page: Page, lang: Lang, id: string): Promise<void> {
   const compare = page.getByRole("button", { name: UI[lang].compare }).first();
   const compareBox = await box(compare);
   await moveTo(page, { x: compareBox.x - 140, y: compareBox.y + 260 }, 10);
-  const main = await box(page.locator("main").first());
   await record(page, id, async (rec) => {
-    await rec.focus(main, 4, 0, { overview: true });
+    await rec.focus(await box(page.locator(".sim-analytical-canvas").first()), 4, 8, { overview: true });
     await rec.wait(300);
     await clickOn(page, compare, 600);
     const verdict = page.locator("p:has(> strong.font-semibold)").first();
