@@ -139,7 +139,7 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
 
   "03-progetto": async (page, lang, id) => {
     await page.goto(`/projects/${IDS.project}`);
-    const objective = page.getByText(lang === "it" ? /Ricostruire come nasce/ : /Rebuild how/).first();
+    const objective = page.getByText(lang === "it" ? /Ricostruire come nasce/ : /Reconstruct how/).first();
     await expect(objective).toBeVisible();
     await page.waitForTimeout(600);
     await calm(page);
