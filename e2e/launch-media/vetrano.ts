@@ -177,8 +177,8 @@ type Run = {
 export const simulationLayoutKey = `delir:simulation:dashboard:${IDS.project}:${IDS.process}`;
 export type SimulationLayoutKind = "wide" | "panel" | "grid";
 const KPI_TITLES = {
-  it: { cycle: "Tempo medio di attraversamento", queued: "Richieste in coda", cost: "Costo accumulato", resourceBusy: "Occupazione delle risorse" },
-  en: { cycle: "Average cycle time", queued: "Queued requests", cost: "Accrued cost", resourceBusy: "Resource utilization" },
+  it: { cycle: "Tempo medio di attraversamento", queued: "Richieste in coda", cost: "Costo accumulato", resourceBusy: "Occupazione delle risorse", completed: "Richieste completate" },
+  en: { cycle: "Average cycle time", queued: "Queued requests", cost: "Accrued cost", resourceBusy: "Resource utilization", completed: "Completed requests" },
 } as const;
 
 export function simulationLayout(lang: Lang, kind: SimulationLayoutKind = "wide") {
@@ -189,14 +189,14 @@ export function simulationLayout(lang: Lang, kind: SimulationLayoutKind = "wide"
     followFilter: false, activityId: "", showLabels: true, color, canvas,
   });
   const GAP = 24;
-  const PROCESS = kind === "wide" ? { width: 1180, height: 720 } : { width: 1500, height: 720 };
+  const PROCESS = kind === "wide" ? { width: 1180, height: 720 } : kind === "grid" ? { width: 1100, height: 720 } : { width: 1500, height: 720 };
   let cells: Rect[];
   if (kind === "wide") {
     const column = { x: PROCESS.width + GAP, width: 520, height: (PROCESS.height - GAP) / 2 };
     cells = [0, 1].map((index) => ({ x: column.x, y: index * (column.height + GAP), width: column.width, height: column.height }));
   } else if (kind === "grid") {
     // Hero: il processo a sinistra, quattro KPI 2x2 a destra, tutti in movimento.
-    const cell = { width: 380, height: (PROCESS.height - GAP) / 2 };
+    const cell = { width: 320, height: (PROCESS.height - GAP) / 2 };
     cells = [0, 1, 2, 3].map((index) => ({
       x: PROCESS.width + GAP + (index % 2) * (cell.width + GAP), y: Math.floor(index / 2) * (cell.height + GAP), ...cell,
     }));
@@ -207,7 +207,9 @@ export function simulationLayout(lang: Lang, kind: SimulationLayoutKind = "wide"
   const widgets = [
     widget("cycle", "line", "blue", cells[0]),
     widget("queued", "area", "amber", cells[1]),
-    ...(cells.length > 2 ? [widget("cost", "area", "violet", cells[2]), widget("resourceBusy", "column", "teal", cells[3])] : []),
+    // Nella griglia dell'hero un quarto KPI che cresce sempre: le richieste completate.
+    ...(kind === "grid" ? [widget("cost", "area", "violet", cells[2]), widget("completed", "line", "teal", cells[3])] : []),
+    ...(kind === "panel" ? [widget("cost", "area", "blue", cells[2]), widget("resourceBusy", "column", "teal", cells[3])] : []),
   ];
   return {
     version: 1,

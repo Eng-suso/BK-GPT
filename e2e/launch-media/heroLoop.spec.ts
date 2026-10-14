@@ -7,7 +7,8 @@
  * 2. informazioni: la citazione si accende e una linea blu la porta
  *    all'attivita' che regge;
  * 3. simulazione: il replay dell'As-Is a tutto schermo, processo e 4 KPI;
- * 4. invio: il processo va al cliente con il link privato.
+ * 4. To-Be: il confronto con l'As-Is, -87% di attraversamento e -43% di costo;
+ * 5. invio: il processo va al cliente con il link privato.
  *
  * Sequenza decisa da Sohayb il 14 ottobre 2026. Revisione dello stesso giorno:
  * si vede sempre il desktop, anche nel 4:5 (ritaglio della stessa ripresa con
@@ -47,6 +48,7 @@ const UI = {
     details: "Dettaglio del confronto",
     showAll: "Mostra tutta la tela",
     play: "Riproduci",
+    compare: "Confronto",
     speed: "Velocità",
     send: /Invia al cliente/,
     sent: "Ho inviato il link",
@@ -64,6 +66,7 @@ const UI = {
     details: "Comparison details",
     showAll: "Show entire canvas",
     play: "Play",
+    compare: "Compare",
     speed: "Speed",
     send: /Send to client/,
     sent: "I sent the link",
@@ -318,7 +321,7 @@ async function momentEvidence(page: Page, lang: Lang, id: string): Promise<void>
   await page.evaluate(({ ease, from, to }) => {
     const style = document.createElement("style");
     style.textContent = `
-      .hero-link { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
+      .hero-link { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: 70; pointer-events: none; overflow: visible; }
       .hero-link path { fill: none; stroke: #1d6fd8; stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset 700ms ${ease}; }
       .hero-link circle { fill: #1d6fd8; opacity: 0; transition: opacity 200ms ease-out; }
       .hero-link.on circle.from { opacity: 1; }
@@ -333,8 +336,9 @@ async function momentEvidence(page: Page, lang: Lang, id: string): Promise<void>
     svg.setAttribute("class", "hero-link");
     const a = { x: from.x - 6, y: from.y + Math.min(from.height / 2, 22) };
     const b = { x: to.x + to.width + 6, y: to.y + to.height / 2 };
-    const mid = (a.x + b.x) / 2;
-    svg.innerHTML = `<path d="M ${a.x} ${a.y} C ${mid} ${a.y}, ${mid} ${b.y}, ${b.x} ${b.y}"/>`
+    // Ad arco sopra il flusso: la linea non si confonde con il gateway accanto.
+    const lift = Math.min(a.y, b.y) - 70;
+    svg.innerHTML = `<path d="M ${a.x} ${a.y} C ${a.x - 60} ${lift}, ${b.x + 60} ${lift}, ${b.x} ${b.y}"/>`
       + `<circle class="from" cx="${a.x}" cy="${a.y}" r="5"/><circle class="to" cx="${b.x}" cy="${b.y}" r="5"/>`;
     document.body.append(svg);
     const path = svg.querySelector("path")!;
@@ -353,10 +357,12 @@ async function momentEvidence(page: Page, lang: Lang, id: string): Promise<void>
     });
   }, { ease: EASE, from: quoteBox, to: taskBox });
   const rowBox2 = await box(row);
-  const scene = union(taskBox, rowBox2);
+  const scene = union(taskBox, rowBox2, { x: taskBox.x, y: Math.min(taskBox.y, quoteBox.y) - 60, width: 1, height: 1 });
   // Nel 4:5 attivita' e citazione insieme non entrano leggibili: la camera
   // parte dalla citazione e segue la linea fino all'attivita'.
-  const linkEnd = union(taskBox, { x: quoteBox.x, y: quoteBox.y, width: 70, height: Math.min(quoteBox.height, 44) });
+  const linkEnd = union(taskBox, { x: quoteBox.x, y: quoteBox.y, width: 70, height: Math.min(quoteBox.height, 44) },
+    // La cima dell'arco.
+    { x: taskBox.x, y: Math.min(taskBox.y, quoteBox.y) - 60, width: 1, height: 1 });
   await record(page, id, async (rec) => {
     // Una sola inquadratura: l'attivita' nel processo e la frase che la regge.
     await rec.focus(scene, 4, 2, { narrow: rowBox2, narrowPad: 0 });
@@ -392,17 +398,53 @@ async function momentSimulation(page: Page, lang: Lang, id: string): Promise<voi
   await expect(charts).toHaveCount(4);
   // Tutta la pagina della simulazione: processo, KPI e riproduzione, nessuno
   // zoom. Nel 4:5 (`narrow`) prima il cuore del processo, poi i quattro KPI.
-  const page_ = await box(page.locator("main").first());
+  // Niente barra di zoom della tela sopra i KPI.
+  await page.addStyleTag({ content: ".sim-scene-navigation { display: none !important; }" });
+  const process_ = await box(page.locator(".sim-analytical-canvas").first());
   const heart = union(...(await Promise.all(["Task_Verifica", "Task_Valuta", "Task_Emetti"].map((key) =>
     box(page.locator(`.sim-analytical-canvas [data-element-id='${key}']`).first())))));
   const kpis = union(...(await Promise.all([0, 1, 2, 3].map((index) => box(charts.nth(index))))));
+  // Il contenuto della tela, processo e KPI, a tutta larghezza.
+  const page_ = union(process_, kpis);
   await record(page, id, async (rec) => {
-    await rec.focus(page_, 4, 0, { overview: true, narrow: heart, narrowPad: 24 });
+    await rec.focus(page_, 4, 12, { overview: true, narrow: heart, narrowPad: 24 });
     await play.click();
     await calm(page);
     await rec.wait(2600);
-    await rec.focus(page_, 4, 0, { overview: true, narrow: kpis, narrowPad: 56 });
+    await rec.focus(page_, 4, 12, { overview: true, narrow: kpis, narrowPad: 16 });
     await rec.wait(3000);
+  });
+}
+
+// --- 4. Il To-Be contro l'As-Is: quanto migliora, in tempo e in costo.
+
+async function momentToBe(page: Page, lang: Lang, id: string): Promise<void> {
+  // A = As-Is, B = To-Be: la frase del confronto parla del miglioramento.
+  await page.goto(`${P}/simulation/replay/${IDS.asIsRun}?a=${IDS.asIsRun}&b=${IDS.toBeRun}`);
+  await expect(page.getByRole("button", { name: UI[lang].play, exact: true })).toBeVisible();
+  await page.getByRole("button", { name: UI[lang].showAll }).click().catch(() => undefined);
+  await page.addStyleTag({ content: ".sim-scene-navigation { display: none !important; }" });
+  await page.waitForTimeout(800);
+  await calm(page);
+  const compare = page.getByRole("button", { name: UI[lang].compare }).first();
+  const compareBox = await box(compare);
+  await moveTo(page, { x: compareBox.x - 140, y: compareBox.y + 90 }, 10);
+  const main = await box(page.locator("main").first());
+  await record(page, id, async (rec) => {
+    await rec.focus(main, 4, 0, { overview: true, narrow: compareBox, narrowPad: 180 });
+    await clickOn(page, compare, 600);
+    const verdict = page.locator("p:has(> strong.font-semibold)").first();
+    await rec.waitUntil(() => verdict.isVisible());
+    await rec.wait(400);
+    // La frase: -87% di attraversamento, -43% di costo per caso. Nel 4:5 la
+    // parte sinistra, dove stanno i due numeri.
+    const sentence = await box(verdict);
+    await rec.focus(sentence, 4, 16, { narrow: { ...sentence, width: Math.min(sentence.width, 400) }, narrowPad: 6 });
+    await rec.wait(2100);
+    // Il processo To-Be in verde, accanto alla frase.
+    const process_ = await box(page.locator(".sim-analytical-canvas").first());
+    await rec.focus(union(process_, sentence), 4, 8, { overview: true, narrow: process_, narrowPad: 0 });
+    await rec.wait(1500);
   });
 }
 
@@ -453,7 +495,8 @@ const MOMENTS = [
   ["1-fonti", momentSources],
   ["2-evidenze", momentEvidence],
   ["3-simulazione", momentSimulation],
-  ["4-invio", momentSend],
+  ["4-tobe", momentToBe],
+  ["5-invio", momentSend],
 ] as const;
 
 for (const lang of ["it", "en"] as const) {
@@ -476,8 +519,8 @@ for (const lang of ["it", "en"] as const) {
 // "caso dimostrativo" e le targhette blu che dicono cosa succede.
 
 const TAGS = {
-  it: ["Dalle fonti del cliente al processo", "Ogni attività con la sua fonte", "Simula l'As-Is: code, tempi, costi", "Invia il processo al cliente"],
-  en: ["From client sources to the process", "Every activity backed by its source", "Simulate the As-Is: queues, times, costs", "Send the process to the client"],
+  it: ["Dalle fonti del cliente al processo", "Ogni attività con la sua fonte", "Simula l'As-Is: code, tempi, costi", "Il To-Be: quanto migliora, misurato", "Invia il processo al cliente"],
+  en: ["From client sources to the process", "Every activity backed by its source", "Simulate the As-Is: queues, times, costs", "The To-Be: the improvement, measured", "Send the process to the client"],
 } as const;
 
 test("hero-overlays", async ({ page }) => {

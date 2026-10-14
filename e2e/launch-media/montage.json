@@ -2,7 +2,7 @@
   "fps": 30,
   "formats": {
     "16x9": { "size": [1920, 1080], "display": 756, "reserve": 0.07 },
-    "4x5": { "size": [1080, 1350], "display": 350, "reserve": 0.07, "min_text": 8 }
+    "4x5": { "size": [1080, 1350], "display": 350, "reserve": 0.07, "min_text": 7 }
   },
   "cuts": {
     "hero": {
@@ -13,11 +13,12 @@
         { "scene": "hero-{lang}-1-fonti", "duration": 5, "tag": "tag-{lang}-1" },
         { "scene": "hero-{lang}-2-evidenze", "duration": 5, "tag": "tag-{lang}-2" },
         { "scene": "hero-{lang}-3-simulazione", "duration": 5, "long_overview": true, "tag": "tag-{lang}-3" },
-        { "scene": "hero-{lang}-4-invio", "duration": 5, "tag": "tag-{lang}-4" }
+        { "scene": "hero-{lang}-4-tobe", "duration": 5, "tag": "tag-{lang}-4" },
+        { "scene": "hero-{lang}-5-invio", "duration": 5, "tag": "tag-{lang}-5" }
       ],
       "overlays": ["dimostrativo-{lang}"],
       "files": { "16x9": "hero-loop", "4x5": "hero-loop-4x5" },
-      "poster": 12.5
+      "poster": 17.5
     }
   }
 }
