@@ -45,9 +45,12 @@ montaggio.
 
 ## Hero: cosa arriva al team landing
 
-L'hero: 25 s in loop, cinque momenti da 5 s (fonti, evidenze, simulazione
-As-Is, To-Be misurato contro l'As-Is, invio). Il To-Be e' entrato il 14
-ottobre: senza, la simulazione non diceva quanto migliora. Si genera con
+L'hero: circa 26 s in loop, cinque momenti (fonti 4 s, evidenze 5 s,
+As-Is 6,5 s con la heatmap che accende il collo di bottiglia in rosso, To-Be
+5,5 s in cui lo stesso punto diventa verde con -87% di attraversamento e -43%
+di costo, invio 5 s). Revisione di Sohayb del 14 ottobre: niente zoom
+sull'inizio del processo, niente versione 4:5 (da telefono non si capiva).
+Si genera con
 `npx playwright test -c playwright.launch.config.ts heroLoop` e
 `python3 scripts/launch_media_montage.py hero`.
 
@@ -55,34 +58,31 @@ ottobre: senza, la simulazione non diceva quanto migliora. Si genera con
 | --- | --- | --- |
 | `hero-loop.{mp4,webm,jpg,webp}` | 16:9, 1920×1080 | italiano (stesso nome di oggi) |
 | `hero-loop.en.{mp4,webm,jpg,webp}` | 16:9, 1920×1080 | inglese |
-| `hero-loop-4x5.{mp4,webm,jpg,webp}` | 4:5, 1080×1350 | italiano |
-| `hero-loop-4x5.en.{mp4,webm,jpg,webp}` | 4:5, 1080×1350 | inglese |
 
 Il nome inglese segue la convenzione dei VTT (`<id>.<lingua>`). Modifiche
 richieste al sito, tutte nel codice e nessuna nel copy:
 
-- `Hero.tsx`: cinque frasi a 0/5/10/15/20 s, in entrambe le lingue; la quarta
+- `Hero.tsx`: cinque frasi a 0/4,2/9,2/15,7/21,2 s, in entrambe le lingue; la quarta
   e' nuova (il To-Be: -87% di attraversamento, -43% di costo per caso) e va
   scritta dal team landing;
-- `productClips.ts`: `duration: 25` per `hero`;
+- `productClips.ts`: `duration: 26.2` per `hero`;
 - `ProductFilm.tsx`: la sorgente per lingua (`hero-loop.en.mp4` quando la
-  lingua e' l'inglese) e la variante 4:5 sotto i 768 px.
+  lingua e' l'inglese); sotto i 768 px lo stesso 16:9, nessuna variante 4:5.
 
 Come sono fatti:
 
 - velocita' 1×, cursore da 1,2 s, nessuna accelerazione;
-- il 4:5 e' un ritaglio della stessa ripresa desktop, con gli zoom: si vede
-  sempre il prodotto da desktop (decisione del 14 ottobre, la ripresa da
-  telefono non si capiva). Il prezzo e' un testo piu' piccolo: minimo 8 px a
-  350 px invece di 11;
+- solo 16:9, ripreso da desktop: le versioni 4:5 (da telefono e poi
+  ritagliata dal desktop) sono state tolte il 14 ottobre, non si capivano;
 - ogni momento ha la sua targhetta blu (#004580) in alto a sinistra, numerata,
   che dice cosa succede, in italiano e in inglese;
 - l'apertura parte da interviste, Word, Excel e l'export del gestionale; le
   evidenze collegano con una linea blu la citazione all'attivita'; la
-  simulazione mostra il processo e quattro KPI in movimento;
+  simulazione mostra il processo e quattro KPI in movimento, poi la heatmap
+  rossa sul collo di bottiglia; il To-Be lo stesso punto in verde;
 - `scripts/launch_media_montage.py` si ferma se un testo inquadrato scende
-  sotto il minimo alla dimensione del sito (11 px a 756 px per il 16:9, il
-  tablet; 8 px a 350 px per il 4:5), se un colpo d'insieme dura piu' di 2 s o se il logo
+  sotto gli 11 px alla dimensione del sito (756 px, il tablet), se un colpo
+  d'insieme dura piu' di 2 s (salvo le scene intere volute) o se il logo
   bpmn.io entra in quadro;
 - la dicitura "Caso dimostrativo · valori simulati" ("Demo case · simulated
   values") e' dentro il video, nella fascia in basso che la camera lascia
