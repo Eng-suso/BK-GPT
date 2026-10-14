@@ -152,7 +152,8 @@ class Shot:
             if key.get("overview") or not key.get("rect"):
                 start = key["t"] - self.offset - self.start
                 end = keys[index + 1]["t"] - self.offset - self.start if index + 1 < len(keys) else self.duration
-                if min(end, self.duration) - max(start, 0) > MAX_OVERVIEW + CAMERA_MOVE:
+                # `long_overview`: inquadratura intera voluta (la simulazione a tutto schermo).
+                if not entry.get("long_overview") and min(end, self.duration) - max(start, 0) > MAX_OVERVIEW + CAMERA_MOVE:
                     self.problems.append(f"{name}/{self.id} a {max(start, 0):.1f} s: inquadratura larga per {min(end, self.duration) - max(start, 0):.1f} s (massimo {MAX_OVERVIEW})")
         if not self.camera or self.camera[0][0] > 0:
             self.camera.insert(0, (-1.0, window_for(None, aspect, self.vw, self.vh, 1.0, forbidden)))
@@ -203,11 +204,13 @@ def render(name: str, cut: dict, fmt_name: str, lang: str) -> list[str]:
     localize = lambda text: text.replace("{lang}", lang)
     # Una scena puo' avere la sua ripresa per il formato (`<scena>-4x5`, dal
     # telefono): vince sul ritaglio del desktop.
-    def take(scene: str) -> str:
+    # `same_take`: anche il 4:5 usa la ripresa desktop (inquadratura `narrow`).
+    def take(entry: dict) -> str:
+        scene = localize(entry["scene"])
         own = f"{scene}-{fmt_name}"
-        return own if (RAW / own / "scene.json").exists() else scene
+        return own if not entry.get("same_take") and (RAW / own / "scene.json").exists() else scene
 
-    shots = [Shot(entry | {"scene": take(localize(entry["scene"]))}, fmt, f"{name}-{lang}-{fmt_name}") for entry in cut["shots"]]
+    shots = [Shot(entry | {"scene": take(entry)}, fmt, f"{name}-{lang}-{fmt_name}") for entry in cut["shots"]]
     problems = [p for shot in shots for p in shot.problems]
     if problems:
         return problems
