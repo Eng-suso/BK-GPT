@@ -98,11 +98,11 @@ prende senza cambiare i nomi. Il film del prodotto e' la somma dei moduli.
 | Tab | File (it, `.en` per l'inglese) | Durata |
 | --- | --- | --- |
 | Evidenze | `evidenze-sul-processo.{mp4,webm,jpg,webp}` | 9,2 s |
-| Lacune | `lacuna-aperta.*` | 26,0 s |
-| Contesto | `memoria.*` | 25,3 s |
-| Decisioni | `review-to-be.*` | 27,3 s |
-| Scenari | `confronto.*` | 24,0 s |
-| Film ("Apri il video completo") | `delir-film.*` (con musica) | circa 2'30" |
+| Lacune | `lacuna-aperta.*` | 30,6 s |
+| Contesto | `memoria.*` | 29,2 s |
+| Decisioni | `review-to-be.*` | 31,5 s |
+| Scenari | `confronto.*` | 28,3 s |
+| Film ("Apri il video completo") | `delir-film.*` (con musica) | 2'18" |
 
 Modifiche al sito (codice, non copy):
 
@@ -114,11 +114,13 @@ Modifiche al sito (codice, non copy):
 
 Come sono fatti:
 
+- ogni scena parte dal desktop intero e zooma quando succede qualcosa
+  (decisione del 14 ottobre);
 - testi delle targhette approvati da Sohayb il 14 ottobre: cosa fai e cosa
   ottieni, in seconda persona, senza gergo; il titolo della tab resta sul sito;
 - leggibili alla larghezza della tab (724 px): nessun testo sotto i 10,5 px a
-  schermo. Le chat sono riprese con una finestra di 800-820 px, come su un
-  portatile piccolo, perche' la colonna della risposta stia in quadro;
+  schermo (misurato solo sul testo visibile); nelle chat lo zoom segue il testo
+  della risposta di DeliR mentre arriva;
 - il film: apertura, i 5 moduli nell'ordine del lavoro (contesto, evidenze,
   lacune, scenari, decisioni), chiusura con l'invito del sito ("Entra nella
   lista d'attesa"); musica strumentale generata dallo script, da sostituire con
