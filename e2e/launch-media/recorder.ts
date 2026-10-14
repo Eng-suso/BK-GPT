@@ -61,7 +61,7 @@ export class Recorder {
   private session: CDPSession | null = null;
   protected frames: { file: string; t: number }[] = [];
   protected marks: Record<string, number> = {};
-  protected camera: { t: number; rect: Rect | null; zoom?: number; narrow?: Rect; minFont?: number | null; overview?: boolean }[] = [];
+  protected camera: { t: number; rect: Rect | null; zoom?: number; narrow?: Rect; narrowFont?: number | null; minFont?: number | null; overview?: boolean }[] = [];
   protected started = 0;
   private pending: Promise<unknown>[] = [];
 
@@ -134,8 +134,11 @@ export class Recorder {
     const narrow = narrowBox ? padded(narrowBox, options.narrowPad ?? pad) : null;
     // Un colpo d'insieme serve a orientarsi: niente verifica del testo, ma il
     // montaggio lo tiene al massimo 2 s (piano video).
-    const minFont = options.overview ? null : await this.page.evaluate(smallestText, narrow ?? rect).catch(() => null);
-    this.camera.push({ t: this.now(), rect, zoom, ...(narrow ? { narrow } : {}), minFont, ...(options.overview ? { overview: true } : {}) });
+    const measure = (area: Rect) => this.page.evaluate(smallestText, area).catch(() => null);
+    const minFont = options.overview ? null : await measure(rect);
+    // Il 4:5 ritaglia `narrow`: il suo testo piu' piccolo si misura a parte.
+    const narrowFont = options.overview || !narrow ? null : await measure(narrow);
+    this.camera.push({ t: this.now(), rect, zoom, ...(narrow ? { narrow, narrowFont } : {}), minFont, ...(options.overview ? { overview: true } : {}) });
   }
 
   /** Ritorno al campo largo. */

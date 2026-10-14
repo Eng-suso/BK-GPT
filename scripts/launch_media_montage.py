@@ -8,8 +8,10 @@ Per ogni taglio e ogni formato:
   4:5 usa l'area `narrow` quando la scena ne indica una, altrimenti la stessa;
 - il logo bpmn.io (zone `forbidden` della ripresa) non entra mai in quadro: la
   finestra si sposta o si stringe finche' non lo esclude;
-- il testo piu' piccolo inquadrato (`minFont`) deve restare almeno 11 px alla
-  dimensione mostrata sul sito (`display` del formato): sotto, lo script si ferma;
+- il testo piu' piccolo inquadrato (`minFont`, nel 4:5 `narrowFont`) deve
+  restare almeno 11 px alla dimensione mostrata sul sito (`display` del
+  formato; `min_text` lo abbassa): sotto, lo script si ferma;
+- la targhetta blu della scena (`tag`) entra e esce in dissolvenza;
 - fra due scene taglio netto o dissolvenza di 0,3 s; nessuna accelerazione.
 
 Ogni taglio esce in ogni lingua del sito (italiano e inglese), in
@@ -44,6 +46,7 @@ FPS = CONFIG.get("fps", 30)
 CAMERA_MOVE = 0.9  # secondi di un movimento di camera
 MIN_TEXT_PX = 11  # testo UI minimo alla dimensione mostrata
 MAX_OVERVIEW = 2.0  # secondi di inquadratura larga, solo per orientarsi
+TAG_IN, TAG_OUT, TAG_FADE = 0.25, 0.45, 0.3  # targhetta: entrata, uscita prima della fine, dissolvenza
 
 
 def ease_in_out(x: float) -> float:
@@ -141,11 +144,12 @@ class Shot:
             window = window_for(target, aspect, self.vw, self.vh, key.get("zoom", 1.6), forbidden)
             t = key["t"] - self.offset - self.start
             self.camera.append((t, window))
-            font = key.get("minFont")
+            font = key.get("narrowFont") if portrait and key.get("narrow") else key.get("minFont")
+            minimum = fmt.get("min_text", MIN_TEXT_PX)
             if font and t < self.duration:
                 shown = font * fmt["display"] / window.w
-                if shown < MIN_TEXT_PX:
-                    self.problems.append(f"{name}/{self.id} a {max(t, 0):.1f} s: testo {font:.1f} px mostrato a {shown:.1f} px (minimo {MIN_TEXT_PX})")
+                if shown < minimum:
+                    self.problems.append(f"{name}/{self.id} a {max(t, 0):.1f} s: testo {font:.1f} px mostrato a {shown:.1f} px (minimo {minimum})")
         # Colpo d'insieme (o campo largo): al massimo 2 s, poi la camera stringe.
         keys = meta.get("camera", [])
         for index, key in enumerate(keys):
@@ -221,6 +225,8 @@ def render(name: str, cut: dict, fmt_name: str, lang: str) -> list[str]:
         at += shot.duration
     total = at
     layers = [o for o in (overlay(f"{localize(n)}-{fmt_name}", size) for n in cut.get("overlays", [])) if o]
+    # La targhetta di ogni scena (`tag`): entra poco dopo l'inizio, esce prima della fine.
+    tags = [overlay(f"{localize(entry['tag'])}-{fmt_name}", size) if entry.get("tag") else None for entry in cut["shots"]]
     first = shots[0].frame(0.0)
 
     VIDEO.mkdir(parents=True, exist_ok=True)
@@ -245,6 +251,12 @@ def render(name: str, cut: dict, fmt_name: str, lang: str) -> list[str]:
                 canvas = canvas * (1 - mix) + following * mix
         for rgb, alpha in layers:
             canvas = canvas * (1 - alpha) + rgb * alpha
+        if tags[index] is not None:
+            local = t - starts[index]
+            show = ease_in_out((local - TAG_IN) / TAG_FADE) * (1 - ease_in_out((local - (shots[index].duration - TAG_OUT)) / TAG_FADE))
+            if show > 0:
+                rgb, alpha = tags[index]
+                canvas = canvas * (1 - alpha * show) + rgb * alpha * show
         encoder.stdin.write((np.clip(canvas, 0, 1) * 255 + 0.5).astype(np.uint8).tobytes())
     encoder.stdin.close()
     encoder.wait()
