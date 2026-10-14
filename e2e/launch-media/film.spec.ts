@@ -19,7 +19,7 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { installCaseApi } from "./caseApi";
-import { PROMPTS, chatScripts, installChatStream, type ChatKind } from "./filmChat";
+import { PROMPTS, installChatStream, type ChatKind } from "./filmChat";
 import { FILM_INTRO, FILM_OUTRO, MODULES } from "./filmPlan";
 import { OVERLAYS, box, calm, record, union, type Rect } from "./kit";
 import { unhandled } from "./mockApi";
@@ -97,11 +97,11 @@ async function converse(page: Page, rec: VirtualRecorder, lang: Lang, kind: Chat
   // La domanda e le fasi di lavoro di DeliR.
   const question = await box(asked);
   await rec.focus({ x: input.x - 8, y: question.y - 12, width: 700, height: 220 }, 4, 0);
-  // La risposta, dalla prima riga in giu', mentre arriva.
-  const opening = chatScripts(lang)[kind].answer.replace(/\*\*/g, "").slice(0, 24);
-  const first = page.getByText(opening, { exact: false }).last();
+  // La risposta, dalla prima riga in giu', mentre arriva: il blocco del testo,
+  // sotto le fasi di lavoro.
+  const first = page.locator(".message.assistant").last().locator("p").first();
   await rec.waitUntil(() => first.isVisible(), 20_000);
-  const start = await box(first);
+  const start = await box(first.locator("xpath=.."));
   const bottom = (await box(composer)).y - 8;
   await rec.focus({ x: input.x - 24, y: start.y - 10, width: input.width + 32, height: Math.max(160, bottom - start.y + 10) }, 4, 0);
   await rec.waitUntil(() => page.getByText(done, { exact: false }).last().isVisible(), 40_000);

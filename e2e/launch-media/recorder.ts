@@ -47,6 +47,16 @@ function smallestText(area: Rect): number | null {
       if (Number(getComputedStyle(el).opacity) === 0) { hidden = true; break; }
     }
     if (hidden) continue;
+    // Testo coperto da altri elementi o tagliato da un contenitore che scorre:
+    // in video non si vede, non conta. Il punto al centro del testo deve
+    // appartenere al testo stesso.
+    const cx = (r.left + r.right) / 2;
+    const cy = (r.top + r.bottom) / 2;
+    if (r.width <= 1 || r.height <= 1 || cx < 0 || cy < 0 || cx > innerWidth || cy > innerHeight) continue;
+    // Solo il testo stesso (o un suo figlio) sta in cima in quel punto: un
+    // contenitore che lo racchiude non basta (testo per screen reader).
+    const top = document.elementFromPoint(cx, cy);
+    if (!top || !parent.contains(top)) continue;
     // Nel canvas BPMN il testo e' SVG scalato dallo zoom: conta l'altezza disegnata.
     const svg = parent.closest("svg");
     const size = svg ? r.height / 1.2 : parseFloat(style.fontSize);
