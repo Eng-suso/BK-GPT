@@ -3,17 +3,18 @@
  * da 5 s sotto le quattro frasi del sito (0/5/10/15 s).
  *
  * 1. editing: interviste, Word, Excel e l'export del gestionale entrano nel
- *    canvas e il processo si compone;
+ *    canvas e il processo intero si compone;
  * 2. informazioni: la citazione si accende e una linea blu la porta
  *    all'attivita' che regge;
- * 3. simulazione: il replay dell'As-Is a tutto schermo, processo e 4 KPI;
- * 4. To-Be: il confronto con l'As-Is, -87% di attraversamento e -43% di costo;
+ * 3. As-Is: il replay con processo e 4 KPI, poi la heatmap dell'intera
+ *    esecuzione accende il collo di bottiglia in rosso;
+ * 4. To-Be: il confronto con l'As-Is, lo stesso punto diventa verde, -87% di
+ *    attraversamento e -43% di costo;
  * 5. invio: il processo va al cliente con il link privato.
  *
- * Sequenza decisa da Sohayb il 14 ottobre 2026. Revisione dello stesso giorno:
- * si vede sempre il desktop, anche nel 4:5 (ritaglio della stessa ripresa con
- * gli zoom), e una targhetta blu per momento dice cosa succede. Italiano e
- * inglese.
+ * Revisioni di Sohayb del 14 ottobre: si vede sempre il desktop, una
+ * targhetta blu per momento, nessuno zoom sull'inizio del processo, solo
+ * 16:9 (la versione da telefono non si capiva). Italiano e inglese.
  *
  *   npx playwright test -c playwright.launch.config.ts heroLoop
  *   python3 scripts/launch_media_montage.py hero
@@ -35,7 +36,7 @@ const P = `/projects/${IDS.project}/processes/${IDS.process}`;
 const EASE = "cubic-bezier(.22,1,.36,1)";
 
 // Una sola ripresa, desktop 1440x900 a densita' 2 (progetto "desktop" di
-// playwright.launch.config.ts): il 4:5 la ritaglia con gli zoom.
+// playwright.launch.config.ts).
 test.use({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
 
 const UI = {
@@ -49,6 +50,8 @@ const UI = {
     showAll: "Mostra tutta la tela",
     play: "Riproduci",
     compare: "Confronto",
+    heatmap: "Heatmap",
+    wholeRun: /Applica heatmap/,
     speed: "Velocità",
     send: /Invia al cliente/,
     sent: "Ho inviato il link",
@@ -67,6 +70,8 @@ const UI = {
     showAll: "Show entire canvas",
     play: "Play",
     compare: "Compare",
+    heatmap: "Heatmap",
+    wholeRun: /Apply whole-run heatmap/,
     speed: "Speed",
     send: /Send to client/,
     sent: "I sent the link",
@@ -213,8 +218,7 @@ async function momentSources(page: Page, lang: Lang, id: string): Promise<void> 
       .map((el) => ({ el, rect: el.getBoundingClientRect() }))
       .filter(({ rect }) => rect.width > 0 || rect.height > 0);
     elements.forEach(({ el }) => el.classList.add("hero-el"));
-    // Una colonna al centro del processo: prima le interviste, poi i file. In
-    // colonna entra intera anche nel 4:5.
+    // Una colonna al centro del processo: prima le interviste, poi i file.
     const W = 340, ROW = 78;
     const left = pool.x + pool.width / 2 - W / 2;
     const top = Math.max(90, pool.y + pool.height / 2 - (cards.length * ROW) / 2);
@@ -266,15 +270,11 @@ async function momentSources(page: Page, lang: Lang, id: string): Promise<void> 
     await rec.focus(union(await box(cards.first()), await box(cards.last())), 4, 20);
     await page.evaluate(() => (window as unknown as { heroPlay: () => void }).heroPlay());
     await rec.wait(1150);
-    // Il processo intero, a tutto schermo, mentre si compone (nel 4:5 il centro).
+    // Il processo intero, a tutto schermo, mentre si compone: nessuno zoom
+    // sull'inizio (decisione del 14 ottobre, non si capiva).
     const poolNow = await box(page.locator(".process-bpmn-canvas [data-element-id^='DeliR_Pool']").first());
     await rec.focus(poolNow, 4, 8, { overview: true });
-    await rec.wait(1900);
-    const first = union(...(await Promise.all(["StartEvent_1", "Task_Compila", "Task_Invia"].map((key) => box(node(page, key))))));
-    // Nel 4:5 le prime due: le etichette restano leggibili.
-    const opening = union(await box(node(page, "StartEvent_1")), await box(node(page, "Task_Compila")));
-    await rec.focus(first, 4, 24, { narrow: opening, narrowPad: 10 });
-    await rec.wait(1700);
+    await rec.wait(2900);
   });
 }
 
@@ -356,67 +356,79 @@ async function momentEvidence(page: Page, lang: Lang, id: string): Promise<void>
       },
     });
   }, { ease: EASE, from: quoteBox, to: taskBox });
-  const rowBox2 = await box(row);
-  const scene = union(taskBox, rowBox2, { x: taskBox.x, y: Math.min(taskBox.y, quoteBox.y) - 60, width: 1, height: 1 });
-  // Nel 4:5 attivita' e citazione insieme non entrano leggibili: la camera
-  // parte dalla citazione e segue la linea fino all'attivita'.
-  const linkEnd = union(taskBox, { x: quoteBox.x, y: quoteBox.y, width: 70, height: Math.min(quoteBox.height, 44) },
-    // La cima dell'arco.
-    { x: taskBox.x, y: Math.min(taskBox.y, quoteBox.y) - 60, width: 1, height: 1 });
+  const scene = union(taskBox, await box(row), { x: taskBox.x, y: Math.min(taskBox.y, quoteBox.y) - 60, width: 1, height: 1 });
   await record(page, id, async (rec) => {
     // Una sola inquadratura: l'attivita' nel processo e la frase che la regge.
-    await rec.focus(scene, 4, 2, { narrow: rowBox2, narrowPad: 0 });
+    await rec.focus(scene, 4, 2);
     await rec.wait(300);
     await moveTo(page, quote);
     await page.evaluate(() => (window as unknown as { heroLink: () => void }).heroLink());
-    await rec.wait(500);
-    await rec.focus(scene, 4, 2, { narrow: linkEnd, narrowPad: 4 });
-    await rec.wait(900);
+    await rec.wait(1400);
     await moveTo(page, task);
     await rec.wait(1100);
   });
 }
 
-// --- 3. La simulazione, a tutto schermo: i casi scorrono, la coda si forma e
-// i quattro KPI si muovono.
+// --- 3. La simulazione As-Is: i casi scorrono, i KPI si muovono, poi la
+// heatmap dell'intera esecuzione accende i colli di bottiglia in rosso.
+
+/** Ctrl+rotella sulla tela della simulazione: lo zoom avviene nel prodotto. */
+async function zoomSimulation(page: Page, target: Locator, steps: number): Promise<void> {
+  const at = await box(target);
+  await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
+  for (let step = 0; step < steps; step++) {
+    await page.keyboard.down("Control");
+    await page.mouse.wheel(0, -100);
+    await page.keyboard.up("Control");
+    await pauseFor(page, 120);
+  }
+}
+
+const simNode = (page: Page, id: string) => page.locator(`.sim-analytical-canvas [data-element-id='${id}']`).first();
 
 async function momentSimulation(page: Page, lang: Lang, id: string): Promise<void> {
   await page.goto(`${P}/simulation/replay/${IDS.asIsRun}`);
   const play = page.getByRole("button", { name: UI[lang].play, exact: true });
   await expect(play).toBeVisible();
   await page.getByRole("button", { name: UI[lang].showAll }).click().catch(() => undefined);
-  // La seconda velocita' piu' rapida: in 5 s le richieste si accumulano su
-  // "Valuta la richiesta di spesa" e i KPI si muovono.
+  // La seconda velocita' piu' rapida: in pochi secondi la coda si forma e i KPI si muovono.
   await page.getByRole("combobox", { name: UI[lang].speed }).click();
   const options = page.getByRole("option");
   await options.nth((await options.count()) - 2).click();
   await page.waitForTimeout(800);
-  await page.evaluate(() => document.getElementById("launch-cursor")?.style.setProperty("display", "none"));
+  // Niente barra di zoom della tela sopra i KPI.
+  await page.addStyleTag({ content: ".sim-scene-navigation { display: none !important; }" });
   await calm(page);
   // I quattro KPI (il tempo di attraversamento si disegna al primo caso chiuso).
   const charts = page.locator(".sim-widget");
   await expect(charts).toHaveCount(4);
-  // Tutta la pagina della simulazione: processo, KPI e riproduzione, nessuno
-  // zoom. Nel 4:5 (`narrow`) prima il cuore del processo, poi i quattro KPI.
-  // Niente barra di zoom della tela sopra i KPI.
-  await page.addStyleTag({ content: ".sim-scene-navigation { display: none !important; }" });
   const process_ = await box(page.locator(".sim-analytical-canvas").first());
-  const heart = union(...(await Promise.all(["Task_Verifica", "Task_Valuta", "Task_Emetti"].map((key) =>
-    box(page.locator(`.sim-analytical-canvas [data-element-id='${key}']`).first())))));
   const kpis = union(...(await Promise.all([0, 1, 2, 3].map((index) => box(charts.nth(index))))));
-  // Il contenuto della tela, processo e KPI, a tutta larghezza.
-  const page_ = union(process_, kpis);
+  const heatmap = page.getByRole("button", { name: UI[lang].heatmap }).first();
+  const heatmapBox = await box(heatmap);
+  await moveTo(page, { x: heatmapBox.x - 160, y: heatmapBox.y + 260 }, 10);
+  const main = await box(page.locator("main").first());
   await record(page, id, async (rec) => {
-    await rec.focus(page_, 4, 12, { overview: true, narrow: heart, narrowPad: 24 });
+    // Processo e KPI a tutta larghezza, mentre i casi scorrono.
+    await rec.focus(union(process_, kpis), 4, 12, { overview: true });
     await play.click();
-    await calm(page);
-    await rec.wait(2600);
-    await rec.focus(page_, 4, 12, { overview: true, narrow: kpis, narrowPad: 16 });
-    await rec.wait(3000);
+    await rec.wait(2000);
+    // La heatmap dell'intera esecuzione: il collo di bottiglia diventa rosso,
+    // poi la tela si ingrandisce su di lui.
+    await rec.focus(main, 4, 0, { overview: true });
+    await clickOn(page, heatmap, 500);
+    const wholeRun = page.getByRole("button", { name: UI[lang].wholeRun });
+    await rec.waitUntil(() => wholeRun.isVisible());
+    await clickOn(page, wholeRun, 500);
+    await rec.wait(300);
+    await zoomSimulation(page, simNode(page, "Task_Valuta"), 3);
+    await page.mouse.move(-10, -10);
+    await rec.wait(1500);
   });
 }
 
-// --- 4. Il To-Be contro l'As-Is: quanto migliora, in tempo e in costo.
+// --- 4. Il To-Be: gli stessi colli di bottiglia diventano verdi, e di quanto
+// migliora il processo.
 
 async function momentToBe(page: Page, lang: Lang, id: string): Promise<void> {
   // A = As-Is, B = To-Be: la frase del confronto parla del miglioramento.
@@ -424,27 +436,29 @@ async function momentToBe(page: Page, lang: Lang, id: string): Promise<void> {
   await expect(page.getByRole("button", { name: UI[lang].play, exact: true })).toBeVisible();
   await page.getByRole("button", { name: UI[lang].showAll }).click().catch(() => undefined);
   await page.addStyleTag({ content: ".sim-scene-navigation { display: none !important; }" });
-  await page.waitForTimeout(800);
+  // Si riparte da dove finisce l'As-Is: heatmap rossa, tela ingrandita.
+  await page.getByRole("button", { name: UI[lang].heatmap }).first().click();
+  await page.getByRole("button", { name: UI[lang].wholeRun }).click();
+  await page.waitForTimeout(600);
+  await zoomSimulation(page, simNode(page, "Task_Valuta"), 3);
+  await page.waitForTimeout(600);
   await calm(page);
   const compare = page.getByRole("button", { name: UI[lang].compare }).first();
   const compareBox = await box(compare);
-  await moveTo(page, { x: compareBox.x - 140, y: compareBox.y + 90 }, 10);
+  await moveTo(page, { x: compareBox.x - 140, y: compareBox.y + 260 }, 10);
   const main = await box(page.locator("main").first());
   await record(page, id, async (rec) => {
-    await rec.focus(main, 4, 0, { overview: true, narrow: compareBox, narrowPad: 180 });
+    await rec.focus(main, 4, 0, { overview: true });
+    await rec.wait(300);
     await clickOn(page, compare, 600);
     const verdict = page.locator("p:has(> strong.font-semibold)").first();
     await rec.waitUntil(() => verdict.isVisible());
-    await rec.wait(400);
-    // La frase: -87% di attraversamento, -43% di costo per caso. Nel 4:5 la
-    // parte sinistra, dove stanno i due numeri.
-    const sentence = await box(verdict);
-    await rec.focus(sentence, 4, 16, { narrow: { ...sentence, width: Math.min(sentence.width, 400) }, narrowPad: 6 });
-    await rec.wait(2100);
-    // Il processo To-Be in verde, accanto alla frase.
-    const process_ = await box(page.locator(".sim-analytical-canvas").first());
-    await rec.focus(union(process_, sentence), 4, 8, { overview: true, narrow: process_, narrowPad: 0 });
+    await page.mouse.move(-10, -10);
+    // Verde: quanto tempo si guadagna sulle stesse attivita'.
     await rec.wait(1500);
+    // La frase: -87% di attraversamento, -43% di costo per caso.
+    await rec.focus(await box(verdict), 4, 16);
+    await rec.wait(2000);
   });
 }
 
@@ -484,17 +498,17 @@ async function momentSend(page: Page, lang: Lang, id: string): Promise<void> {
   await showPublicLink(page);
   await record(page, id, async (rec) => {
     // L'intestazione della consegna, con il bottone.
-    await rec.focus(top, 4, 16, { overview: true, narrow: sendBox, narrowPad: 160 });
+    await rec.focus(top, 4, 16, { overview: true });
     await clickOn(page, send, 700);
     const dialog = page.getByRole("dialog");
     const confirm = dialog.getByRole("button", { name: UI[lang].sent });
     await rec.waitUntil(() => confirm.isEnabled());
-    await rec.focus(await box(dialog), 4, 16, { narrow: await box(dialog), narrowPad: -12 });
+    await rec.focus(await box(dialog), 4, 16);
     await rec.wait(700);
     await clickOn(page, confirm, 800);
     await rec.waitUntil(async () => !(await dialog.isVisible()));
     // Inviato: lo stato della consegna passa a "con il cliente".
-    await rec.focus(await box(banner), 4, 16, { overview: true, narrow: sendBox, narrowPad: 160 });
+    await rec.focus(await box(banner), 4, 16, { overview: true });
     await rec.wait(1900);
   });
 }
@@ -527,14 +541,14 @@ for (const lang of ["it", "en"] as const) {
 // "caso dimostrativo" e le targhette blu che dicono cosa succede.
 
 const TAGS = {
-  it: ["Dalle fonti del cliente al processo", "Ogni attività con la sua fonte", "Simula l'As-Is: code, tempi, costi", "Il To-Be: quanto migliora, misurato", "Invia il processo al cliente"],
-  en: ["From client sources to the process", "Every activity backed by its source", "Simulate the As-Is: queues, times, costs", "The To-Be: the improvement, measured", "Send the process to the client"],
+  it: ["Dalle fonti del cliente al processo", "Ogni attività con la sua fonte", "Simula l'As-Is: ecco il collo di bottiglia", "Il To-Be: da rosso a verde, −87% di tempo", "Invia il processo al cliente"],
+  en: ["From client sources to the process", "Every activity backed by its source", "Simulate the As-Is: here is the bottleneck", "The To-Be: from red to green, −87% time", "Send the process to the client"],
 } as const;
 
 test("hero-overlays", async ({ page }) => {
   mkdirSync(OVERLAYS, { recursive: true });
   for (const lang of ["it", "en"] as const) {
-    for (const [format, size, font, tag] of [["16x9", [1920, 1080], 28, 36], ["4x5", [1080, 1350], 34, 42]] as const) {
+    for (const [format, size, font, tag] of [["16x9", [1920, 1080], 28, 36]] as const) {
       await page.setViewportSize({ width: size[0], height: size[1] });
       await page.setContent(`<!doctype html><html><body style="margin:0;background:transparent">
         <div style="position:fixed;right:${font}px;bottom:${font}px;padding:${font * 0.35}px ${font * 0.7}px;border-radius:999px;
