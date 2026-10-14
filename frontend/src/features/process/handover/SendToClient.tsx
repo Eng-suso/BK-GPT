@@ -31,13 +31,16 @@ export function SendToClient({ processId, owner, hadLink, disabled, onSent }: {
   const [url, setUrl] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(false);
+  // Fotografato all'apertura: il link appena creato dal dialog rende attivo
+  // `hadLink` e l'avviso direbbe che un link (inesistente) smette di funzionare.
+  const [replacing, setReplacing] = useState(false);
 
   const prepare = () => {
     create.mutate(undefined, { onSuccess: (created) => setUrl(ownerLinkUrl(created.token)) });
   };
   // Il link nasce dal click, non da un effetto: un effetto ripetuto ne
   // creerebbe due, e il primo, gia' revocato, potrebbe finire sullo schermo.
-  const start = () => { if (open || create.isPending) return; setOpen(true); prepare(); };
+  const start = () => { if (open || create.isPending) return; setReplacing(hadLink); setOpen(true); prepare(); };
   const change = (next: boolean) => {
     if (sending || next) return;
     setOpen(false); setUrl(null); setSendError(false); create.reset();
@@ -87,7 +90,7 @@ export function SendToClient({ processId, owner, hadLink, disabled, onSent }: {
           <li><span className="handover-send-step-label">{k("step2", { owner })}</span></li>
           <li><span className="handover-send-step-label">{k("step3")}</span></li>
         </ol>
-        {hadLink && <InlineNotice tone="warning" title={k("replaces")} />}
+        {replacing && <InlineNotice tone="warning" title={k("replaces")} />}
         {sendError && <InlineNotice tone="error" title={t("handover.done.error")} />}
         <div className="flex justify-end gap-2">
           <Button variant="outline" disabled={sending} onClick={() => change(false)}>{k("cancel")}</Button>
