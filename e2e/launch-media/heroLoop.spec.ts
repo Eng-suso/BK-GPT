@@ -26,7 +26,7 @@ import { resolve } from "node:path";
 
 import { installCaseApi } from "./caseApi";
 import { unhandled } from "./mockApi";
-import { Recorder, clickOn, installCursor, moveTo } from "./recorder";
+import { VirtualRecorder, clickOn, installCursor, moveTo, pause as pauseFor } from "./recorder";
 import { IDS, demoCase, type Lang } from "./vetrano";
 
 const RAW = resolve(process.cwd(), "artifacts", "launch-media", "raw");
@@ -34,6 +34,8 @@ const OVERLAYS = resolve(process.cwd(), "artifacts", "launch-media", "overlays")
 const P = `/projects/${IDS.project}/processes/${IDS.process}`;
 const EASE = "cubic-bezier(.22,1,.36,1)";
 
+// La densita' vera dei fotogrammi la danno i progetti "desktop" e "telefono"
+// di playwright.launch.config.ts (flag del browser): qui solo la finestra.
 const FORMATS = {
   "16x9": { use: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 }, suffix: "" },
   "4x5": { use: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 1080 / 390, isMobile: true, hasTouch: true }, suffix: "-4x5" },
@@ -104,8 +106,9 @@ async function calm(page: Page): Promise<void> {
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 }
 
-async function record(page: Page, id: string, act: (rec: Recorder) => Promise<void>): Promise<void> {
-  const rec = new Recorder(page, resolve(RAW, id));
+/** Ripresa a tempo virtuale: nitida a densita' piena e a 30 fps esatti. */
+async function record(page: Page, id: string, act: (rec: VirtualRecorder) => Promise<void>): Promise<void> {
+  const rec = new VirtualRecorder(page, resolve(RAW, id));
   await rec.start();
   await act(rec);
   await rec.stop();
@@ -126,7 +129,7 @@ async function zoomCanvas(page: Page, at: Locator, labelPx: number, delta = 60, 
     await page.keyboard.down("Control");
     await page.mouse.wheel(0, -delta);
     await page.keyboard.up("Control");
-    await page.waitForTimeout(pause);
+    await pauseFor(page, pause);
   }
 }
 
@@ -240,20 +243,20 @@ async function momentSources(page: Page, lang: Lang, format: Format, id: string)
   await record(page, id, async (rec) => {
     await rec.focus(union(await box(cards.first()), await box(cards.last())), 4, format === "16x9" ? 28 : 4);
     await page.evaluate(() => (window as unknown as { heroPlay: () => void }).heroPlay());
-    await page.waitForTimeout(1150);
+    await rec.wait(1150);
     // Il processo intero, a tutto schermo, mentre si compone.
     const poolNow = await box(page.locator(".process-bpmn-canvas [data-element-id^='DeliR_Pool']").first());
     const canvasArea = await box(page.locator(".process-bpmn-canvas").first());
     await rec.focus(format === "16x9" ? poolNow : canvasArea, 4, format === "16x9" ? 8 : 0, { overview: true });
     // Sul telefono lo zoom della tela fa parte del colpo d'insieme: parte prima.
-    await page.waitForTimeout(format === "16x9" ? 1900 : 900);
+    await rec.wait(format === "16x9" ? 1900 : 900);
     if (format === "4x5") {
       // Sul telefono la tela si ingrandisce davvero sull'inizio del processo.
       await zoomCanvas(page, node(page, "StartEvent_1"), 15, 180, 60);
     }
     const first = union(...(await Promise.all(["StartEvent_1", "Task_Compila", "Task_Invia"].map((key) => box(node(page, key))))));
     await rec.focus(first, 4, format === "16x9" ? 24 : 6);
-    await page.waitForTimeout(1700);
+    await rec.wait(1700);
   });
 }
 
@@ -319,11 +322,11 @@ async function momentEvidence(page: Page, lang: Lang, format: Format, id: string
   await record(page, id, async (rec) => {
     // Una sola inquadratura: l'attivita' nel processo e la frase che la regge.
     await rec.focus(scene, 4, format === "16x9" ? 4 : 0);
-    await page.waitForTimeout(400);
+    await rec.wait(400);
     await moveTo(page, quote);
-    await page.waitForTimeout(1000);
+    await rec.wait(1000);
     await moveTo(page, task);
-    await page.waitForTimeout(1600);
+    await rec.wait(1600);
   });
 }
 
@@ -351,8 +354,20 @@ async function momentSimulation(page: Page, lang: Lang, format: Format, id: stri
     await rec.focus(page_, 4, 0, { overview: true, narrow: heart, narrowPad: 24 });
     await play.click();
     await calm(page);
-    await page.waitForTimeout(5600);
+    await rec.wait(5600);
   });
+}
+
+/**
+ * Il link del cliente nasce dall'indirizzo della pagina: in ripresa sarebbe
+ * quello di sviluppo. A schermo va il dominio vero, delir.it.
+ */
+async function showPublicLink(page: Page): Promise<void> {
+  await page.evaluate((origin) => {
+    for (const input of document.querySelectorAll<HTMLInputElement>("[role=dialog] input[readonly]")) {
+      input.value = input.value.replace(origin, "https://delir.it");
+    }
+  }, new URL(page.url()).origin);
 }
 
 // --- 4. Il processo va al cliente: link privato, poi "in attesa della risposta".
@@ -374,14 +389,15 @@ async function momentSend(page: Page, lang: Lang, format: Format, id: string): P
     await clickOn(page, send, 700);
     const dialog = page.getByRole("dialog");
     const confirm = dialog.getByRole("button", { name: UI[lang].sent });
-    await expect(confirm).toBeEnabled();
+    await rec.waitUntil(() => confirm.isEnabled());
+    await showPublicLink(page);
     await rec.focus(await box(dialog), 4, format === "16x9" ? 16 : -8);
-    await page.waitForTimeout(700);
+    await rec.wait(700);
     await clickOn(page, confirm, 800);
-    await expect(dialog).toBeHidden();
+    await rec.waitUntil(async () => !(await dialog.isVisible()));
     // Inviato: lo stato della consegna passa a "con il cliente".
     await rec.focus(await box(banner), 4, format === "16x9" ? 16 : 0, { overview: true });
-    await page.waitForTimeout(1900);
+    await rec.wait(1900);
   });
 }
 
@@ -398,6 +414,8 @@ for (const lang of ["it", "en"] as const) {
       test.use(FORMATS[format].use);
       test.beforeEach(async ({ page }) => {
         page.setDefaultTimeout(20_000);
+        // L'orologio della pagina: scorre normale, si ferma solo durante la ripresa.
+        await page.clock.install();
         await installCaseApi(page, lang, { layout: "wide" });
         await installCursor(page);
       });
