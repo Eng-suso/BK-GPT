@@ -175,7 +175,7 @@ type Run = {
  *   a tutta larghezza (e' largo, circa 1,9:1) e quattro KPI in riga sotto.
  */
 export const simulationLayoutKey = `delir:simulation:dashboard:${IDS.project}:${IDS.process}`;
-export type SimulationLayoutKind = "wide" | "panel";
+export type SimulationLayoutKind = "wide" | "panel" | "grid";
 const KPI_TITLES = {
   it: { cycle: "Tempo medio di attraversamento", queued: "Richieste in coda", cost: "Costo accumulato", resourceBusy: "Occupazione delle risorse" },
   en: { cycle: "Average cycle time", queued: "Queued requests", cost: "Accrued cost", resourceBusy: "Resource utilization" },
@@ -194,6 +194,12 @@ export function simulationLayout(lang: Lang, kind: SimulationLayoutKind = "wide"
   if (kind === "wide") {
     const column = { x: PROCESS.width + GAP, width: 520, height: (PROCESS.height - GAP) / 2 };
     cells = [0, 1].map((index) => ({ x: column.x, y: index * (column.height + GAP), width: column.width, height: column.height }));
+  } else if (kind === "grid") {
+    // Hero: il processo a sinistra, quattro KPI 2x2 a destra, tutti in movimento.
+    const cell = { width: 380, height: (PROCESS.height - GAP) / 2 };
+    cells = [0, 1, 2, 3].map((index) => ({
+      x: PROCESS.width + GAP + (index % 2) * (cell.width + GAP), y: Math.floor(index / 2) * (cell.height + GAP), ...cell,
+    }));
   } else {
     const row = { y: PROCESS.height + GAP, height: 380, width: (PROCESS.width - 3 * GAP) / 4 };
     cells = [0, 1, 2, 3].map((index) => ({ x: index * (row.width + GAP), y: row.y, width: row.width, height: row.height }));
@@ -201,7 +207,7 @@ export function simulationLayout(lang: Lang, kind: SimulationLayoutKind = "wide"
   const widgets = [
     widget("cycle", "line", "blue", cells[0]),
     widget("queued", "area", "amber", cells[1]),
-    ...(cells.length > 2 ? [widget("cost", "area", "blue", cells[2]), widget("resourceBusy", "column", "teal", cells[3])] : []),
+    ...(cells.length > 2 ? [widget("cost", "area", "violet", cells[2]), widget("resourceBusy", "column", "teal", cells[3])] : []),
   ];
   return {
     version: 1,
