@@ -24,7 +24,7 @@
       "languages": ["it", "en"],
       "loop": true,
       "dissolve": 0.3,
-      "formats": {"16x9": {"display": 724}},
+      "formats": {"16x9": {"display": 724, "min_text": 10.5}},
       "shots": [
         {"scene": "film-{lang}-01-home", "tags": [{"tag": "mtag-{lang}-contesto-1", "at": 0.0}]},
         {"scene": "film-{lang}-02-consulente", "tags": [{"tag": "mtag-{lang}-contesto-2", "at": 0.0}]},
@@ -38,7 +38,7 @@
       "languages": ["it", "en"],
       "loop": true,
       "dissolve": 0.3,
-      "formats": {"16x9": {"display": 724}},
+      "formats": {"16x9": {"display": 724, "min_text": 10.5}},
       "shots": [
         {"scene": "hero-{lang}-1-fonti", "duration": 4.2, "long_overview": true, "tags": [{"tag": "mtag-{lang}-evidenze-1", "at": 0.0}, {"tag": "mtag-{lang}-evidenze-2", "at": 1.6}]},
         {"scene": "hero-{lang}-2-evidenze", "duration": 5, "long_overview": true, "tags": [{"tag": "mtag-{lang}-evidenze-3", "at": 0.0}]}
@@ -51,7 +51,7 @@
       "languages": ["it", "en"],
       "loop": true,
       "dissolve": 0.3,
-      "formats": {"16x9": {"display": 724}},
+      "formats": {"16x9": {"display": 724, "min_text": 10.5}},
       "shots": [
         {"scene": "film-{lang}-05-discussione", "tags": [{"tag": "mtag-{lang}-lacune-1", "at": 0.0}]},
         {"scene": "film-{lang}-08-da-confermare", "tags": [{"tag": "mtag-{lang}-lacune-2", "at": 0.0}]}
@@ -64,7 +64,7 @@
       "languages": ["it", "en"],
       "loop": true,
       "dissolve": 0.3,
-      "formats": {"16x9": {"display": 724}},
+      "formats": {"16x9": {"display": 724, "min_text": 10.5}},
       "shots": [
         {"scene": "hero-{lang}-3-simulazione", "duration": 6, "long_overview": true, "tags": [{"tag": "mtag-{lang}-scenari-1", "at": 0.0}]},
         {"scene": "film-{lang}-09-review", "long_overview": true, "tags": [{"tag": "mtag-{lang}-scenari-2", "at": 0.0}]},
@@ -78,7 +78,7 @@
       "languages": ["it", "en"],
       "loop": true,
       "dissolve": 0.3,
-      "formats": {"16x9": {"display": 724}},
+      "formats": {"16x9": {"display": 724, "min_text": 10.5}},
       "shots": [
         {"scene": "film-{lang}-12-ipotesi", "tags": [{"tag": "mtag-{lang}-decisioni-1", "at": 0.0}]},
         {"scene": "hero-{lang}-5-invio", "duration": 5, "long_overview": true, "tags": [{"tag": "mtag-{lang}-decisioni-2", "at": 0.0}]},

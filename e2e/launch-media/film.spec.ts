@@ -76,13 +76,14 @@ async function showPublicLink(page: Page): Promise<void> {
 async function thread(page: Page, prompt: string, composer: Locator, rows: number): Promise<Rect> {
   const input = await box(composer);
   const asked = await box(page.getByText(prompt, { exact: true }).last());
-  return { x: input.x - 24, y: asked.y - 12, width: input.width + 48, height: rows };
+  // La risposta parte un po' a sinistra del box di scrittura.
+  return { x: input.x - 24, y: asked.y - 12, width: input.width + 32, height: rows };
 }
 
 /** Scrive a DeliR come una persona e aspetta che finisca di rispondere. */
 async function converse(page: Page, rec: import("./recorder").VirtualRecorder, prompt: string, done: string, composer: Locator, rows: number): Promise<void> {
   const input = await box(composer);
-  await rec.focus({ x: input.x, y: input.y, width: Math.min(input.width, 700), height: input.height }, 4, 16);
+  await rec.focus(input, 4, 12);
   await typeHuman(page, composer, prompt);
   await pause(page, 300);
   await page.keyboard.press("Enter");
@@ -92,6 +93,8 @@ async function converse(page: Page, rec: import("./recorder").VirtualRecorder, p
   // Tutta la risposta, al ritmo dello streaming.
   await rec.waitUntil(() => page.getByText(done, { exact: false }).last().isVisible(), 40_000);
 }
+
+const CHAT_VIEWPORT = { width: 860, height: 700 };
 
 const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<void>> = {
   // --- Contesto
@@ -113,6 +116,8 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
   },
 
   "02-consulente": async (page, lang, id) => {
+    // Un portatile piccolo: la colonna della chat si stringe e il testo resta leggibile nella tab.
+    await page.setViewportSize(CHAT_VIEWPORT);
     await page.goto("/consultant");
     const composer = page.getByRole("textbox").last();
     await expect(composer).toBeVisible();
@@ -133,11 +138,14 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
       await page.keyboard.press("Control+k");
       const dialog = page.getByRole("dialog");
       await rec.waitUntil(() => dialog.isVisible());
-      await rec.focus(await box(dialog), 4, 16);
+      const top = await box(dialog);
+      await rec.focus({ ...top, height: Math.min(top.height, 200) }, 4, 8);
       await typeHuman(page, dialog.locator("input").first(), UI[lang].search);
       await moveTo(page, { x: -10, y: -10 }, 10);
       await rec.wait(600);
-      await rec.focus(await box(dialog), 4, 16);
+      // I primi risultati: progetto, processo, fonti.
+      const found = await box(dialog);
+      await rec.focus({ ...found, height: Math.min(found.height, 320) }, 4, 8);
       await rec.wait(3000);
     });
   },
@@ -145,19 +153,21 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
   // --- Lacune
 
   "05-discussione": async (page, lang, id) => {
+    // La chat del processo usa tutta la larghezza: qui la finestra e' ancora piu' stretta.
+    await page.setViewportSize({ ...CHAT_VIEWPORT, width: 800 });
     await page.goto(`${P}?view=chat`);
     const composer = page.getByRole("textbox").last();
     await expect(composer).toBeVisible();
     await page.waitForTimeout(800);
     await calm(page);
     await record(page, id, async (rec) => {
-      await converse(page, rec, PROMPTS[lang].process, UI[lang].processDone, composer, 420);
+      await converse(page, rec, PROMPTS[lang].process, UI[lang].processDone, composer, 340);
       await rec.wait(600);
       // Le domande aperte: la divergenza e la lacuna.
       const open = await box(page.getByText(UI[lang].open).last());
       const end = await box(page.getByText(UI[lang].processDone, { exact: false }).last());
       const input = await box(composer);
-      await rec.focus({ x: input.x - 24, y: open.y - 10, width: input.width + 48, height: end.y + end.height - open.y + 20 }, 4, 0);
+      await rec.focus({ x: input.x - 24, y: open.y - 10, width: input.width + 32, height: end.y + end.height - open.y + 20 }, 4, 0);
       await rec.wait(4000);
     });
   },
@@ -195,19 +205,22 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
     await task.click();
     await page.getByRole("button", { name: UI[lang].openAgent }).click();
     // Il pannello di DeliR allargato, come lo allarga il consulente: la risposta si legge.
-    await page.addStyleTag({ content: ".review-agent-chat { width: 560px !important; height: 660px !important; }" });
+    await page.addStyleTag({ content: ".review-agent-chat { width: 560px !important; height: 520px !important; }" });
     const composer = page.getByRole("textbox").last();
     await expect(composer).toBeVisible();
     await page.waitForTimeout(800);
     await page.mouse.move(-10, -10);
     await calm(page);
-    const panel = page.locator(".review-agent-chat");
+    const transcript = page.locator(".review-chat-transcript");
+    const input = page.locator(".review-chat-input");
     await record(page, id, async (rec) => {
-      await rec.focus(await box(panel), 4, 8);
+      await rec.focus(await box(input), 4, 12);
       await typeHuman(page, composer, PROMPTS[lang].review);
       await pause(page, 300);
       await page.keyboard.press("Enter");
       await moveTo(page, { x: -10, y: -10 }, 10);
+      // La conversazione: domanda e risposta di DeliR, con le citazioni.
+      await rec.focus(await box(transcript), 4, 4);
       await rec.waitUntil(() => page.getByText(UI[lang].reviewDone, { exact: false }).last().isVisible(), 40_000);
       await rec.wait(3500);
     });
@@ -281,12 +294,13 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
       await rec.waitUntil(() => dialog.isVisible());
       await rec.focus(await box(dialog), 4, 16);
       await rec.wait(1500);
-      await clickOn(page, dialog.getByRole("button", { name: UI[lang].approve }));
-      await rec.waitUntil(async () => !(await dialog.isVisible()));
-      await moveTo(page, { x: -10, y: -10 }, 10);
-      // L'esito: approvato dal cliente, la parte sinistra dell'intestazione.
+      // L'esito: approvato dal cliente, la parte sinistra dell'intestazione. La
+      // camera parte insieme al clic, mentre il dialog si chiude.
       const done = await box(banner);
       await rec.focus({ x: done.x, y: done.y, width: 660, height: done.height }, 4, 8);
+      await clickOn(page, dialog.getByRole("button", { name: UI[lang].approve }), 600);
+      await rec.waitUntil(async () => !(await dialog.isVisible()));
+      await moveTo(page, { x: -10, y: -10 }, 10);
       await rec.wait(3000);
     });
   },
