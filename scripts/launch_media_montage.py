@@ -190,6 +190,61 @@ class Shot:
         return np.asarray(out, dtype=np.float32) / 255.0
 
 
+class Card:
+    """Un cartello a tutto schermo (capitolo, apertura, chiusura): un'immagine ferma."""
+
+    def __init__(self, entry: dict, size: tuple[int, int]):
+        self.id = entry["card"]
+        self.duration = entry["duration"]
+        self.problems: list[str] = []
+        image = overlay(self.id, size)
+        if image is None:
+            raise SystemExit(f"! manca il cartello {self.id}: genera le scritte (test film-overlays)")
+        self.image = image[0]
+
+    def frame(self, t: float) -> np.ndarray:
+        return self.image
+
+
+def music(seconds: float, path: Path, rate: int = 44100) -> Path:
+    """Sottofondo strumentale discreto, generato qui: nessuna licenza di terzi.
+
+    Un tappeto di accordi lenti (Cmaj9, Am9, Fmaj9, G6) con attacco e rilascio
+    morbidi, un basso tenue e un'eco leggera; dissolvenza in entrata e in uscita.
+    """
+    import wave
+
+    n = int(seconds * rate)
+    t = np.arange(n) / rate
+    chords = [[48, 55, 59, 62, 64], [45, 52, 55, 59, 60], [41, 48, 52, 55, 57], [43, 50, 55, 57, 59]]
+    bar = 8.0
+    out = np.zeros((n, 2), dtype=np.float64)
+    hz = lambda note: 440.0 * 2 ** ((note - 69) / 12)
+    for start in np.arange(0, seconds, bar):
+        chord = chords[int(start / bar) % len(chords)]
+        a, b = int(start * rate), min(n, int((start + bar + 2.5) * rate))
+        local = t[a:b] - start
+        env = np.clip(local / 2.2, 0, 1) * np.clip((bar + 2.5 - local) / 2.5, 0, 1)
+        for i, note in enumerate(chord):
+            f = hz(note + 12 if i else note)
+            for side, detune in ((0, 0.997), (1, 1.003)):
+                tone = np.sin(2 * np.pi * f * detune * local) + 0.25 * np.sin(2 * np.pi * 2 * f * detune * local)
+                out[a:b, side] += tone * env * (0.5 if i == 0 else 0.22)
+    # Eco leggera: due ripetizioni smorzate.
+    for delay, gain in ((0.37, 0.35), (0.74, 0.18)):
+        d = int(delay * rate)
+        out[d:] += out[:-d] * gain
+    out *= np.clip(t / 2.5, 0, 1)[:, None] * np.clip((seconds - t) / 3.5, 0, 1)[:, None]
+    out *= 0.1 / max(1e-9, np.abs(out).max())  # circa -20 dBFS: sotto, non sopra
+    pcm = (out * 32767).astype("<i2")
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(2)
+        handle.setsampwidth(2)
+        handle.setframerate(rate)
+        handle.writeframes(pcm.tobytes())
+    return path
+
+
 def overlay(name: str, size: tuple[int, int]) -> tuple[np.ndarray, np.ndarray] | None:
     path = OVERLAYS / f"{name}.png"
     if not path.exists():
@@ -214,7 +269,8 @@ def render(name: str, cut: dict, fmt_name: str, lang: str) -> list[str]:
         own = f"{scene}-{fmt_name}"
         return own if not entry.get("same_take") and (RAW / own / "scene.json").exists() else scene
 
-    shots = [Shot(entry | {"scene": take(entry)}, fmt, f"{name}-{lang}-{fmt_name}") for entry in cut["shots"]]
+    shots = [Card(entry | {"card": f"{localize(entry['card'])}-{fmt_name}"}, size) if entry.get("card")
+             else Shot(entry | {"scene": take(entry)}, fmt, f"{name}-{lang}-{fmt_name}") for entry in cut["shots"]]
     problems = [p for shot in shots for p in shot.problems]
     if problems:
         return problems
@@ -260,18 +316,20 @@ def render(name: str, cut: dict, fmt_name: str, lang: str) -> list[str]:
         encoder.stdin.write((np.clip(canvas, 0, 1) * 255 + 0.5).astype(np.uint8).tobytes())
     encoder.stdin.close()
     encoder.wait()
-    web_export(master, base, cut.get("poster", 0.0))
+    audio = music(total, base.with_suffix(".music.wav")) if cut.get("music") else None
+    web_export(master, base, cut.get("poster", 0.0), audio)
     print(f"ok {name} {lang} {fmt_name}: {total:.1f} s, {size[0]}x{size[1]}")
     return []
 
 
-def web_export(master: Path, base: Path, poster: float) -> None:
-    """mp4 H.264 e webm VP9 per il sito, senza audio, e il poster."""
+def web_export(master: Path, base: Path, poster: float, audio: Path | None = None) -> None:
+    """mp4 H.264 e webm VP9 (senza audio per il sito, con la musica per il film) e il poster."""
     run = lambda *args: subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *args], check=True)
-    run("-i", str(master), "-an", "-c:v", "libx264", "-profile:v", "high", "-preset", "slow", "-crf", "23",
-        "-pix_fmt", "yuv420p", "-movflags", "+faststart", f"{base}.mp4")
-    run("-i", str(master), "-an", "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "33", "-row-mt", "1",
-        "-deadline", "good", "-cpu-used", "2", "-pix_fmt", "yuv420p", f"{base}.webm")
+    sound = ["-i", str(audio), "-map", "0:v", "-map", "1:a", "-shortest"] if audio else ["-an"]
+    run("-i", str(master), *sound, "-c:v", "libx264", "-profile:v", "high", "-preset", "slow", "-crf", "23",
+        "-pix_fmt", "yuv420p", *(["-c:a", "aac", "-b:a", "128k"] if audio else []), "-movflags", "+faststart", f"{base}.mp4")
+    run("-i", str(master), *sound, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "33", "-row-mt", "1",
+        "-deadline", "good", "-cpu-used", "2", "-pix_fmt", "yuv420p", *(["-c:a", "libopus", "-b:a", "96k"] if audio else []), f"{base}.webm")
     run("-ss", str(poster), "-i", str(master), "-frames:v", "1", "-q:v", "3", f"{base}.jpg")
     run("-ss", str(poster), "-i", str(master), "-frames:v", "1", "-c:v", "libwebp", "-quality", "82", f"{base}.webp")
     for ext in ("mp4", "webm", "jpg", "webp"):
