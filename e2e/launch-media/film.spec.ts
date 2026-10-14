@@ -87,7 +87,8 @@ async function showPublicLink(page: Page): Promise<void> {
 async function thread(page: Page, prompt: string, composer: Locator, rows = 360): Promise<Rect> {
   const input = await box(composer);
   const asked = await box(page.getByText(prompt, { exact: true }).last());
-  return { x: input.x - 8, y: asked.y - 12, width: input.width + 16, height: rows };
+  // La risposta parte piu' a sinistra del box di scrittura: un margine la tiene intera.
+  return { x: input.x - 48, y: asked.y - 12, width: input.width + 96, height: rows };
 }
 
 /** Scrive al consulente come una persona e aspetta che DeliR finisca di rispondere. */
@@ -199,7 +200,7 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
       const open = await box(page.getByText(UI[lang].open).last());
       const end = await box(page.getByText(UI[lang].processDone, { exact: false }).last());
       const input = await box(composer);
-      await rec.focus({ x: input.x - 8, y: open.y - 10, width: input.width + 16, height: end.y + end.height - open.y + 20 }, 4, 8);
+      await rec.focus({ x: input.x - 48, y: open.y - 10, width: input.width + 96, height: end.y + end.height - open.y + 20 }, 4, 8);
       await rec.wait(4000);
     });
   },
