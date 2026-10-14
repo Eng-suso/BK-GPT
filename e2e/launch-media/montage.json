@@ -24,6 +24,7 @@
       "languages": ["it", "en"],
       "dissolve": 0.3,
       "music": true,
+      "formats": {"16x9": {"display": 1280}},
       "shots": [
         { "card": "fcard-{lang}-intro", "duration": 4.5 },
         { "card": "fcard-{lang}-1", "duration": 3 },
@@ -38,7 +39,7 @@
         { "scene": "hero-{lang}-2-evidenze", "duration": 5, "long_overview": true, "tag": "ftag-{lang}-07-evidenze" },
         { "scene": "film-{lang}-08-da-confermare", "tag": "ftag-{lang}-08-da-confermare" },
         { "card": "fcard-{lang}-4", "duration": 3 },
-        { "scene": "film-{lang}-09-review", "tag": "ftag-{lang}-09-review" },
+        { "scene": "film-{lang}-09-review", "long_overview": true, "tag": "ftag-{lang}-09-review" },
         { "card": "fcard-{lang}-5", "duration": 3 },
         { "scene": "hero-{lang}-3-simulazione", "duration": 6, "long_overview": true, "tag": "ftag-{lang}-10-as-is" },
         { "scene": "film-{lang}-11-insight", "tag": "ftag-{lang}-11-insight" },
