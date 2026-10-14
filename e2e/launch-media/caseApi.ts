@@ -1,7 +1,7 @@
 import type { Page, Route } from "@playwright/test";
 
 import { API, unhandled } from "./mockApi";
-import { IDS, demoCase, simulationLayout, simulationLayoutKey, type Lang, type SimulationLayoutKind } from "./vetrano";
+import { IDS, demoCase, portfolio, simulationLayout, simulationLayoutKey, vetranoModel, type Lang, type SimulationLayoutKind } from "./vetrano";
 
 /**
  * Il mock delle API per i nuovi video (caso `vetrano.ts`), in italiano o in
@@ -10,6 +10,14 @@ import { IDS, demoCase, simulationLayout, simulationLayoutKey, type Lang, type S
  */
 export async function installCaseApi(page: Page, lang: Lang, options: { layout?: SimulationLayoutKind } = {}): Promise<void> {
   const data = demoCase(lang);
+  // Il resto dello studio: Home, Modelli, ricerca e Archivio non mostrano un solo cliente.
+  const studio = portfolio(lang);
+  const projects = [data.project, ...studio.projects];
+  const clients = [data.clients[0], ...studio.clients];
+  // Le conversazioni con DeliR: il tipo (consulente, processo, review) sta nel
+  // `thread_id`, cosi' lo streaming in pagina sceglie il copione (filmChat.ts).
+  type Session = { thread_id: string; scope_key: string; title: string; model_name: string; created_at: string; updated_at: string; messages: { role: string; content: string }[] };
+  const sessions: Session[] = [];
   let ownerLink: Record<string, unknown> = { active: false, view_count: 0 };
   await page.addInitScript(
     ({ base, lng, layoutKey, layout }) => {
@@ -33,9 +41,17 @@ export async function installCaseApi(page: Page, lang: Lang, options: { layout?:
       return json({ tenant_id: "Studio Bellini", auth_mode: "local", auth_enabled: false, is_admin: false, caller_id: "marco-bellini", has_user_identity: false });
     }
     if (path === `${W}/notifications`) return json([]);
-    if (path === `${W}/projects` && method === "GET") return json(data.projects, { "X-DeliR-Total": String(data.projects.length) });
-    if (path === `${W}/clients` && method === "GET") return json(data.clients, { "X-DeliR-Total": String(data.clients.length) });
+    if (path === `${W}/projects` && method === "GET") return json(projects, { "X-DeliR-Total": String(projects.length) });
+    if (path === `${W}/clients` && method === "GET") return json(clients, { "X-DeliR-Total": String(clients.length) });
     if (path === `${W}/clients/${IDS.client}`) return json(data.clients[0]);
+    const other = studio.projects.find((item) => path.startsWith(`${W}/projects/${item.id}`));
+    if (other) return json(path === `${W}/projects/${other.id}` ? other : path.endsWith("/processes") ? other.process_items : []);
+    const otherClient = studio.clients.find((item) => path.startsWith(`${W}/clients/${item.id}`));
+    if (otherClient) return json(path === `${W}/clients/${otherClient.id}` ? otherClient : []);
+    if (path === `${W}/models`) return json([vetranoModel(lang), ...studio.models]);
+    if (path === `${W}/archive`) return json(studio.archive);
+    // La pagina del consulente senza progetto scelto.
+    if (path === `${W}/projects/` || path === `${W}/projects//sources`) return json([]);
     if (path === `${W}/clients/${IDS.client}/sources`) return json([]);
     if (path === `${W}/projects/${IDS.project}`) return json(data.project);
     if (path === `${W}/projects/${IDS.project}/sources`) return json(data.sources);
@@ -81,6 +97,9 @@ export async function installCaseApi(page: Page, lang: Lang, options: { layout?:
     if (path === `${M}/simulation-template`) return json(data.api.simulation_template);
     if (path === `${M}/simulation-compatibility`) return json(data.api.simulation_compatibility);
     if (path === `${M}/simulation-runs` && method === "GET") return json(data.simulationRuns);
+    if (path === `${M}/simulation-claims`) return json({ sources: data.sources.length, activities: [] });
+    if (path === `${M}/simulation-provenance`) return json({ has_discovery: false, elements: [] });
+    if (path === `${M}/simulation-scenarios` && method === "GET") return json({ bpmn_model_id: IDS.model, seed: 7, baseline: null, alternatives: [] });
     const runMatch = path.match(/^\/v1\/workspace\/simulation-runs\/(\d+)(?:\/(replay|experiments|model))?$/);
     if (runMatch) {
       const id = Number(runMatch[1]);
@@ -92,8 +111,34 @@ export async function installCaseApi(page: Page, lang: Lang, options: { layout?:
       return json(data.runById(id));
     }
 
-    // La discussione del processo: una sessione vuota, la chat non e' in scena.
-    if (path === "/v1/consultant-chat/sessions" && method === "GET") return json([]);
+    const C = "/v1/consultant-chat/sessions";
+    if (path === C && method === "GET") {
+      const scopeKey = new URL(request.url()).searchParams.get("scope_key") ?? "";
+      return json(sessions.filter((session) => session.scope_key === scopeKey));
+    }
+    if (path === C && method === "POST") {
+      const scope = (request.postDataJSON() as { scope?: Record<string, string> }).scope ?? {};
+      const kind = scope.review_node_id ? "review" : scope.type === "consultant" ? "consultant" : "process";
+      const scopeKey = scope.type === "consultant" ? "consultant"
+        : scope.type === "project" ? `project:${scope.project_id}`
+        : scope.type === "process" ? `process:${scope.project_id}:${scope.process_id}`
+        : `canvas:${scope.project_id}:${scope.process_id}:${scope.bpmn_model_id}${scope.review_node_id ? `:review:${scope.review_node_id}` : ""}`;
+      const now = "2026-10-14T09:30:00Z";
+      const session: Session = { thread_id: `film-${kind}-${sessions.length + 1}`, scope_key: scopeKey, title: "", model_name: "delir", created_at: now, updated_at: now, messages: [] };
+      sessions.push(session);
+      return json(session);
+    }
+    const recordMatch = path.match(/^\/v1\/consultant-chat\/sessions\/([^/]+)\/messages\/__record$/);
+    if (recordMatch) {
+      const body = request.postDataJSON() as { message: string; answer: string };
+      const session = sessions.find((item) => item.thread_id === recordMatch[1]);
+      session?.messages.push({ role: "user", content: body.message }, { role: "assistant", content: body.answer });
+      if (session && !session.title) session.title = body.message.slice(0, 40);
+      return json({ ok: true });
+    }
+    const session = sessions.find((item) => path === `${C}/${item.thread_id}`);
+    if (session) return json(session);
+    if (path === `${C}/search`) return json([]);
 
     unhandled.add(`${method} ${path}`);
     return route.fulfill({ status: 200, json: [] });

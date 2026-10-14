@@ -520,3 +520,70 @@ export function demoCase(lang: Lang) {
 }
 
 export type DemoCase = ReturnType<typeof demoCase>;
+
+/**
+ * Il resto del portafoglio dello studio, per Home, Modelli, ricerca e
+ * Archivio: due clienti attivi in piu' e un incarico chiuso. Aziende di
+ * fantasia, dichiarate come il resto del caso dimostrativo.
+ */
+export function portfolio(lang: Lang) {
+  const it = lang === "it";
+  const archive = { archived_at: null, archive_reason: null };
+  const process = (id: string, projectId: string, name: string, stage: string, status: string, owner: string, readiness: number) => ({
+    id, project_id: projectId, bpmn_model_id: `${id}-bpmn`, name, stage, status, owner, readiness, ...archive,
+  });
+  const extra = [
+    {
+      client: { id: "ferraresi-logistica", name: "Ferraresi Logistica S.r.l.", sector: it ? "Logistica" : "Logistics", contact: "Davide Ferraresi" },
+      project: { id: "ferraresi-resi", name: it ? "Gestione dei resi" : "Returns handling", phase: it ? "Interviste" : "Interviews", progress: 30,
+        objective: it ? "Capire dove si fermano i resi tra magazzino e assistenza clienti." : "Understand where returns stall between the warehouse and customer service." },
+      process: process("gestione-resi", "ferraresi-resi", it ? "Gestione del reso" : "Return handling", "AS-IS", "In corso", "Davide Ferraresi", 42),
+    },
+    {
+      client: { id: "brenta-alimentare", name: "Brenta Alimentare S.p.A.", sector: it ? "Alimentare" : "Food", contact: "Chiara Vianello" },
+      project: { id: "brenta-ciclo-attivo", name: it ? "Ciclo attivo" : "Order to cash", phase: it ? "Review" : "Review", progress: 55,
+        objective: it ? "Ridurre i tempi tra ordine del cliente e fattura." : "Shorten the time from customer order to invoice." },
+      process: process("ordine-fattura", "brenta-ciclo-attivo", it ? "Dall'ordine alla fattura" : "From order to invoice", "AS-IS", "In corso", "Chiara Vianello", 71),
+    },
+  ];
+  const clients = extra.map(({ client, process: item }) => ({
+    ...client, status: it ? "Attivo" : "Active", projects: 1, next_activity: it ? "Workshop · 21 ott" : "Workshop · Oct 21",
+    owner: CONSULTANT, processes: [item.name], documents: [], ...archive,
+  }));
+  const projects = extra.map(({ client, project, process: item }) => ({
+    id: project.id, client_id: client.id, client: client.name, name: project.name, objective: project.objective, lead: CONSULTANT,
+    start_date: "2026-09-15", end_date: "2026-11-30", phase: project.phase, status: it ? "In corso" : "Active", progress: project.progress,
+    processes: 1, next_step: it ? "Workshop con il responsabile" : "Workshop with the process owner", milestones: [], open_issues: [], deliverables: [],
+    ...archive, process_items: [item],
+  }));
+  const models = [...extra.map(({ client, project, process: item }, index) => ({
+    bpmn_model_id: item.bpmn_model_id, name: "As-Is v1", has_diagram: index === 1, version_count: index === 1 ? 2 : 0,
+    last_saved_at: index === 1 ? "2026-10-09T15:20:00Z" : null, process_id: item.id, process_name: item.name, process_stage: "AS-IS",
+    project_id: project.id, project_name: project.name, client_id: client.id, client_name: client.name,
+    review_status: index === 1 ? "in_review" : null, review_version: index === 1 ? 1 : null, readiness_score: item.readiness,
+    review_updated_at: index === 1 ? "2026-10-10T10:00:00Z" : null, conformance_verdict: null, conformance_findings: 0, conformance_pending: false,
+  }))];
+  const closed = {
+    client: { id: "officine-lario", name: "Officine Lario S.r.l.", sector: it ? "Meccanica" : "Engineering", status: it ? "Attivo" : "Active",
+      projects: 1, next_activity: "", owner: CONSULTANT, contact: "Paola Rusconi", processes: [], documents: [], archived_at: null, archive_reason: null },
+    project: {
+      id: "lario-fornitori", client_id: "officine-lario", client: "Officine Lario S.r.l.", name: it ? "Qualifica dei fornitori" : "Supplier qualification",
+      objective: "", lead: CONSULTANT, start_date: "2026-03-02", end_date: "2026-06-30", phase: it ? "Chiuso" : "Closed", status: it ? "Chiuso" : "Closed",
+      progress: 100, processes: 1, next_step: "", milestones: [], open_issues: [], deliverables: [],
+      archived_at: "2026-07-03T09:00:00Z", archive_reason: it ? "Incarico concluso" : "Engagement completed", process_items: [],
+    },
+  };
+  return { clients, projects, models, archive: { clients: [], projects: [closed.project], processes: [] } };
+}
+
+/** La riga di Modelli del processo Vetrano. */
+export function vetranoModel(lang: Lang) {
+  const t = TEXT[lang];
+  return {
+    bpmn_model_id: IDS.model, name: "As-Is v3", has_diagram: true, version_count: 3, last_saved_at: "2026-09-18T16:40:00Z",
+    process_id: IDS.process, process_name: namesById(read(resolve(DATA, `demo${lang === "it" ? "" : ".en"}.marked.bpmn`))).get("Process_richiesta_acquisto")!,
+    process_stage: "AS-IS", project_id: IDS.project, project_name: t.project, client_id: IDS.client, client_name: CLIENT_NAME,
+    review_status: "approved", review_version: 3, readiness_score: 86, review_updated_at: "2026-10-13T09:00:00Z",
+    conformance_verdict: "conformant", conformance_findings: 0, conformance_pending: false,
+  };
+}
