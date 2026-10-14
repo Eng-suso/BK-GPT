@@ -24,7 +24,7 @@
       "languages": ["it", "en"],
       "loop": true,
       "dissolve": 0.3,
-      "formats": {"16x9": {"display": 724, "min_text": 7.5, "max_zoom": 1.3}},
+      "formats": {"16x9": {"display": 724, "min_text": 5.5, "max_zoom": 1.3}},
       "shots": [
         {"scene": "film-{lang}-01-home", "long_overview": true, "tags": [{"tag": "mtag-{lang}-contesto-1", "at": 0.0}]},
         {"scene": "film-{lang}-02-consulente", "long_overview": true, "tags": [{"tag": "mtag-{lang}-contesto-2", "at": 0.0}]},
@@ -38,7 +38,7 @@
       "languages": ["it", "en"],
       "loop": true,
       "dissolve": 0.3,
-      "formats": {"16x9": {"display": 724, "min_text": 7.5, "max_zoom": 1.3}},
+      "formats": {"16x9": {"display": 724, "min_text": 5.5, "max_zoom": 1.3}},
       "shots": [
         {"scene": "hero-{lang}-1-fonti", "duration": 4.2, "long_overview": true, "tags": [{"tag": "mtag-{lang}-evidenze-1", "at": 0.0}, {"tag": "mtag-{lang}-evidenze-2", "at": 1.6}]},
         {"scene": "hero-{lang}-2-evidenze", "duration": 5, "long_overview": true, "tags": [{"tag": "mtag-{lang}-evidenze-3", "at": 0.0}]}
@@ -51,7 +51,7 @@
       "languages": ["it", "en"],
       "loop": true,
       "dissolve": 0.3,
-      "formats": {"16x9": {"display": 724, "min_text": 7.5, "max_zoom": 1.3}},
+      "formats": {"16x9": {"display": 724, "min_text": 5.5, "max_zoom": 1.3}},
       "shots": [
         {"scene": "film-{lang}-05-discussione", "long_overview": true, "tags": [{"tag": "mtag-{lang}-lacune-1", "at": 0.0}]},
         {"scene": "film-{lang}-08-da-confermare", "long_overview": true, "tags": [{"tag": "mtag-{lang}-lacune-2", "at": 0.0}]}
@@ -64,7 +64,7 @@
       "languages": ["it", "en"],
       "loop": true,
       "dissolve": 0.3,
-      "formats": {"16x9": {"display": 724, "min_text": 7.5, "max_zoom": 1.3}},
+      "formats": {"16x9": {"display": 724, "min_text": 5.5, "max_zoom": 1.3}},
       "shots": [
         {"scene": "hero-{lang}-3-simulazione", "duration": 6, "long_overview": true, "tags": [{"tag": "mtag-{lang}-scenari-1", "at": 0.0}]},
         {"scene": "film-{lang}-09-review", "long_overview": true, "tags": [{"tag": "mtag-{lang}-scenari-2", "at": 0.0}]},
@@ -78,7 +78,7 @@
       "languages": ["it", "en"],
       "loop": true,
       "dissolve": 0.3,
-      "formats": {"16x9": {"display": 724, "min_text": 7.5, "max_zoom": 1.3}},
+      "formats": {"16x9": {"display": 724, "min_text": 5.5, "max_zoom": 1.3}},
       "shots": [
         {"scene": "film-{lang}-12-ipotesi", "long_overview": true, "tags": [{"tag": "mtag-{lang}-decisioni-1", "at": 0.0}]},
         {"scene": "hero-{lang}-5-invio", "duration": 5, "long_overview": true, "tags": [{"tag": "mtag-{lang}-decisioni-2", "at": 0.0}]},
@@ -93,7 +93,7 @@
       "languages": ["it", "en"],
       "dissolve": 0.3,
       "music": true,
-      "formats": {"16x9": {"display": 1280, "max_zoom": 1.3}},
+      "formats": {"16x9": {"display": 1280, "min_text": 9.5, "max_zoom": 1.3}},
       "shots": [
         {"card": "fcard-{lang}-intro", "duration": 4.5},
         {"scene": "film-{lang}-01-home", "long_overview": true, "tags": [{"tag": "ftag-{lang}-contesto-1", "at": 0.0}]},
