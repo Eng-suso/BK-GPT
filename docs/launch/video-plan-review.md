@@ -45,7 +45,9 @@ montaggio.
 
 ## Hero: cosa arriva al team landing
 
-L'hero segue il piano: 20 s in loop, quattro momenti da 5 s. Si genera con
+L'hero: 25 s in loop, cinque momenti da 5 s (fonti, evidenze, simulazione
+As-Is, To-Be misurato contro l'As-Is, invio). Il To-Be e' entrato il 14
+ottobre: senza, la simulazione non diceva quanto migliora. Si genera con
 `npx playwright test -c playwright.launch.config.ts heroLoop` e
 `python3 scripts/launch_media_montage.py hero`.
 
@@ -59,8 +61,10 @@ L'hero segue il piano: 20 s in loop, quattro momenti da 5 s. Si genera con
 Il nome inglese segue la convenzione dei VTT (`<id>.<lingua>`). Modifiche
 richieste al sito, tutte nel codice e nessuna nel copy:
 
-- `Hero.tsx`: le quattro frasi passano a 0/5/10/15 s, in entrambe le lingue;
-- `productClips.ts`: `duration: 20` per `hero`;
+- `Hero.tsx`: cinque frasi a 0/5/10/15/20 s, in entrambe le lingue; la quarta
+  e' nuova (il To-Be: -87% di attraversamento, -43% di costo per caso) e va
+  scritta dal team landing;
+- `productClips.ts`: `duration: 25` per `hero`;
 - `ProductFilm.tsx`: la sorgente per lingua (`hero-loop.en.mp4` quando la
   lingua e' l'inglese) e la variante 4:5 sotto i 768 px.
 
