@@ -2,10 +2,13 @@
  * L'hero di delir.it (piano video, ottobre 2026): 20 s in loop, quattro momenti
  * da 5 s sotto le quattro frasi del sito (0/5/10/15 s).
  *
- * 1. fonti: le tre interviste entrano nel canvas e il processo si compone;
- * 2. evidenze: dal pannello delle evidenze all'attivita' che la citazione regge;
- * 3. review: la soglia di autorizzazione resta una domanda aperta, bloccante;
- * 4. proposta: As-Is e To-Be a confronto, con i valori simulati.
+ * 1. editing: le tre interviste entrano nel canvas e il processo si compone;
+ * 2. informazioni: nel pannello delle evidenze, la frase che regge un'attivita';
+ * 3. simulazione: il replay dell'As-Is a tutto schermo, processo e KPI;
+ * 4. invio: il processo va al cliente con il link privato.
+ *
+ * Sequenza e inquadrature decise da Sohayb il 14 ottobre 2026: un solo zoom
+ * per momento, la simulazione sempre intera.
  *
  * Ogni momento si riprende due volte: desktop 1440x900 (16:9) e telefono
  * 390x844 (4:5, la camera segue l'azione in una finestra larga quanto lo
@@ -41,10 +44,15 @@ const UI = {
   it: {
     evidence: /Revisione delle evidenze del disegno/,
     quoted: "Citati dalle fonti",
+    panelTitle: "Evidenze del disegno",
     decide: /^Decidi$/,
     toDecide: /Da decidere/,
     details: "Dettaglio del confronto",
     showAll: "Mostra tutta la tela",
+    play: "Riproduci",
+    speed: "Velocità",
+    send: /Invia al cliente/,
+    sent: "Ho inviato il link",
     zoomIn: /^Ingrandisci$/,
     fit: /^Centra$/,
     interview: "Intervista",
@@ -53,10 +61,15 @@ const UI = {
   en: {
     evidence: /Review the drawing against the evidence/,
     quoted: "Quoted by the sources",
+    panelTitle: "Drawing evidence",
     decide: /^Decide$/,
     toDecide: /To decide/,
     details: "Comparison details",
     showAll: "Show entire canvas",
+    play: "Play",
+    speed: "Speed",
+    send: /Send to client/,
+    sent: "I sent the link",
     zoomIn: /^Zoom in$/,
     fit: /^Fit$/,
     interview: "Interview",
@@ -254,93 +267,129 @@ async function momentEvidence(page: Page, lang: Lang, format: Format, id: string
   await panel.locator("summary", { hasText: UI[lang].quoted }).click();
   const label = demoCase(lang).provenance.elements.find((item) => item.element_id === "Task_Verifica")!.label;
   const row = panel.locator("li").filter({ has: page.getByRole("button", { name: label, exact: true }) });
-  await row.scrollIntoViewIfNeeded();
-  await page.waitForTimeout(500);
-  await calm(page);
   const button = row.getByRole("button", { name: label, exact: true });
-  await record(page, id, async (rec) => {
-    // Prima la citazione, poi l'attivita' che regge: una cosa per volta.
-    await rec.focus(await box(row), 4, format === "16x9" ? 18 : -34);
-    await page.waitForTimeout(300);
-    await clickOn(page, button);
-    await page.waitForTimeout(1000);
-    // Sul telefono il pannello copre la tela: la camera resta sulla citazione.
-    if (format === "16x9") await rec.focus(await box(node(page, "Task_Verifica")), 4, 120);
-    await page.waitForTimeout(2600);
-  });
-}
-
-// --- 3. Porta in review cio' che va chiarito.
-
-async function momentReview(page: Page, lang: Lang, format: Format, id: string): Promise<void> {
-  await page.goto(P);
-  await page.getByRole("button", { name: UI[lang].decide }).click();
-  await page.getByRole("button", { name: UI[lang].toDecide }).click();
-  const question = page.getByText(demoCase(lang).review.open_questions[0].question);
-  await expect(question).toBeVisible();
-  const options = demoCase(lang).review.open_questions[0].options;
-  const first = page.getByText(options[0].label).first();
-  const second = page.getByText(options[1].label).first();
-  await second.scrollIntoViewIfNeeded();
-  await page.waitForTimeout(500);
-  await calm(page);
-  const area = union(await box(question), await box(second));
-  await record(page, id, async (rec) => {
-    await rec.focus(area, 4, format === "16x9" ? 40 : 12);
-    await page.waitForTimeout(600);
-    // Il cursore indica l'opzione senza coprirne il testo.
-    const option = await box(first);
-    await moveTo(page, { x: area.x + area.width - 36, y: option.y + option.height / 2 });
-    await page.waitForTimeout(3200);
-  });
-}
-
-// --- 4. Arriva dal cliente con una proposta che puoi spiegare.
-
-async function momentProposal(page: Page, lang: Lang, format: Format, id: string): Promise<void> {
-  await page.goto(`${P}/simulation/compare?a=${IDS.asIsRun}&b=${IDS.toBeRun}`);
-  const details = page.getByText(UI[lang].details, { exact: true });
-  await expect(details).toBeVisible();
-  // La tela piena (processo con le differenze e KPI) e il dettaglio gia' aperto.
-  await page.getByRole("button", { name: UI[lang].showAll }).click().catch(() => undefined);
-  await details.click();
-  const rows = page.getByRole("row");
-  await expect(rows.nth(4)).toBeVisible();
-  // Sul telefono la tela sta sopra il pannello: si parte da li'.
-  if (format === "4x5") {
-    await page.locator(".sim-analytical-canvas").first().scrollIntoViewIfNeeded();
-    await page.getByRole("button", { name: UI[lang].showAll }).click().catch(() => undefined);
+  await row.scrollIntoViewIfNeeded();
+  // "Mostra nel disegno": l'attivita' si seleziona nel canvas. Poi la tela si
+  // sposta perche' l'attivita' stia accanto alla sua citazione.
+  await button.click();
+  await page.waitForTimeout(800);
+  const task = node(page, "Task_Verifica");
+  const area = await box(page.locator(".process-bpmn-canvas").first());
+  const panelBox = await box(panel);
+  await page.mouse.move(area.x + area.width / 2, area.y + area.height / 2);
+  if (format === "16x9") {
+    // Accanto alla riga e alla sua altezza: l'inquadratura resta stretta.
+    // La rotella di bpmn-js non sposta di un pixel per pixel: si corregge a passi.
+    const rowBox = await box(row);
+    for (let step = 0; step < 8; step++) {
+      const now = await box(task);
+      const dx = panelBox.x - 24 - (now.x + now.width);
+      const dy = rowBox.y + rowBox.height / 2 - (now.y + now.height / 2);
+      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) break;
+      await page.mouse.wheel(-dx, -dy);
+      await page.waitForTimeout(200);
+    }
+  } else {
+    // Sul telefono il pannello e' un foglio dal basso: l'attivita' sta appena
+    // sopra la sua intestazione.
+    // La barra flottante dello zoom coprirebbe l'attivita': in video non serve.
+    await page.addStyleTag({ content: ".process-canvas-navigation { display: none !important; }" });
+    const sheetTop = (await box(panel.getByText(UI[lang].panelTitle, { exact: true }).first())).y - 24;
+    for (let step = 0; step < 8; step++) {
+      const now = await box(task);
+      // A sinistra, appena sopra il foglio: il logo bpmn.io (in basso a destra
+      // della tela) resta fuori dall'inquadratura.
+      const dx = area.x + 70 - now.x;
+      const dy = sheetTop - 14 - (now.y + now.height);
+      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) break;
+      await page.mouse.wheel(-dx, -dy);
+      await page.waitForTimeout(200);
+    }
   }
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(500);
   await page.mouse.move(-10, -10);
   await calm(page);
-  // Processo e KPI della tela, senza la cornice della pagina.
-  const canvas = await page.evaluate(() => {
-    const root = document.querySelector(".sim-analytical-canvas")!;
-    const parts = [...root.querySelectorAll(".djs-container, [data-canvas-widget]")].map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0);
-    const x = Math.min(...parts.map((r) => r.left));
-    const y = Math.min(...parts.map((r) => r.top)) - 28;
-    return { x, y, width: Math.max(...parts.map((r) => r.right)) - x, height: Math.max(...parts.map((r) => r.bottom)) - y };
-  });
-  await page.evaluate(() => document.getElementById("launch-cursor")?.style.setProperty("display", "none"));
+  const quote = row.locator("blockquote").first();
+  let scene = union(await box(task), await box(row));
+  if (format === "4x5") {
+    // Il bordo destro si ferma prima del logo bpmn.io.
+    const logo = await page.locator(".process-bpmn-canvas .bjs-powered-by").first().boundingBox();
+    if (logo) scene = { ...scene, width: Math.min(scene.width, logo.x - 10 - scene.x) };
+  }
   await record(page, id, async (rec) => {
-    await rec.focus(canvas, 4, 8, { overview: true });
+    // Una sola inquadratura: l'attivita' nel processo e la frase che la regge.
+    await rec.focus(scene, 4, format === "16x9" ? 4 : 0);
+    await page.waitForTimeout(400);
+    await moveTo(page, quote);
+    await page.waitForTimeout(1000);
+    await moveTo(page, task);
+    await page.waitForTimeout(1600);
+  });
+}
+
+// --- 3. La simulazione, a tutto schermo: i casi scorrono e la coda si forma.
+
+async function momentSimulation(page: Page, lang: Lang, format: Format, id: string): Promise<void> {
+  await page.goto(`${P}/simulation/replay/${IDS.asIsRun}`);
+  const play = page.getByRole("button", { name: UI[lang].play, exact: true });
+  await expect(play).toBeVisible();
+  await page.getByRole("button", { name: UI[lang].showAll }).click().catch(() => undefined);
+  // La seconda velocita' piu' rapida: in 5 s le richieste si accumulano su
+  // "Valuta la richiesta di spesa" e i KPI si muovono.
+  await page.getByRole("combobox", { name: UI[lang].speed }).click();
+  const options = page.getByRole("option");
+  await options.nth((await options.count()) - 2).click();
+  await page.waitForTimeout(800);
+  await page.evaluate(() => document.getElementById("launch-cursor")?.style.setProperty("display", "none"));
+  await calm(page);
+  // Tutta la pagina della simulazione: processo, KPI e riproduzione, nessuno zoom.
+  // Nel 4:5 (`narrow`) il cuore del processo, dove la coda si forma.
+  const page_ = await box(page.locator("main").first());
+  const heart = union(...(await Promise.all(["Task_Verifica", "Task_Valuta", "Task_Emetti"].map((key) =>
+    box(page.locator(`.sim-analytical-canvas [data-element-id='${key}']`).first())))));
+  await record(page, id, async (rec) => {
+    await rec.focus(page_, 4, 0, { overview: true, narrow: heart, narrowPad: 24 });
+    await play.click();
+    await calm(page);
+    await page.waitForTimeout(5600);
+  });
+}
+
+// --- 4. Il processo va al cliente: link privato, poi "in attesa della risposta".
+
+async function momentSend(page: Page, lang: Lang, format: Format, id: string): Promise<void> {
+  await page.goto(`${P}/handover`);
+  const send = page.getByRole("button", { name: UI[lang].send });
+  await expect(send).toBeEnabled();
+  await page.waitForTimeout(600);
+  await calm(page);
+  const banner = page.locator(".handover-status").first();
+  const top = await box(banner);
+  // Il cursore parte vicino al bottone: il primo gesto e' breve.
+  const sendBox = await box(send);
+  await moveTo(page, { x: sendBox.x - 120, y: sendBox.y + sendBox.height + 60 }, 10);
+  await record(page, id, async (rec) => {
+    // L'intestazione della consegna, con il bottone.
+    await rec.focus(top, 4, format === "16x9" ? 16 : 0, { overview: true });
+    await clickOn(page, send, 700);
+    const dialog = page.getByRole("dialog");
+    const confirm = dialog.getByRole("button", { name: UI[lang].sent });
+    await expect(confirm).toBeEnabled();
+    await rec.focus(await box(dialog), 4, format === "16x9" ? 16 : -8);
+    await page.waitForTimeout(700);
+    await clickOn(page, confirm, 800);
+    await expect(dialog).toBeHidden();
+    // Inviato: lo stato della consegna passa a "con il cliente".
+    await rec.focus(await box(banner), 4, format === "16x9" ? 16 : 0, { overview: true });
     await page.waitForTimeout(1900);
-    if (format === "4x5") await rows.nth(4).scrollIntoViewIfNeeded();
-    // Attraversamento medio (riga 1) e costo per caso (riga 4). Sul telefono la
-    // colonna delle differenze (testo piu' piccolo) resta fuori.
-    const cells = (row: number) => (format === "16x9" ? rows.nth(row) : rows.nth(row).getByRole("cell").nth(2));
-    const table = union(await box(rows.nth(1).getByRole("cell").first()), await box(cells(1)), await box(cells(4)));
-    await rec.focus(table, 4, format === "16x9" ? 18 : -4);
-    await page.waitForTimeout(3000);
   });
 }
 
 const MOMENTS = [
   ["1-fonti", momentSources],
   ["2-evidenze", momentEvidence],
-  ["3-review", momentReview],
-  ["4-proposta", momentProposal],
+  ["3-simulazione", momentSimulation],
+  ["4-invio", momentSend],
 ] as const;
 
 for (const lang of ["it", "en"] as const) {
@@ -349,7 +398,7 @@ for (const lang of ["it", "en"] as const) {
       test.use(FORMATS[format].use);
       test.beforeEach(async ({ page }) => {
         page.setDefaultTimeout(20_000);
-        await installCaseApi(page, lang, { layout: "panel" });
+        await installCaseApi(page, lang, { layout: "wide" });
         await installCursor(page);
       });
       for (const [name, moment] of MOMENTS) {
