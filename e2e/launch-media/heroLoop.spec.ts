@@ -27,13 +27,11 @@ import { resolve } from "node:path";
 
 import { installCaseApi } from "./caseApi";
 import { unhandled } from "./mockApi";
-import { VirtualRecorder, clickOn, installCursor, moveTo, pause as pauseFor } from "./recorder";
+import { EASE, OVERLAYS, box, calm, record, union, type Rect } from "./kit";
+import { clickOn, installCursor, moveTo, pause as pauseFor } from "./recorder";
 import { IDS, demoCase, type Lang } from "./vetrano";
 
-const RAW = resolve(process.cwd(), "artifacts", "launch-media", "raw");
-const OVERLAYS = resolve(process.cwd(), "artifacts", "launch-media", "overlays");
 const P = `/projects/${IDS.project}/processes/${IDS.process}`;
-const EASE = "cubic-bezier(.22,1,.36,1)";
 
 // Una sola ripresa, desktop 1440x900 a densita' 2 (progetto "desktop" di
 // playwright.launch.config.ts).
@@ -87,35 +85,6 @@ test.skip(Boolean(process.env.CI) && process.env.DELIR_LAUNCH_MEDIA !== "1", "Ge
 test.afterAll(() => {
   if (unhandled.size) console.warn("Richieste non coperte dal caso demo:", [...unhandled].join(", "));
 });
-
-type Rect = { x: number; y: number; width: number; height: number };
-
-async function box(target: Locator): Promise<Rect> {
-  const found = await target.boundingBox();
-  if (!found) throw new Error(`nessun riquadro per ${target}`);
-  return found;
-}
-
-function union(...rects: Rect[]): Rect {
-  const x = Math.min(...rects.map((r) => r.x));
-  const y = Math.min(...rects.map((r) => r.y));
-  return { x, y, width: Math.max(...rects.map((r) => r.x + r.width)) - x, height: Math.max(...rects.map((r) => r.y + r.height)) - y };
-}
-
-/** Toglie caret e outline di focus rimasti dalla preparazione. */
-async function calm(page: Page): Promise<void> {
-  // Niente menu contestuale di bpmn-js sul nodo selezionato: in video e' rumore.
-  await page.addStyleTag({ content: "*:focus, *:focus-visible { outline: none !important; box-shadow: none !important; } * { caret-color: transparent !important; } .djs-context-pad, .djs-popup { display: none !important; }" });
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-}
-
-/** Ripresa a tempo virtuale: nitida a densita' piena e a 30 fps esatti. */
-async function record(page: Page, id: string, act: (rec: VirtualRecorder) => Promise<void>): Promise<void> {
-  const rec = new VirtualRecorder(page, resolve(RAW, id));
-  await rec.start();
-  await act(rec);
-  await rec.stop();
-}
 
 const node = (page: Page, id: string) => page.locator(`.process-bpmn-canvas [data-element-id='${id}']`).first();
 

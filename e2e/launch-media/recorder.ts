@@ -315,7 +315,16 @@ export async function clickOn(page: Page, target: Locator, ms = 1200): Promise<v
 export async function typeHuman(page: Page, target: Locator, text: string, msPerChar = 70): Promise<void> {
   await clickOn(page, target);
   cue("typing", { length: text.length });
-  await target.pressSequentially(text, { delay: msPerChar });
+  if (!virtual) {
+    await target.pressSequentially(text, { delay: msPerChar });
+    return;
+  }
+  // A tempo virtuale ogni tasto avanza l'orologio della pagina: un fotogramma
+  // ogni due caratteri, il ritmo resta quello umano.
+  for (const char of text) {
+    await page.keyboard.type(char);
+    await pause(page, msPerChar);
+  }
 }
 
 /** Scorrimento lento di un contenitore, a passi, come una lettura. */
