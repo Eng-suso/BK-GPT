@@ -10,6 +10,7 @@ import { IDS, demoCase, simulationLayout, simulationLayoutKey, type Lang, type S
  */
 export async function installCaseApi(page: Page, lang: Lang, options: { layout?: SimulationLayoutKind } = {}): Promise<void> {
   const data = demoCase(lang);
+  let ownerLink: Record<string, unknown> = { active: false, view_count: 0 };
   await page.addInitScript(
     ({ base, lng, layoutKey, layout }) => {
       Object.assign(window, { DELIR_API_BASE: base });
@@ -40,7 +41,14 @@ export async function installCaseApi(page: Page, lang: Lang, options: { layout?:
     if (path === `${W}/projects/${IDS.project}/sources`) return json(data.sources);
     if (path === `${W}/projects/${IDS.project}/processes`) return json(data.project.process_items);
     if (path === `${W}/projects/${IDS.project}/decisions`) return json([]);
-    if (path === `${W}/processes/${IDS.process}`) return json(data.processItem);
+    if (path === `${W}/processes/${IDS.process}`) {
+      // Consegna: "Ho inviato il link" porta il processo in attesa della risposta.
+      if (method === "PATCH") {
+        const body = request.postDataJSON() as { status?: string };
+        if (body.status) data.processItem.status = body.status;
+      }
+      return json(data.processItem);
+    }
     const sourceMatch = path.match(/^\/v1\/workspace\/sources\/([^/]+)(?:\/(claims|relations|document))?$/);
     if (sourceMatch) {
       const [, sourceId, part] = sourceMatch;
@@ -56,6 +64,20 @@ export async function installCaseApi(page: Page, lang: Lang, options: { layout?:
     if (path === `${M}/review/versions`) return json([]);
     if (path === `${W}/processes/${IDS.process}/provenance`) return json(data.provenance);
     if (path === `${W}/processes/${IDS.process}/conformance`) return json(data.conformance);
+    if (path === `${W}/processes/${IDS.process}/impact-review`) return json(data.impactReview);
+    if (path === `${W}/processes/${IDS.process}/owner-dashboard`) return json(data.ownerDashboard);
+    // Il link privato per il responsabile: non esiste finche' il consulente non lo crea.
+    if (path === `${W}/processes/${IDS.process}/owner-link`) {
+      if (method === "POST") {
+        ownerLink = { active: true, created_at: "2026-10-13T09:30:00Z", expires_at: "2026-11-12T09:30:00Z", last_viewed_at: null, view_count: 0 };
+        return json({ token: "demo-vetrano-link", created_at: ownerLink.created_at, expires_at: ownerLink.expires_at });
+      }
+      if (method === "DELETE") {
+        ownerLink = { active: false, view_count: 0 };
+        return route.fulfill({ status: 204 });
+      }
+      return json(ownerLink);
+    }
     if (path === `${M}/simulation-template`) return json(data.api.simulation_template);
     if (path === `${M}/simulation-compatibility`) return json(data.api.simulation_compatibility);
     if (path === `${M}/simulation-runs` && method === "GET") return json(data.simulationRuns);

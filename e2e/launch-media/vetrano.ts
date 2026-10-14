@@ -14,6 +14,7 @@
  *
  * Azienda e persone sono fittizie: il caso e' dimostrativo e i valori simulati.
  */
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -49,7 +50,6 @@ const TEXT = {
     milestones: ["Interviste", "As-Is validato", "Simulazione As-Is e To-Be", "Validazione del process owner"],
     openIssue: "Soglia di autorizzazione non dichiarata da nessuna fonte",
     deliverables: ["As-Is validato", "Scenario To-Be simulato", "Confronto KPI"],
-    processStatus: "Validato",
     interview: "Intervista",
     roles: { "Laura Conti": "Responsabile Ufficio Tecnico", "Paolo Marchetti": "Capo Manutenzione", "Francesca Neri": "Ufficio Acquisti" },
     sourceSummary: (person: string, role: string) => `Intervista a ${person} (${role}) su come nasce e si autorizza una richiesta di acquisto.`,
@@ -64,6 +64,10 @@ const TEXT = {
     sourceText: "Sintesi di tre interviste: Ufficio Tecnico, Manutenzione, Acquisti.",
     versions: ["As-Is · validato con Laura Conti", "Ramo di rifiuto e richiesta di integrazione", "Prima bozza dalle tre interviste"],
     scenarios: { as_is: "As-Is", to_be: "To-Be · richiesta completa + delega" },
+    changes: [
+      { node: "Task_Compila", title: "La richiesta nasce completa, con i campi obbligatori", detail: "Francesca: «Farei in modo che la richiesta nasca gia' completa, con i campi obbligatori.» Nello scenario: rimbalzi dal 55% al 25% (stima del consulente)." },
+      { node: "Task_Valuta", title: "Una delega quando il responsabile non c'è", detail: "Francesca: «Non c'e' un sostituto formale». Ipotesi del consulente, da validare: un'ora di delega ogni giorno lavorativo." },
+    ],
   },
   en: {
     project: "Indirect purchasing",
@@ -75,7 +79,6 @@ const TEXT = {
     milestones: ["Interviews", "As-Is validated", "As-Is and To-Be simulation", "Process owner validation"],
     openIssue: "Authorization threshold not stated by any source",
     deliverables: ["Validated As-Is", "Simulated To-Be scenario", "KPI comparison"],
-    processStatus: "Validated",
     interview: "Interview",
     roles: { "Laura Conti": "Technical Office Manager", "Paolo Marchetti": "Maintenance Lead", "Francesca Neri": "Purchasing Office" },
     sourceSummary: (person: string, role: string) => `Interview with ${person} (${role}) on how a purchase request is raised and authorized.`,
@@ -90,6 +93,10 @@ const TEXT = {
     sourceText: "Summary of three interviews: Technical Office, Maintenance, Purchasing.",
     versions: ["As-Is · validated with Laura Conti", "Rejection branch and request for missing information", "First draft from the three interviews"],
     scenarios: { as_is: "As-Is", to_be: "To-Be · complete request + delegate" },
+    changes: [
+      { node: "Task_Compila", title: "The request starts complete, with mandatory fields", detail: "Francesca: «__Q1__» In the scenario: send-backs from 55% to 25% (consultant estimate)." },
+      { node: "Task_Valuta", title: "A delegate when the manager is away", detail: "Francesca: «__Q2__». Consultant hypothesis, to be validated: one hour of delegation every working day." },
+    ],
   },
 } as const;
 
@@ -98,6 +105,18 @@ const INTERVIEWS = [
   { file: "a2_paolo_marchetti_manutenzione.md", id: "src-paolo-marchetti", person: "Paolo Marchetti", date: "2026-09-03" },
   { file: "a3_francesca_neri_acquisti.md", id: "src-francesca-neri", person: "Francesca Neri", date: "2026-09-04" },
 ] as const;
+
+// Le citazioni inglesi sono quelle verificate alla lettera (data/en/quotes.json).
+const QUOTES_EN = readJson<Record<string, string>>(resolve(DATA, "en", "quotes.json"));
+const quoteEn = (it: string) => {
+  const en = QUOTES_EN[it];
+  if (!en) throw new Error(`citazione senza traduzione verificata: ${it}`);
+  return en;
+};
+const fillQuotes = (text: string) =>
+  text
+    .replace("__Q1__", quoteEn("Farei in modo che la richiesta nasca gia' completa, con i campi obbligatori."))
+    .replace("__Q2__", quoteEn("Non c'e' un sostituto formale"));
 
 const interviewText = (lang: Lang, file: string) =>
   read(lang === "it" ? resolve(GOLDEN, "sources", file) : resolve(DATA, "en", "sources", file));
@@ -206,7 +225,9 @@ export function demoCase(lang: Lang) {
     bpmn_model_id: IDS.model,
     name: processName,
     stage: "AS-IS",
-    status: t.processStatus,
+    // Vocabolario del backend (uguale nelle due lingue): il processo non e'
+    // ancora stato inviato al cliente, la consegna parte da qui.
+    status: "In corso",
     owner: PROCESS_OWNER,
     readiness: 86,
     ...archive,
@@ -430,6 +451,42 @@ export function demoCase(lang: Lang) {
   ];
   const runData = (id: number): Run | null => (id === IDS.asIsRun ? runs.as_is : id === IDS.toBeRun ? runs.to_be : null);
 
+  // Consegna: la proposta To-Be (le due modifiche), il cruscotto del responsabile.
+  const baseRevision = createHash("sha256").update(bpmnXml).digest("hex");
+  const nodeName = (id: string) => namesById(bpmnXml).get(id) ?? id;
+  const actions = t.changes.map((change, index) => ({
+    id: `tobe-${index + 1}`,
+    node_id: change.node,
+    node_name: nodeName(change.node),
+    base_revision: baseRevision,
+    kind: "candidate",
+    title: change.title,
+    detail: fillQuotes(change.detail),
+    created_at: `2026-10-01T10:0${index}:00Z`,
+    created_by: CONSULTANT,
+    proposal_xml: null,
+  }));
+  const impactReview = {
+    process_id: IDS.process,
+    base_revision: baseRevision,
+    xml: bpmnXml,
+    plan: { title: processName, actors: [], steps: [], data_objects: [], controls: [], structured_business_rules: [], consultant_findings: [] },
+    actions,
+  };
+  const toBe = runs.to_be.summary as { cycle: { avg: number }; waiting: { avg: number }; cost: { perCase: number } };
+  const ownerDashboard = {
+    process: { name: processName, owner: PROCESS_OWNER, status: processItem.status, stage: processItem.stage },
+    project_name: t.project,
+    client_name: CLIENT_NAME,
+    consultant_name: CONSULTANT,
+    xml: bpmnXml,
+    changes: actions.map(({ id, node_id, node_name, title, detail, created_at }) => ({ id, node_id, node_name, title, detail, created_at })),
+    open_points: [{ id: "soglia-autorizzazione", node_id: "Decision_Necessaria", node_name: nodeName("Decision_Necessaria"), title: t.question, kind: "clarification", created_at: "2026-09-18T15:30:00Z" }],
+    versions: versions.map(({ id, change_summary, created_at }) => ({ id, change_summary, created_at })),
+    results: { scenario_name: runs.to_be.name, completed_at: "2026-10-02T10:14:00Z", cycle_avg_seconds: toBe.cycle.avg, waiting_avg_seconds: toBe.waiting.avg, cost_per_case: toBe.cost.perCase },
+    generated_at: "2026-10-13T09:00:00Z",
+  };
+
   return {
     lang,
     processName,
@@ -442,6 +499,8 @@ export function demoCase(lang: Lang) {
     sourceDocument,
     provenance,
     conformance,
+    impactReview,
+    ownerDashboard,
     review,
     versions,
     api,
