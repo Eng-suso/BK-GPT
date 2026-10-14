@@ -67,12 +67,18 @@ richieste al sito, tutte nel codice e nessuna nel copy:
 Come sono fatti:
 
 - velocita' 1×, cursore da 1,2 s, nessuna accelerazione;
-- il 4:5 non e' un ritaglio del 16:9: e' una ripresa del prodotto su un
-  telefono (390×844) con la camera che segue l'azione. Con il ritaglio del
-  desktop una riga da 620 px, mostrata a 350 px, scendeva a 7 px;
+- il 4:5 e' un ritaglio della stessa ripresa desktop, con gli zoom: si vede
+  sempre il prodotto da desktop (decisione del 14 ottobre, la ripresa da
+  telefono non si capiva). Il prezzo e' un testo piu' piccolo: minimo 8 px a
+  350 px invece di 11;
+- ogni momento ha la sua targhetta blu (#004580) in alto a sinistra, numerata,
+  che dice cosa succede, in italiano e in inglese;
+- l'apertura parte da interviste, Word, Excel e l'export del gestionale; le
+  evidenze collegano con una linea blu la citazione all'attivita'; la
+  simulazione mostra il processo e quattro KPI in movimento;
 - `scripts/launch_media_montage.py` si ferma se un testo inquadrato scende
-  sotto gli 11 px alla dimensione del sito (756 px per il 16:9, il tablet;
-  350 px per il 4:5), se un colpo d'insieme dura piu' di 2 s o se il logo
+  sotto il minimo alla dimensione del sito (11 px a 756 px per il 16:9, il
+  tablet; 8 px a 350 px per il 4:5), se un colpo d'insieme dura piu' di 2 s o se il logo
   bpmn.io entra in quadro;
 - la dicitura "Caso dimostrativo · valori simulati" ("Demo case · simulated
   values") e' dentro il video, nella fascia in basso che la camera lascia
