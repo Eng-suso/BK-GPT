@@ -26,9 +26,9 @@
       "dissolve": 0.3,
       "formats": {"16x9": {"display": 724, "min_text": 10.5}},
       "shots": [
-        {"scene": "film-{lang}-01-home", "tags": [{"tag": "mtag-{lang}-contesto-1", "at": 0.0}]},
-        {"scene": "film-{lang}-02-consulente", "tags": [{"tag": "mtag-{lang}-contesto-2", "at": 0.0}]},
-        {"scene": "film-{lang}-18-ritrova", "tags": [{"tag": "mtag-{lang}-contesto-3", "at": 0.0}]}
+        {"scene": "film-{lang}-01-home", "long_overview": true, "tags": [{"tag": "mtag-{lang}-contesto-1", "at": 0.0}]},
+        {"scene": "film-{lang}-02-consulente", "long_overview": true, "tags": [{"tag": "mtag-{lang}-contesto-2", "at": 0.0}]},
+        {"scene": "film-{lang}-18-ritrova", "long_overview": true, "tags": [{"tag": "mtag-{lang}-contesto-3", "at": 0.0}]}
       ],
       "overlays": ["dimostrativo-{lang}"],
       "files": {"16x9": "memoria"},
@@ -53,8 +53,8 @@
       "dissolve": 0.3,
       "formats": {"16x9": {"display": 724, "min_text": 10.5}},
       "shots": [
-        {"scene": "film-{lang}-05-discussione", "tags": [{"tag": "mtag-{lang}-lacune-1", "at": 0.0}]},
-        {"scene": "film-{lang}-08-da-confermare", "tags": [{"tag": "mtag-{lang}-lacune-2", "at": 0.0}]}
+        {"scene": "film-{lang}-05-discussione", "long_overview": true, "tags": [{"tag": "mtag-{lang}-lacune-1", "at": 0.0}]},
+        {"scene": "film-{lang}-08-da-confermare", "long_overview": true, "tags": [{"tag": "mtag-{lang}-lacune-2", "at": 0.0}]}
       ],
       "overlays": ["dimostrativo-{lang}"],
       "files": {"16x9": "lacuna-aperta"},
@@ -80,10 +80,10 @@
       "dissolve": 0.3,
       "formats": {"16x9": {"display": 724, "min_text": 10.5}},
       "shots": [
-        {"scene": "film-{lang}-12-ipotesi", "tags": [{"tag": "mtag-{lang}-decisioni-1", "at": 0.0}]},
+        {"scene": "film-{lang}-12-ipotesi", "long_overview": true, "tags": [{"tag": "mtag-{lang}-decisioni-1", "at": 0.0}]},
         {"scene": "hero-{lang}-5-invio", "duration": 5, "long_overview": true, "tags": [{"tag": "mtag-{lang}-decisioni-2", "at": 0.0}]},
-        {"scene": "film-{lang}-16-cruscotto", "tags": [{"tag": "mtag-{lang}-decisioni-3", "at": 0.0}]},
-        {"scene": "film-{lang}-17-approvato", "tags": [{"tag": "mtag-{lang}-decisioni-4", "at": 0.0}]}
+        {"scene": "film-{lang}-16-cruscotto", "long_overview": true, "tags": [{"tag": "mtag-{lang}-decisioni-3", "at": 0.0}]},
+        {"scene": "film-{lang}-17-approvato", "long_overview": true, "tags": [{"tag": "mtag-{lang}-decisioni-4", "at": 0.0}]}
       ],
       "overlays": ["dimostrativo-{lang}"],
       "files": {"16x9": "review-to-be"},
@@ -96,20 +96,20 @@
       "formats": {"16x9": {"display": 1280}},
       "shots": [
         {"card": "fcard-{lang}-intro", "duration": 4.5},
-        {"scene": "film-{lang}-01-home", "tags": [{"tag": "ftag-{lang}-contesto-1", "at": 0.0}]},
-        {"scene": "film-{lang}-02-consulente", "tags": [{"tag": "ftag-{lang}-contesto-2", "at": 0.0}]},
-        {"scene": "film-{lang}-18-ritrova", "tags": [{"tag": "ftag-{lang}-contesto-3", "at": 0.0}]},
+        {"scene": "film-{lang}-01-home", "long_overview": true, "tags": [{"tag": "ftag-{lang}-contesto-1", "at": 0.0}]},
+        {"scene": "film-{lang}-02-consulente", "long_overview": true, "tags": [{"tag": "ftag-{lang}-contesto-2", "at": 0.0}]},
+        {"scene": "film-{lang}-18-ritrova", "long_overview": true, "tags": [{"tag": "ftag-{lang}-contesto-3", "at": 0.0}]},
         {"scene": "hero-{lang}-1-fonti", "duration": 4.2, "long_overview": true, "tags": [{"tag": "ftag-{lang}-evidenze-1", "at": 0.0}, {"tag": "ftag-{lang}-evidenze-2", "at": 1.6}]},
         {"scene": "hero-{lang}-2-evidenze", "duration": 5, "long_overview": true, "tags": [{"tag": "ftag-{lang}-evidenze-3", "at": 0.0}]},
-        {"scene": "film-{lang}-05-discussione", "tags": [{"tag": "ftag-{lang}-lacune-1", "at": 0.0}]},
-        {"scene": "film-{lang}-08-da-confermare", "tags": [{"tag": "ftag-{lang}-lacune-2", "at": 0.0}]},
+        {"scene": "film-{lang}-05-discussione", "long_overview": true, "tags": [{"tag": "ftag-{lang}-lacune-1", "at": 0.0}]},
+        {"scene": "film-{lang}-08-da-confermare", "long_overview": true, "tags": [{"tag": "ftag-{lang}-lacune-2", "at": 0.0}]},
         {"scene": "hero-{lang}-3-simulazione", "duration": 6, "long_overview": true, "tags": [{"tag": "ftag-{lang}-scenari-1", "at": 0.0}]},
         {"scene": "film-{lang}-09-review", "long_overview": true, "tags": [{"tag": "ftag-{lang}-scenari-2", "at": 0.0}]},
         {"scene": "hero-{lang}-4-tobe", "duration": 4.8, "long_overview": true, "tags": [{"tag": "ftag-{lang}-scenari-3", "at": 0.0}]},
-        {"scene": "film-{lang}-12-ipotesi", "tags": [{"tag": "ftag-{lang}-decisioni-1", "at": 0.0}]},
+        {"scene": "film-{lang}-12-ipotesi", "long_overview": true, "tags": [{"tag": "ftag-{lang}-decisioni-1", "at": 0.0}]},
         {"scene": "hero-{lang}-5-invio", "duration": 5, "long_overview": true, "tags": [{"tag": "ftag-{lang}-decisioni-2", "at": 0.0}]},
-        {"scene": "film-{lang}-16-cruscotto", "tags": [{"tag": "ftag-{lang}-decisioni-3", "at": 0.0}]},
-        {"scene": "film-{lang}-17-approvato", "tags": [{"tag": "ftag-{lang}-decisioni-4", "at": 0.0}]},
+        {"scene": "film-{lang}-16-cruscotto", "long_overview": true, "tags": [{"tag": "ftag-{lang}-decisioni-3", "at": 0.0}]},
+        {"scene": "film-{lang}-17-approvato", "long_overview": true, "tags": [{"tag": "ftag-{lang}-decisioni-4", "at": 0.0}]},
         {"card": "fcard-{lang}-outro", "duration": 4.5}
       ],
       "overlays": ["dimostrativo-{lang}"],

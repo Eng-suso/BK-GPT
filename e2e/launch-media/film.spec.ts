@@ -5,9 +5,10 @@
  *
  * Stesse regole dell'hero: tempo virtuale a 30 fps esatti, velocita' 1x,
  * cursore da 1,2 s, scrittura a 70 ms per carattere, DeliR in streaming alla
- * velocita' del prodotto (filmChat.ts). Sul sito la clip e' larga 724 px: ogni
- * inquadratura sta entro circa 700 px di pagina, perche' il testo resti sopra
- * gli 11 px. Niente colpo d'insieme iniziale: si parte dall'area che conta.
+ * velocita' del prodotto (filmChat.ts). Ogni scena parte dal desktop intero e
+ * zooma quando succede qualcosa (decisione del 14 ottobre). Sul sito la clip
+ * e' larga 724 px: gli zoom stanno entro circa 700-900 px di pagina, perche'
+ * il testo resti leggibile.
  * Le scene che i moduli riprendono dall'hero non si girano qui.
  *
  *   npx playwright test -c playwright.launch.config.ts film --project=desktop
@@ -18,11 +19,11 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { installCaseApi } from "./caseApi";
-import { PROMPTS, installChatStream } from "./filmChat";
+import { PROMPTS, chatScripts, installChatStream, type ChatKind } from "./filmChat";
 import { FILM_INTRO, FILM_OUTRO, MODULES } from "./filmPlan";
 import { OVERLAYS, box, calm, record, union, type Rect } from "./kit";
 import { unhandled } from "./mockApi";
-import { clickOn, installCursor, moveTo, pause, typeHuman } from "./recorder";
+import { clickOn, installCursor, moveTo, pause, typeHuman, type VirtualRecorder } from "./recorder";
 import { IDS, type Lang } from "./vetrano";
 
 test.use({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
@@ -72,29 +73,39 @@ async function showPublicLink(page: Page): Promise<void> {
   }, new URL(page.url()).origin);
 }
 
-/** La conversazione dalla domanda in giu', larga quanto il box di scrittura: dove arriva la risposta. */
-async function thread(page: Page, prompt: string, composer: Locator, rows: number): Promise<Rect> {
-  const input = await box(composer);
-  const asked = await box(page.getByText(prompt, { exact: true }).last());
-  // La risposta parte un po' a sinistra del box di scrittura.
-  return { x: input.x - 24, y: asked.y - 12, width: input.width + 32, height: rows };
+/** Il desktop intero, prima di ogni azione: si vede sempre il prodotto (decisione del 14 ottobre). */
+async function establish(page: Page, rec: VirtualRecorder, ms = 1400): Promise<void> {
+  const view = page.viewportSize()!;
+  await rec.focus({ x: 0, y: 0, width: view.width, height: view.height }, 1, 0, { overview: true });
+  await rec.wait(ms);
 }
 
-/** Scrive a DeliR come una persona e aspetta che finisca di rispondere. */
-async function converse(page: Page, rec: import("./recorder").VirtualRecorder, prompt: string, done: string, composer: Locator, rows: number): Promise<void> {
+/**
+ * Scrive a DeliR come una persona e segue la risposta: il desktop, poi il box
+ * di scrittura, la domanda con le fasi di lavoro, e la risposta mentre arriva.
+ */
+async function converse(page: Page, rec: VirtualRecorder, lang: Lang, kind: ChatKind, done: string, composer: Locator): Promise<void> {
+  await establish(page, rec);
   const input = await box(composer);
   await rec.focus(input, 4, 12);
-  await typeHuman(page, composer, prompt);
+  await typeHuman(page, composer, PROMPTS[lang][kind]);
   await pause(page, 300);
   await page.keyboard.press("Enter");
-  await rec.waitUntil(() => page.getByText(prompt, { exact: true }).last().isVisible());
+  const asked = page.getByText(PROMPTS[lang][kind], { exact: true }).last();
+  await rec.waitUntil(() => asked.isVisible());
   await moveTo(page, { x: -10, y: -10 }, 10);
-  await rec.focus(await thread(page, prompt, composer, rows), 4, 0);
-  // Tutta la risposta, al ritmo dello streaming.
+  // La domanda e le fasi di lavoro di DeliR.
+  const question = await box(asked);
+  await rec.focus({ x: input.x - 8, y: question.y - 12, width: 700, height: 220 }, 4, 0);
+  // La risposta, dalla prima riga in giu', mentre arriva.
+  const opening = chatScripts(lang)[kind].answer.replace(/\*\*/g, "").slice(0, 24);
+  const first = page.getByText(opening, { exact: false }).last();
+  await rec.waitUntil(() => first.isVisible(), 20_000);
+  const start = await box(first);
+  const bottom = (await box(composer)).y - 8;
+  await rec.focus({ x: input.x - 24, y: start.y - 10, width: input.width + 32, height: Math.max(160, bottom - start.y + 10) }, 4, 0);
   await rec.waitUntil(() => page.getByText(done, { exact: false }).last().isVisible(), 40_000);
 }
-
-const CHAT_VIEWPORT = { width: 820, height: 700 };
 
 const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<void>> = {
   // --- Contesto
@@ -108,23 +119,22 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
     // I progetti, con il cliente di ciascuno: la lista dei clienti sta nella card accanto.
     const projects = union(await box(first), await box(page.getByText(/Brenta Alimentare S\.p\.A\. ·/).first()));
     await record(page, id, async (rec) => {
+      await establish(page, rec);
       await rec.focus(projects, 4, 40);
-      await rec.wait(1500);
+      await rec.wait(1200);
       await moveTo(page, first);
       await rec.wait(2000);
     });
   },
 
   "02-consulente": async (page, lang, id) => {
-    // Un portatile piccolo: la colonna della chat si stringe e il testo resta leggibile nella tab.
-    await page.setViewportSize(CHAT_VIEWPORT);
     await page.goto("/consultant");
     const composer = page.getByRole("textbox").last();
     await expect(composer).toBeVisible();
     await page.waitForTimeout(800);
     await calm(page);
     await record(page, id, async (rec) => {
-      await converse(page, rec, PROMPTS[lang].consultant, UI[lang].consultantDone, composer, 300);
+      await converse(page, rec, lang, "consultant", UI[lang].consultantDone, composer);
       await rec.wait(3000);
     });
   },
@@ -135,6 +145,7 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
     await page.waitForTimeout(800);
     await calm(page);
     await record(page, id, async (rec) => {
+      await establish(page, rec);
       await page.keyboard.press("Control+k");
       const dialog = page.getByRole("dialog");
       await rec.waitUntil(() => dialog.isVisible());
@@ -153,15 +164,13 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
   // --- Lacune
 
   "05-discussione": async (page, lang, id) => {
-    // La chat del processo usa tutta la larghezza: qui la finestra e' ancora piu' stretta.
-    await page.setViewportSize({ ...CHAT_VIEWPORT, width: 800 });
     await page.goto(`${P}?view=chat`);
     const composer = page.getByRole("textbox").last();
     await expect(composer).toBeVisible();
     await page.waitForTimeout(800);
     await calm(page);
     await record(page, id, async (rec) => {
-      await converse(page, rec, PROMPTS[lang].process, UI[lang].processDone, composer, 340);
+      await converse(page, rec, lang, "process", UI[lang].processDone, composer);
       await rec.wait(600);
       // Le domande aperte: la divergenza e la lacuna.
       const open = await box(page.getByText(UI[lang].open).last());
@@ -176,17 +185,19 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
     await page.goto(`${P}?view=canvas`);
     const evidence = page.getByRole("button", { name: UI[lang].evidence });
     await expect(evidence).toBeVisible();
-    await evidence.click();
-    const panel = page.locator(".process-evidence-panel");
-    await expect(panel).toBeVisible();
     await page.waitForTimeout(800);
-    await page.mouse.move(-10, -10);
     await calm(page);
+    const panel = page.locator(".process-evidence-panel");
     // Il verdetto del confronto, poi i tre elementi senza fonte con Conferma e Rifiuta.
     const verdict = panel.getByText(lang === "it" ? /coincide con le fonti/ : /matches the sources/i).first();
     const read = panel.getByText(lang === "it" ? "Fonti lette" : "Sources read").first();
     const awaiting = panel.getByText(UI[lang].awaiting, { exact: false }).nth(1);
     await record(page, id, async (rec) => {
+      await establish(page, rec, 900);
+      await clickOn(page, evidence);
+      await rec.waitUntil(() => panel.isVisible());
+      await rec.wait(500);
+      await moveTo(page, { x: -10, y: -10 }, 10);
       await rec.focus(union(await box(verdict), await box(read)), 4, 16);
       await rec.wait(2200);
       const list = await box(awaiting);
@@ -202,18 +213,18 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
     await page.goto(`${P}?view=review`);
     const task = page.locator("[data-element-id='Task_Valuta']").first();
     await expect(task).toBeVisible();
-    await task.click();
-    await page.getByRole("button", { name: UI[lang].openAgent }).click();
     // Il pannello di DeliR allargato, come lo allarga il consulente: la risposta si legge.
     await page.addStyleTag({ content: ".review-agent-chat { width: 560px !important; height: 520px !important; }" });
-    const composer = page.getByRole("textbox").last();
-    await expect(composer).toBeVisible();
     await page.waitForTimeout(800);
-    await page.mouse.move(-10, -10);
     await calm(page);
+    const composer = page.getByRole("textbox").last();
     const transcript = page.locator(".review-chat-transcript");
     const input = page.locator(".review-chat-input");
     await record(page, id, async (rec) => {
+      await establish(page, rec, 900);
+      await clickOn(page, task);
+      await clickOn(page, page.getByRole("button", { name: UI[lang].openAgent }));
+      await rec.waitUntil(() => input.isVisible());
       await rec.focus(await box(input), 4, 12);
       await typeHuman(page, composer, PROMPTS[lang].review);
       await pause(page, 300);
@@ -236,6 +247,7 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
     await calm(page);
     const second = page.getByText(lang === "it" ? /Una delega/ : /deputy|delegat/i).first();
     await record(page, id, async (rec) => {
+      await establish(page, rec);
       // Titolo e citazione di ogni proposta: la parte sinistra delle card.
       const a = await box(first);
       await rec.focus({ x: a.x - 24, y: a.y - 30, width: 700, height: 120 }, 4, 0);
@@ -261,6 +273,7 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
     await page.waitForTimeout(800);
     await calm(page);
     await record(page, id, async (rec) => {
+      await establish(page, rec);
       // Una finestra di lettura sulla colonna del cruscotto; la pagina scorre sotto.
       const column = await box(heading);
       await rec.focus({ x: column.x - 24, y: column.y - 40, width: 700, height: 390 }, 4, 0);
@@ -284,6 +297,7 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
     await calm(page);
     const banner = page.locator(".handover-status").first();
     await record(page, id, async (rec) => {
+      await establish(page, rec);
       // La parte destra dell'intestazione, con i due esiti della risposta del cliente.
       const top = await box(banner);
       const button = await box(approve);
