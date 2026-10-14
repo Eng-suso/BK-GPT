@@ -88,28 +88,41 @@ Come sono fatti:
   values") e' dentro il video, nella fascia in basso che la camera lascia
   libera.
 
-## Film del prodotto: cosa arriva al team landing
+## Le 5 tab e il film: cosa arriva al team landing
 
-Il film per "Apri il video completo" (e per YouTube e LinkedIn): 3'07" in
-italiano, 3'06" in inglese, 16:9 1920×1080, con musica strumentale generata
-dallo script di montaggio (nessuna licenza di terzi).
+Il prodotto e' in 5 moduli, uno per tab della sezione "La soluzione, nel tuo
+lavoro" (`src/components/Journey.tsx`). Ogni modulo e' una clip autonoma,
+muta, in loop, con il nome della clip iniziale della sua tab: il sito la
+prende senza cambiare i nomi. Il film del prodotto e' la somma dei moduli.
 
-| File | Lingua |
-| --- | --- |
-| `delir-film.{mp4,webm,jpg,webp}` | italiano |
-| `delir-film.en.{mp4,webm,jpg,webp}` | inglese |
+| Tab | File (it, `.en` per l'inglese) | Durata |
+| --- | --- | --- |
+| Evidenze | `evidenze-sul-processo.{mp4,webm,jpg,webp}` | 9,2 s |
+| Lacune | `lacuna-aperta.*` | 26,0 s |
+| Contesto | `memoria.*` | 25,3 s |
+| Decisioni | `review-to-be.*` | 27,3 s |
+| Scenari | `confronto.*` | 24,0 s |
+| Film ("Apri il video completo") | `delir-film.*` (con musica) | circa 2'30" |
 
-Si genera con `npx playwright test -c playwright.launch.config.ts film.spec
---project=desktop` (riprese, `e2e/launch-media/film.spec.ts`) e
-`python3 scripts/launch_media_montage.py film`. Il piano dei capitoli e delle
-targhette e' in `e2e/launch-media/filmPlan.ts`.
+Modifiche al sito (codice, non copy):
 
-- 8 capitoli con un cartello ciascuno, piu' apertura (il problema) e chiusura:
-  lo studio, le fonti, l'As-Is, la review, la simulazione, il To-Be, la
-  consegna, tutto resta;
-- una targhetta blu numerata per scena, che dice cosa succede;
-- la chat di DeliR in streaming alla velocita' del prodotto, con le citazioni
-  alla lettera delle interviste;
-- 5 scene riusano le riprese dell'hero (stesso caso, stessi dati);
-- il testo minimo e' misurato a 1280 px di larghezza (il film si guarda a
-  schermo intero), non ai 756 px dello slot del sito.
+- `Journey.tsx`: ogni tab mostra solo la sua clip nuova (`clips: [productClips.<tab>]`);
+  le altre 12 clip di oggi non servono piu';
+- `productClips.ts`: le durate della tabella; la sorgente per lingua
+  (`<id>.en.mp4` in inglese), come per l'hero;
+- "Apri il video completo" punta a `delir-film`.
+
+Come sono fatti:
+
+- testi delle targhette approvati da Sohayb il 14 ottobre: cosa fai e cosa
+  ottieni, in seconda persona, senza gergo; il titolo della tab resta sul sito;
+- leggibili alla larghezza della tab (724 px): nessun testo sotto i 10,5 px a
+  schermo. Le chat sono riprese con una finestra di 800-820 px, come su un
+  portatile piccolo, perche' la colonna della risposta stia in quadro;
+- il film: apertura, i 5 moduli nell'ordine del lavoro (contesto, evidenze,
+  lacune, scenari, decisioni), chiusura con l'invito del sito ("Entra nella
+  lista d'attesa"); musica strumentale generata dallo script, da sostituire con
+  una traccia di libreria prima di YouTube;
+- i piani e i testi stanno in `e2e/launch-media/filmPlan.ts`; riprese
+  `npx playwright test -c playwright.launch.config.ts film.spec --project=desktop`,
+  montaggio `python3 scripts/launch_media_montage.py tab-evidenze ... film`.
