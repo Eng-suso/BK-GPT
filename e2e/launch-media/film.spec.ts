@@ -100,7 +100,8 @@ async function converse(page: Page, rec: import("./recorder").VirtualRecorder, p
   await rec.waitUntil(() => page.getByText(prompt, { exact: true }).last().isVisible());
   await moveTo(page, { x: -10, y: -10 }, 10);
   await rec.focus(await thread(page, prompt, composer, rows), 4, 8);
-  await rec.waitUntil(() => page.getByText(done, { exact: false }).last().isVisible());
+  // Tutta la risposta, al ritmo dello streaming.
+  await rec.waitUntil(() => page.getByText(done, { exact: false }).last().isVisible(), 40_000);
 }
 
 const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<void>> = {
@@ -219,11 +220,14 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
       await rec.wait(400);
       await moveTo(page, { x: -10, y: -10 }, 10);
       // Il riepilogo e i tre elementi senza fonte, con Conferma e Rifiuta.
-      const awaiting = panel.getByText(UI[lang].awaiting, { exact: true }).first();
-      const top = await box(panel);
+      // Il verdetto del confronto, poi i tre elementi senza fonte con Conferma e Rifiuta.
+      const verdict = panel.getByText(lang === "it" ? /coincide con le fonti/ : /matches the sources|consistent with the sources/i).first();
+      await rec.focus(union(await box(verdict), await box(panel.getByText(lang === "it" ? "Fonti lette" : "Sources read").first())), 4, 16);
+      await rec.wait(2200);
+      const awaiting = panel.getByText(UI[lang].awaiting, { exact: false }).nth(1);
       const list = await box(awaiting);
-      await rec.focus({ x: top.x, y: top.y + 40, width: top.width, height: list.y - top.y + 300 }, 4, 4);
-      await rec.wait(4500);
+      await rec.focus({ x: list.x - 8, y: list.y - 8, width: (await box(panel)).width - 16, height: 260 }, 4, 4);
+      await rec.wait(3000);
     });
   },
 
@@ -247,7 +251,7 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
       await pause(page, 300);
       await page.keyboard.press("Enter");
       await moveTo(page, { x: -10, y: -10 }, 10);
-      await rec.waitUntil(() => page.getByText(UI[lang].reviewDone, { exact: false }).last().isVisible());
+      await rec.waitUntil(() => page.getByText(UI[lang].reviewDone, { exact: false }).last().isVisible(), 40_000);
       await rec.wait(3500);
     });
   },
@@ -316,8 +320,9 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
     await page.waitForTimeout(800);
     await calm(page);
     await record(page, id, async (rec) => {
-      const top = await box(page.locator("main, body").first());
-      await rec.focus({ x: top.x, y: 0, width: Math.min(top.width, 1000), height: 620 }, 4, 0, { overview: true });
+      // Una finestra di lettura sulla colonna del cruscotto; la pagina scorre sotto.
+      const column = await box(heading);
+      await rec.focus({ x: column.x - 24, y: column.y - 40, width: 720, height: 400 }, 4, 0);
       await rec.wait(1800);
       // Lettura lenta: i passi del processo, con quello che cambia.
       for (let step = 0; step < 40; step++) {
@@ -342,12 +347,13 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
       await rec.focus(await box(banner), 4, 16);
       await rec.wait(1200);
       await clickOn(page, approve);
-      const dialog = page.getByRole("dialog");
-      if (await dialog.isVisible().catch(() => false)) {
-        await rec.focus(await box(dialog), 4, 16);
-        await rec.wait(1200);
-        await clickOn(page, dialog.getByRole("button").last());
-      }
+      // La conferma: il processo diventa la versione di riferimento.
+      const dialog = page.getByRole("alertdialog").or(page.getByRole("dialog")).first();
+      await rec.waitUntil(() => dialog.isVisible());
+      await rec.focus(await box(dialog), 4, 16);
+      await rec.wait(1500);
+      await clickOn(page, dialog.getByRole("button", { name: UI[lang].approve }));
+      await rec.waitUntil(async () => !(await dialog.isVisible()));
       await rec.wait(600);
       await moveTo(page, { x: -10, y: -10 }, 10);
       await rec.focus(await box(banner), 4, 16);
@@ -370,7 +376,7 @@ const SCENES: Record<string, (page: Page, lang: Lang, id: string) => Promise<voi
       const dialog = page.getByRole("dialog");
       await rec.waitUntil(() => dialog.isVisible());
       await rec.focus(await box(dialog), 4, 24);
-      await typeHuman(page, dialog.getByRole("textbox").first(), UI[lang].search);
+      await typeHuman(page, dialog.locator("input").first(), UI[lang].search);
       await moveTo(page, { x: -10, y: -10 }, 10);
       await rec.wait(800);
       await rec.focus(await box(dialog), 4, 16);
