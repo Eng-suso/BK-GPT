@@ -93,6 +93,11 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
             attrs["isHorizontal"] = "true"
         if kind in CONTAINER_TYPES:
             attrs["isExpanded"] = "false"
+        if kind == "exclusiveGateway":
+            # La X dichiarata nel DI (OMG BPMN 2.0, 12.1.3): bpmn-js la disegna solo
+            # se c'e' l'attributo; l'editor la aggiungeva da se', il visualizzatore
+            # della simulazione e gli strumenti esterni no.
+            attrs["isMarkerVisible"] = "true"
         shape = ET.SubElement(plane, f"{{{BPMNDI}}}BPMNShape", attrs)
         _bounds(shape, box)
         if elements[element_id].get("name") and (kind.endswith("Event") or kind.endswith("Gateway") or kind in {"dataObjectReference", "dataStoreReference"}):

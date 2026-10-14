@@ -78,3 +78,12 @@ def test_no_flow_crosses_or_overlaps_another():
     root, _, _ = _layout()
     report = lint_visual_model(root)
     assert report["valid"] and report["metrics"]["edge_crossings"] == 0 and report["warnings"] == []
+
+
+def test_an_exclusive_gateway_declares_its_x_marker():
+    """Ogni visualizzatore disegna la X: bpmn-js la mostra solo se il DI la dichiara."""
+    root = ET.fromstring(apply_enterprise_layout(PURCHASE))
+
+    shape = next(s for s in root.iter(f"{BPMNDI}BPMNShape") if s.get("bpmnElement") == "Complete")
+    assert shape.get("isMarkerVisible") == "true"
+    assert all(s.get("isMarkerVisible") is None for s in root.iter(f"{BPMNDI}BPMNShape") if s.get("bpmnElement") != "Complete")
