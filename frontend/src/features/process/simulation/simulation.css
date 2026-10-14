@@ -119,9 +119,30 @@
 
 .djs-connection.sim-flow-live .djs-visual > path {
   stroke: var(--sim-token) !important;
+  stroke-width: 3px !important;
+  filter: drop-shadow(0 0 5px color-mix(in oklab, var(--sim-token) 60%, transparent));
+}
+
+/* the flow keeps a fading trail once the token has passed */
+.djs-connection.sim-flow-recent .djs-visual > path {
+  stroke: color-mix(in oklab, var(--sim-token) 60%, var(--color-text-muted)) !important;
   stroke-width: 2.5px !important;
-  filter: drop-shadow(0 0 4px color-mix(in oklab, var(--sim-token) 55%, transparent));
-  transition: stroke 200ms ease-out, filter 200ms ease-out;
+  transition: stroke 1.2s ease-out, stroke-width 1.2s ease-out;
+}
+
+/* the branch label ("Sì", "No") lights up with its flow */
+.djs-element.sim-flow-live .djs-visual > text,
+.djs-element.sim-flow-recent .djs-visual > text {
+  fill: var(--sim-token) !important;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* the travelled flow marches in the direction of the case */
+  .djs-connection.sim-flow-live .djs-visual > path {
+    stroke-dasharray: 10 6;
+    animation: sim-flow-march 0.6s linear infinite;
+  }
 }
 
 /* --- live queue pressure on task nodes (distinct from the diagnostic bottleneck) --- */
@@ -139,13 +160,8 @@
   stroke-width: 3px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .sim-token {
-    transition:
-      cx 90ms linear,
-      cy 90ms linear;
-  }
-}
+/* No cx/cy transition: positions change every frame along the flow, and a
+   CSS transition would cut corners in a straight line (tokens "flying"). */
 
 /* --- transport scrubber --- */
 
@@ -355,7 +371,7 @@
 }
 @keyframes sim-flow-march {
   to {
-    stroke-dashoffset: -10;
+    stroke-dashoffset: -16;
   }
 }
 @media (prefers-reduced-motion: reduce) {
