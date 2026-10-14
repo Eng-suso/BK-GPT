@@ -142,7 +142,9 @@ class Shot:
             # mostrare sta sopra.
             if target and fmt.get("reserve"):
                 target = Box(target.x, target.y, target.w, target.h / (1 - fmt["reserve"]))
-            window = window_for(target, aspect, self.vw, self.vh, key.get("zoom", 1.6), forbidden)
+            # `max_zoom`: la camera non stringe oltre, cosi' resta il contesto attorno.
+            zoom = min(key.get("zoom", 1.6), fmt.get("max_zoom", float("inf")))
+            window = window_for(target, aspect, self.vw, self.vh, zoom, forbidden)
             t = key["t"] - self.offset - self.start
             self.camera.append((t, window))
             font = key.get("narrowFont") if portrait and key.get("narrow") else key.get("minFont")
