@@ -2,18 +2,17 @@
  * L'hero di delir.it (piano video, ottobre 2026): 20 s in loop, quattro momenti
  * da 5 s sotto le quattro frasi del sito (0/5/10/15 s).
  *
- * 1. editing: le tre interviste entrano nel canvas e il processo si compone;
- * 2. informazioni: nel pannello delle evidenze, la frase che regge un'attivita';
- * 3. simulazione: il replay dell'As-Is a tutto schermo, processo e KPI;
+ * 1. editing: interviste, Word, Excel e l'export del gestionale entrano nel
+ *    canvas e il processo si compone;
+ * 2. informazioni: la citazione si accende e una linea blu la porta
+ *    all'attivita' che regge;
+ * 3. simulazione: il replay dell'As-Is a tutto schermo, processo e 4 KPI;
  * 4. invio: il processo va al cliente con il link privato.
  *
- * Sequenza e inquadrature decise da Sohayb il 14 ottobre 2026: un solo zoom
- * per momento, la simulazione sempre intera.
- *
- * Ogni momento si riprende due volte: desktop 1440x900 (16:9) e telefono
- * 390x844 (4:5, la camera segue l'azione in una finestra larga quanto lo
- * schermo). Il ritaglio del desktop non basta al telefono: una riga da 620 px
- * mostrata a 350 px scende sotto gli 11 px del piano. Italiano e inglese.
+ * Sequenza decisa da Sohayb il 14 ottobre 2026. Revisione dello stesso giorno:
+ * si vede sempre il desktop, anche nel 4:5 (ritaglio della stessa ripresa con
+ * gli zoom), e una targhetta blu per momento dice cosa succede. Italiano e
+ * inglese.
  *
  *   npx playwright test -c playwright.launch.config.ts heroLoop
  *   python3 scripts/launch_media_montage.py hero
@@ -34,13 +33,9 @@ const OVERLAYS = resolve(process.cwd(), "artifacts", "launch-media", "overlays")
 const P = `/projects/${IDS.project}/processes/${IDS.process}`;
 const EASE = "cubic-bezier(.22,1,.36,1)";
 
-// La densita' vera dei fotogrammi la danno i progetti "desktop" e "telefono"
-// di playwright.launch.config.ts (flag del browser): qui solo la finestra.
-const FORMATS = {
-  "16x9": { use: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 }, suffix: "" },
-  "4x5": { use: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 1080 / 390, isMobile: true, hasTouch: true }, suffix: "-4x5" },
-} as const;
-type Format = keyof typeof FORMATS;
+// Una sola ripresa, desktop 1440x900 a densita' 2 (progetto "desktop" di
+// playwright.launch.config.ts): il 4:5 la ritaglia con gli zoom.
+test.use({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
 
 const UI = {
   it: {
@@ -133,7 +128,7 @@ async function zoomCanvas(page: Page, at: Locator, labelPx: number, delta = 60, 
   }
 }
 
-/** Sul telefono: la tela si rimpicciolisce finche' la pool non entra in larghezza. */
+/** La tela si rimpicciolisce finche' la pool non entra in larghezza. */
 async function fitCanvas(page: Page): Promise<void> {
   const area = await box(page.locator(".process-bpmn-canvas").first());
   const pool = page.locator(".process-bpmn-canvas [data-element-id^='DeliR_Pool']").first();
@@ -151,65 +146,96 @@ async function fitCanvas(page: Page): Promise<void> {
   await page.waitForTimeout(300);
 }
 
-async function openCanvas(page: Page, format: Format, anchor: string, labelPx: number): Promise<void> {
+async function openCanvas(page: Page, anchor: string, labelPx: number): Promise<void> {
   await page.goto(`${P}?view=canvas`);
   await expect(node(page, "Task_Verifica")).toBeVisible();
   await page.waitForTimeout(800);
-  await zoomCanvas(page, node(page, anchor), format === "16x9" ? labelPx : labelPx + 2);
+  await zoomCanvas(page, node(page, anchor), labelPx);
   await page.mouse.move(-10, -10);
 }
 
 // --- 1. Dalle informazioni del cliente a un processo chiaro.
 
-async function momentSources(page: Page, lang: Lang, format: Format, id: string): Promise<void> {
+/** Le fonti che il consulente porta: interviste e i file del cliente. */
+const FILES = {
+  it: [
+    { kind: "word", title: "Procedura acquisti.docx", detail: "Documento Word · 12 pagine" },
+    { kind: "excel", title: "Richieste 2026.xlsx", detail: "Foglio Excel · 418 righe" },
+    { kind: "erp", title: "Export dal gestionale", detail: "Ordini e fornitori · CSV" },
+  ],
+  en: [
+    { kind: "word", title: "Purchasing procedure.docx", detail: "Word document · 12 pages" },
+    { kind: "excel", title: "Requests 2026.xlsx", detail: "Excel sheet · 418 rows" },
+    { kind: "erp", title: "ERP export", detail: "Orders and suppliers · CSV" },
+  ],
+} as const;
+
+async function momentSources(page: Page, lang: Lang, id: string): Promise<void> {
   const data = demoCase(lang);
   await page.goto(`${P}?view=canvas`);
   await expect(node(page, "Task_Verifica")).toBeVisible();
   await page.waitForTimeout(600);
   // Il processo intero nella tela: e' il colpo d'insieme mentre si compone.
-  // Il processo intero nella tela (sul telefono fin dove lo zoom minimo arriva).
   await fitCanvas(page);
   await page.waitForTimeout(800);
   await page.mouse.move(-10, -10);
   await calm(page);
   const pool = await box(page.locator(".process-bpmn-canvas [data-element-id^='DeliR_Pool']").first());
-  const viewport = page.viewportSize()!;
-  await page.evaluate(({ ease, cards, pool, viewport }) => {
+  const interviews = data.sources.map((source) => {
+    const [title, role] = source.name.split(" · ");
+    const person = title.replace(`${UI[lang].interview} `, "");
+    return { kind: "interview", badge: person.split(" ").map((part) => part[0]).join(""), title, detail: role };
+  });
+  await page.evaluate(({ ease, cards, pool }) => {
     const style = document.createElement("style");
     style.textContent = `
       .hero-el > .djs-outline { opacity: 0 !important; }
       .hero-el > .djs-visual { opacity: 0; transform: translateX(-12px); transition: opacity 520ms ${ease}, transform 520ms ${ease}; }
       .hero-el.in > .djs-visual { opacity: 1; transform: none; }
       body:not(.hero-playing) .hero-el > .djs-visual { transition: none; }
-      .hero-card { position: fixed; z-index: 60; display: flex; align-items: center; gap: 14px; width: 330px; padding: 14px 18px;
+      .hero-card { position: fixed; z-index: 60; display: flex; align-items: center; gap: 14px; width: 340px; padding: 14px 18px;
         background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 18px 40px -18px rgba(7,17,38,.35), 0 2px 6px rgba(7,17,38,.06);
-        font: 500 16px/1.3 var(--font-family-geist, system-ui), sans-serif; color: #071126;
+        font: 600 18px/1.3 var(--font-family-geist, system-ui), sans-serif; color: #071126;
         transition: transform 900ms ${ease}, opacity 420ms ease-out; }
-      .hero-card b { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 8px; background: #004580; color: #fff; font-size: 15px; }
-      .hero-card small { display: block; color: #475569; font-size: 14px; }
+      .hero-card i { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 9px; color: #fff;
+        font: 700 17px/1 var(--font-family-geist, system-ui), sans-serif; font-style: normal; }
+      .hero-card i.interview { background: #004580; }
+      .hero-card i.word { background: #185abd; }
+      .hero-card i.excel { background: #107c41; }
+      .hero-card i.erp { background: #475569; }
+      .hero-card small { display: block; color: #475569; font-size: 15px; font-weight: 500; }
       .hero-card.gone { opacity: 0; }`;
     document.head.append(style);
     const elements = [...document.querySelectorAll<SVGGElement>(".process-bpmn-canvas .djs-element")]
       .map((el) => ({ el, rect: el.getBoundingClientRect() }))
       .filter(({ rect }) => rect.width > 0 || rect.height > 0);
     elements.forEach(({ el }) => el.classList.add("hero-el"));
-    // Le tre interviste, una sotto l'altra al centro del processo.
-    const left = Math.max(12, Math.min(viewport.width - 342, pool.x + pool.width / 2 - 165));
-    const top = Math.max(80, pool.y + pool.height / 2 - 120);
+    // Due colonne al centro del processo: a sinistra le interviste, a destra i file.
+    const W = 340, GAP = 16, ROW = 82;
+    const rows = Math.ceil(cards.length / 2);
+    const left = pool.x + pool.width / 2 - W - GAP / 2;
+    const top = Math.max(90, pool.y + pool.height / 2 - (rows * ROW) / 2);
     const start = document.querySelector(".process-bpmn-canvas [data-element-id='StartEvent_1']")!.getBoundingClientRect();
+    const db = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>';
     const made = cards.map((card, index) => {
+      const column = index < rows ? 0 : 1;
+      const row = index % rows;
       const el = document.createElement("div");
       el.className = "hero-card";
-      const badge = document.createElement("b");
-      badge.textContent = card.initials;
+      const icon = document.createElement("i");
+      icon.className = card.kind;
+      if (card.kind === "erp") icon.innerHTML = db;
+      else icon.textContent = card.kind === "word" ? "W" : card.kind === "excel" ? "X" : card.badge;
       const text = document.createElement("span");
-      const role = document.createElement("small");
-      role.textContent = card.role;
-      text.append(card.title, role);
-      el.append(badge, text);
-      el.style.left = `${left}px`;
-      el.style.top = `${top + index * 82}px`;
-      el.dataset.to = `translate(${start.left - left - 150}px, ${start.top - top - index * 82 - 20}px) scale(.12)`;
+      const detail = document.createElement("small");
+      detail.textContent = card.detail;
+      text.append(card.title, detail);
+      el.append(icon, text);
+      const x = left + column * (W + GAP);
+      const y = top + row * ROW;
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.dataset.to = `translate(${start.left - x - 150}px, ${start.top - y - 20}px) scale(.12)`;
       document.body.append(el);
       return el;
     });
@@ -218,8 +244,8 @@ async function momentSources(page: Page, lang: Lang, format: Format, id: string)
     Object.assign(window, {
       heroPlay: () => {
         document.body.classList.add("hero-playing");
-        made.forEach((el, index) => setTimeout(() => { el.style.transform = el.dataset.to!; }, 1200 + index * 100));
-        made.forEach((el) => setTimeout(() => el.classList.add("gone"), 1750));
+        made.forEach((el, index) => setTimeout(() => { el.style.transform = el.dataset.to!; }, 1150 + index * 70));
+        made.forEach((el) => setTimeout(() => el.classList.add("gone"), 1800));
         // Pool e corsie subito, poi il flusso da sinistra a destra: completo a
         // 2,7 s, cosi' il processo intero resta in quadro prima dello zoom.
         elements.forEach(({ el, rect }) => {
@@ -230,40 +256,29 @@ async function momentSources(page: Page, lang: Lang, format: Format, id: string)
     });
   }, {
     ease: EASE,
-    viewport,
     pool,
-    cards: data.sources.map((source) => {
-      const [title, role] = source.name.split(" · ");
-      const person = title.replace(`${UI[lang].interview} `, "");
-      return { title, role, initials: person.split(" ").map((part) => part[0]).join("") };
-    }),
+    cards: [...interviews, ...FILES[lang]].map((card) => ({ badge: "", ...card })),
   });
   await page.waitForTimeout(400);
   const cards = page.locator(".hero-card");
   await record(page, id, async (rec) => {
-    await rec.focus(union(await box(cards.first()), await box(cards.last())), 4, format === "16x9" ? 28 : 4);
+    await rec.focus(union(await box(cards.first()), await box(cards.last())), 4, 28);
     await page.evaluate(() => (window as unknown as { heroPlay: () => void }).heroPlay());
     await rec.wait(1150);
-    // Il processo intero, a tutto schermo, mentre si compone.
+    // Il processo intero, a tutto schermo, mentre si compone (nel 4:5 il centro).
     const poolNow = await box(page.locator(".process-bpmn-canvas [data-element-id^='DeliR_Pool']").first());
-    const canvasArea = await box(page.locator(".process-bpmn-canvas").first());
-    await rec.focus(format === "16x9" ? poolNow : canvasArea, 4, format === "16x9" ? 8 : 0, { overview: true });
-    // Sul telefono lo zoom della tela fa parte del colpo d'insieme: parte prima.
-    await rec.wait(format === "16x9" ? 1900 : 900);
-    if (format === "4x5") {
-      // Sul telefono la tela si ingrandisce davvero sull'inizio del processo.
-      await zoomCanvas(page, node(page, "StartEvent_1"), 15, 180, 60);
-    }
+    await rec.focus(poolNow, 4, 8, { overview: true });
+    await rec.wait(1900);
     const first = union(...(await Promise.all(["StartEvent_1", "Task_Compila", "Task_Invia"].map((key) => box(node(page, key))))));
-    await rec.focus(first, 4, format === "16x9" ? 24 : 6);
+    await rec.focus(first, 4, 24);
     await rec.wait(1700);
   });
 }
 
 // --- 2. Verifica il modello, insieme alle sue fonti.
 
-async function momentEvidence(page: Page, lang: Lang, format: Format, id: string): Promise<void> {
-  await openCanvas(page, format, "Task_Verifica", 15);
+async function momentEvidence(page: Page, lang: Lang, id: string): Promise<void> {
+  await openCanvas(page, "Task_Verifica", 15);
   await page.getByRole("button", { name: UI[lang].evidence }).click();
   const panel = page.locator(".process-evidence-panel");
   await expect(panel).toBeVisible();
@@ -273,66 +288,87 @@ async function momentEvidence(page: Page, lang: Lang, format: Format, id: string
   const button = row.getByRole("button", { name: label, exact: true });
   await row.scrollIntoViewIfNeeded();
   // "Mostra nel disegno": l'attivita' si seleziona nel canvas. Poi la tela si
-  // sposta perche' l'attivita' stia accanto alla sua citazione.
+  // sposta perche' l'attivita' stia alla altezza della sua citazione, con lo
+  // spazio per il collegamento.
   await button.click();
   await page.waitForTimeout(800);
   const task = node(page, "Task_Verifica");
   const area = await box(page.locator(".process-bpmn-canvas").first());
   const panelBox = await box(panel);
+  const rowBox = await box(row);
   await page.mouse.move(area.x + area.width / 2, area.y + area.height / 2);
-  if (format === "16x9") {
-    // Accanto alla riga e alla sua altezza: l'inquadratura resta stretta.
-    // La rotella di bpmn-js non sposta di un pixel per pixel: si corregge a passi.
-    const rowBox = await box(row);
-    for (let step = 0; step < 8; step++) {
-      const now = await box(task);
-      const dx = panelBox.x - 24 - (now.x + now.width);
-      const dy = rowBox.y + rowBox.height / 2 - (now.y + now.height / 2);
-      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) break;
-      await page.mouse.wheel(-dx, -dy);
-      await page.waitForTimeout(200);
-    }
-  } else {
-    // Sul telefono il pannello e' un foglio dal basso: l'attivita' sta appena
-    // sopra la sua intestazione.
-    // La barra flottante dello zoom coprirebbe l'attivita': in video non serve.
-    await page.addStyleTag({ content: ".process-canvas-navigation { display: none !important; }" });
-    const sheetTop = (await box(panel.getByText(UI[lang].panelTitle, { exact: true }).first())).y - 24;
-    for (let step = 0; step < 8; step++) {
-      const now = await box(task);
-      // A sinistra, appena sopra il foglio: il logo bpmn.io (in basso a destra
-      // della tela) resta fuori dall'inquadratura.
-      const dx = area.x + 70 - now.x;
-      const dy = sheetTop - 14 - (now.y + now.height);
-      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) break;
-      await page.mouse.wheel(-dx, -dy);
-      await page.waitForTimeout(200);
-    }
+  // La rotella di bpmn-js non sposta di un pixel per pixel: si corregge a passi.
+  for (let step = 0; step < 8; step++) {
+    const now = await box(task);
+    const dx = panelBox.x - 150 - (now.x + now.width);
+    const dy = rowBox.y + rowBox.height / 2 - (now.y + now.height / 2);
+    if (Math.abs(dx) < 12 && Math.abs(dy) < 12) break;
+    await page.mouse.wheel(-dx, -dy);
+    await page.waitForTimeout(200);
   }
   await page.waitForTimeout(500);
   await page.mouse.move(-10, -10);
   await calm(page);
   const quote = row.locator("blockquote").first();
-  let scene = union(await box(task), await box(row));
-  if (format === "4x5") {
-    // Il bordo destro si ferma prima del logo bpmn.io.
-    const logo = await page.locator(".process-bpmn-canvas .bjs-powered-by").first().boundingBox();
-    if (logo) scene = { ...scene, width: Math.min(scene.width, logo.x - 10 - scene.x) };
-  }
+  const taskBox = await box(task);
+  const quoteBox = await box(quote);
+  await row.evaluate((el) => el.setAttribute("data-hero-row", ""));
+  // Il collegamento: la citazione si accende e una linea blu la porta
+  // all'attivita' che regge, che si illumina.
+  await page.evaluate(({ ease, from, to }) => {
+    const style = document.createElement("style");
+    style.textContent = `
+      .hero-link { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
+      .hero-link path { fill: none; stroke: #1d6fd8; stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset 700ms ${ease}; }
+      .hero-link circle { fill: #1d6fd8; opacity: 0; transition: opacity 200ms ease-out; }
+      .hero-link.on circle.from { opacity: 1; }
+      .hero-link.done circle.to { opacity: 1; }
+      .hero-quote { transition: background-color 300ms ease-out, box-shadow 300ms ease-out; border-radius: 8px; }
+      .hero-quote.on { background-color: rgba(29, 111, 216, .1); box-shadow: inset 3px 0 0 #1d6fd8; }
+      .hero-task > .djs-visual > rect { transition: stroke 300ms ease-out, fill 300ms ease-out, filter 300ms ease-out; }
+      .hero-task.on > .djs-visual > rect { stroke: #1d6fd8 !important; stroke-width: 3px !important; fill: #eef5ff !important;
+        filter: drop-shadow(0 0 8px rgba(29, 111, 216, .55)); }`;
+    document.head.append(style);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "hero-link");
+    const a = { x: from.x - 6, y: from.y + Math.min(from.height / 2, 22) };
+    const b = { x: to.x + to.width + 6, y: to.y + to.height / 2 };
+    const mid = (a.x + b.x) / 2;
+    svg.innerHTML = `<path d="M ${a.x} ${a.y} C ${mid} ${a.y}, ${mid} ${b.y}, ${b.x} ${b.y}"/>`
+      + `<circle class="from" cx="${a.x}" cy="${a.y}" r="5"/><circle class="to" cx="${b.x}" cy="${b.y}" r="5"/>`;
+    document.body.append(svg);
+    const path = svg.querySelector("path")!;
+    const length = path.getTotalLength();
+    path.style.strokeDasharray = `${length}`;
+    path.style.strokeDashoffset = `${length}`;
+    const quote = document.querySelector("[data-hero-row]");
+    const taskEl = document.querySelector(".process-bpmn-canvas [data-element-id='Task_Verifica']");
+    Object.assign(window, {
+      heroLink: () => {
+        quote?.classList.add("hero-quote", "on");
+        svg.classList.add("on");
+        setTimeout(() => { path.style.strokeDashoffset = "0"; }, 150);
+        setTimeout(() => { svg.classList.add("done"); taskEl?.classList.add("hero-task", "on"); }, 800);
+      },
+    });
+  }, { ease: EASE, from: quoteBox, to: taskBox });
+  const scene = union(taskBox, await box(row));
   await record(page, id, async (rec) => {
     // Una sola inquadratura: l'attivita' nel processo e la frase che la regge.
-    await rec.focus(scene, 4, format === "16x9" ? 4 : 0);
-    await rec.wait(400);
+    await rec.focus(scene, 4, 8);
+    await rec.wait(300);
     await moveTo(page, quote);
-    await rec.wait(1000);
+    await page.evaluate(() => (window as unknown as { heroLink: () => void }).heroLink());
+    await rec.wait(1400);
     await moveTo(page, task);
-    await rec.wait(1600);
+    await rec.wait(1100);
   });
 }
 
-// --- 3. La simulazione, a tutto schermo: i casi scorrono e la coda si forma.
+// --- 3. La simulazione, a tutto schermo: i casi scorrono, la coda si forma e
+// i quattro KPI si muovono.
 
-async function momentSimulation(page: Page, lang: Lang, format: Format, id: string): Promise<void> {
+async function momentSimulation(page: Page, lang: Lang, id: string): Promise<void> {
   await page.goto(`${P}/simulation/replay/${IDS.asIsRun}`);
   const play = page.getByRole("button", { name: UI[lang].play, exact: true });
   await expect(play).toBeVisible();
@@ -345,16 +381,21 @@ async function momentSimulation(page: Page, lang: Lang, format: Format, id: stri
   await page.waitForTimeout(800);
   await page.evaluate(() => document.getElementById("launch-cursor")?.style.setProperty("display", "none"));
   await calm(page);
-  // Tutta la pagina della simulazione: processo, KPI e riproduzione, nessuno zoom.
-  // Nel 4:5 (`narrow`) il cuore del processo, dove la coda si forma.
+  const charts = page.locator(".sim-widget-chart");
+  await expect(charts).toHaveCount(4);
+  // Tutta la pagina della simulazione: processo, KPI e riproduzione, nessuno
+  // zoom. Nel 4:5 (`narrow`) prima il cuore del processo, poi i quattro KPI.
   const page_ = await box(page.locator("main").first());
   const heart = union(...(await Promise.all(["Task_Verifica", "Task_Valuta", "Task_Emetti"].map((key) =>
     box(page.locator(`.sim-analytical-canvas [data-element-id='${key}']`).first())))));
+  const kpis = union(...(await Promise.all([0, 1, 2, 3].map((index) => box(charts.nth(index))))));
   await record(page, id, async (rec) => {
     await rec.focus(page_, 4, 0, { overview: true, narrow: heart, narrowPad: 24 });
     await play.click();
     await calm(page);
-    await rec.wait(5600);
+    await rec.wait(2600);
+    await rec.focus(page_, 4, 0, { overview: true, narrow: kpis, narrowPad: 56 });
+    await rec.wait(3000);
   });
 }
 
@@ -372,7 +413,7 @@ async function showPublicLink(page: Page): Promise<void> {
 
 // --- 4. Il processo va al cliente: link privato, poi "in attesa della risposta".
 
-async function momentSend(page: Page, lang: Lang, format: Format, id: string): Promise<void> {
+async function momentSend(page: Page, lang: Lang, id: string): Promise<void> {
   await page.goto(`${P}/handover`);
   const send = page.getByRole("button", { name: UI[lang].send });
   await expect(send).toBeEnabled();
@@ -385,18 +426,18 @@ async function momentSend(page: Page, lang: Lang, format: Format, id: string): P
   await moveTo(page, { x: sendBox.x - 120, y: sendBox.y + sendBox.height + 60 }, 10);
   await record(page, id, async (rec) => {
     // L'intestazione della consegna, con il bottone.
-    await rec.focus(top, 4, format === "16x9" ? 16 : 0, { overview: true });
+    await rec.focus(top, 4, 16, { overview: true, narrow: sendBox, narrowPad: 160 });
     await clickOn(page, send, 700);
     const dialog = page.getByRole("dialog");
     const confirm = dialog.getByRole("button", { name: UI[lang].sent });
     await rec.waitUntil(() => confirm.isEnabled());
     await showPublicLink(page);
-    await rec.focus(await box(dialog), 4, format === "16x9" ? 16 : -8);
+    await rec.focus(await box(dialog), 4, 16);
     await rec.wait(700);
     await clickOn(page, confirm, 800);
     await rec.waitUntil(async () => !(await dialog.isVisible()));
     // Inviato: lo stato della consegna passa a "con il cliente".
-    await rec.focus(await box(banner), 4, format === "16x9" ? 16 : 0, { overview: true });
+    await rec.focus(await box(banner), 4, 16, { overview: true, narrow: sendBox, narrowPad: 160 });
     await rec.wait(1900);
   });
 }
@@ -409,36 +450,50 @@ const MOMENTS = [
 ] as const;
 
 for (const lang of ["it", "en"] as const) {
-  for (const format of Object.keys(FORMATS) as Format[]) {
-    test.describe(`hero ${lang} ${format}`, () => {
-      test.use(FORMATS[format].use);
-      test.beforeEach(async ({ page }) => {
-        page.setDefaultTimeout(20_000);
-        // L'orologio della pagina: scorre normale, si ferma solo durante la ripresa.
-        await page.clock.install();
-        await installCaseApi(page, lang, { layout: "wide" });
-        await installCursor(page);
-      });
-      for (const [name, moment] of MOMENTS) {
-        const id = `hero-${lang}-${name}${FORMATS[format].suffix}`;
-        test(id, async ({ page }) => moment(page, lang, format, id));
-      }
+  test.describe(`hero ${lang}`, () => {
+    test.beforeEach(async ({ page }) => {
+      page.setDefaultTimeout(20_000);
+      // L'orologio della pagina: scorre normale, si ferma solo durante la ripresa.
+      await page.clock.install();
+      await installCaseApi(page, lang, { layout: "grid" });
+      await installCursor(page);
     });
-  }
+    for (const [name, moment] of MOMENTS) {
+      const id = `hero-${lang}-${name}`;
+      test(id, async ({ page }) => moment(page, lang, id));
+    }
+  });
 }
 
-// --- "Caso dimostrativo": la dicitura nel video, alla dimensione di ogni formato.
+// --- Le scritte del video, alla dimensione di ogni formato: la dicitura
+// "caso dimostrativo" e le targhette blu che dicono cosa succede.
+
+const TAGS = {
+  it: ["Dalle fonti del cliente al processo", "Ogni attività con la sua fonte", "Simula l'As-Is: code, tempi, costi", "Invia il processo al cliente"],
+  en: ["From client sources to the process", "Every activity backed by its source", "Simulate the As-Is: queues, times, costs", "Send the process to the client"],
+} as const;
 
 test("hero-overlays", async ({ page }) => {
   mkdirSync(OVERLAYS, { recursive: true });
   for (const lang of ["it", "en"] as const) {
-    for (const [format, size, font] of [["16x9", [1920, 1080], 28], ["4x5", [1080, 1350], 34]] as const) {
+    for (const [format, size, font, tag] of [["16x9", [1920, 1080], 28, 36], ["4x5", [1080, 1350], 34, 42]] as const) {
       await page.setViewportSize({ width: size[0], height: size[1] });
       await page.setContent(`<!doctype html><html><body style="margin:0;background:transparent">
         <div style="position:fixed;right:${font}px;bottom:${font}px;padding:${font * 0.35}px ${font * 0.7}px;border-radius:999px;
           background:rgba(255,255,255,.92);border:1px solid #e2e8f0;color:#334155;font:500 ${font}px/1.2 system-ui,sans-serif">${UI[lang].demo}</div>
         </body></html>`);
       await page.screenshot({ path: resolve(OVERLAYS, `dimostrativo-${lang}-${format}.png`), omitBackground: true });
+      for (const [index, text] of TAGS[lang].entries()) {
+        // In alto a sinistra, nel blu del marchio: il numero del passo e la frase.
+        await page.setContent(`<!doctype html><html><body style="margin:0;background:transparent">
+          <div style="position:fixed;left:${tag}px;top:${tag}px;max-width:${size[0] - 2 * tag}px;display:flex;align-items:center;gap:${tag * 0.4}px;
+            padding:${tag * 0.38}px ${tag * 0.75}px ${tag * 0.38}px ${tag * 0.38}px;border-radius:999px;background:#004580;color:#fff;
+            box-shadow:0 ${tag * 0.3}px ${tag}px -${tag * 0.4}px rgba(0,30,70,.55);font:600 ${tag}px/1.2 system-ui,sans-serif">
+            <span style="display:grid;place-items:center;width:${tag * 1.35}px;height:${tag * 1.35}px;border-radius:999px;background:#fff;color:#004580;font-weight:700">${index + 1}</span>
+            <span>${text}</span></div>
+          </body></html>`);
+        await page.screenshot({ path: resolve(OVERLAYS, `tag-${lang}-${index + 1}-${format}.png`), omitBackground: true });
+      }
     }
   }
 });
