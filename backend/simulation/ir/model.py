@@ -370,10 +370,48 @@ class PriorityRule(_Strict):
     condition: Condition
 
 
+class ArrivalBand(CalendarPeriod):
+    """SIM-08: in questa fascia i casi arrivano in media ogni ``mean_seconds``.
+
+    Dentro la fascia gli arrivi sono un processo di Poisson; fuori da ogni
+    fascia non arriva nessuno. Prosimos 2.1 non lo sa fare: li genera il runner
+    DeliR (``ops/prosimos/runner/arrival_bands.py``).
+    """
+
+    mean_seconds: float = Field(gt=0)
+
+
 class Arrival(_Strict):
     interarrival: Distribution
     calendar_id: str
     provenance: Provenance | None = None
+    # Con delle fasce, gli arrivi seguono loro e non piu' interarrival e calendario.
+    bands: tuple[ArrivalBand, ...] = Field(default=(), max_length=21)
+
+    @model_validator(mode="after")
+    def _bands_apart(self):
+        intervals = sorted(
+            (day * 86_400 + _clock(band.begin), day * 86_400 + _clock(band.end))
+            for band in self.bands
+            for day in _days(band.from_day, band.to_day)
+        )
+        for (_, end), (begin, _) in zip(intervals, intervals[1:]):
+            if begin < end:
+                raise ValueError("due fasce degli arrivi si sovrappongono")
+        return self
+
+
+_WEEKDAYS = ("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY")
+
+
+def _days(first: str, last: str) -> list[int]:
+    start, end = _WEEKDAYS.index(first), _WEEKDAYS.index(last)
+    return list(range(start, end + 1)) if start <= end else [*range(start, 7), *range(0, end + 1)]
+
+
+def _clock(value: str) -> float:
+    hours, minutes, seconds = value.split(":")
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
 
 
 # --------------------------------------------------------------------------- #
