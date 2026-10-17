@@ -396,6 +396,35 @@
       "durationByHint": "Each category of “{{attribute}}” has its own duration, starting from the base one.",
       "durationByCategory": "Cases with {{attribute}} = {{value}}",
       "durationByMissing": "The chosen attribute is gone or not a category: pick another.",
+      "invalidFlowRules": "Activities with a skip or rework to fix: {{count}}",
+      "skip": {
+        "legend": "Skipping «{{task}}»",
+        "toggle": "Some cases skip it",
+        "percent": "Cases that skip it, %",
+        "percentOfMatching": "Of the cases matching the rule, how many skip it, %"
+      },
+      "rework": {
+        "legend": "Rework of «{{task}}»",
+        "toggle": "Some cases redo it",
+        "backTo": "Restart from",
+        "self": "{{task}} (this activity)",
+        "chooseTarget": "Choose an activity",
+        "backToHint": "An activity before this one, with no parallel branches in between: the case redoes the whole path from there.",
+        "percent": "Go back, % at each pass",
+        "maxRepeats": "At most, times per case"
+      },
+      "flowRuleOnlyFor": "Only for some cases",
+      "flowRuleAll": "For all cases",
+      "flowRuleLegend": "Applies to cases where",
+      "flowRuleReads": "Applies if {{rule}}.",
+      "flowRuleNoAttributes": "Applies to all cases. Add a case attribute to narrow it.",
+      "flowRuleIssue": {
+        "skipPercent": "The share must be above 0 and at most 100.",
+        "reworkPercent": "The share must be between 0 and 100, both excluded.",
+        "reworkTarget": "Choose the activity to restart from.",
+        "reworkRepeats": "A whole number from 1 to 10.",
+        "rule": "Complete the rule."
+      },
       "warmupCases": "Warm-up cases",
       "warmupHint": "Optional. The system starts empty: the first cases meet short queues. They stay out of the results; the replay shows them.",
       "warmupIssue": {

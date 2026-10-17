@@ -396,6 +396,35 @@
       "durationByHint": "Ogni categoria di «{{attribute}}» ha la sua durata; parte da quella di base.",
       "durationByCategory": "Casi con {{attribute}} = {{value}}",
       "durationByMissing": "L'attributo scelto non c'è più o non è a categorie: scegline un altro.",
+      "invalidFlowRules": "Attività con salto o rilavorazione da correggere: {{count}}",
+      "skip": {
+        "legend": "Salto di «{{task}}»",
+        "toggle": "Alcuni casi la saltano",
+        "percent": "Casi che la saltano, %",
+        "percentOfMatching": "Dei casi con la regola, quanti la saltano, %"
+      },
+      "rework": {
+        "legend": "Rilavorazione di «{{task}}»",
+        "toggle": "Alcuni casi la rifanno",
+        "backTo": "Si riparte da",
+        "self": "{{task}} (questa attività)",
+        "chooseTarget": "Scegli un'attività",
+        "backToHint": "Un'attività che la precede, senza rami paralleli in mezzo: da lì il caso rifà tutto il percorso.",
+        "percent": "Tornano indietro, % a ogni passaggio",
+        "maxRepeats": "Al più, volte per caso"
+      },
+      "flowRuleOnlyFor": "Solo per alcuni casi",
+      "flowRuleAll": "Per tutti i casi",
+      "flowRuleLegend": "Vale per i casi che",
+      "flowRuleReads": "Vale se {{rule}}.",
+      "flowRuleNoAttributes": "Vale per tutti i casi. Per limitarla aggiungi un attributo del caso.",
+      "flowRuleIssue": {
+        "skipPercent": "La quota deve stare fra 0 (escluso) e 100.",
+        "reworkPercent": "La quota deve stare fra 0 e 100, esclusi.",
+        "reworkTarget": "Scegli l'attività da cui ripartire.",
+        "reworkRepeats": "Un numero intero da 1 a 10.",
+        "rule": "Completa la regola."
+      },
       "warmupCases": "Casi di riscaldamento",
       "warmupHint": "Facoltativo. Il sistema parte vuoto: i primi casi trovano code corte. Restano fuori dai risultati, il replay li mostra.",
       "warmupIssue": {
