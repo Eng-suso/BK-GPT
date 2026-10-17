@@ -406,3 +406,39 @@ def test_arrival_bands_from_the_panel_shape_the_arrivals_through_the_runner(tmp_
     afternoon = sum(1 for h in hours if 14 <= h < 17)
     assert morning + afternoon == len(hours), "un caso e' arrivato fuori dalle fasce"
     assert 4.5 < morning / afternoon < 8, (morning, afternoon)
+
+
+def test_a_morning_shift_adds_staff_only_in_the_morning():
+    # SIM-30: un operatore tutto il giorno, tre in piu' dalle 9 alle 12. Con
+    # molti arrivi, il turno lavora solo la mattina e riduce l'attesa.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    mornings = {"id": "mornings", "name": "Mattine", "periods": [{"from_day": "MONDAY", "to_day": "FRIDAY", "begin": "09:00", "end": "12:00"}]}
+
+    def run(shifts: list[dict]) -> list[dict]:
+        request = CreateSimulationRunRequest(
+            calendars=[mornings],
+            arrival={"mean_seconds": 300, "distribution": "expon"},
+            resources=[{"id": "ops", "name": "Operatore", "cost_per_hour": 30, "amount": 1, "shifts": shifts}],
+            tasks=[{"element_id": t, "mean_seconds": 600, "distribution": "fixed", "resource_id": "ops"}
+                   for t in ("T_receive", "T_approve", "T_pay")],
+        )
+        bpmn = normalize_bpmn_for_prosimos(contract_spike.BPMN_PATH.read_text(encoding="utf-8"))
+        scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+        return _run(_model(), payload=scenario.payload, bpmn=scenario.bpmn_xml)
+
+    from datetime import UTC, datetime
+
+    staffed = run([{"amount": 3, "calendar_id": "mornings"}])
+    shift_rows = [row for row in staffed if row["resource"].startswith("Operatore · turno 2")]
+    assert shift_rows, "il turno non ha lavorato"
+    for row in shift_rows:
+        start = datetime.fromtimestamp(row["start"], UTC)
+        assert start.weekday() < 5 and 9 <= start.hour < 12, row
+
+    def waiting(rows: list[dict]) -> float:
+        return sum(row["start"] - row["enable"] for row in rows) / len(rows)
+
+    assert waiting(staffed) < waiting(run([]))
