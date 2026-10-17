@@ -63,6 +63,8 @@ export const runModelSchema = z.object({
           amount: z.number(),
           calendar_id: z.string(),
           provenance,
+          // SIM-30: unita' in piu' presenti solo nel calendario del turno.
+          shifts: z.array(z.object({ amount: z.number(), calendar_id: z.string() })).default([]),
         }),
       ),
     }),
@@ -74,7 +76,7 @@ export const runModelSchema = z.object({
       assignments: z.array(z.object({ resource_id: z.string(), duration: irDistributionSchema, provenance })),
       duration_by: z.object({
         attribute: z.string(),
-        variants: z.array(z.object({ value: z.string(), duration: irDistributionSchema })),
+        variants: z.array(z.object({ value: z.string().nullable().optional(), up_to: z.number().nullable().optional(), duration: irDistributionSchema })),
       }).nullable().optional(),
       // SIM-35: una quota dei casi salta l'attivita' o, finita, torna a rifarla.
       skip: z.object({

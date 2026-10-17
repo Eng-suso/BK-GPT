@@ -170,6 +170,12 @@ function Assignment({ assignment, index, total, lang, t, provenanceState }: { as
     <dl>
       {assignment.resource && <div><dt>{t("simulation.activityInspector.resource")}</dt><dd>{t("simulation.activityInspector.resourceValue", { name: assignment.resource.name, amount: assignment.resource.amount, cost: formatCurrency(assignment.resource.costPerHour, lang) })}</dd></div>}
       {assignment.resource && <div><dt>{t("simulation.activityInspector.calendar")}</dt><dd>{calendarText(assignment.resource.calendar, lang, t)}</dd></div>}
+      {assignment.resource?.shifts.map((shift, index) => (
+        <div key={index}>
+          <dt>{t("simulation.activityInspector.shift", { n: index + 2 })}</dt>
+          <dd>{t("simulation.activityInspector.shiftValue", { count: shift.amount, calendar: calendarText(shift.calendar, lang, t) })}</dd>
+        </div>
+      ))}
       <DurationRows duration={assignment.duration} lang={lang} t={t} />
       <OriginRow field={assignment.provenance} t={t} provenanceState={provenanceState} />
     </dl>
@@ -215,8 +221,10 @@ function DurationBy({ durationBy, lang, t }: { durationBy: DurationByView; lang:
   return <div className="sim-param-group">
     <h5>{t("simulation.activityInspector.durationBy", { attribute: durationBy.attribute })}</h5>
     {durationBy.variants.map((variant) => (
-      <div key={variant.value}>
-        <p className="sim-param-note">{t("simulation.activityInspector.durationByCategory", { attribute: durationBy.attribute, value: variant.value })}</p>
+      <div key={variant.value ?? variant.upTo}>
+        <p className="sim-param-note">{variant.upTo !== null
+          ? t("simulation.config.durationByUpTo", { attribute: durationBy.attribute, value: variant.upTo })
+          : t("simulation.activityInspector.durationByCategory", { attribute: durationBy.attribute, value: variant.value })}</p>
         <dl><DurationRows duration={variant.duration} lang={lang} t={t} /></dl>
       </div>
     ))}

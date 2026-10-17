@@ -14,8 +14,8 @@ const MODEL: RunModel = {
       id: "p",
       name: "Ufficio",
       resources: [
-        { id: "ops", name: "Operatore", cost_per_hour: 30, amount: 2, calendar_id: STANDARD_CALENDAR_ID },
-        { id: "night-ops", name: "Notturno", cost_per_hour: 45, amount: 1, calendar_id: "night" },
+        { id: "ops", name: "Operatore", cost_per_hour: 30, amount: 2, calendar_id: STANDARD_CALENDAR_ID, shifts: [{ amount: 2, calendar_id: "night" }] },
+        { id: "night-ops", name: "Notturno", cost_per_hour: 45, amount: 1, calendar_id: "night", shifts: [] },
       ],
     },
   ],
@@ -134,6 +134,12 @@ describe("elementFromModel", () => {
         bands: [{ from_day: "MONDAY", to_day: "FRIDAY", begin: "09:00:00.000", end: "12:00:00.000", mean_seconds: 300 }] },
     };
     expect(arrivalFromModel(model)?.bands).toEqual([{ fromDay: "MONDAY", toDay: "FRIDAY", begin: "09:00", end: "12:00", meanSeconds: 300 }]);
+  });
+
+  it("shows the extra shifts of the resource with their calendar", () => {
+    const view = elementFromModel(MODEL, "Task_B");
+    const resource = view?.kind === "activity" ? view.assignments[0].resource : null;
+    expect(resource?.shifts).toEqual([{ amount: 2, calendar: { standard: false, name: "Notte", periods: [{ fromDay: "MONDAY", toDay: "FRIDAY", begin: "22:00", end: "23:59" }] } }]);
   });
 
   it("returns null for an element the model does not simulate", () => {

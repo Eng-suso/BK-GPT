@@ -4,6 +4,7 @@ Il motore non le esegue: lo scenario compila l'attivita' in varianti dietro una
 decisione per regola. Il run conserva il modello come l'ha scritto il consulente.
 """
 
+import json
 from pathlib import Path
 
 import pytest
@@ -62,7 +63,7 @@ def test_without_conditional_durations_nothing_is_rewritten():
     ("duration_by", "attributes", "message"),
     [
         ({"attribute": "canale", "variants": [{"value": "web", "mean_seconds": 60}]}, [TYPE], "che il caso non ha"),
-        ({"attribute": "importo", "variants": [{"value": "alto", "mean_seconds": 60}]}, [TYPE, AMOUNT], "solo da un attributo a categorie"),
+        ({"attribute": "importo", "variants": [{"value": "alto", "mean_seconds": 60}]}, [TYPE, AMOUNT], "richiedono un attributo a categorie"),
         ({"attribute": "tipo", "variants": [{"value": "gold", "mean_seconds": 60}]}, [TYPE], "categorie che «tipo» non ha: gold"),
         ({"attribute": "tipo", "variants": [{"value": "premium", "mean_seconds": 60, "distribution": "uniform"}]}, [TYPE], "categoria «premium»"),
     ],
@@ -111,3 +112,37 @@ def test_an_attribute_update_on_the_activity_runs_on_every_variant():
     updated = {entry["event_id"] for entry in scenario.payload["event_attributes"]}
     assert updated == {"T_approve", "T_approve__dur_1"}
     assert [u["element_id"] for u in scenario.model["attribute_updates"]] == ["T_approve"]
+
+
+# --- soglie su un attributo numerico ------------------------------------------------
+
+BY_AMOUNT = {"attribute": "importo", "variants": [
+    {"up_to": 1000, "mean_seconds": 300, "distribution": "fixed"},
+    {"up_to": 5000, "mean_seconds": 900, "distribution": "fixed"},
+]}
+
+
+def test_thresholds_on_a_number_become_consecutive_bands_behind_the_decision():
+    scenario = build_prosimos_scenario(bpmn_xml=BPMN, request=_request(BY_AMOUNT, [AMOUNT]))
+
+    rules = sorted(json.dumps(r["rules"]) for r in scenario.payload["branch_rules"] if r["id"].startswith("T_approve__dur_split"))
+    assert rules == sorted(json.dumps(r) for r in [
+        [[{"attribute": "importo", "comparison": ">=", "value": "5000"}]],
+        [[{"attribute": "importo", "comparison": "<", "value": "1000"}]],
+        [[{"attribute": "importo", "comparison": ">=", "value": "1000"}, {"attribute": "importo", "comparison": "<", "value": "5000"}]],
+    ])
+    variants = {t["task_id"]: t["resources"][0]["distribution_params"][0]["value"]
+                for t in scenario.payload["task_resource_distribution"] if t["task_id"].startswith("T_approve__dur_")}
+    assert variants == {"T_approve__dur_1": 300.0, "T_approve__dur_2": 900.0}
+    approve = next(a for a in scenario.model["activities"] if a["element_id"] == "T_approve")
+    assert [v["up_to"] for v in approve["duration_by"]["variants"]] == [1000.0, 5000.0]
+
+
+@pytest.mark.parametrize(("duration_by", "attributes", "message"), [
+    (BY_AMOUNT, [{"name": "importo", "options": [{"value": "alto", "probability": 1}]}], "le soglie richiedono un attributo numerico"),
+    ({"attribute": "importo", "variants": [{"up_to": 5000, "mean_seconds": 300}, {"up_to": 1000, "mean_seconds": 600}]}, [AMOUNT], "le soglie devono crescere"),
+    ({"attribute": "importo", "variants": [{"up_to": 5000, "mean_seconds": 300}, {"value": "x", "mean_seconds": 600}]}, [AMOUNT], "o tutte per categoria o tutte per soglia"),
+])
+def test_thresholds_that_do_not_fit_are_refused(duration_by, attributes, message):
+    with pytest.raises(ValueError, match=message):
+        build_prosimos_scenario(bpmn_xml=BPMN, request=_request(duration_by, attributes))

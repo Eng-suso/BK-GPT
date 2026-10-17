@@ -404,7 +404,31 @@
       "durationByHint": "Ogni categoria di «{{attribute}}» ha la sua durata; parte da quella di base.",
       "durationByCategory": "Casi con {{attribute}} = {{value}}",
       "durationByMissing": "L'attributo scelto non c'è più o non è a categorie: scegline un altro.",
+      "durationByThresholdHint": "Ogni soglia vale per i casi con «{{attribute}}» sotto quel valore e sopra la soglia precedente.",
+      "durationByUpTo": "{{attribute}} fino a {{value}}",
+      "durationByUpToLabel": "{{attribute}} fino a",
+      "durationByRemoveThreshold": "Togli la soglia {{n}} di {{task}}",
+      "durationByAddThreshold": "Aggiungi una soglia",
+      "durationByThresholdIssue": "Le soglie devono essere numeri crescenti.",
+      "durationByOthersNumber": "Da {{value}} in su i casi usano la durata di base.",
       "invalidFlowRules": "Attività con salto o rilavorazione da correggere: {{count}}",
+      "invalidShifts": "Ruoli con un turno da correggere: {{count}}",
+      "shifts": {
+        "title": "Turni di rinforzo",
+        "hint": "Unità in più presenti solo negli orari di un calendario, per esempio due persone in più la mattina.",
+        "noCalendars": "Per un turno di rinforzo crea prima il suo calendario nella sezione Calendari.",
+        "add": "Aggiungi un turno",
+        "addFor": "Aggiungi un turno a {{role}}",
+        "label": "{{role}} · turno {{n}}",
+        "amount": "Unità in più",
+        "calendar": "Negli orari di",
+        "chooseCalendar": "Scegli un calendario",
+        "remove": "Togli {{shift}}",
+        "issue": {
+          "amount": "Un numero intero da 1 a 1000.",
+          "calendar": "Il calendario del turno non c'è più: scegline un altro."
+        }
+      },
       "arrivalBands": {
         "toggle": "Ritmo diverso per fascia oraria",
         "hint": "Ogni fascia ha il suo tempo medio fra due arrivi. Fuori dalle fasce non arriva nessuno.",
@@ -570,6 +594,9 @@
       "reworkWhen_one": "Finita, il {{share}} dei casi con {{rule}} tornava a {{target}}, al più {{count}} volta per caso.",
       "reworkWhen_other": "Finita, il {{share}} dei casi con {{rule}} tornava a {{target}}, al più {{count}} volte per caso.",
       "reworkSelf": "rifarla",
+      "shift": "Turno {{n}}",
+      "shiftValue_one": "{{count}} unità in più · {{calendar}}",
+      "shiftValue_other": "{{count}} unità in più · {{calendar}}",
       "arrivalBand": "un caso ogni {{every}}",
       "arrivalBandsNote": "Fuori da queste fasce non arrivava nessuno. Gli arrivi li ha generati il runner DeliR, con il seed del run.",
       "escalation": "Escalation a tempo dopo {{after}} su «{{activity}}»: è andata nel ramo d'escalation la quota dei casi la cui lavorazione superava il timer, calcolata dalla durata simulata. L'attesa in coda non conta."

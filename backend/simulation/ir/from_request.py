@@ -35,6 +35,7 @@ from backend.simulation.ir.model import (
     Provenance,
     Resource,
     ResourcePool,
+    ResourceShift,
     Rework,
     SimulationModel,
     Skip,
@@ -236,7 +237,9 @@ def _pool(
             raise ValueError("Assegna un nome alle risorse.")
         if any(not task_overrides.get(t.id) or task_overrides[t.id].resource_id not in ids for t in tasks):
             raise ValueError("Assegna una risorsa valida a ogni attività prima di simulare.")
-        unknown = sorted({cfg.calendar_id for cfg in request.resources if cfg.calendar_id} - calendar_ids)
+        used = {cfg.calendar_id for cfg in request.resources if cfg.calendar_id}
+        used |= {shift.calendar_id for cfg in request.resources for shift in cfg.shifts}
+        unknown = sorted(used - calendar_ids)
         if unknown:
             raise ValueError(f"Calendari inesistenti assegnati alle risorse: {', '.join(unknown)}.")
         return ResourcePool(
@@ -250,6 +253,10 @@ def _pool(
                     amount=int(cfg.amount),
                     calendar_id=cfg.calendar_id or STANDARD_CALENDAR_ID,
                     provenance=_MANUAL,
+                    shifts=tuple(
+                        ResourceShift(amount=int(shift.amount), calendar_id=shift.calendar_id, provenance=_MANUAL)
+                        for shift in cfg.shifts
+                    ),
                 )
                 for cfg in request.resources
             ),
@@ -325,14 +332,19 @@ def _duration_by(task: BpmnTask, override) -> DurationByAttribute | None:
         return None
     label = task.name or task.id
     variants = []
-    for cfg in override.duration_by.variants:
-        try:
-            value = duration(cfg.distribution, float(cfg.mean_seconds), std=cfg.std_seconds,
-                             minimum=cfg.min_seconds, maximum=cfg.max_seconds)
-        except ValueError as exc:
-            raise ValueError(f"«{label}», categoria «{cfg.value}»: {exc}") from exc
-        variants.append(DurationVariant(value=cfg.value, duration=value, provenance=_MANUAL))
-    return DurationByAttribute(attribute=override.duration_by.attribute, variants=tuple(variants))
+    try:
+        for cfg in override.duration_by.variants:
+            which = f"categoria «{cfg.value}»" if cfg.value is not None else f"fino a {cfg.up_to:g}"
+            try:
+                value = duration(cfg.distribution, float(cfg.mean_seconds), std=cfg.std_seconds,
+                                 minimum=cfg.min_seconds, maximum=cfg.max_seconds)
+            except ValueError as exc:
+                raise ValueError(f"«{label}», {which}: {exc}") from exc
+            variants.append(DurationVariant(value=cfg.value, up_to=cfg.up_to, duration=value, provenance=_MANUAL))
+        return DurationByAttribute(attribute=override.duration_by.attribute, variants=tuple(variants))
+    except ValidationError as exc:
+        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+        raise ValueError(f"«{label}»: {reason}.") from exc
 
 
 def _declared(override: SimTaskConfig | None) -> Provenance | None:

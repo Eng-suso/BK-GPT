@@ -281,6 +281,8 @@ export type SimResourceInput = {
   amount: number;
   /** Assente = il calendario standard. */
   calendarId?: string;
+  /** SIM-30: turni di rinforzo. */
+  shifts?: { amount: number; calendarId: string }[];
 };
 
 export type SimDurationInput = {
@@ -324,7 +326,7 @@ export type SimTaskInput = SimDurationInput & {
   /** SIM-10: euro per esecuzione. */
   fixedCost?: number;
   /** SIM-32: durate per categoria di un attributo del caso. */
-  durationBy?: { attribute: string; variants: (SimDurationInput & { value: string })[] };
+  durationBy?: { attribute: string; variants: (SimDurationInput & { value?: string; upTo?: number })[] };
   /** Gli altri ruoli che possono svolgere l'attività, ognuno con la sua durata. */
   otherAssignments?: (SimDurationInput & { resourceId: string })[];
   /** SIM-35: salto e rilavorazione. */

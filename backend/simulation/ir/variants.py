@@ -49,10 +49,14 @@ def check_duration_rules(model: SimulationModel) -> None:
         label = activity.name or activity.element_id
         if attribute is None:
             raise ValueError(f"«{label}»: la durata dipende da «{rule.attribute}», che il caso non ha.")
+        if rule.by_threshold:
+            if attribute.distribution is None:
+                raise ValueError(f"«{label}»: le soglie richiedono un attributo numerico, «{rule.attribute}» è a categorie.")
+            continue
         if attribute.options is None:
-            raise ValueError(f"«{label}»: la durata può dipendere solo da un attributo a categorie.")
+            raise ValueError(f"«{label}»: le categorie richiedono un attributo a categorie, «{rule.attribute}» è numerico.")
         known = {option.value for option in attribute.options}
-        missing = sorted({variant.value for variant in rule.variants} - known)
+        missing = sorted({variant.value or "" for variant in rule.variants} - known)
         if missing:
             raise ValueError(f"«{label}»: categorie che «{rule.attribute}» non ha: {', '.join(missing)}.")
 
@@ -165,18 +169,39 @@ def _split_gateway(activity: Activity, copies: list[Activity]) -> Gateway:
     rule = _rule(activity)
     split_id, _ = _ids(activity)
     share = 1 / (len(copies) + 1)
-    others = Condition(any_of=(tuple(Rule(attribute=rule.attribute, operator="!=", value=v.value) for v in rule.variants),))
+    conditions = _threshold_conditions(rule) if rule.by_threshold else _category_conditions(rule)
+    others, *variants = conditions
     return Gateway(
         element_id=split_id,
         branches=(
             Branch(flow_id=f"{split_id}__{activity.element_id}", probability=share, condition=others),
             *(
-                Branch(flow_id=f"{split_id}__{copy_.element_id}", probability=share,
-                       condition=Condition(any_of=((Rule(attribute=rule.attribute, operator="=", value=variant.value),),)))
-                for copy_, variant in zip(copies, rule.variants, strict=True)
+                Branch(flow_id=f"{split_id}__{copy_.element_id}", probability=share, condition=condition)
+                for copy_, condition in zip(copies, variants, strict=True)
             ),
         ),
     )
+
+
+def _category_conditions(rule: DurationByAttribute) -> list[Condition]:
+    """Prima i casi senza una categoria elencata, poi una condizione per categoria."""
+    others = Condition(any_of=(tuple(Rule(attribute=rule.attribute, operator="!=", value=v.value or "") for v in rule.variants),))
+    return [others, *(
+        Condition(any_of=((Rule(attribute=rule.attribute, operator="=", value=v.value or ""),),)) for v in rule.variants
+    )]
+
+
+def _threshold_conditions(rule: DurationByAttribute) -> list[Condition]:
+    """Prima i casi oltre l'ultima soglia, poi una fascia per soglia: [precedente, soglia)."""
+    thresholds = [float(v.up_to or 0) for v in rule.variants]
+    others = Condition(any_of=((Rule(attribute=rule.attribute, operator=">=", value=thresholds[-1]),),))
+    bands = []
+    for index, up_to in enumerate(thresholds):
+        group = (Rule(attribute=rule.attribute, operator="<", value=up_to),)
+        if index:
+            group = (Rule(attribute=rule.attribute, operator=">=", value=thresholds[index - 1]), *group)
+        bands.append(Condition(any_of=(group,)))
+    return [others, *bands]
 
 
 def _find(root: ET.Element, element_id: str) -> tuple[ET.Element, ET.Element]:

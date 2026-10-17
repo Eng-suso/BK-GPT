@@ -68,3 +68,37 @@ describe("durations by case category (SIM-32)", () => {
     expect(document.querySelector('[data-duration-by="T1"]')).toBeNull();
   });
 });
+
+describe("durations by amount thresholds (SIM-32b)", () => {
+  const AMOUNT = { id: "attr-2", name: "importo", kind: "number" as const, minimum: 0, maximum: 10000 };
+
+  it("gives small amounts a shorter approval with increasing thresholds and sends them", async () => {
+    const user = userEvent.setup();
+    render(<Harness initial={{ ...READY, caseAttributes: [AMOUNT] }} />);
+    const block = document.querySelector('[data-duration-by="T1"]') as HTMLElement;
+
+    await user.selectOptions(within(block).getByLabelText("La durata cambia con · Approva"), "attr-2");
+    const first = within(block).getByLabelText("importo fino a · Approva · 1");
+    await user.clear(first);
+    await user.type(first, "1000");
+    await user.click(within(block).getByRole("button", { name: "Aggiungi una soglia" }));
+    expect(within(block).getByText("Da 2000 in su i casi usano la durata di base.")).toBeInTheDocument();
+
+    const [task] = scenarioToInput(current(), null).tasks ?? [];
+    expect(task.durationBy?.variants.map((v) => [v.upTo, v.meanSeconds])).toEqual([[1000, 1200], [2000, 1200]]);
+  });
+
+  it("blocks the run when the thresholds do not increase", async () => {
+    const user = userEvent.setup();
+    render(<Harness initial={{ ...READY, caseAttributes: [AMOUNT] }} />);
+    const block = document.querySelector('[data-duration-by="T1"]') as HTMLElement;
+    await user.selectOptions(within(block).getByLabelText("La durata cambia con · Approva"), "attr-2");
+    await user.click(within(block).getByRole("button", { name: "Aggiungi una soglia" }));
+    const second = within(block).getByLabelText("importo fino a · Approva · 2");
+    await user.clear(second);
+    await user.type(second, "10");
+
+    expect(within(block).getByRole("alert")).toHaveTextContent("Le soglie devono essere numeri crescenti.");
+    expect(scenarioParameterIssues(current()).durations).toBe(1);
+  });
+});

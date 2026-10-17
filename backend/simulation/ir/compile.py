@@ -23,6 +23,7 @@ from backend.simulation.ir.model import (
     Gamma,
     LogNormal,
     Normal,
+    Resource,
     SimulationModel,
     Uniform,
 )
@@ -30,6 +31,7 @@ from backend.simulation.ir.model import (
 
 def compile_for_prosimos(model: SimulationModel) -> dict:
     """Lo scenario Prosimos che esegue ``model``."""
+    model = expand_shifts(model)
     calendars = {calendar.id: calendar for calendar in model.calendars}
     assigned: dict[str, list[str]] = {}
     for activity in model.activities:
@@ -119,6 +121,51 @@ def compile_for_prosimos(model: SimulationModel) -> dict:
             for rule in sorted(model.priority_rules, key=lambda r: r.level)
         ]
     return payload
+
+
+def shift_id(resource_id: str, index: int) -> str:
+    return f"{resource_id}__shift_{index + 1}"
+
+
+def shift_name(name: str, index: int) -> str:
+    # Il nome distingue il turno nel log e nei risultati: "Operatore · turno 2".
+    return f"{name} · turno {index + 2}"
+
+
+def expand_shifts(model: SimulationModel) -> SimulationModel:
+    """SIM-30: ogni turno diventa una risorsa in piu' del pool, con le stesse attivita' e durate.
+
+    Senza turni restituisce lo stesso modello.
+    """
+    if not any(resource.shifts for resource in model.resources().values()):
+        return model
+    pools = []
+    extra: dict[str, list[str]] = {}
+    for pool in model.pools:
+        resources = []
+        for resource in pool.resources:
+            resources.append(resource.model_copy(update={"shifts": ()}))
+            for index, shift in enumerate(resource.shifts):
+                resources.append(Resource(
+                    id=shift_id(resource.id, index), name=shift_name(resource.name, index),
+                    cost_per_hour=resource.cost_per_hour, amount=shift.amount, calendar_id=shift.calendar_id,
+                    provenance=shift.provenance or resource.provenance,
+                ))
+                extra.setdefault(resource.id, []).append(shift_id(resource.id, index))
+        pools.append(pool.model_copy(update={"resources": tuple(resources)}))
+    activities = tuple(
+        activity.model_copy(update={"assignments": tuple(
+            copy
+            for assignment in activity.assignments
+            for copy in (assignment, *(
+                assignment.model_copy(update={"resource_id": shift}) for shift in extra.get(assignment.resource_id, [])
+            ))
+        )})
+        for activity in model.activities
+    )
+    expanded = model.model_copy(update={"pools": tuple(pools), "activities": activities})
+    # Rivalidato: un id di turno che collide con una risorsa esistente deve fallire qui.
+    return SimulationModel.model_validate(expanded.model_dump())
 
 
 def distribution_params(distribution) -> dict:

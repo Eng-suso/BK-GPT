@@ -31,7 +31,10 @@ const draft = {
   resources: [{ id: "r1", name: "Ufficio acquisti", costPerHour: 40, amount: 2, parametersConfirmed: true }],
   tasks: Object.fromEntries(tasks.map((t) => [t.element_id, { meanMinutes: 20, distribution: "norm", resourceId: "r1", assignmentSource: "manual" }])),
   gateways: { G_split: { F_high: 50, F_low: 50 } },
-  caseAttributes: [{ id: "attr-1", name: "tipo", kind: "category", categories: [{ value: "premium", percent: 30 }, { value: "standard", percent: 70 }] }],
+  caseAttributes: [
+    { id: "attr-1", name: "tipo", kind: "category", categories: [{ value: "premium", percent: 30 }, { value: "standard", percent: 70 }] },
+    { id: "attr-2", name: "importo", kind: "number", minimum: 100, maximum: 12000 },
+  ],
 };
 
 const run = {
@@ -122,4 +125,24 @@ test("the activity inspector lists the durations per category the run simulated"
   await expect(params).toContainText("tipo = premium");
   await expect(params).toContainText("10 min");
   await expect(params).toContainText("25 min");
+});
+
+test("the consultant gives small amounts a faster approval with thresholds and the run carries them", async ({ page }) => {
+  await fixture(page);
+  await page.goto(`${studio}/scenario`);
+  const block = page.locator('[data-duration-by="T_approve"]');
+  await block.getByLabel("La durata cambia con · Approva").selectOption({ label: "importo" });
+  await block.getByLabel("importo fino a · Approva · 1").fill("1000");
+  await block.getByLabel("Durata, min · Approva · importo fino a 1000").fill("5");
+  await block.getByRole("button", { name: "Aggiungi una soglia" }).click();
+  await expect(block).toContainText("Da 2000 in su i casi usano la durata di base.");
+
+  const axe = await new AxeBuilder({ page }).include('[data-duration-by="T_approve"]').withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+
+  const request = page.waitForRequest((req) => req.method() === "POST" && req.url().endsWith("/simulation-runs"));
+  await page.getByRole("button", { name: "Avvia simulazione", exact: true }).click();
+  const sent = (await request).postDataJSON().tasks.find((t: { element_id: string }) => t.element_id === "T_approve");
+  expect(sent.duration_by.attribute).toBe("importo");
+  expect(sent.duration_by.variants.map((v: { up_to: number; mean_seconds: number }) => [v.up_to, v.mean_seconds])).toEqual([[1000, 300], [2000, 1200]]);
 });
