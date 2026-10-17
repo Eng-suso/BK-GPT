@@ -167,12 +167,14 @@ export function scenarioValue(results: ScenarioRuns, kpi: ReplicationKpi): Scena
  * "migliore" solo se esclude lo zero. Con un run solo: il delta secco, che la UI
  * dice non difendibile. Se i due run partono da versioni diverse dell'AS-IS
  * nessun delta: confronterebbe due modelli diversi (`mismatch`).
+ * `comparisons`: quante alternative si confrontano insieme con l'AS-IS, per
+ * l'intervallo corretto con Bonferroni.
  */
-export function scenarioDeltas(asIs: ScenarioRuns, scenario: ScenarioRuns, runs: SimulationRun[]): { kpis: Record<ReplicationKpi, ScenarioDelta | null>; paired: boolean | null; mismatch: boolean } {
+export function scenarioDeltas(asIs: ScenarioRuns, scenario: ScenarioRuns, runs: SimulationRun[], comparisons = 1): { kpis: Record<ReplicationKpi, ScenarioDelta | null>; paired: boolean | null; mismatch: boolean } {
   const empty = { cycle: null, waiting: null, costPerCase: null, throughput: null };
   if (!asIs.latest || !scenario.latest || !asIs.completed.length || !scenario.completed.length) return { kpis: empty, paired: null, mismatch: false };
   if (runScenarioRef(asIs.latest)?.baseline_revision !== runScenarioRef(scenario.latest)?.baseline_revision) return { kpis: empty, paired: null, mismatch: true };
-  const grouped = compareGroups(asIs.latest, scenario.latest, runs);
+  const grouped = compareGroups(asIs.latest, scenario.latest, runs, comparisons);
   if (grouped) {
     const kpis = { ...empty } as Record<ReplicationKpi, ScenarioDelta | null>;
     for (const kpi of WORKSPACE_KPIS) {
@@ -191,6 +193,14 @@ export function scenarioDeltas(asIs: ScenarioRuns, scenario: ScenarioRuns, runs:
     kpis[kpi] = { kind: "single", delta, direction: delta === 0 ? "same" : better ? "better" : "worse" };
   }
   return { kpis, paired: null, mismatch: false };
+}
+
+/** Le alternative che entrano nel confronto con l'AS-IS: almeno un run completato, sulla stessa versione dell'AS-IS. */
+export function comparisonCount(asIs: ScenarioRuns | null, alternatives: ScenarioRuns[]): number {
+  const base = asIs?.latest ? runScenarioRef(asIs.latest)?.baseline_revision : undefined;
+  if (base === undefined || !asIs?.completed.length) return 1;
+  const count = alternatives.filter((alt) => alt.completed.length > 0 && alt.latest && runScenarioRef(alt.latest)?.baseline_revision === base).length;
+  return Math.max(1, count);
 }
 
 /** Gli elementi del BPMN che lo scenario cambia (attivita' e decisioni), per l'overlay e l'inspector. */
