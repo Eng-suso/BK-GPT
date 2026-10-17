@@ -74,6 +74,14 @@ async def run_prosimos_simulation(
     if not isinstance(payload, dict):
         payload = {"result": payload}
 
+    # SIM-08: un motore che non conosce le fasce le ignorerebbe e simulerebbe
+    # arrivi diversi da quelli chiesti, senza dirlo.
+    bands = request.scenario.payload.get("delir_arrival_bands") or []
+    if bands and payload.get("ArrivalBands") != len(bands):
+        raise ProsimosError(
+            "Il motore non applica le fasce degli arrivi: serve il runner DeliR (ops/prosimos/runner)."
+        )
+
     # Seed e data di inizio insieme rifanno lo stesso log: senza una data nella
     # richiesta si usa "adesso", quindi va conservata quella effettivamente usata.
     payload.setdefault("StartDate", start)
