@@ -72,6 +72,7 @@ export function ActivitySources({
         {open.map((proposal) => (
           <li key={proposal.claim_id} data-proposed-claim={proposal.claim_id} className="grid gap-1 rounded-md border border-dashed border-border p-2.5">
             <span className="text-xs font-medium text-muted-foreground">{t("simulation.config.sourceProposed", { file: proposal.source_name })}</span>
+            {proposal.match === "llm" && <span className="text-xs text-[var(--state-warning-text)]" data-proposed-by-model>{t("simulation.config.sourceProposedByModel")}</span>}
             <q className="text-sm text-foreground">{proposal.statement}</q>
             {reference(proposal)}
             <div className="flex flex-wrap gap-2">

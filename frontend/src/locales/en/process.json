@@ -355,6 +355,7 @@
       "sourcesHint": "Statements from the uploaded files that name this activity. Linking one says where the duration comes from; the value stays the one you set here.",
       "sourceLinked": "Linked source · {{file}}",
       "sourceProposed": "Proposed from {{file}}",
+      "sourceProposedByModel": "Suggested by AI: the words differ from the name, check that it is about this activity.",
       "sourceSays": "The source says {{duration}} (“{{text}}”): a reference, not the value.",
       "linkSource": "Link as source",
       "linkSourceFor": "Link as source for {{task}}: {{what}}",

@@ -355,6 +355,7 @@
       "sourcesHint": "Affermazioni dei file caricati che nominano questa attività. Collegarne una dice da dove viene la durata; il valore resta quello che imposti qui.",
       "sourceLinked": "Fonte collegata · {{file}}",
       "sourceProposed": "Proposta da {{file}}",
+      "sourceProposedByModel": "Suggerita dall'AI: le parole non coincidono con il nome, controlla che parli di questa attività.",
       "sourceSays": "La fonte indica {{duration}} («{{text}}»): è un riferimento, non il valore.",
       "linkSource": "Collega come fonte",
       "linkSourceFor": "Collega come fonte per {{task}}: {{what}}",
