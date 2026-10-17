@@ -1236,6 +1236,7 @@
         "scenario": "Scenario",
         "deltaInterval": "Δ {{delta}} ± {{half}}",
         "deltaSingle": "Δ {{delta}}",
+        "deltaMismatch": "Il run di questo scenario e quello dell'AS-IS partono da versioni diverse dell'AS-IS: rilanciali per confrontarli.",
         "verdict": {
           "better": "Migliore",
           "worse": "Peggiore",
