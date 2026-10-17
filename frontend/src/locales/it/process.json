@@ -412,6 +412,7 @@
         }
       },
       "invalidSla": "Obiettivo di servizio da correggere.",
+      "invalidHorizon": "Periodo da correggere.",
       "fixedCost": "Costo fisso per esecuzione, €",
       "caseFixedCost": "Costo fisso per caso, €",
       "invalidCosts": "Costi fissi da correggere: devono essere zero o più.",
@@ -488,6 +489,15 @@
         "rule": "Completa la regola."
       },
       "warmupCases": "Casi di riscaldamento",
+      "runLength": {
+        "by": "Simula per",
+        "cases": "Numero di casi",
+        "period": "Periodo",
+        "days": "Giorni simulati",
+        "hint_one": "I casi arrivano con il ritmo degli arrivi per {{count}} giorno; a fine periodo quelli non finiti restano aperti e i risultati li contano.",
+        "hint_other": "I casi arrivano con il ritmo degli arrivi per {{count}} giorni; a fine periodo quelli non finiti restano aperti e i risultati li contano.",
+        "issue": "Il periodo va da 1 a {{max}} giorni interi."
+      },
       "warmupHint": "Facoltativo. Il sistema parte vuoto: i primi casi trovano code corte. Restano fuori dai risultati, il replay li mostra.",
       "warmupIssue": {
         "notWhole": "Indica un numero intero di casi.",
@@ -550,6 +560,9 @@
       "costActivities": "Costi fissi delle attività: {{value}}",
       "costCases": "Costi fissi per caso: {{value}}",
       "warmupNote": "Risultati calcolati su {{measured}} casi: i primi {{excluded}} servivano a riempire le code e sono esclusi.",
+      "horizonNote_one": "Periodo di {{count}} giorno: {{completed}} casi completati su {{arrived}} arrivati, {{open}} ancora aperti a fine periodo. I risultati misurano i completati.",
+      "horizonNote_other": "Periodo di {{count}} giorni: {{completed}} casi completati su {{arrived}} arrivati, {{open}} ancora aperti a fine periodo. I risultati misurano i completati.",
+      "horizonUncovered": "Gli arrivi generati non coprono tutto il periodo: i risultati valgono per meno casi di quanti ne sarebbero arrivati. Riprova o accorcia il periodo.",
       "replications": "Ripetizioni dello scenario",
       "replicationProgress": "Ripetizioni completate: {{done}} di {{total}}.",
       "replicationFailed_one": "{{count}} non è riuscita.",
@@ -1299,6 +1312,7 @@
         "sla": "Obiettivo di servizio",
         "caseFixedCost": "Costo fisso per caso, €",
         "warmupCases": "Casi di riscaldamento",
+        "horizonDays": "Periodo simulato, giorni",
         "replications": "Ripetizioni",
         "defaultTaskMinutes": "Durata default, min",
         "resources": "Risorse",
