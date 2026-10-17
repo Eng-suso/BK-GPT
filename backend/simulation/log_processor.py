@@ -21,7 +21,7 @@ import io
 import math
 import re
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from backend.settings import settings
@@ -52,6 +52,9 @@ class LogEvent:
     start: float
     end: float
     resource: str
+    # Gli attributi che il motore scrive dopo le sei colonne (case e event
+    # attribute): il valore del caso a quell'evento, come testo.
+    attributes: dict[str, str] = field(default_factory=dict)
 
 
 # --------------------------------------------------------------------------- #
@@ -70,12 +73,14 @@ def parse_prosimos_log(csv_text: str) -> list[LogEvent]:
     except StopIteration as exc:
         raise ProsimosLogError("empty Prosimos event log") from exc
 
-    if header != EXPECTED_LOG_HEADER:
+    # Con attributi del caso il motore aggiunge una colonna per attributo.
+    if header[:6] != EXPECTED_LOG_HEADER:
         raise ProsimosLogError(f"unexpected Prosimos log header: {header!r}")
+    extra = header[6:]
 
     events: list[LogEvent] = []
     for row in reader:
-        if len(row) != 6 or not row[0].strip():
+        if len(row) != len(header) or not row[0].strip():
             continue
         try:
             events.append(
@@ -86,6 +91,7 @@ def parse_prosimos_log(csv_text: str) -> list[LogEvent]:
                     start=_parse_ts(row[3]),
                     end=_parse_ts(row[4]),
                     resource=row[5].strip(),
+                    attributes={name: value.strip() for name, value in zip(extra, row[6:], strict=True) if value.strip()},
                 )
             )
         except ValueError as exc:
