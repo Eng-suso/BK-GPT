@@ -30,6 +30,17 @@ export const simulationSummarySchema = z
       cases: z.number(),
       late_cases: z.number(),
       met: z.boolean(),
+      /** SIM-13b: l'esito per ogni gruppo di casi con un obiettivo suo. */
+      segments: z.array(z.object({
+        attribute: z.string(),
+        value: z.string(),
+        target_seconds: z.number(),
+        share_target: z.number(),
+        share_within: z.number(),
+        cases: z.number(),
+        late_cases: z.number(),
+        met: z.boolean(),
+      })).optional(),
     }).nullable().optional(),
     throughputPerHour: z.number(),
     byActivity: z.array(z.record(z.string(), z.unknown())),
@@ -350,7 +361,7 @@ export type CreateSimulationRunInput = {
   resourceName: string;
   arrival?: SimArrivalInput;
   /** SIM-13: obiettivo di servizio, in secondi e quota 0-1. */
-  sla?: { targetSeconds: number; share: number };
+  sla?: { targetSeconds: number; share: number; segments?: { attribute: string; value: string; targetSeconds: number; share: number }[] };
   /** SIM-10: euro per caso completato. */
   caseFixedCost?: number;
   /** SIM-03: i primi casi fuori dai KPI. */
