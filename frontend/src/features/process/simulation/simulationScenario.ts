@@ -72,7 +72,12 @@ export type TaskDraft = DurationDraft & {
   /** SIM-10: euro per ogni esecuzione, oltre al tempo delle risorse. Assente = nessuno. */
   fixedCost?: number;
   /** SIM-32: durata per categoria di un attributo; le categorie senza voce usano la base. */
-  durationBy?: { attributeId: string; variants: Record<string, DurationDraft> };
+  durationBy?: {
+    attributeId: string;
+    variants: Record<string, DurationDraft>;
+    /** SIM-32b: per un attributo numerico, soglie crescenti "fino a" con la loro durata. */
+    thresholds?: { upTo: number; duration: DurationDraft }[];
+  };
   /** SIM-35: una quota dei casi salta l'attività. */
   skip?: SkipDraft;
   /** SIM-35: finita l'attività, una quota torna indietro a rifare il lavoro. */
@@ -86,9 +91,22 @@ export function durationOf(task: DurationDraft): DurationDraft {
 }
 
 /** Le durate per categoria che si inviano: le categorie attuali dell'attributo, la base dove manca. */
-export function durationVariants(task: TaskDraft, attributes: CaseAttributeDraft[]): { attribute: string; variants: { value: string; duration: DurationDraft }[] } | null {
+export type DurationVariantDraft = { value?: string; upTo?: number; duration: DurationDraft };
+
+/** Le soglie in ordine crescente e tutte finite, senza ripetizioni: altrimenti la durata va rivista. */
+export function thresholdsValid(thresholds: { upTo: number }[]): boolean {
+  return thresholds.length > 0 && thresholds.every((t, i) => Number.isFinite(t.upTo) && (i === 0 || t.upTo > thresholds[i - 1].upTo));
+}
+
+export function durationVariants(task: TaskDraft, attributes: CaseAttributeDraft[]): { attribute: string; variants: DurationVariantDraft[] } | null {
   const attribute = attributes.find((a) => a.id === task.durationBy?.attributeId);
-  if (!task.durationBy || !attribute || attribute.kind !== "category") return null;
+  if (!task.durationBy || !attribute) return null;
+  if (attribute.kind === "number") {
+    const name = attribute.name.trim();
+    const thresholds = task.durationBy.thresholds ?? [];
+    if (!name || !thresholdsValid(thresholds)) return null;
+    return { attribute: name, variants: thresholds.map((t) => ({ upTo: t.upTo, duration: t.duration })) };
+  }
   // Senza nome il backend non saprebbe a quale attributo legarla: la durata va rivista.
   const name = attribute.name.trim();
   const values = attribute.categories.map((c) => c.value.trim()).filter(Boolean);
@@ -340,7 +358,9 @@ function taskMeanSeconds(task: DurationDraft): number {
 function byCategory(task: TaskDraft, attributes: CaseAttributeDraft[]) {
   const variants = durationVariants(task, attributes);
   return variants
-    ? { durationBy: { attribute: variants.attribute, variants: variants.variants.map((v) => ({ value: v.value, ...durationInput(v.duration) })) } }
+    ? { durationBy: { attribute: variants.attribute, variants: variants.variants.map((v) => ({
+      ...(v.upTo !== undefined ? { upTo: v.upTo } : { value: v.value ?? "" }), ...durationInput(v.duration),
+    })) } }
     : {};
 }
 

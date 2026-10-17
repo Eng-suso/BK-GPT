@@ -404,6 +404,13 @@
       "durationByHint": "Each category of “{{attribute}}” has its own duration, starting from the base one.",
       "durationByCategory": "Cases with {{attribute}} = {{value}}",
       "durationByMissing": "The chosen attribute is gone or not a category: pick another.",
+      "durationByThresholdHint": "Each threshold applies to cases with «{{attribute}}» below that value and above the previous threshold.",
+      "durationByUpTo": "{{attribute}} up to {{value}}",
+      "durationByUpToLabel": "{{attribute}} up to",
+      "durationByRemoveThreshold": "Remove threshold {{n}} of {{task}}",
+      "durationByAddThreshold": "Add a threshold",
+      "durationByThresholdIssue": "Thresholds must be increasing numbers.",
+      "durationByOthersNumber": "From {{value}} upward cases use the base duration.",
       "invalidFlowRules": "Activities with a skip or rework to fix: {{count}}",
       "invalidShifts": "Roles with a shift to fix: {{count}}",
       "shifts": {

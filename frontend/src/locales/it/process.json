@@ -404,6 +404,13 @@
       "durationByHint": "Ogni categoria di «{{attribute}}» ha la sua durata; parte da quella di base.",
       "durationByCategory": "Casi con {{attribute}} = {{value}}",
       "durationByMissing": "L'attributo scelto non c'è più o non è a categorie: scegline un altro.",
+      "durationByThresholdHint": "Ogni soglia vale per i casi con «{{attribute}}» sotto quel valore e sopra la soglia precedente.",
+      "durationByUpTo": "{{attribute}} fino a {{value}}",
+      "durationByUpToLabel": "{{attribute}} fino a",
+      "durationByRemoveThreshold": "Togli la soglia {{n}} di {{task}}",
+      "durationByAddThreshold": "Aggiungi una soglia",
+      "durationByThresholdIssue": "Le soglie devono essere numeri crescenti.",
+      "durationByOthersNumber": "Da {{value}} in su i casi usano la durata di base.",
       "invalidFlowRules": "Attività con salto o rilavorazione da correggere: {{count}}",
       "invalidShifts": "Ruoli con un turno da correggere: {{count}}",
       "shifts": {

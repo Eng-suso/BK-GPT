@@ -74,7 +74,7 @@ export async function runProsimosSimulation(
           duration_by: task.durationBy && {
             attribute: task.durationBy.attribute,
             variants: task.durationBy.variants.map((v) => ({
-              value: v.value,
+              ...(v.upTo !== undefined ? { up_to: v.upTo } : { value: v.value }),
               mean_seconds: v.meanSeconds,
               distribution: v.distribution,
               std_seconds: v.stdSeconds,
