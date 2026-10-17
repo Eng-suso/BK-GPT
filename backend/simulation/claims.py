@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from typing import Literal
 
 _STEM = 5
 _MIN_WORD = 4
@@ -69,6 +70,8 @@ class ClaimProposal:
     source_name: str
     score: float
     duration_hint: DurationHint | None
+    # Come e' nata la proposta: dal confronto sui nomi o dal ripiego con l'LLM.
+    match: Literal["lexical", "llm"] = "lexical"
 
 
 def _words(text: str) -> set[str]:

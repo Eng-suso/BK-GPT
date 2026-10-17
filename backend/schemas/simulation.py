@@ -274,6 +274,8 @@ class ClaimProposalResponse(BaseModel):
     score: float
     # Una durata citata nella fonte: un riferimento, mai il valore del parametro.
     duration_hint: DurationHintResponse | None = None
+    # "llm": proposta dal ripiego con il modello (C3), il punteggio non c'e'.
+    match: Literal["lexical", "llm"] = "lexical"
 
 
 class ActivityClaimsResponse(BaseModel):
