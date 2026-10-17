@@ -260,6 +260,9 @@ def process_prosimos_log(
             raise ProsimosLogError("nessun caso completato nel periodo")
         events = arrived
     measured = after_warmup(measured, warmup_cases)
+    if not measured:
+        # Con un periodo i casi completati possono essere meno del riscaldamento.
+        raise ProsimosLogError("il riscaldamento esclude tutti i casi completati nel periodo")
     max_cases = max_cases or settings.sim_replay_max_cases
     buckets = buckets or settings.sim_replay_buckets
 

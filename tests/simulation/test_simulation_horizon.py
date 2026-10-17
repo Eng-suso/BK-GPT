@@ -123,6 +123,12 @@ def test_a_period_shorter_than_the_first_completion_has_nothing_to_measure():
                              horizon=(first - 1, 1))
 
 
+def test_a_warmup_that_swallows_every_completed_case_is_named():
+    with pytest.raises(ValueError, match="il riscaldamento esclude tutti i casi"):
+        process_prosimos_log(LOG, normalized_bpmn_xml=MINIMAL_BPMN, scenario_payload={}, prosimos_stats=STATS,
+                             horizon=(horizon_end(MONDAY, 1), 1), warmup_cases=1000)
+
+
 def test_a_run_with_a_period_estimates_its_cases_and_reports_the_period(monkeypatch):
     from backend.app import app
 
