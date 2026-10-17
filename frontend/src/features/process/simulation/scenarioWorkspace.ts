@@ -165,11 +165,13 @@ export function scenarioValue(results: ScenarioRuns, kpi: ReplicationKpi): Scena
  * La differenza scenario − AS-IS per ogni KPI. Con almeno due ripetizioni per
  * parte: intervallo al 95% (a coppie se gli stessi seed, altrimenti Welch) e
  * "migliore" solo se esclude lo zero. Con un run solo: il delta secco, che la UI
- * dice non difendibile.
+ * dice non difendibile. Se i due run partono da versioni diverse dell'AS-IS
+ * nessun delta: confronterebbe due modelli diversi (`mismatch`).
  */
-export function scenarioDeltas(asIs: ScenarioRuns, scenario: ScenarioRuns, runs: SimulationRun[]): { kpis: Record<ReplicationKpi, ScenarioDelta | null>; paired: boolean | null } {
+export function scenarioDeltas(asIs: ScenarioRuns, scenario: ScenarioRuns, runs: SimulationRun[]): { kpis: Record<ReplicationKpi, ScenarioDelta | null>; paired: boolean | null; mismatch: boolean } {
   const empty = { cycle: null, waiting: null, costPerCase: null, throughput: null };
-  if (!asIs.latest || !scenario.latest || !asIs.completed.length || !scenario.completed.length) return { kpis: empty, paired: null };
+  if (!asIs.latest || !scenario.latest || !asIs.completed.length || !scenario.completed.length) return { kpis: empty, paired: null, mismatch: false };
+  if (runScenarioRef(asIs.latest)?.baseline_revision !== runScenarioRef(scenario.latest)?.baseline_revision) return { kpis: empty, paired: null, mismatch: true };
   const grouped = compareGroups(asIs.latest, scenario.latest, runs);
   if (grouped) {
     const kpis = { ...empty } as Record<ReplicationKpi, ScenarioDelta | null>;
@@ -177,7 +179,7 @@ export function scenarioDeltas(asIs: ScenarioRuns, scenario: ScenarioRuns, runs:
       const value = grouped.kpis[kpi];
       kpis[kpi] = value ? { kind: "interval", value, paired: grouped.paired } : null;
     }
-    return { kpis, paired: grouped.paired };
+    return { kpis, paired: grouped.paired, mismatch: false };
   }
   const kpis = { ...empty } as Record<ReplicationKpi, ScenarioDelta | null>;
   for (const kpi of WORKSPACE_KPIS) {
@@ -188,7 +190,7 @@ export function scenarioDeltas(asIs: ScenarioRuns, scenario: ScenarioRuns, runs:
     const better = KPI_BETTER[kpi] === "lower" ? delta < 0 : delta > 0;
     kpis[kpi] = { kind: "single", delta, direction: delta === 0 ? "same" : better ? "better" : "worse" };
   }
-  return { kpis, paired: null };
+  return { kpis, paired: null, mismatch: false };
 }
 
 /** Gli elementi del BPMN che lo scenario cambia (attivita' e decisioni), per l'overlay e l'inspector. */
