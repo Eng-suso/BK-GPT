@@ -35,6 +35,7 @@ from backend.simulation.ir.model import (
     Provenance,
     Resource,
     ResourcePool,
+    ResourceShift,
     Rework,
     SimulationModel,
     Skip,
@@ -236,7 +237,9 @@ def _pool(
             raise ValueError("Assegna un nome alle risorse.")
         if any(not task_overrides.get(t.id) or task_overrides[t.id].resource_id not in ids for t in tasks):
             raise ValueError("Assegna una risorsa valida a ogni attività prima di simulare.")
-        unknown = sorted({cfg.calendar_id for cfg in request.resources if cfg.calendar_id} - calendar_ids)
+        used = {cfg.calendar_id for cfg in request.resources if cfg.calendar_id}
+        used |= {shift.calendar_id for cfg in request.resources for shift in cfg.shifts}
+        unknown = sorted(used - calendar_ids)
         if unknown:
             raise ValueError(f"Calendari inesistenti assegnati alle risorse: {', '.join(unknown)}.")
         return ResourcePool(
@@ -250,6 +253,10 @@ def _pool(
                     amount=int(cfg.amount),
                     calendar_id=cfg.calendar_id or STANDARD_CALENDAR_ID,
                     provenance=_MANUAL,
+                    shifts=tuple(
+                        ResourceShift(amount=int(shift.amount), calendar_id=shift.calendar_id, provenance=_MANUAL)
+                        for shift in cfg.shifts
+                    ),
                 )
                 for cfg in request.resources
             ),

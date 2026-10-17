@@ -28,6 +28,13 @@ class SimCalendarConfig(BaseModel):
     periods: list[SimCalendarPeriodConfig] = Field(min_length=1, max_length=50)
 
 
+class SimResourceShiftConfig(BaseModel):
+    """Un turno di rinforzo: ``amount`` unita' in piu' nel calendario ``calendar_id``."""
+
+    amount: int = Field(ge=1, le=1000)
+    calendar_id: str = Field(min_length=1, max_length=64)
+
+
 class SimResourceConfig(BaseModel):
     id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=120)
@@ -35,6 +42,8 @@ class SimResourceConfig(BaseModel):
     amount: int = Field(ge=1, le=1000)
     # Il calendario di lavoro della risorsa; assente = il calendario standard.
     calendar_id: str | None = Field(default=None, max_length=64)
+    # SIM-30: unita' in piu' presenti solo in un altro calendario (un turno di rinforzo).
+    shifts: list[SimResourceShiftConfig] = Field(default_factory=list, max_length=10)
 
 
 class SimTaskAssignmentConfig(BaseModel):
