@@ -1238,8 +1238,9 @@
         "scenario": "Scenario",
         "deltaInterval": "Δ {{delta}} ± {{half}}",
         "deltaSingle": "Δ {{delta}}",
-        "deltaMismatch": "This scenario's run and the AS-IS run start from different AS-IS versions: run them again to compare.",
+        "deltaMismatch": "This scenario's run and the AS-IS run start from different models (another AS-IS version or diagram): run them again to compare.",
         "probBetter": "probability it is better {{value}}",
+        "bpmnChanged": "The process diagram changed after this run.",
         "verdict": {
           "better": "Better",
           "worse": "Worse",
