@@ -279,7 +279,7 @@ export function SimulationConfigRail({
                 })}
               />
             </fieldset>
-            <ServiceLevelFields sla={draft.sla} onChange={(next) => patch({ sla: next })} />
+            <ServiceLevelFields sla={draft.sla} attributes={draft.caseAttributes ?? []} onChange={(next) => patch({ sla: next })} />
             {provenance && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5">
                 <ChipRow
