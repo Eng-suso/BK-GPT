@@ -18,6 +18,7 @@ from pydantic import ValidationError
 from backend.simulation.ir.model import (
     Activity,
     Arrival,
+    ArrivalBand,
     Assignment,
     Branch,
     Calendar,
@@ -115,7 +116,16 @@ def _arrival(request: CreateSimulationRunRequest, calendar_ids: set[str]) -> Arr
         )
     except ValueError as exc:
         raise ValueError(f"Arrivi: {exc}") from exc
-    return Arrival(interarrival=interarrival, calendar_id=calendar_id, provenance=_MANUAL)
+    try:
+        bands = tuple(
+            ArrivalBand(from_day=band.from_day, to_day=band.to_day, begin=_clock(band.begin), end=_clock(band.end),
+                        mean_seconds=float(band.mean_seconds))
+            for band in config.bands
+        )
+        return Arrival(interarrival=interarrival, calendar_id=calendar_id, provenance=_MANUAL, bands=bands)
+    except ValidationError as exc:
+        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+        raise ValueError(f"Fasce degli arrivi: {reason}.") from exc
 
 
 def duration_from_mean(distribution: str, mean: float):
