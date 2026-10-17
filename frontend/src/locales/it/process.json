@@ -1229,7 +1229,8 @@
         "method": {
           "paired": "Confronto a coppie: ogni ripetizione con la sua gemella dell'AS-IS, stesso seed.",
           "independent": "Gruppi confrontati come indipendenti (intervallo di Welch): seed o ripetizioni diversi dall'AS-IS.",
-          "single": "Un run per parte: la differenza non ha intervallo e può essere il caso. Ripeti gli scenari almeno 2 volte."
+          "single": "Un run per parte: la differenza non ha intervallo e può essere il caso. Ripeti gli scenari almeno 2 volte.",
+          "bonferroni": "Con {{count}} scenari a confronto ogni intervallo è corretto con Bonferroni (livello 1 − 5% / {{count}}): un \"Migliore\" non nasce dal numero di confronti."
         },
         "table": "Scenari a confronto con l'AS-IS",
         "caption": "Per ogni scenario: il valore medio e, sotto, la differenza dall'AS-IS.",
@@ -1237,6 +1238,7 @@
         "deltaInterval": "Δ {{delta}} ± {{half}}",
         "deltaSingle": "Δ {{delta}}",
         "deltaMismatch": "Il run di questo scenario e quello dell'AS-IS partono da versioni diverse dell'AS-IS: rilanciali per confrontarli.",
+        "probBetter": "probabilità che sia migliore {{value}}",
         "verdict": {
           "better": "Migliore",
           "worse": "Peggiore",

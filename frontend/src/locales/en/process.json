@@ -1229,7 +1229,8 @@
         "method": {
           "paired": "Paired comparison: each replication against its AS-IS twin, same seed.",
           "independent": "Groups compared as independent (Welch interval): seeds or replications differ from the AS-IS.",
-          "single": "One run each: the difference has no interval and may be chance. Replicate the scenarios at least twice."
+          "single": "One run each: the difference has no interval and may be chance. Replicate the scenarios at least twice.",
+          "bonferroni": "With {{count}} scenarios compared, each interval is Bonferroni-corrected (level 1 − 5% / {{count}}): a \"Better\" does not come from the number of comparisons."
         },
         "table": "Scenarios compared with the AS-IS",
         "caption": "For each scenario: the mean value and, below, the difference from the AS-IS.",
@@ -1237,6 +1238,7 @@
         "deltaInterval": "Δ {{delta}} ± {{half}}",
         "deltaSingle": "Δ {{delta}}",
         "deltaMismatch": "This scenario's run and the AS-IS run start from different AS-IS versions: run them again to compare.",
+        "probBetter": "probability it is better {{value}}",
         "verdict": {
           "better": "Better",
           "worse": "Worse",
