@@ -40,6 +40,7 @@ class LlmTask(StrEnum):
     EMBEDDING = "embedding"
     TRANSCRIPTION = "transcription"
     EVAL_JUDGE = "eval_judge"
+    CLAIM_MATCHING = "claim_matching"
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +190,14 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
     # tier, dove un 429 transitorio e' la norma e dietro non c'e' una coda.
     LlmTask.EVAL_JUDGE: TaskProfile(
         LlmTask.EVAL_JUDGE, reasoning_effort="low", retry=True, scales_with_input=True
+    ),
+    # Il ripiego dell'abbinamento affermazione -> attivita' (gate G5): arriva al
+    # modello solo per le attivita' che il confronto lessicale lascia senza
+    # proposte, e risponde con id gia' mostrati dentro uno schema strict. Lo
+    # schema fa il lavoro; il consulente conferma ogni proposta. Il pannello
+    # aspetta la risposta: niente retry, un guasto ricade sul solo lessicale.
+    LlmTask.CLAIM_MATCHING: TaskProfile(
+        LlmTask.CLAIM_MATCHING, reasoning_effort="none", max_output_tokens=1024, scales_with_input=False
     ),
 }
 

@@ -78,6 +78,7 @@ class OperationKind:
     MEMORY_PROJECTION = "memory_projection"
     TRANSCRIPTION = "transcription"
     EVAL = "eval"
+    CLAIM_MATCHING = "claim_matching"
 
 
 _current: ContextVar[Operation | None] = ContextVar("delir_llm_operation", default=None)
