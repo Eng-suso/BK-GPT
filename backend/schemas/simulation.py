@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from backend.simulation.ir.model import Rework, Skip
 from backend.simulation.ir.patch import ModelPatch
@@ -86,6 +86,17 @@ class SimArrivalConfig(BaseModel):
     bands: list[SimArrivalBandConfig] = Field(default_factory=list, max_length=21)
 
 
+class SimSlaSegment(BaseModel):
+    """L'obiettivo di un gruppo di casi: quelli con ``attribute`` uguale a ``value`` (SIM-13b)."""
+
+    model_config = ConfigDict(strict=True)
+
+    attribute: str = Field(min_length=1, max_length=80)
+    value: str = Field(min_length=1, max_length=120)
+    target_seconds: float = Field(gt=0)
+    share: float = Field(gt=0, le=1)
+
+
 class SimSlaConfig(BaseModel):
     """L'obiettivo di servizio dello scenario (SIM-13): il caso si chiude entro
     ``target_seconds`` per almeno la quota ``share`` dei casi (0-1)."""
@@ -95,6 +106,15 @@ class SimSlaConfig(BaseModel):
 
     target_seconds: float = Field(gt=0)
     share: float = Field(gt=0, le=1)
+    # SIM-13b: obiettivi propri per gruppo di casi ("premium entro 24 ore").
+    segments: list[SimSlaSegment] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def _distinct_segments(self) -> SimSlaConfig:
+        keys = [(segment.attribute, segment.value) for segment in self.segments]
+        if len(keys) != len(set(keys)):
+            raise ValueError("due obiettivi per lo stesso gruppo di casi")
+        return self
 
 
 class SimClaimRef(BaseModel):
