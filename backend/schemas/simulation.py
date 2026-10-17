@@ -51,6 +51,12 @@ class SimTaskAssignmentConfig(BaseModel):
     max_seconds: float | None = Field(default=None, gt=0)
 
 
+class SimArrivalBandConfig(SimCalendarPeriodConfig):
+    """In questa fascia i casi arrivano in media ogni ``mean_seconds`` (SIM-08)."""
+
+    mean_seconds: float = Field(gt=0)
+
+
 class SimArrivalConfig(BaseModel):
     """Come arrivano i casi: la distribuzione del tempo fra un arrivo e il
     successivo e il calendario in cui arrivano.
@@ -66,6 +72,9 @@ class SimArrivalConfig(BaseModel):
     min_seconds: float | None = Field(default=None, ge=0)
     max_seconds: float | None = Field(default=None, gt=0)
     calendar_id: str | None = Field(default=None, max_length=64)
+    # SIM-08: un ritmo per fascia oraria. Presenti, gli arrivi seguono le fasce
+    # e non piu' distribuzione e calendario.
+    bands: list[SimArrivalBandConfig] = Field(default_factory=list, max_length=21)
 
 
 class SimSlaConfig(BaseModel):

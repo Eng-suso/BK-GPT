@@ -9,7 +9,9 @@ API, compatibile con ``backend/simulation/prosimos_adapter.py``:
   ``numProcesses``, ``startDate`` e, in piu', ``seed`` opzionale. Risponde con
   ``ResourceUtilization``, ``IndividualTaskStatistics``,
   ``OverallScenarioStatistics`` (stringhe JSON, come upstream), ``StatsFilename``,
-  ``LogsFilename``, e ``Seed`` / ``EngineVersion``.
+  ``LogsFilename``, e ``Seed`` / ``EngineVersion`` / ``ArrivalBands``. Se lo
+  scenario porta ``delir_arrival_bands``, gli arrivi li genera il runner per
+  fascia oraria (``arrival_bands.py``).
 - ``GET /api/simulationFile?fileName=...``: il CSV prodotto da un run.
 - ``GET /health``: versioni di motore e runtime.
 
@@ -24,6 +26,7 @@ richiesta alla volta, quindi lo stato globale non e' condiviso fra run.
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import random
@@ -33,19 +36,25 @@ import shutil
 import sys
 import tempfile
 import time
+from datetime import datetime
 from importlib.metadata import version
 from io import StringIO
 from pathlib import Path
 
 import numpy
 import pandas
+import pytz
 from flask import Flask, jsonify, request, send_file
 from prosimos.exceptions import (
     InvalidBpmnModelException,
     InvalidLogFileException,
     InvalidSimScenarioException,
 )
-from prosimos.simulation_engine import run_simulation
+from prosimos.simulation_engine import SimBPMEnv, execute_full_process, run_simulation
+from prosimos.simulation_properties_parser import parse_datetime
+from prosimos.simulation_setup import SimDiffSetup
+
+from arrival_bands import SECTION, arrival_offsets, weekly_intervals
 
 DATA_DIR = Path(os.environ.get("RUNNER_DATA_DIR", tempfile.gettempdir())) / "delir-prosimos"
 # I file restano quanto basta all'adapter per scaricarli subito dopo il run.
@@ -136,15 +145,19 @@ def simulate(model: bytes, scenario: bytes, cases: int, start_date: str | None, 
         os.close(stats_fd)
         os.close(logs_fd)
         _seed_everything(seed)
-        run_simulation(
-            str(model_path),
-            str(scenario_path),
-            total_cases=cases,
-            stat_out_path=stats_name,
-            log_out_path=logs_name,
-            starting_at=start_date,
-            is_event_added_to_log=False,
-        )
+        bands = _arrival_bands(scenario)
+        if bands is None:
+            run_simulation(
+                str(model_path),
+                str(scenario_path),
+                total_cases=cases,
+                stat_out_path=stats_name,
+                log_out_path=logs_name,
+                starting_at=start_date,
+                is_event_added_to_log=False,
+            )
+        else:
+            _simulate_with_arrivals(model_path, scenario_path, cases, start_date, bands, stats_name, logs_name)
     resources, tasks, overall = split_stats(Path(stats_name).read_text(encoding="utf-8"))
     return {
         # Doppia codifica come upstream: l'adapter la decodifica gia' cosi'.
@@ -155,7 +168,47 @@ def simulate(model: bytes, scenario: bytes, cases: int, start_date: str | None, 
         "LogsFilename": Path(logs_name).name,
         "Seed": seed,
         "EngineVersion": engine_version(),
+        # Quante fasce degli arrivi il runner ha applicato: l'adapter rifiuta un
+        # motore che le ignorerebbe in silenzio.
+        "ArrivalBands": 0 if bands is None else len(bands),
     }
+
+
+def _simulate_with_arrivals(model_path: Path, scenario_path: Path, cases: int, start_date: str | None,
+                            bands: list[dict], stats_name: str, logs_name: str) -> None:
+    """``run_simulation`` con gli arrivi calcolati dal runner per fascia oraria.
+
+    Con ``fixed_arrival_times`` Prosimos 2.1 esegue il processo ma torna prima
+    di scrivere log e statistiche (``run_simpy_simulation``): qui si ripetono
+    gli stessi passi di ``run_simulation`` e ``run_simpy_simulation``, scrittura
+    compresa.
+    """
+    setup = SimDiffSetup(str(model_path), str(scenario_path), False, cases)
+    start = parse_datetime(start_date, True) if start_date else pytz.utc.localize(datetime.now())
+    setup.set_starting_datetime(start)
+    arrivals = arrival_offsets(bands, start, cases)
+    writer = {"delimiter": ",", "quotechar": '"', "quoting": csv.QUOTE_MINIMAL}
+    with open(stats_name, "w", newline="", encoding="utf-8") as stats, \
+            open(logs_name, "w", newline="", encoding="utf-8") as logs:
+        env = SimBPMEnv(setup, csv.writer(stats, **writer), csv.writer(logs, **writer))
+        execute_full_process(env, arrivals)
+        env.log_writer.force_write()
+        env.log_info.save_joint_statistics(env)
+
+
+def _arrival_bands(scenario: bytes) -> list[dict] | None:
+    try:
+        payload = json.loads(scenario)
+    except ValueError:
+        return None  # lo scenario non valido lo segnala Prosimos, con il suo messaggio
+    bands = payload.get(SECTION) if isinstance(payload, dict) else None
+    if bands is None:
+        return None
+    try:
+        weekly_intervals(bands)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise BadRequest(f"{SECTION} non valido: {exc}") from exc
+    return bands
 
 
 @app.post("/api/simulate")

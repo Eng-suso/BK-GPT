@@ -86,6 +86,13 @@ def compile_for_prosimos(model: SimulationModel) -> dict:
         "case_attributes": [_case_attribute(attribute) for attribute in model.case_attributes],
     }
 
+    if model.arrival.bands:
+        # Sezione DeliR, ignorata da Prosimos: il runner genera gli arrivi per fascia.
+        payload["delir_arrival_bands"] = [
+            {**_period(band), "meanSeconds": float(band.mean_seconds)} for band in model.arrival.bands
+        ]
+        payload["arrival_time_calendar"] = [_period(band) for band in model.arrival.bands]
+
     branch_rules = [
         {"id": _rule_id(gateway.element_id, branch.flow_id), "rules": _rules(branch.condition)}
         for gateway in model.gateways

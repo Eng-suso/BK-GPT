@@ -12,7 +12,7 @@ WORKDIR /app
 COPY runner/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY runner/runner.py .
+COPY runner/runner.py runner/arrival_bands.py ./
 RUN useradd --system --uid 10001 runner && mkdir -p /data && chown runner /data
 USER runner
 

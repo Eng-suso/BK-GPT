@@ -79,3 +79,58 @@ def test_an_unknown_arrival_calendar_is_a_400(api_client, new_bpmn_model, fake_e
     assert response.status_code == 400
     assert "calendario degli arrivi" in response.json()["error"]["message"]
     assert fake_engine == []
+
+
+# --- SIM-08: un ritmo per fascia oraria ------------------------------------------
+
+PEAK = {"from_day": "MONDAY", "to_day": "FRIDAY", "begin": "09:00", "end": "12:00", "mean_seconds": 300}
+QUIET = {"from_day": "MONDAY", "to_day": "FRIDAY", "begin": "14:00", "end": "17:00", "mean_seconds": 1800}
+
+
+def test_arrival_bands_reach_the_runner_section_and_the_model():
+    scenario = build_prosimos_scenario(bpmn_xml=BPMN, request=_request(arrival={"mean_seconds": 900, "bands": [PEAK, QUIET]}))
+
+    assert scenario.payload["delir_arrival_bands"] == [
+        {"from": "MONDAY", "to": "FRIDAY", "beginTime": "09:00:00.000", "endTime": "12:00:00.000", "meanSeconds": 300.0},
+        {"from": "MONDAY", "to": "FRIDAY", "beginTime": "14:00:00.000", "endTime": "17:00:00.000", "meanSeconds": 1800.0},
+    ]
+    # Il calendario degli arrivi segue le fasce: fuori non arriva nessuno.
+    assert [p["beginTime"] for p in scenario.payload["arrival_time_calendar"]] == ["09:00:00.000", "14:00:00.000"]
+    assert [b["mean_seconds"] for b in scenario.model["arrival"]["bands"]] == [300.0, 1800.0]
+
+
+def test_without_bands_the_scenario_has_no_runner_section():
+    scenario = build_prosimos_scenario(bpmn_xml=BPMN, request=_request(arrival={"mean_seconds": 900}))
+    assert "delir_arrival_bands" not in scenario.payload
+
+
+@pytest.mark.parametrize(("bands", "message"), [
+    ([PEAK, {**PEAK, "begin": "11:00", "end": "13:00"}], "si sovrappongono"),
+    ([{**PEAK, "begin": "12:00", "end": "09:00"}], "passa la mezzanotte"),
+])
+def test_bands_that_do_not_fit_are_refused_with_the_reason(bands, message):
+    with pytest.raises(ValueError, match=message):
+        build_prosimos_scenario(bpmn_xml=BPMN, request=_request(arrival={"mean_seconds": 900, "bands": bands}))
+
+
+def test_an_engine_that_ignores_the_bands_is_refused(monkeypatch):
+    import asyncio
+    import json
+
+    import httpx
+
+    from backend.simulation.models import ProsimosScenario, ProsimosSimulationRequest
+    from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        # Come il microservizio 1.2.6: nessun ArrivalBands nella risposta.
+        return httpx.Response(200, json={"OverallScenarioStatistics": json.dumps("[]"), "LogsFilename": "logs_x.csv"})
+
+    real = httpx.AsyncClient
+    monkeypatch.setattr("backend.simulation.prosimos_adapter.httpx.AsyncClient",
+                        lambda *a, **k: real(*a, **{**k, "transport": httpx.MockTransport(handler)}))
+    scenario = build_prosimos_scenario(bpmn_xml=BPMN, request=_request(arrival={"mean_seconds": 900, "bands": [PEAK]}))
+    request = ProsimosSimulationRequest(
+        bpmn_xml=BPMN, scenario=ProsimosScenario(payload=scenario.payload, task_count=3, gateway_count=1), total_cases=3)
+    with pytest.raises(ProsimosError, match="fasce degli arrivi"):
+        asyncio.run(run_prosimos_simulation(request))

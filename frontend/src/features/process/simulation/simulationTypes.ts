@@ -1,4 +1,5 @@
 import type { ModelPatchInput } from "./caseRules";
+import type { ArrivalBandInput } from "./arrivalBands";
 import type { ReworkInput, SkipInput } from "./flowRules";
 import { z } from "zod";
 
@@ -292,7 +293,7 @@ export type SimDurationInput = {
 };
 
 /** Gli arrivi (A2-3): il tempo fra due arrivi e il calendario in cui arrivano. */
-export type SimArrivalInput = SimDurationInput & { calendarId?: string };
+export type SimArrivalInput = SimDurationInput & { calendarId?: string; bands?: ArrivalBandInput[] };
 
 /** SIM-07: le affermazioni dei file proposte come fonte di ogni attivita'. */
 export const claimProposalSchema = z.object({

@@ -36,7 +36,13 @@ const ruleSchema = z.object({
 export type IrRule = z.infer<typeof ruleSchema>;
 
 export const runModelSchema = z.object({
-  arrival: z.object({ interarrival: irDistributionSchema, calendar_id: z.string(), provenance }).optional(),
+  arrival: z.object({
+    interarrival: irDistributionSchema,
+    calendar_id: z.string(),
+    provenance,
+    // SIM-08: con le fasce gli arrivi seguono loro, non interarrival e calendario.
+    bands: z.array(z.object({ from_day: z.string(), to_day: z.string(), begin: z.string(), end: z.string(), mean_seconds: z.number() })).default([]),
+  }).optional(),
   priority_rules: z.array(z.object({ level: z.number(), condition: z.object({ any_of: z.array(z.array(ruleSchema)) }) })).optional(),
   calendars: z.array(
     z.object({
