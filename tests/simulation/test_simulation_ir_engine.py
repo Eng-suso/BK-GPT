@@ -370,3 +370,39 @@ def test_a_timer_escalation_sends_the_cases_that_outlast_it_down_the_escalation_
     assert all(600 <= worked[case] <= 1800 for case in cases - reminded)
     # Ogni caso arriva in fondo, dal ramo normale o dall'escalation.
     assert set(_executions(rows, "Paga").values()) == {1}
+
+
+def test_arrival_bands_from_the_panel_shape_the_arrivals_through_the_runner(tmp_path, monkeypatch):
+    # SIM-08: picco la mattina (un caso ogni 5 minuti), calma il pomeriggio (ogni 30).
+    # Prosimos 2.1 non lo sa fare: gli arrivi li genera il runner DeliR.
+    from datetime import UTC, datetime
+
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    sys.path.insert(0, str(ROOT / "ops" / "prosimos" / "runner"))
+    import runner
+
+    monkeypatch.setattr(runner, "DATA_DIR", tmp_path)
+    request = CreateSimulationRunRequest(
+        tasks=[{"element_id": t, "mean_seconds": 60, "distribution": "fixed"} for t in ("T_receive", "T_approve", "T_pay")],
+        arrival={"mean_seconds": 900, "bands": [
+            {"from_day": "MONDAY", "to_day": "FRIDAY", "begin": "09:00", "end": "12:00", "mean_seconds": 300},
+            {"from_day": "MONDAY", "to_day": "FRIDAY", "begin": "14:00", "end": "17:00", "mean_seconds": 1800},
+        ]},
+    )
+    bpmn = normalize_bpmn_for_prosimos(contract_spike.BPMN_PATH.read_text(encoding="utf-8"))
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    body = runner.simulate(bpmn.encode(), json.dumps(scenario.payload).encode(), 400, contract_spike.START, 21)
+
+    assert body["ArrivalBands"] == 2
+    rows = contract_spike.parse_log((tmp_path / body["LogsFilename"]).read_text(encoding="utf-8"))
+    arrivals: dict[str, float] = {}
+    for row in rows:
+        arrivals[row["case_id"]] = min(arrivals.get(row["case_id"], row["enable"]), row["enable"])
+    hours = [datetime.fromtimestamp(t, UTC).hour for t in arrivals.values()]
+    morning = sum(1 for h in hours if 9 <= h < 12)
+    afternoon = sum(1 for h in hours if 14 <= h < 17)
+    assert morning + afternoon == len(hours), "un caso e' arrivato fuori dalle fasce"
+    assert 4.5 < morning / afternoon < 8, (morning, afternoon)
