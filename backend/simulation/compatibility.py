@@ -247,6 +247,16 @@ class _ProcessReport:
                 element, "boundaryEvent", "removed", "low",
                 note=f"Evento sul bordo di {attached} senza un ramo in uscita: non cambia il percorso.",
             )
+        if self.after.tags.get(element_id) == "exclusiveGateway":
+            # SIM-35: timer interrompente diventato decisione (bpmn_normalizer._timer_escalations).
+            return _entry(
+                element, "boundaryEvent", "approximated", "medium", simulated_as="exclusiveGateway",
+                note=(
+                    f"Escalation a tempo su {attached}: va nel ramo d'escalation la quota di casi la cui "
+                    "lavorazione supera il timer, calcolata dalla durata dell'attività. Il timer non conta "
+                    "l'attesa in coda, quindi le escalation possono essere sottostimate."
+                ),
+            )
         kind = _event_kind(element)
         return _entry(
             element, "boundaryEvent", "removed", "high",
