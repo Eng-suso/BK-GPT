@@ -1211,6 +1211,8 @@
         "otherAssignments": "Other roles",
         "claims": "Sources",
         "durationBy": "Duration by category",
+        "skip": "Skip",
+        "rework": "Rework",
         "target": "Within",
         "unit": "Time unit",
         "sharePercent": "Share of cases, %",

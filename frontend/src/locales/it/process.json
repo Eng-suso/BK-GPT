@@ -1211,6 +1211,8 @@
         "otherAssignments": "Altri ruoli",
         "claims": "Fonti",
         "durationBy": "Durata per categoria",
+        "skip": "Salto",
+        "rework": "Rilavorazione",
         "target": "Entro",
         "unit": "Unità di tempo",
         "sharePercent": "Quota di casi, %",
