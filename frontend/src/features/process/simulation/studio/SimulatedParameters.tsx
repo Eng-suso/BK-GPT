@@ -221,8 +221,10 @@ function DurationBy({ durationBy, lang, t }: { durationBy: DurationByView; lang:
   return <div className="sim-param-group">
     <h5>{t("simulation.activityInspector.durationBy", { attribute: durationBy.attribute })}</h5>
     {durationBy.variants.map((variant) => (
-      <div key={variant.value}>
-        <p className="sim-param-note">{t("simulation.activityInspector.durationByCategory", { attribute: durationBy.attribute, value: variant.value })}</p>
+      <div key={variant.value ?? variant.upTo}>
+        <p className="sim-param-note">{variant.upTo !== null
+          ? t("simulation.config.durationByUpTo", { attribute: durationBy.attribute, value: variant.upTo })
+          : t("simulation.activityInspector.durationByCategory", { attribute: durationBy.attribute, value: variant.value })}</p>
         <dl><DurationRows duration={variant.duration} lang={lang} t={t} /></dl>
       </div>
     ))}

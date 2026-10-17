@@ -56,7 +56,7 @@ export type BranchView = {
 export type ArrivalBandView = { fromDay: string; toDay: string; begin: string; end: string; meanSeconds: number };
 export type ArrivalView = { duration: DurationView; calendar: CalendarView; provenance: FieldProvenance; bands: ArrivalBandView[] };
 
-export type DurationByView = { attribute: string; variants: { value: string; duration: DurationView }[] };
+export type DurationByView = { attribute: string; variants: { value: string | null; upTo: number | null; duration: DurationView }[] };
 
 /** SIM-35: chi saltava l'attivita' e chi tornava indietro a rifarla nel run. */
 export type FlowRulesView = {
@@ -162,7 +162,7 @@ export function elementFromModel(
           : null,
       },
       durationBy: activity.duration_by
-        ? { attribute: activity.duration_by.attribute, variants: activity.duration_by.variants.map((v) => ({ value: v.value, duration: durationView(v.duration) })) }
+        ? { attribute: activity.duration_by.attribute, variants: activity.duration_by.variants.map((v) => ({ value: v.value ?? null, upTo: v.up_to ?? null, duration: durationView(v.duration) })) }
         : null,
       assignments: activity.assignments.map((assignment) => {
         const resource = resources.get(assignment.resource_id);
