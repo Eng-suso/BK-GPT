@@ -205,6 +205,9 @@ class CreateSimulationRunRequest(BaseModel):
     # SIM-14: lo scenario del workspace che il run simula. Assente per i run
     # lanciati fuori dal workspace (API, run anteriori).
     workspace_scenario: WorkspaceScenarioRef | None = None
+    # SIM-14b: l'impronta del BPMN simulato. La scrive il servizio, quella
+    # mandata dal client non conta.
+    bpmn_fingerprint: str | None = None
 
 
 class ScenarioTemplateRequest(BaseModel):

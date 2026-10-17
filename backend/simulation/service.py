@@ -38,7 +38,7 @@ from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simu
 from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, claim_next_run
 from backend.simulation.result_parser import with_output_files
 from backend.simulation.costs import add_fixed_costs
-from backend.simulation.scenarios import scenario_revisions
+from backend.simulation.scenarios import bpmn_fingerprint, scenario_revisions
 from backend.simulation.sla import sla_outcome
 from backend.simulation.ir.model import SimulationModel
 from backend.simulation.ir.patch import apply_patch
@@ -283,8 +283,12 @@ def prepare_simulation_runs(
     intervalli. Il gruppo entra in coda intero o non entra; lo stesso invio
     ritentato ritrova il gruppo gia' in volo invece di crearne un altro.
     """
-    # Gruppo e posizione li scrive il servizio: quelli mandati dal client non contano.
-    request = request.model_copy(update={"replication_group": None, "replication_index": None})
+    # Gruppo, posizione e impronta del BPMN li scrive il servizio: quelli mandati dal client non contano.
+    request = request.model_copy(update={
+        "replication_group": None,
+        "replication_index": None,
+        "bpmn_fingerprint": bpmn_fingerprint(request.current_bpmn_xml or bpmn_model.xml),
+    })
     if request.replications == 1:
         return [prepare_simulation_run(bpmn_model=bpmn_model, request=request)]
     if request.seed is not None and request.seed + request.replications - 1 > SEED_MAX:
@@ -360,6 +364,7 @@ def prepare_simulation_run(
     identical simulation is still in flight, scenario is None and the caller
     must not launch execution.
     """
+    request = request.model_copy(update={"bpmn_fingerprint": bpmn_fingerprint(request.current_bpmn_xml or bpmn_model.xml)})
     bpmn_xml, scenario, idempotency_key = _plan_run(bpmn_model=bpmn_model, request=request)
     return _register_run(
         bpmn_model=bpmn_model,
