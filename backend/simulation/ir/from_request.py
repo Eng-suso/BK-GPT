@@ -11,7 +11,7 @@ equivalenza).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import ValidationError
 
@@ -34,7 +34,9 @@ from backend.simulation.ir.model import (
     Provenance,
     Resource,
     ResourcePool,
+    Rework,
     SimulationModel,
+    Skip,
     SourceRef,
     Uniform,
 )
@@ -44,6 +46,8 @@ if TYPE_CHECKING:
     # Solo per i tipi: lo schema HTTP importa il modello dell'IR (richiesta v2),
     # e un import a runtime qui chiuderebbe il cerchio.
     from backend.schemas.simulation import CreateSimulationRunRequest, SimCalendarConfig, SimTaskConfig
+
+_FlowRule = TypeVar("_FlowRule", Skip, Rework)
 
 STANDARD_CALENDAR_ID = "delir-calendar-standard"
 DEFAULT_RESOURCE_ID = "delir-resource-operator"
@@ -273,6 +277,36 @@ def _activity(task: BpmnTask, override, request, default_resource_id: str, resou
         assignments=(primary, *_other_assignments(task, override, resource_id, resource_ids)),
         duration_by=_duration_by(task, override),
     )
+
+
+def with_flow_rules(model: SimulationModel, request: CreateSimulationRunRequest) -> SimulationModel:
+    """Il modello con i salti e le rilavorazioni del pannello (SIM-35).
+
+    Vanno messi dopo la ``model_patch``: le loro regole possono usare gli
+    attributi del caso che arrivano con la patch.
+    """
+    rules = {cfg.element_id: cfg for cfg in (request.tasks or []) if cfg.skip or cfg.rework}
+    if not rules:
+        return model
+    activities = tuple(
+        activity.model_copy(update={
+            "skip": _manual(rules[activity.element_id].skip),
+            "rework": _manual(rules[activity.element_id].rework),
+        }) if activity.element_id in rules else activity
+        for activity in model.activities
+    )
+    try:
+        return SimulationModel.model_validate(model.model_copy(update={"activities": activities}).model_dump())
+    except ValidationError as exc:
+        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+        raise ValueError(f"Salti e rilavorazioni: {reason}.") from exc
+
+
+def _manual(rule: _FlowRule | None) -> _FlowRule | None:
+    """Salto e rilavorazione dal pannello: li ha decisi il consulente, se non dicono altro."""
+    if rule is None or rule.provenance is not None:
+        return rule
+    return rule.model_copy(update={"provenance": _MANUAL})
 
 
 def _duration_by(task: BpmnTask, override) -> DurationByAttribute | None:
