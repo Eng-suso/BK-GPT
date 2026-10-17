@@ -113,6 +113,33 @@ def test_parse_prosimos_log_rejects_unexpected_header():
         parse_prosimos_log("case,activity,ts\n1,A,2026-01-05 09:00:00+00:00\n")
 
 
+def _with_attributes(log: str) -> str:
+    """Il log com'e' con attributi del caso: una colonna per attributo dopo le sei standard."""
+    header, *rows = log.strip().splitlines()
+    return "\n".join([f"{header},importo,tipo,rischio",
+                      *(f"{row},5062.5,{'premium' if i % 2 else 'standard'}," for i, row in enumerate(rows))]) + "\n"
+
+
+def test_a_log_with_case_attributes_keeps_its_values_on_each_event():
+    plain = parse_prosimos_log(_fixture_log())
+    events = parse_prosimos_log(_with_attributes(_fixture_log()))
+    assert [(e.case_id, e.activity, e.end) for e in events] == [(e.case_id, e.activity, e.end) for e in plain]
+    # Una colonna vuota (l'attributo d'evento non ancora scritto) non e' un valore.
+    assert events[0].attributes == {"importo": "5062.5", "tipo": "standard"}
+
+
+def test_a_run_with_case_attributes_still_gets_its_summary_and_replay():
+    """Regressione: con attributi del caso il log ha colonne in piu' e il run perdeva KPI e replay."""
+    summary, replay = process_prosimos_log(
+        _with_attributes(_fixture_log()),
+        normalized_bpmn_xml=MINIMAL_BPMN,
+        scenario_payload={},
+        prosimos_stats=_fixture_stats(),
+    )
+    assert summary is not None and summary["casesCompleted"] > 0
+    assert replay is not None
+
+
 def test_spike_fixture_matches_the_recorded_prosimos_contract():
     log = _fixture_log()
     assert log.splitlines()[0] == "case_id,activity,enable_time,start_time,end_time,resource"
