@@ -246,11 +246,19 @@ test("the Workspace tool compares every scenario with the AS-IS, with the interv
   await expect(a).toContainText("±");
   await expect(a).toContainText("Migliore");
   await expect(panel.locator('[data-sim-workspace-method="paired"]')).toBeVisible();
+  // Due alternative contro l'AS-IS: probabilita' e intervallo corretto per due confronti.
+  await expect(a.locator("[data-sim-workspace-prob]").first()).toContainText("probabilità che sia migliore");
+  await expect(a).not.toContainText("100%");
+  await expect(panel.locator('[data-sim-workspace-method="bonferroni"]')).toContainText("Con 2 scenari a confronto");
   // Turni e' cambiato dopo il suo run: da rifare.
   await expect(b).toContainText("Da rifare");
 
   await panel.scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("scenario-workspace.png"), animations: "disabled" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await panel.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("scenario-workspace-mobile.png"), animations: "disabled" });
+  await page.setViewportSize({ width: 1440, height: 900 });
   const axe = await new AxeBuilder({ page }).include("[data-sim-scenario-workspace]").withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(axe.violations).toEqual([]);
 
