@@ -5,9 +5,11 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
+from backend.schemas.simulation import SimSlaConfig, SimSlaSegment
 from backend.simulation.models import ProsimosSimulationResult
-from backend.simulation.sla import SlaOutcome, sla_outcome
+from backend.simulation.sla import SegmentOutcome, SlaOutcome, sla_outcome
 from tests.simulation.test_simulation_replay import MINIMAL_BPMN
 
 HEADER = "case_id,activity,enable_time,start_time,end_time,resource"
@@ -96,3 +98,76 @@ def test_an_invalid_sla_is_refused(sla):
         response = client.post(f"/v1/workspace/bpmn-models/{ps['bpmn_model_id']}/simulation-runs",
                                json={"total_cases": 10, "current_bpmn_xml": MINIMAL_BPMN, "sla": sla})
     assert response.status_code == 422
+
+
+# --------------------------------------------------------------------------- #
+# SIM-13b: obiettivi per gruppo di casi
+# --------------------------------------------------------------------------- #
+
+def _log_with_tipo(*rows: tuple[str, str]) -> str:
+    """Le righe con la colonna ``tipo`` che il motore aggiunge per l'attributo del caso."""
+    return "\n".join([f"{HEADER},tipo", *(f"{row},{tipo}" for row, tipo in rows)]) + "\n"
+
+
+SEGMENTED = _log_with_tipo(
+    (_row("1", "Ricevi", 9, 10), "premium"), (_row("1", "Paga", 10, 11), "premium"),  # 2 ore
+    (_row("2", "Ricevi", 9, 14), "premium"),                                           # 5 ore
+    (_row("3", "Ricevi", 9, 12), "standard"),                                          # 3 ore
+    (_row("4", "Ricevi", 9, 20), "standard"),                                          # 11 ore
+)
+
+
+def test_each_group_of_cases_is_judged_against_its_own_target():
+    outcome = sla_outcome(SEGMENTED, target_seconds=12 * 3600, share=0.9, segments=[
+        SimSlaSegment(attribute="tipo", value="premium", target_seconds=3 * 3600, share=0.5),
+        SimSlaSegment(attribute="tipo", value="standard", target_seconds=4 * 3600, share=0.9),
+    ])
+    assert outcome is not None and outcome.met is True and outcome.cases == 4
+    premium, standard = outcome.segments
+    assert premium == SegmentOutcome(attribute="tipo", value="premium", target_seconds=10800, share_target=0.5,
+                                     share_within=0.5, cases=2, late_cases=1, met=True)
+    assert (standard.cases, standard.late_cases, standard.met) == (2, 1, False)
+
+
+def test_a_group_with_no_cases_in_the_run_is_not_judged_as_met():
+    outcome = sla_outcome(SEGMENTED, target_seconds=12 * 3600, share=0.9, segments=[
+        SimSlaSegment(attribute="tipo", value="gold", target_seconds=3600, share=0.5),
+    ])
+    assert outcome is not None
+    assert (outcome.segments[0].cases, outcome.segments[0].met) == (0, False)
+
+
+def test_the_run_summary_carries_the_outcome_of_each_group(monkeypatch):
+    from backend.app import app
+
+    async def fake_run(request):
+        return ProsimosSimulationResult(payload=dict(STATS), event_log_csv=SEGMENTED)
+
+    monkeypatch.setattr("backend.simulation.service.run_prosimos_simulation", fake_run)
+    with TestClient(app) as client:
+        cl = client.post("/v1/workspace/clients", json={"name": "SlaSeg"}).json()
+        pr = client.post("/v1/workspace/projects", json={"client_id": cl["id"], "name": "SlaSeg P"}).json()
+        ps = client.post(f"/v1/workspace/projects/{pr['id']}/processes", json={"name": "SlaSeg Proc"}).json()
+        run = client.post(
+            f"/v1/workspace/bpmn-models/{ps['bpmn_model_id']}/simulation-runs",
+            json={"total_cases": 60, "current_bpmn_xml": MINIMAL_BPMN, "sla": {
+                "target_seconds": 86_400, "share": 0.9,
+                "segments": [{"attribute": "tipo", "value": "premium", "target_seconds": 3 * 3600, "share": 0.5}],
+            }},
+        ).json()
+        summary = client.get(f"/v1/workspace/simulation-runs/{run['id']}").json()["summary"]
+
+    assert summary["sla"]["segments"] == [{
+        "attribute": "tipo", "value": "premium", "target_seconds": 10800, "share_target": 0.5,
+        "share_within": 0.5, "cases": 2, "late_cases": 1, "met": True,
+    }]
+
+
+@pytest.mark.parametrize("segments", [
+    [{"attribute": "tipo", "value": "premium", "target_seconds": 0, "share": 0.5}],
+    [{"attribute": "", "value": "premium", "target_seconds": 3600, "share": 0.5}],
+    [{"attribute": "tipo", "value": "premium", "target_seconds": 3600, "share": 0.5}] * 2,
+])
+def test_an_invalid_group_target_is_refused(segments):
+    with pytest.raises(ValidationError):
+        SimSlaConfig.model_validate({"target_seconds": 3600, "share": 0.9, "segments": segments})
