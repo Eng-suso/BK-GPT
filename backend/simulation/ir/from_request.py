@@ -332,14 +332,19 @@ def _duration_by(task: BpmnTask, override) -> DurationByAttribute | None:
         return None
     label = task.name or task.id
     variants = []
-    for cfg in override.duration_by.variants:
-        try:
-            value = duration(cfg.distribution, float(cfg.mean_seconds), std=cfg.std_seconds,
-                             minimum=cfg.min_seconds, maximum=cfg.max_seconds)
-        except ValueError as exc:
-            raise ValueError(f"«{label}», categoria «{cfg.value}»: {exc}") from exc
-        variants.append(DurationVariant(value=cfg.value, duration=value, provenance=_MANUAL))
-    return DurationByAttribute(attribute=override.duration_by.attribute, variants=tuple(variants))
+    try:
+        for cfg in override.duration_by.variants:
+            which = f"categoria «{cfg.value}»" if cfg.value is not None else f"fino a {cfg.up_to:g}"
+            try:
+                value = duration(cfg.distribution, float(cfg.mean_seconds), std=cfg.std_seconds,
+                                 minimum=cfg.min_seconds, maximum=cfg.max_seconds)
+            except ValueError as exc:
+                raise ValueError(f"«{label}», {which}: {exc}") from exc
+            variants.append(DurationVariant(value=cfg.value, up_to=cfg.up_to, duration=value, provenance=_MANUAL))
+        return DurationByAttribute(attribute=override.duration_by.attribute, variants=tuple(variants))
+    except ValidationError as exc:
+        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+        raise ValueError(f"«{label}»: {reason}.") from exc
 
 
 def _declared(override: SimTaskConfig | None) -> Provenance | None:

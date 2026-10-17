@@ -105,9 +105,11 @@ class SimClaimRef(BaseModel):
 
 
 class SimDurationVariantConfig(BaseModel):
-    """La durata per i casi con una categoria dell'attributo (SIM-32)."""
+    """La durata per i casi con una categoria dell'attributo (SIM-32), oppure,
+    per un attributo numerico, per i casi sotto ``up_to`` e sopra la soglia precedente."""
 
-    value: str = Field(min_length=1, max_length=120)
+    value: str | None = Field(default=None, min_length=1, max_length=120)
+    up_to: float | None = Field(default=None, allow_inf_nan=False)
     mean_seconds: float = Field(gt=0)
     distribution: DistributionName = "norm"
     std_seconds: float | None = Field(default=None, gt=0)
