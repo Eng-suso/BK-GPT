@@ -106,7 +106,7 @@ export function FlowRules({
               </select>
             </label>
             <p className="text-xs text-muted-foreground">{t("simulation.config.rework.backToHint")}</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 items-end gap-2">
               <PercentField
                 id={`sim-rework-${elementId}`}
                 label={t("simulation.config.rework.percent")}
