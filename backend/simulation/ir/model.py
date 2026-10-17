@@ -213,18 +213,28 @@ class Assignment(_Strict):
 
 
 class DurationVariant(_Strict):
-    """La durata dell'attivita' per i casi con ``attribute = value``."""
+    """La durata dell'attivita' per i casi con ``attribute = value`` (categorie)
+    oppure con ``attribute`` sotto ``up_to`` e sopra la soglia precedente (numeri)."""
 
-    value: str = Field(min_length=1)
+    value: str | None = Field(default=None, min_length=1)
+    up_to: float | None = None
     duration: Distribution
     provenance: Provenance | None = None
 
+    @model_validator(mode="after")
+    def _one_key(self):
+        if (self.value is None) == (self.up_to is None):
+            raise ValueError("una durata per categoria ha o una categoria o una soglia")
+        return self
+
 
 class DurationByAttribute(_Strict):
-    """SIM-32: la durata cambia con un attributo a categorie del caso.
+    """SIM-32: la durata cambia con un attributo del caso.
 
-    Un caso con una categoria elencata usa la sua durata; gli altri usano quelle
-    delle assegnazioni. Il motore non lo sa fare: ``ir/variants.py`` compila
+    A categorie: un caso con una categoria elencata usa la sua durata. Numerico:
+    soglie crescenti, "fino a 1.000", "fino a 5.000"; un caso usa la durata della
+    prima soglia che non raggiunge. Gli altri casi usano quelle delle
+    assegnazioni. Il motore non lo sa fare: ``ir/variants.py`` compila
     l'attivita' in varianti dietro una decisione per regola.
     """
 
@@ -233,8 +243,20 @@ class DurationByAttribute(_Strict):
 
     @model_validator(mode="after")
     def _distinct(self):
-        _unique(f"categoria della durata per {self.attribute}", [variant.value for variant in self.variants])
+        thresholds = [variant.up_to for variant in self.variants if variant.up_to is not None]
+        if thresholds and len(thresholds) != len(self.variants):
+            raise ValueError(f"durate per {self.attribute}: o tutte per categoria o tutte per soglia")
+        if thresholds:
+            # Fasce consecutive: ognuna va dalla soglia precedente alla sua.
+            if any(b <= a for a, b in zip(thresholds, thresholds[1:], strict=False)):
+                raise ValueError(f"durate per {self.attribute}: le soglie devono crescere")
+            return self
+        _unique(f"categoria della durata per {self.attribute}", [variant.value or "" for variant in self.variants])
         return self
+
+    @property
+    def by_threshold(self) -> bool:
+        return self.variants[0].up_to is not None
 
 
 Operator = Literal[">", ">=", "<", "<=", "=", "!="]
