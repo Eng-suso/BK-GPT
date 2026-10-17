@@ -570,6 +570,8 @@
       "reworkWhen_one": "Once done, {{share}} of cases with {{rule}} went back to {{target}}, at most {{count}} time per case.",
       "reworkWhen_other": "Once done, {{share}} of cases with {{rule}} went back to {{target}}, at most {{count}} times per case.",
       "reworkSelf": "redo it",
+      "arrivalBand": "one case every {{every}}",
+      "arrivalBandsNote": "No case arrived outside these bands. The DeliR runner generated the arrivals, with the run seed.",
       "escalation": "Timer escalation after {{after}} on «{{activity}}»: the share of cases whose work outlasted the timer took the escalation path, computed from the simulated duration. Queue waiting does not count."
     },
     "provenance": {

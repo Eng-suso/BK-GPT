@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ScenarioElementProvenance, ScenarioTemplate } from "../simulationTypes";
-import { durationView, elementFromModel, STANDARD_CALENDAR_ID } from "./modelParameters";
+import { arrivalFromModel, durationView, elementFromModel, STANDARD_CALENDAR_ID } from "./modelParameters";
 import type { RunModel } from "./runModel";
 
 const MODEL: RunModel = {
@@ -125,6 +125,15 @@ describe("elementFromModel", () => {
     expect(view?.kind === "gateway" && view.escalation).toEqual({ afterSeconds: 172_800, activityName: "Approva" });
     const plain = elementFromModel(MODEL, "Gw");
     expect(plain?.kind === "gateway" && plain.escalation).toBeNull();
+  });
+
+  it("reads the arrival bands the run simulated", () => {
+    const model: RunModel = {
+      ...MODEL,
+      arrival: { interarrival: { kind: "exponential", mean: 900, minimum: 0, maximum: 9000 }, calendar_id: STANDARD_CALENDAR_ID, provenance: null,
+        bands: [{ from_day: "MONDAY", to_day: "FRIDAY", begin: "09:00:00.000", end: "12:00:00.000", mean_seconds: 300 }] },
+    };
+    expect(arrivalFromModel(model)?.bands).toEqual([{ fromDay: "MONDAY", toDay: "FRIDAY", begin: "09:00", end: "12:00", meanSeconds: 300 }]);
   });
 
   it("returns null for an element the model does not simulate", () => {

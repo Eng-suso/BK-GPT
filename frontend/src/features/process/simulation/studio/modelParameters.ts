@@ -53,7 +53,8 @@ export type BranchView = {
   provenance: FieldProvenance;
 };
 
-export type ArrivalView = { duration: DurationView; calendar: CalendarView; provenance: FieldProvenance };
+export type ArrivalBandView = { fromDay: string; toDay: string; begin: string; end: string; meanSeconds: number };
+export type ArrivalView = { duration: DurationView; calendar: CalendarView; provenance: FieldProvenance; bands: ArrivalBandView[] };
 
 export type DurationByView = { attribute: string; variants: { value: string; duration: DurationView }[] };
 
@@ -82,6 +83,9 @@ export function arrivalFromModel(model: RunModel): ArrivalView | null {
     duration: durationView(model.arrival.interarrival),
     calendar: calendarView(model, model.arrival.calendar_id),
     provenance: parameterProvenance(model.arrival.provenance, activityProvenance(false, undefined), activityProvenance(true, undefined)),
+    bands: (model.arrival.bands ?? []).map((band) => ({
+      fromDay: band.from_day, toDay: band.to_day, begin: band.begin.slice(0, 5), end: band.end.slice(0, 5), meanSeconds: band.mean_seconds,
+    })),
   };
 }
 

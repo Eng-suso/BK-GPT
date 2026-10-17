@@ -182,10 +182,18 @@ function Arrival({ arrival, lang, t, provenanceState }: { arrival: ArrivalView; 
   return <div className="sim-param-group">
     <h5>{t("simulation.activityInspector.arrivals")}</h5>
     <dl>
-      <DurationRows duration={arrival.duration} lang={lang} t={t} meanLabel={t("simulation.activityInspector.interarrival")} />
-      <div><dt>{t("simulation.activityInspector.arrivalCalendar")}</dt><dd>{calendarText(arrival.calendar, lang, t)}</dd></div>
+      {arrival.bands.length ? arrival.bands.map((band, index) => (
+        <div key={index}>
+          <dt>{band.fromDay === band.toDay ? weekday(band.fromDay, lang) : `${weekday(band.fromDay, lang)}–${weekday(band.toDay, lang)}`} {band.begin}–{band.end}</dt>
+          <dd>{t("simulation.activityInspector.arrivalBand", { every: formatParameterDuration(band.meanSeconds, lang) })}</dd>
+        </div>
+      )) : <>
+        <DurationRows duration={arrival.duration} lang={lang} t={t} meanLabel={t("simulation.activityInspector.interarrival")} />
+        <div><dt>{t("simulation.activityInspector.arrivalCalendar")}</dt><dd>{calendarText(arrival.calendar, lang, t)}</dd></div>
+      </>}
       <OriginRow field={arrival.provenance} t={t} provenanceState={provenanceState} />
     </dl>
+    {arrival.bands.length > 0 && <p className="sim-help">{t("simulation.activityInspector.arrivalBandsNote")}</p>}
     <ProvenanceFoot field={arrival.provenance} t={t} provenanceState={provenanceState} />
   </div>;
 }

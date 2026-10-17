@@ -570,6 +570,8 @@
       "reworkWhen_one": "Finita, il {{share}} dei casi con {{rule}} tornava a {{target}}, al più {{count}} volta per caso.",
       "reworkWhen_other": "Finita, il {{share}} dei casi con {{rule}} tornava a {{target}}, al più {{count}} volte per caso.",
       "reworkSelf": "rifarla",
+      "arrivalBand": "un caso ogni {{every}}",
+      "arrivalBandsNote": "Fuori da queste fasce non arrivava nessuno. Gli arrivi li ha generati il runner DeliR, con il seed del run.",
       "escalation": "Escalation a tempo dopo {{after}} su «{{activity}}»: è andata nel ramo d'escalation la quota dei casi la cui lavorazione superava il timer, calcolata dalla durata simulata. L'attesa in coda non conta."
     },
     "provenance": {
