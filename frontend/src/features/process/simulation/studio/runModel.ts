@@ -63,6 +63,8 @@ export const runModelSchema = z.object({
           amount: z.number(),
           calendar_id: z.string(),
           provenance,
+          // SIM-30: unita' in piu' presenti solo nel calendario del turno.
+          shifts: z.array(z.object({ amount: z.number(), calendar_id: z.string() })).default([]),
         }),
       ),
     }),

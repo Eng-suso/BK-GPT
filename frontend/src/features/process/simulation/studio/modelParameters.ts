@@ -38,7 +38,7 @@ export type CalendarView =
   | { standard: false; name: string; periods: { fromDay: string; toDay: string; begin: string; end: string }[] };
 
 export type AssignmentView = {
-  resource: { name: string; amount: number; costPerHour: number; calendar: CalendarView } | null;
+  resource: { name: string; amount: number; costPerHour: number; calendar: CalendarView; shifts: { amount: number; calendar: CalendarView }[] } | null;
   duration: DurationView;
   provenance: FieldProvenance;
 };
@@ -168,7 +168,10 @@ export function elementFromModel(
         const resource = resources.get(assignment.resource_id);
         return {
           resource: resource
-            ? { name: resource.name, amount: resource.amount, costPerHour: resource.cost_per_hour, calendar: calendarView(model, resource.calendar_id) }
+            ? {
+              name: resource.name, amount: resource.amount, costPerHour: resource.cost_per_hour, calendar: calendarView(model, resource.calendar_id),
+              shifts: (resource.shifts ?? []).map((shift) => ({ amount: shift.amount, calendar: calendarView(model, shift.calendar_id) })),
+            }
             : null,
           duration: durationView(assignment.duration),
           provenance: parameterProvenance(assignment.provenance, structural, activityProvenance(true, element)),
