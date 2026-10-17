@@ -539,7 +539,15 @@
       "fixedCost": "Fixed cost: {{value}} per execution, on top of the resource time.",
       "durationBy": "Duration by {{attribute}}",
       "durationByCategory": "{{attribute}} = {{value}}",
-      "durationByOthers": "The other cases used the resource durations below."
+      "durationByOthers": "The other cases used the resource durations below.",
+      "flowRules": "Skip and rework",
+      "skip": "{{share}} of cases skipped it.",
+      "skipWhen": "{{share}} of cases with {{rule}} skipped it; the others did it.",
+      "rework_one": "Once done, {{share}} of cases went back to {{target}}, at most {{count}} time per case.",
+      "rework_other": "Once done, {{share}} of cases went back to {{target}}, at most {{count}} times per case.",
+      "reworkWhen_one": "Once done, {{share}} of cases with {{rule}} went back to {{target}}, at most {{count}} time per case.",
+      "reworkWhen_other": "Once done, {{share}} of cases with {{rule}} went back to {{target}}, at most {{count}} times per case.",
+      "reworkSelf": "redo it"
     },
     "provenance": {
       "label": "Source",

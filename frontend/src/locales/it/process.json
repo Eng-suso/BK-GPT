@@ -539,7 +539,15 @@
       "fixedCost": "Costo fisso: {{value}} per ogni esecuzione, oltre al tempo della risorsa.",
       "durationBy": "Durata per {{attribute}}",
       "durationByCategory": "{{attribute}} = {{value}}",
-      "durationByOthers": "Gli altri casi hanno usato la durata delle risorse qui sotto."
+      "durationByOthers": "Gli altri casi hanno usato la durata delle risorse qui sotto.",
+      "flowRules": "Salto e rilavorazione",
+      "skip": "Il {{share}} dei casi l'ha saltata.",
+      "skipWhen": "Il {{share}} dei casi con {{rule}} l'ha saltata; gli altri l'hanno svolta.",
+      "rework_one": "Finita, il {{share}} dei casi tornava a {{target}}, al più {{count}} volta per caso.",
+      "rework_other": "Finita, il {{share}} dei casi tornava a {{target}}, al più {{count}} volte per caso.",
+      "reworkWhen_one": "Finita, il {{share}} dei casi con {{rule}} tornava a {{target}}, al più {{count}} volta per caso.",
+      "reworkWhen_other": "Finita, il {{share}} dei casi con {{rule}} tornava a {{target}}, al più {{count}} volte per caso.",
+      "reworkSelf": "rifarla"
     },
     "provenance": {
       "label": "Origine",

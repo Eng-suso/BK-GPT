@@ -57,8 +57,14 @@ export type ArrivalView = { duration: DurationView; calendar: CalendarView; prov
 
 export type DurationByView = { attribute: string; variants: { value: string; duration: DurationView }[] };
 
+/** SIM-35: chi saltava l'attivita' e chi tornava indietro a rifarla nel run. */
+export type FlowRulesView = {
+  skip: { probability: number; condition: IrRule[][] | null } | null;
+  rework: { backTo: string; backToName: string; probability: number; maxRepeats: number; condition: IrRule[][] | null } | null;
+};
+
 export type ElementView =
-  | { kind: "activity"; assignments: AssignmentView[]; durationBy: DurationByView | null }
+  | { kind: "activity"; assignments: AssignmentView[]; durationBy: DurationByView | null; flowRules: FlowRulesView }
   | { kind: "gateway"; branches: BranchView[]; provenance: FieldProvenance };
 
 /** SIM-12: chi passava prima in coda nel run, dalla priorita' 1. */
@@ -136,6 +142,18 @@ export function elementFromModel(
     const structural = activityProvenance(false, element);
     return {
       kind: "activity",
+      flowRules: {
+        skip: activity.skip ? { probability: activity.skip.probability, condition: activity.skip.condition?.any_of ?? null } : null,
+        rework: activity.rework
+          ? {
+            backTo: activity.rework.back_to,
+            backToName: model.activities.find((a) => a.element_id === activity.rework?.back_to)?.name || activity.rework.back_to,
+            probability: activity.rework.probability,
+            maxRepeats: activity.rework.max_repeats,
+            condition: activity.rework.condition?.any_of ?? null,
+          }
+          : null,
+      },
       durationBy: activity.duration_by
         ? { attribute: activity.duration_by.attribute, variants: activity.duration_by.variants.map((v) => ({ value: v.value, duration: durationView(v.duration) })) }
         : null,
