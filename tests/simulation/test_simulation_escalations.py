@@ -150,3 +150,13 @@ def test_the_compatibility_report_declares_the_escalation_as_approximated():
     # Il ramo d'escalation ora si simula.
     remind = next(e for e in report.elements if e.element_id == "T_remind")
     assert remind.status == "preserved"
+
+
+def test_the_template_tells_the_panel_which_decision_is_a_timer():
+    from backend.simulation.scenario_builder import describe_scenario_template
+
+    template = describe_scenario_template(normalize_bpmn_for_prosimos(escalation_bpmn()))
+    late = next(g for g in template.gateways if g.element_id == "B_late")
+    assert late.name == "Oltre 30 minuti"
+    assert late.escalation is not None and late.escalation.after_seconds == 1800.0
+    assert all(g.escalation is None for g in template.gateways if g.element_id != "B_late")

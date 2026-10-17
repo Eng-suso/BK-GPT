@@ -6,6 +6,7 @@ from xml.etree import ElementTree
 from backend.schemas.simulation import (
     CreateSimulationRunRequest,
     ScenarioTemplateBranch,
+    ScenarioTemplateEscalation,
     ScenarioTemplateGateway,
     ScenarioTemplateResponse,
     ScenarioTemplateTask,
@@ -131,6 +132,9 @@ def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = N
                     )
                     for flow in gateway.outgoing_flows
                 ],
+                escalation=(
+                    ScenarioTemplateEscalation(**gateway.escalation.model_dump()) if gateway.escalation else None
+                ),
             )
             for gateway in gateways
         ],

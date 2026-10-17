@@ -230,11 +230,20 @@ class ScenarioTemplateBranch(BaseModel):
     target_name: str
 
 
+class ScenarioTemplateEscalation(BaseModel):
+    """SIM-35: la decisione e' un timer: la quota dei rami viene dalla durata dell'attivita'."""
+
+    activity_id: str
+    after_seconds: float
+    normal_flow_id: str
+
+
 class ScenarioTemplateGateway(BaseModel):
     element_id: str
     name: str
     type: str
     branches: list[ScenarioTemplateBranch]
+    escalation: ScenarioTemplateEscalation | None = None
 
 
 class ScenarioTemplateResource(BaseModel):
