@@ -102,7 +102,11 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
 
   const comparisonsCount = comparisonCount(asIs, rows.slice(1).map(({ results }) => results));
   const comparisons = rows.slice(1).map(({ results }) => (asIs ? scenarioDeltas(asIs, results, runs, comparisonsCount) : null));
-  const percent = (v: number) => v.toLocaleString(lang === "it" ? "it-IT" : "en-US", { style: "percent", maximumFractionDigits: v > 0.99 || v < 0.01 ? 1 : 0 });
+  // Mai "100%" o "0%": con poche ripetizioni la certezza non c'e', c'e' solo una probabilita' molto alta.
+  const percent = (v: number) => {
+    const fmt = (x: number) => x.toLocaleString(lang === "it" ? "it-IT" : "en-US", { style: "percent", maximumFractionDigits: x > 0.99 || x < 0.01 ? 1 : 0 });
+    return v > 0.999 ? `> ${fmt(0.999)}` : v < 0.001 ? `< ${fmt(0.001)}` : fmt(v);
+  };
   const kinds = new Set(comparisons.flatMap((c) => (c ? Object.values(c.kpis).filter(Boolean).map((d) => (d as ScenarioDelta).kind === "single" ? "single" : c.paired ? "paired" : "independent") : [])));
 
   return (
