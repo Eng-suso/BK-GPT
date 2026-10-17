@@ -395,6 +395,22 @@
         "target": "Indica un tempo maggiore di zero.",
         "share": "La quota va da 1 a 100."
       },
+      "slaSegments": {
+        "title": "Obiettivi per gruppo di casi",
+        "needAttribute": "Per dare a un gruppo di casi un obiettivo suo (es. premium entro 24 ore), aggiungi un attributo a categorie.",
+        "group": "Gruppo {{n}}",
+        "cases": "Casi",
+        "choose": "Scegli il gruppo",
+        "add": "Aggiungi un obiettivo per gruppo",
+        "remove": "Togli l'obiettivo di {{group}}",
+        "reads": "Almeno il {{share}}% dei casi {{group}} deve chiudersi entro {{target}} {{unit}}.",
+        "issue": {
+          "attribute": "Scegli una categoria esistente: quella scelta non c'è più.",
+          "duplicate": "Questo gruppo ha già un obiettivo.",
+          "target": "Il tempo deve essere maggiore di zero.",
+          "share": "La quota va da 1 a 100."
+        }
+      },
       "invalidSla": "Obiettivo di servizio da correggere.",
       "fixedCost": "Costo fisso per esecuzione, €",
       "caseFixedCost": "Costo fisso per caso, €",
@@ -525,6 +541,9 @@
       "slaWithin": "{{share}} dei casi chiusi entro {{target}} (obiettivo {{goal}}).",
       "slaLate_one": "{{count}} caso su {{cases}} oltre il tempo.",
       "slaLate_other": "{{count}} casi su {{cases}} oltre il tempo.",
+      "slaSegmentEmpty": "Nessun caso nel run",
+      "slaSegmentWithin_one": "{{share}} entro {{target}} (obiettivo {{goal}}): {{count}} caso su {{cases}} oltre il tempo.",
+      "slaSegmentWithin_other": "{{share}} entro {{target}} (obiettivo {{goal}}): {{count}} casi su {{cases}} oltre il tempo.",
       "costTitle": "Costo dello scenario",
       "costTotal": "{{total}} in tutto, {{perCase}} per caso.",
       "costResources": "Tempo delle risorse: {{value}}",
