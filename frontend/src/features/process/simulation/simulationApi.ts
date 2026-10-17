@@ -45,6 +45,13 @@ export async function runProsimosSimulation(
           min_seconds: input.arrival.minSeconds,
           max_seconds: input.arrival.maxSeconds,
           calendar_id: input.arrival.calendarId,
+          bands: input.arrival.bands?.map((band) => ({
+            from_day: band.fromDay,
+            to_day: band.toDay,
+            begin: band.begin,
+            end: band.end,
+            mean_seconds: band.meanSeconds,
+          })),
         },
         resources: input.resources?.map((r) => ({
           id: r.id,

@@ -7,6 +7,7 @@ import {
   type CaseAttributeDraft,
   type GatewayRulesDraft,
 } from "./caseRules";
+import { arrivalBandIssues, arrivalBandsInput, sanitizeArrivalBands, type ArrivalBandDraft } from "./arrivalBands";
 import {
   reworkInput,
   reworkIssue,
@@ -97,6 +98,8 @@ export type GatewayDraft = Record<string, number>;
 export type ArrivalDraft = Omit<DurationDraft, "meanMinutes"> & {
   /** Assente = il calendario standard. */
   calendarId?: string;
+  /** SIM-08: un ritmo per fascia oraria. Presenti, contano solo loro. */
+  bands?: ArrivalBandDraft[];
 };
 
 /** SIM-13: il caso si chiude entro ``target`` ore o giorni per almeno ``sharePercent`` dei casi. */
@@ -225,7 +228,8 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
     // Una durata per categoria su un attributo tolto o non a categorie va rivista.
     || (task.durationBy !== undefined && durationVariants(task, attributes) === null)).length;
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
-  const arrival = taskDurationIssue(arrivalDuration(draft)) !== null;
+  const arrival = taskDurationIssue(arrivalDuration(draft)) !== null
+    || arrivalBandIssues(draft.arrival?.bands ?? []).some((issue) => issue !== null);
   const sla = draft.sla ? slaIssue(draft.sla) !== null : false;
   const badCost = (value: number | undefined) => value !== undefined && !(Number.isFinite(value) && value >= 0);
   const costs = badCost(draft.caseFixedCost) || Object.values(draft.tasks).some((task) => badCost(task.fixedCost));
@@ -269,7 +273,7 @@ export function arrivalDuration(draft: ScenarioDraft): DurationDraft {
 export function withArrival(draft: ScenarioDraft, next: DurationDraft, ...calendar: [calendarId: string | undefined] | []): ScenarioDraft {
   const { meanMinutes, ...rest } = next;
   const calendarId = calendar.length ? calendar[0] : draft.arrival?.calendarId;
-  return { ...draft, arrivalIntervalMinutes: meanMinutes, arrival: { ...rest, calendarId } };
+  return { ...draft, arrivalIntervalMinutes: meanMinutes, arrival: { ...rest, calendarId, bands: draft.arrival?.bands } };
 }
 
 export function newCalendarId(existing: CalendarDraft[]): string {
@@ -369,6 +373,7 @@ export function scenarioToInput(
     arrival: {
       ...durationInput(arrivalDuration(draft)),
       calendarId: arrivalCalendar && calendarIds.has(arrivalCalendar) ? arrivalCalendar : undefined,
+      ...(draft.arrival?.bands?.length ? { bands: arrivalBandsInput(draft.arrival.bands) } : {}),
     },
     resources: draft.resources.map((r) => ({
       id: r.id,
@@ -544,6 +549,7 @@ function sanitizeArrival(raw: unknown): ArrivalDraft | undefined {
     minMinutes: number(value.minMinutes),
     maxMinutes: number(value.maxMinutes),
     calendarId: typeof value.calendarId === "string" ? value.calendarId : undefined,
+    bands: sanitizeArrivalBands(value.bands),
   };
 }
 
