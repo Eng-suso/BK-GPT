@@ -59,6 +59,7 @@ export async function runProsimosSimulation(
           cost_per_hour: r.costPerHour,
           amount: r.amount,
           calendar_id: r.calendarId,
+          shifts: r.shifts?.map((shift) => ({ amount: shift.amount, calendar_id: shift.calendarId })),
         })),
         tasks: input.tasks?.map((task) => ({
           element_id: task.elementId,

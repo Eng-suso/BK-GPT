@@ -281,6 +281,8 @@ export type SimResourceInput = {
   amount: number;
   /** Assente = il calendario standard. */
   calendarId?: string;
+  /** SIM-30: turni di rinforzo. */
+  shifts?: { amount: number; calendarId: string }[];
 };
 
 export type SimDurationInput = {

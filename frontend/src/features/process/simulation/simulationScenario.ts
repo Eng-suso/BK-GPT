@@ -36,7 +36,18 @@ export type ResourceDraft = {
   parametersConfirmed?: boolean;
   /** Assente = il calendario standard. */
   calendarId?: string;
+  /** SIM-30: unità in più presenti solo nel calendario del turno. */
+  shifts?: ShiftDraft[];
 };
+
+/** Un turno di rinforzo: `amount` unità in più nel calendario `calendarId`. */
+export type ShiftDraft = { amount: number; calendarId: string };
+
+/** Un turno da correggere: unità fuori scala o calendario che non c'è (più). */
+export function shiftIssue(shift: ShiftDraft, calendars: CalendarDraft[]): "amount" | "calendar" | null {
+  if (!(Number.isInteger(shift.amount) && shift.amount >= 1 && shift.amount <= 1000)) return "amount";
+  return calendars.some((c) => c.id === shift.calendarId) ? null : "calendar";
+}
 
 /** La durata di un'attività per un ruolo, in minuti. */
 export type DurationDraft = {
@@ -237,10 +248,11 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
   const flowRules = Object.values(draft.tasks).filter((task) =>
     (task.skip !== undefined && skipIssue(task.skip, attributes) !== null)
     || (task.rework !== undefined && reworkIssue(task.rework, attributes, activityIds) !== null)).length;
+  const shifts = draft.resources.filter((r) => (r.shifts ?? []).some((shift) => shiftIssue(shift, draft.calendars ?? []) !== null)).length;
   const warmup = warmupIssue(draft) !== null;
   const replications = draft.replications !== undefined && !(Number.isInteger(draft.replications) && draft.replications >= 1 && draft.replications <= 20);
-  return { durations, calendars, arrival, sla, costs, warmup, replications, flowRules,
-    ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs && !warmup && !replications && flowRules === 0 };
+  return { durations, calendars, arrival, sla, costs, warmup, replications, flowRules, shifts,
+    ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs && !warmup && !replications && flowRules === 0 && shifts === 0 };
 }
 
 export type WarmupIssue = "notWhole" | "noCaseLeft";
@@ -381,6 +393,7 @@ export function scenarioToInput(
       costPerHour: r.costPerHour,
       amount: r.amount,
       calendarId: calendarIds.has(r.calendarId ?? "") ? r.calendarId : undefined,
+      ...(r.shifts?.length ? { shifts: r.shifts.map(({ amount, calendarId }) => ({ amount, calendarId })) } : {}),
     })),
     tasks: Object.entries(draft.tasks).map(([elementId, task]) => {
       const others = task.otherAssignments ?? [];

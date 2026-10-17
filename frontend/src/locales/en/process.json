@@ -405,6 +405,23 @@
       "durationByCategory": "Cases with {{attribute}} = {{value}}",
       "durationByMissing": "The chosen attribute is gone or not a category: pick another.",
       "invalidFlowRules": "Activities with a skip or rework to fix: {{count}}",
+      "invalidShifts": "Roles with a shift to fix: {{count}}",
+      "shifts": {
+        "title": "Extra shifts",
+        "hint": "Extra units present only in the hours of a calendar, for example two more people in the morning.",
+        "noCalendars": "For an extra shift, first create its calendar in the Calendars section.",
+        "add": "Add a shift",
+        "addFor": "Add a shift to {{role}}",
+        "label": "{{role}} · shift {{n}}",
+        "amount": "Extra units",
+        "calendar": "In the hours of",
+        "chooseCalendar": "Choose a calendar",
+        "remove": "Remove {{shift}}",
+        "issue": {
+          "amount": "A whole number from 1 to 1000.",
+          "calendar": "The shift calendar is gone: choose another."
+        }
+      },
       "arrivalBands": {
         "toggle": "Different pace by time band",
         "hint": "Each band has its own mean time between two arrivals. No case arrives outside the bands.",
@@ -570,6 +587,9 @@
       "reworkWhen_one": "Once done, {{share}} of cases with {{rule}} went back to {{target}}, at most {{count}} time per case.",
       "reworkWhen_other": "Once done, {{share}} of cases with {{rule}} went back to {{target}}, at most {{count}} times per case.",
       "reworkSelf": "redo it",
+      "shift": "Shift {{n}}",
+      "shiftValue_one": "{{count}} extra unit · {{calendar}}",
+      "shiftValue_other": "{{count}} extra units · {{calendar}}",
       "arrivalBand": "one case every {{every}}",
       "arrivalBandsNote": "No case arrived outside these bands. The DeliR runner generated the arrivals, with the run seed.",
       "escalation": "Timer escalation after {{after}} on «{{activity}}»: the share of cases whose work outlasted the timer took the escalation path, computed from the simulated duration. Queue waiting does not count."

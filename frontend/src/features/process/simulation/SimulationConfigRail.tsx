@@ -39,6 +39,7 @@ import { ServiceLevelFields } from "./ServiceLevel";
 import { ArrivalBands } from "./ArrivalBands";
 import { DurationByCategory } from "./DurationByCategory";
 import { FlowRules } from "./FlowRules";
+import { ResourceShifts } from "./ResourceShifts";
 import { formatAfter } from "./escalation";
 import { flowRuleAttributeIds } from "./flowRules";
 import { CalendarsSection } from "./CalendarsSection";
@@ -373,6 +374,7 @@ export function SimulationConfigRail({
                       {calendars.map((c) => <option key={c.id} value={c.id}>{c.name || c.id}</option>)}
                     </select>
                   </label>
+                  <ResourceShifts resource={resource} calendars={calendars} onChange={(shifts) => updateResource(resource.id, { shifts })} />
                   <p className="mt-3 text-xs text-muted-foreground">{t("simulation.config.assignedActivities", { count: assigned })}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {!confirmed && <Button type="button" size="sm" variant="outline" disabled={!resourceParametersValid(resource)} onClick={() => updateResource(resource.id, { parametersConfirmed: true })}>{t("simulation.config.confirmResource")}</Button>}
@@ -391,6 +393,7 @@ export function SimulationConfigRail({
             {parameterIssues.arrival && <p>{t("simulation.config.invalidArrival")}</p>}
             {parameterIssues.sla && <p>{t("simulation.config.invalidSla")}</p>}
             {parameterIssues.costs && <p>{t("simulation.config.invalidCosts")}</p>}
+            {parameterIssues.shifts > 0 && <p>{t("simulation.config.invalidShifts", { count: parameterIssues.shifts })}</p>}
             {parameterIssues.flowRules > 0 && <p>{t("simulation.config.invalidFlowRules", { count: parameterIssues.flowRules })}</p>}
             {parameterIssues.warmup && <p>{t("simulation.config.invalidWarmup")}</p>}
             {parameterIssues.replications && <p>{t("simulation.config.invalidReplications")}</p>}
