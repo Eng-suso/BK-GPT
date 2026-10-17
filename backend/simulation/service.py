@@ -476,7 +476,7 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
         # SIM-13: l'esito dell'obiettivo di servizio, sulla stessa definizione di cycle dei KPI.
         outcome = await asyncio.to_thread(
             sla_outcome, log_csv, target_seconds=claimed.sla.target_seconds, share=claimed.sla.share,
-            warmup_cases=claimed.warmup_cases,
+            warmup_cases=claimed.warmup_cases, segments=claimed.sla.segments,
         )
         if outcome is not None:
             summary["sla"] = asdict(outcome)
