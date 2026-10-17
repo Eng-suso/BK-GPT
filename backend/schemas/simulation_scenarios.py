@@ -107,6 +107,8 @@ class SimulationScenarioResponse(BaseModel):
 
 class SimulationScenarioWorkspaceResponse(BaseModel):
     bpmn_model_id: str
+    # L'impronta del BPMN salvato (SIM-14b): un run con un'altra impronta e' da rifare.
+    bpmn_fingerprint: str | None = None
     seed: int | None
     baseline: SimulationScenarioResponse | None
     alternatives: list[SimulationScenarioResponse]
