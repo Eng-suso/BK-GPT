@@ -74,6 +74,17 @@ describe("scenarioDeltas", () => {
     expect(kpis.throughput).toMatchObject({ kind: "single", direction: "worse" });
   });
 
+  it("niente delta se i due run partono da versioni diverse dell'AS-IS", () => {
+    const newBaseline = { ...WORKSPACE, baseline: scenario(1, "baseline", 2) };
+    const runs = [
+      ...[100, 110, 105].map((cycle, i) => run(1, cycle, { group: "base", index: i + 1, seed: 7 + i, baselineRevision: 2 })),
+      ...[80, 91, 84].map((cycle, i) => run(2, cycle, { group: "alt", index: i + 1, seed: 7 + i, baselineRevision: 1 })),
+    ];
+    const result = scenarioDeltas(scenarioRuns(newBaseline, AS_IS, runs), scenarioRuns(newBaseline, ALT, runs), runs);
+    expect(result.mismatch).toBe(true);
+    expect(result.kpis.cycle).toBeNull();
+  });
+
   it("niente delta se una delle due parti non ha run completati", () => {
     const runs = [run(1, 100)];
     expect(scenarioDeltas(scenarioRuns(WORKSPACE, AS_IS, runs), scenarioRuns(WORKSPACE, ALT, runs), runs).kpis.cycle).toBeNull();
