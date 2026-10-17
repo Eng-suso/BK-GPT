@@ -82,6 +82,13 @@ export async function runProsimosSimulation(
             min_seconds: other.minSeconds,
             max_seconds: other.maxSeconds,
           })),
+          skip: task.skip,
+          rework: task.rework && {
+            back_to: task.rework.backTo,
+            probability: task.rework.probability,
+            max_repeats: task.rework.maxRepeats,
+            condition: task.rework.condition,
+          },
         })),
         gateways: input.gateways?.map((g) => ({
           element_id: g.elementId,
