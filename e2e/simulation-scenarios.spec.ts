@@ -289,6 +289,7 @@ test("the Workspace tool gives no verdict between runs on different AS-IS versio
   const a = page.locator('[data-sim-scenario-workspace] [data-sim-workspace-row="A"]');
   await expect(a).toContainText("Da rifare");
   await expect(a.locator("[data-sim-workspace-mismatch]")).toBeVisible();
+  await expect(a.getByRole("status")).toContainText("versioni diverse dell'AS-IS");
   await expect(a).not.toContainText("Migliore");
   await expect(a).not.toContainText("Δ");
 });

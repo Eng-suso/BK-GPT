@@ -151,7 +151,12 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
                     <span className="sim-workspace-name"><span className="sim-scenario-label">{scenario.label}</span>{scenario.kind === "alternative" && <><span className="sr-only"> · </span><span>{scenario.name}</span></>}</span>
                     <span className={cn("block text-xs", STATUS_TONE[results.status])}>{t(`simulation.scenarios.workspace.status.${results.status}`)}</span>
                     {results.members.length > 0 && <span className="block text-xs text-muted-foreground">{t("simulation.scenarios.workspace.reps", { count: results.completed.length })}</span>}
-                    {comparison?.mismatch && <span className="block text-xs text-[var(--state-warning-text)]" data-sim-workspace-mismatch>{t("simulation.scenarios.workspace.deltaMismatch")}</span>}
+                    {/* Sempre montata: quando un run finisce e i due non sono piu' confrontabili, lo screen reader lo annuncia. */}
+                    {index > 0 && (
+                      <span role="status" className="block text-xs text-[var(--state-warning-text)]" data-sim-workspace-mismatch={comparison?.mismatch ? "" : undefined}>
+                        {comparison?.mismatch ? t("simulation.scenarios.workspace.deltaMismatch") : null}
+                      </span>
+                    )}
                     <span className="sim-workspace-actions">
                       <Button size="sm" variant="ghost" disabled={busy} aria-label={t(results.status === "never" ? "simulation.scenarios.workspace.runScenario" : "simulation.scenarios.workspace.rerunScenario", { name })} onClick={() => void run([scenario])}>
                         <Play aria-hidden className="size-3.5" />
