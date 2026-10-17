@@ -126,11 +126,19 @@ def claim_proposals_for_model(
     bpmn_model: BpmnModelResponse,
     current_bpmn_xml: str | None,
 ) -> SimulationClaimsResponse:
-    """Per ogni attivita', le affermazioni dei file del progetto (e del cliente) che la nominano."""
+    """Per ogni attivita', le affermazioni dei file del progetto (e del cliente) che la nominano.
+
+    Le attivita' che il confronto sui nomi lascia senza proposte passano dal
+    ripiego con l'LLM (C3), se c'e' una chiave: anche quelle sono solo proposte.
+    """
+    from backend.simulation.claim_matching import Activity, match_with_llm, proposals_from_llm
     from backend.simulation.claims import propose
 
     template = scenario_template_for_model(bpmn_model=bpmn_model, current_bpmn_xml=current_bpmn_xml)
     names, claims = _process_claims(bpmn_model.process_id)
+    lexical = {task.element_id: propose(task.name, claims, names) for task in template.tasks}
+    unmatched = [Activity(task.element_id, task.name) for task in template.tasks if not lexical[task.element_id]]
+    from_llm = match_with_llm(bpmn_model.process_id, unmatched, claims)
     return SimulationClaimsResponse(
         sources=len(names),
         activities=[
@@ -138,7 +146,7 @@ def claim_proposals_for_model(
                 element_id=task.element_id,
                 name=task.name,
                 proposals=[ClaimProposalResponse.model_validate(p, from_attributes=True)
-                           for p in propose(task.name, claims, names)],
+                           for p in lexical[task.element_id] or proposals_from_llm(from_llm.get(task.element_id, []), claims, names)],
             )
             for task in template.tasks
         ],
