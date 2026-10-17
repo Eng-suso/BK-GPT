@@ -395,7 +395,7 @@ class Arrival(_Strict):
             for band in self.bands
             for day in _days(band.from_day, band.to_day)
         )
-        for (_, end), (begin, _) in zip(intervals, intervals[1:]):
+        for (_, end), (begin, _) in zip(intervals, intervals[1:], strict=False):
             if begin < end:
                 raise ValueError("due fasce degli arrivi si sovrappongono")
         return self
