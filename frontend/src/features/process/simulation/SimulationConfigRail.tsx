@@ -38,6 +38,7 @@ import { ActivitySources } from "./ActivitySources";
 import { ServiceLevelFields } from "./ServiceLevel";
 import { DurationByCategory } from "./DurationByCategory";
 import { FlowRules } from "./FlowRules";
+import { formatAfter } from "./escalation";
 import { flowRuleAttributeIds } from "./flowRules";
 import { CalendarsSection } from "./CalendarsSection";
 import { CaseAttributesSection } from "./CaseAttributesSection";
@@ -558,7 +559,7 @@ export function SimulationConfigRail({
                           />
                         )}
                       </div>
-                      {rules ? null : balanced ? (
+                      {gateway.escalation || rules ? null : balanced ? (
                         <StatusIndicator tone="ok" label="100%" />
                       ) : (
                         <button
@@ -587,6 +588,15 @@ export function SimulationConfigRail({
                         </button>
                       )}
                     </div>
+                    {gateway.escalation ? (
+                      <p className="text-xs text-muted-foreground" data-escalation={gateway.element_id}>
+                        {t("simulation.config.escalation", {
+                          after: formatAfter(gateway.escalation.after_seconds, t),
+                          activity: template?.tasks.find((task) => task.element_id === gateway.escalation?.activity_id)?.name
+                            ?? gateway.escalation.activity_id,
+                        })}
+                      </p>
+                    ) : <>
                     <div className="mb-2">
                       <GatewayModeToggle gateway={gateway} rules={rules} attributes={attributes} onChange={setRules} />
                     </div>
@@ -629,6 +639,7 @@ export function SimulationConfigRail({
                         </div>
                       ))}
                     </div>}
+                    </>}
                   </li>
                 );
               })}

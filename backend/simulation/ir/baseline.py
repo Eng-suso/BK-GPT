@@ -109,4 +109,5 @@ def _even_gateway(gateway: BpmnGateway) -> Gateway:
     return Gateway(
         element_id=gateway.id,
         branches=tuple(Branch(flow_id=flow.id, probability=share) for flow in gateway.outgoing_flows),
+        escalation=gateway.escalation,
     )

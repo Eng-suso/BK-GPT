@@ -331,3 +331,42 @@ def test_a_rework_repeats_the_activity_by_its_share_up_to_the_limit():
     assert 0.3 < shares[1] < 0.5 and 0.15 < shares[2] < 0.33 and 0.26 < shares[3] < 0.46, shares
     # Si torna a Ricevi: lo rifà ogni ritorno.
     assert _executions(rows, "Ricevi") == approvals
+
+
+def test_a_timer_escalation_sends_the_cases_that_outlast_it_down_the_escalation_path():
+    # SIM-35: Approva dura fra 10 e 40 minuti, il timer scade a 30: un terzo dei
+    # casi passa da Sollecita, e per loro Approva si ferma a 30 minuti esatti.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    source = contract_spike.BPMN_PATH.read_text(encoding="utf-8").replace(
+        '<exclusiveGateway id="G_join"/>',
+        '<boundaryEvent id="B_late" attachedToRef="T_approve"><timerEventDefinition><timeDuration>PT30M</timeDuration>'
+        '</timerEventDefinition></boundaryEvent><task id="T_remind" name="Sollecita"/><exclusiveGateway id="G_join"/>',
+    ).replace(
+        '<sequenceFlow id="F_back" sourceRef="T_approve" targetRef="G_join"/>',
+        '<sequenceFlow id="F_back" sourceRef="T_approve" targetRef="G_join"/>'
+        '<sequenceFlow id="F_late" sourceRef="B_late" targetRef="T_remind"/>'
+        '<sequenceFlow id="F_reminded" sourceRef="T_remind" targetRef="G_join"/>',
+    )
+    request = CreateSimulationRunRequest(
+        tasks=[
+            {"element_id": "T_receive", "mean_seconds": 600, "distribution": "fixed"},
+            {"element_id": "T_approve", "mean_seconds": 1500, "distribution": "uniform", "min_seconds": 600, "max_seconds": 2400},
+            {"element_id": "T_remind", "mean_seconds": 300, "distribution": "fixed"},
+            {"element_id": "T_pay", "mean_seconds": 600, "distribution": "fixed"},
+        ],
+        gateways=[{"element_id": "G_split", "branches": [{"flow_id": "F_high", "probability": 1.0}, {"flow_id": "F_low", "probability": 0.0}]}],
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=normalize_bpmn_for_prosimos(source), request=request)
+    rows = _run(_model(), payload=scenario.payload, bpmn=scenario.bpmn_xml)
+
+    reminded = {row["case_id"] for row in rows if row["activity"] == "Sollecita"}
+    cases = {row["case_id"] for row in rows}
+    assert 0.2 < len(reminded) / len(cases) < 0.47, len(reminded) / len(cases)
+    worked = {row["case_id"]: round(row["end"] - row["start"]) % (16 * 3600) for row in rows if row["activity"] == "Approva"}
+    assert {worked[case] for case in reminded} == {1800}
+    assert all(600 <= worked[case] <= 1800 for case in cases - reminded)
+    # Ogni caso arriva in fondo, dal ramo normale o dall'escalation.
+    assert set(_executions(rows, "Paga").values()) == {1}

@@ -32,6 +32,7 @@ import xml.etree.ElementTree as ET
 
 from defusedxml.ElementTree import fromstring as safe_fromstring
 
+from backend.simulation.ir.escalations import timer_split_id
 from backend.simulation.ir.model import (
     Activity,
     AttributeUpdate,
@@ -93,14 +94,15 @@ def _skip(root: ET.Element, activity: Activity, taken: set[str]) -> Gateway:
     outgoing = _single_outgoing(process, activity)
     split_id = _claim(taken, f"{activity.element_id}__skip_split")
     join_id = _claim(taken, f"{activity.element_id}__skip_join")
+    entry = _entry(process, activity.element_id)
     for flow in _flows(process):
-        if flow.get("targetRef") == activity.element_id:
+        if flow.get("targetRef") == entry:
             flow.set("targetRef", split_id)
     outgoing.set("sourceRef", join_id)
 
     process.insert(list(process).index(task), _gateway(split_id, task.get("name", "")))
     process.insert(list(process).index(task) + 1, _gateway(join_id))
-    do_flow = _flow(process, taken, f"{split_id}__{activity.element_id}", split_id, activity.element_id)
+    do_flow = _flow(process, taken, f"{split_id}__{activity.element_id}", split_id, entry)
     bypass = _flow(process, taken, f"{split_id}__bypass", split_id, join_id)
     _flow(process, taken, f"{activity.element_id}__{join_id}", activity.element_id, join_id)
 
@@ -127,11 +129,12 @@ def _rework(root: ET.Element, activity: Activity, counter: str, taken: set[str])
 
     decision_id = _claim(taken, f"{activity.element_id}__rework")
     join_id = _claim(taken, f"{activity.element_id}__rework_join")
+    entry = _entry(process, rework.back_to)
     for flow in _flows(process):
-        if flow.get("targetRef") == rework.back_to:
+        if flow.get("targetRef") == entry:
             flow.set("targetRef", join_id)
     process.insert(list(process).index(target), _gateway(join_id))
-    _flow(process, taken, f"{join_id}__{rework.back_to}", join_id, rework.back_to)
+    _flow(process, taken, f"{join_id}__{rework.back_to}", join_id, entry)
 
     process.insert(list(process).index(task) + 1, _gateway(decision_id, task.get("name", "")))
     outgoing.set("sourceRef", decision_id)
@@ -194,6 +197,15 @@ def _check_reachable_backwards(process: ET.Element, target_id: str, activity: Ac
         f"«{label}»: la rilavorazione può tornare solo a un'attività che la precede, "
         "senza passare da rami paralleli o inclusivi."
     )
+
+
+def _entry(process: ET.Element, activity_id: str) -> str:
+    """Da dove entra un caso nell'attivita': la scelta del timer, se ha un'escalation.
+
+    Chi salta l'attivita' non scade, e chi torna a rifarla puo' scadere di nuovo.
+    """
+    split = timer_split_id(activity_id)
+    return split if any(child.get("id") == split for child in process) else activity_id
 
 
 def _single_outgoing(process: ET.Element, activity: Activity) -> ET.Element:

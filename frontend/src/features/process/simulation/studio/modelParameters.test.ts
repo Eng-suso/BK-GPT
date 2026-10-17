@@ -114,6 +114,19 @@ describe("elementFromModel", () => {
     expect(plain?.kind === "activity" && plain.flowRules).toEqual({ skip: null, rework: null });
   });
 
+  it("tells a timer escalation apart from a decision by probability", () => {
+    const model: RunModel = {
+      ...MODEL,
+      gateways: [{ element_id: "B_late", branches: [
+        { flow_id: "f1", probability: 0.5, provenance: null }, { flow_id: "f2", probability: 0.5, provenance: null },
+      ], escalation: { activity_id: "Task_B", after_seconds: 172_800, normal_flow_id: "f1" } }],
+    };
+    const view = elementFromModel(model, "B_late");
+    expect(view?.kind === "gateway" && view.escalation).toEqual({ afterSeconds: 172_800, activityName: "Approva" });
+    const plain = elementFromModel(MODEL, "Gw");
+    expect(plain?.kind === "gateway" && plain.escalation).toBeNull();
+  });
+
   it("returns null for an element the model does not simulate", () => {
     expect(elementFromModel(MODEL, "StartEvent_1")).toBeNull();
   });

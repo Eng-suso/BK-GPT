@@ -65,7 +65,10 @@ export type FlowRulesView = {
 
 export type ElementView =
   | { kind: "activity"; assignments: AssignmentView[]; durationBy: DurationByView | null; flowRules: FlowRulesView }
-  | { kind: "gateway"; branches: BranchView[]; provenance: FieldProvenance };
+  | { kind: "gateway"; branches: BranchView[]; provenance: FieldProvenance; escalation: EscalationView | null };
+
+/** SIM-35: un timer d'escalation; la quota dei rami veniva dalla durata dell'attivita'. */
+export type EscalationView = { afterSeconds: number; activityName: string };
 
 /** SIM-12: chi passava prima in coda nel run, dalla priorita' 1. */
 export function prioritiesFromModel(model: RunModel): { level: number; condition: IrRule[][] }[] {
@@ -180,6 +183,12 @@ export function elementFromModel(
   return {
     kind: "gateway",
     provenance: structural,
+    escalation: gateway.escalation
+      ? {
+        afterSeconds: gateway.escalation.after_seconds,
+        activityName: model.activities.find((a) => a.element_id === gateway.escalation?.activity_id)?.name || gateway.escalation.activity_id,
+      }
+      : null,
     branches: gateway.branches.map((branch) => ({
       flowId: branch.flow_id,
       label: flows.get(branch.flow_id) || branch.flow_id,

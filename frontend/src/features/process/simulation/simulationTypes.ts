@@ -168,6 +168,12 @@ export const scenarioTemplateSchema = z.object({
           target_name: z.string(),
         }),
       ),
+      /** SIM-35: la decisione era un timer; la quota dei rami viene dalla durata dell'attivita'. */
+      escalation: z.object({
+        activity_id: z.string(),
+        after_seconds: z.number(),
+        normal_flow_id: z.string(),
+      }).nullable().optional(),
     }),
   ),
 });

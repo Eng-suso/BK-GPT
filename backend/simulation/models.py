@@ -2,6 +2,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from backend.simulation.ir.model import TimerEscalation
+
 
 class BpmnTask(BaseModel):
     id: str
@@ -20,6 +22,8 @@ class BpmnGateway(BaseModel):
     name: str = ""
     type: str = "exclusiveGateway"
     outgoing_flows: tuple[BpmnFlow, ...] = Field(default_factory=tuple)
+    # SIM-35: la decisione era un timer interrompente sul bordo di un'attivita'.
+    escalation: TimerEscalation | None = None
 
     @property
     def outgoing_flow_ids(self) -> tuple[str, ...]:

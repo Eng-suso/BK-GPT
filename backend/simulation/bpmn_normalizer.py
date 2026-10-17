@@ -2,6 +2,14 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ElementTree
 
+from backend.simulation.timers import (
+    DELIR_SIM_NS,
+    ESCALATION_AFTER,
+    ESCALATION_NORMAL_FLOW,
+    ESCALATION_OF,
+    duration_seconds,
+)
+
 BPMN_MODEL_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 BPMN_DI_NS = "http://www.omg.org/spec/BPMN/20100524/DI"
 DC_NS = "http://www.omg.org/spec/DD/20100524/DC"
@@ -14,6 +22,7 @@ _PREFIXES = {
     "dc": DC_NS,
     "di": DI_NS,
     "xsi": XSI_NS,
+    "delirsim": DELIR_SIM_NS,
 }
 
 # --- What Prosimos 1.2.6 actually understands (parse_simulation_model) ---------
@@ -85,7 +94,8 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
       1. strip decorative elements (lanes, data objects, annotations)
       2. down-cast every activity kind to <task>; black-box sub-processes
       3. rewrite unsupported gateways to exclusiveGateway
-      4. splice out boundary events (and their exception flow)
+      4. turn interrupting timers on an activity into a decision after it
+         (SIM-35); splice out the other boundary events and their exception flow
       5. splice out intermediate catch/throw events
       6. collapse multiple start events into one
       7. collapse multiple end events into one
@@ -108,6 +118,7 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
         changed |= _downcast_activities(process)
         changed |= _rewrite_gateways(process)
         changed |= _start_instantiating_gateways(process)
+        changed |= _timer_escalations(process)
         exception_nodes = _exception_branch_ids(process)
         changed |= _drop_boundary_events(process)
         changed |= _join_link_events(process)
@@ -286,6 +297,46 @@ def _start_instantiating_gateways(process: ElementTree.Element) -> bool:
             gateway.attrib.pop(attribute, None)
         process.insert(list(process).index(gateway), start)
         process.append(flow)
+        changed = True
+    return changed
+
+
+def _timer_escalations(process: ElementTree.Element) -> bool:
+    """An interrupting timer on an activity becomes an exclusive gateway after it.
+
+    The gateway keeps the boundary's id and name, so its exception flow keeps
+    its source; the activity's only outgoing flow now leaves from the gateway
+    and is marked as the normal path. ``ir/escalations.py`` compiles the share
+    of cases that outlast the timer. Anything else (non-interrupting, a date or
+    a cycle, several flows out) is left to ``_drop_boundary_events``.
+    """
+    flows = _seq_flows(process)
+    activities = {element.get("id") for element in process if _local(element.tag) == "task"}
+    changed = False
+    for event in process.findall(_q(BPMN_MODEL_NS, "boundaryEvent")):
+        event_id, activity_id = event.get("id", ""), event.get("attachedToRef", "")
+        timer = event.find(_q(BPMN_MODEL_NS, "timerEventDefinition"))
+        after = duration_seconds(None if timer is None else timer.findtext(_q(BPMN_MODEL_NS, "timeDuration")))
+        exception = [flow for flow in flows if flow.get("sourceRef") == event_id]
+        normal = [flow for flow in flows if flow.get("sourceRef") == activity_id]
+        if (
+            after is None or event.get("cancelActivity") == "false" or activity_id not in activities
+            or len(exception) != 1 or len(normal) != 1
+        ):
+            continue
+        gateway = ElementTree.Element(_q(BPMN_MODEL_NS, "exclusiveGateway"), {
+            "id": event_id,
+            **({"name": event.get("name", "")} if event.get("name") else {}),
+            ESCALATION_OF: activity_id,
+            ESCALATION_AFTER: repr(after),
+            ESCALATION_NORMAL_FLOW: normal[0].get("id", ""),
+        })
+        process.insert(list(process).index(event), gateway)
+        process.remove(event)
+        normal[0].set("sourceRef", event_id)
+        process.append(ElementTree.Element(_q(BPMN_MODEL_NS, "sequenceFlow"), {
+            "id": f"{event_id}__from", "sourceRef": activity_id, "targetRef": event_id,
+        }))
         changed = True
     return changed
 

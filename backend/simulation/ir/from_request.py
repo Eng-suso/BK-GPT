@@ -404,4 +404,5 @@ def _gateway(gateway: BpmnGateway, override) -> Gateway:
             Branch(flow_id=flow_id, probability=value, provenance=provenance)
             for flow_id, value in zip(flow_ids, values, strict=True)
         ),
+        escalation=gateway.escalation,
     )

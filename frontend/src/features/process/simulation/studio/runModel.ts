@@ -95,6 +95,8 @@ export const runModelSchema = z.object({
             provenance,
           }),
         ),
+        // SIM-35: la decisione era un timer; i rami non avevano una probabilita' propria.
+        escalation: z.object({ activity_id: z.string(), after_seconds: z.number(), normal_flow_id: z.string() }).nullable().optional(),
       }),
     )
     .default([]),

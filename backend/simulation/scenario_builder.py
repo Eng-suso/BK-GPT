@@ -6,6 +6,7 @@ from xml.etree import ElementTree
 from backend.schemas.simulation import (
     CreateSimulationRunRequest,
     ScenarioTemplateBranch,
+    ScenarioTemplateEscalation,
     ScenarioTemplateGateway,
     ScenarioTemplateResponse,
     ScenarioTemplateTask,
@@ -14,15 +15,17 @@ from backend.schemas.simulation import (
 )
 from backend.simulation.bpmn_resources import describe_bpmn_resources
 from backend.simulation.ir import compile_for_prosimos, model_from_request
+from backend.simulation.ir.escalations import expand_escalations
 from backend.simulation.ir.flow_rules import expand_flow_rules
 from backend.simulation.ir.from_request import with_flow_rules
 from backend.simulation.ir.variants import expand_duration_variants
 from backend.simulation.ir.baseline import baseline_model
 from backend.simulation.ir.bpmn_check import check_model_against_bpmn
 from backend.simulation.ir.from_request import standard_calendar
-from backend.simulation.ir.model import SimulationModel
+from backend.simulation.ir.model import SimulationModel, TimerEscalation
 from backend.simulation.ir.patch import apply_patch
 from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, ProsimosScenario
+from backend.simulation.timers import ESCALATION_AFTER, ESCALATION_NORMAL_FLOW, ESCALATION_OF
 from backend.simulation.validation import validate_simulation_bpmn
 
 
@@ -69,14 +72,15 @@ def build_prosimos_scenario(
 
 
 def _scenario(bpmn_xml: str, model: SimulationModel, tasks: list[BpmnTask], gateways: list[BpmnGateway]) -> ProsimosScenario:
-    """Il payload del motore, con salti e rilavorazioni (SIM-35) e durate
-    condizionali (SIM-32) compilati in decisioni.
+    """Il payload del motore, con escalation a tempo, salti e rilavorazioni
+    (SIM-35) e durate condizionali (SIM-32) compilati in decisioni.
 
     Il run conserva il modello come l'ha scritto il consulente, non le varianti:
     l'inspector mostra le durate per categoria sull'attivita' vera. I salti
     vengono prima: una variante di durata sta dentro il salto, non attorno.
     """
-    engine_bpmn, engine_model = expand_flow_rules(bpmn_xml, model)
+    engine_bpmn, engine_model = expand_escalations(bpmn_xml, model)
+    engine_bpmn, engine_model = expand_flow_rules(engine_bpmn, engine_model)
     engine_bpmn, engine_model = expand_duration_variants(engine_bpmn, engine_model)
     return ProsimosScenario(
         payload=compile_for_prosimos(engine_model),
@@ -128,6 +132,9 @@ def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = N
                     )
                     for flow in gateway.outgoing_flows
                 ],
+                escalation=(
+                    ScenarioTemplateEscalation(**gateway.escalation.model_dump()) if gateway.escalation else None
+                ),
             )
             for gateway in gateways
         ],
@@ -159,6 +166,7 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
     names_by_id: dict[str, str] = {}
     gateway_types: dict[str, str] = {}
     gateway_names: dict[str, str] = {}
+    escalations: dict[str, TimerEscalation] = {}
     flows: list[tuple[str, str, str, str]] = []  # (id, name, source, target)
 
     for element in root.iter():
@@ -175,6 +183,12 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
         elif tag in BRANCHING_GATEWAY_TYPES:
             gateway_types[element_id] = tag
             gateway_names[element_id] = name
+            if element.attrib.get(ESCALATION_OF):
+                escalations[element_id] = TimerEscalation(
+                    activity_id=element.attrib[ESCALATION_OF],
+                    after_seconds=float(element.attrib.get(ESCALATION_AFTER, "0")),
+                    normal_flow_id=element.attrib.get(ESCALATION_NORMAL_FLOW, ""),
+                )
         elif tag == "sequenceFlow":
             source = element.attrib.get("sourceRef") or ""
             target = element.attrib.get("targetRef") or ""
@@ -195,6 +209,7 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
                 id=gateway_id,
                 name=gateway_names.get(gateway_id, ""),
                 type=gateway_type,
+                escalation=escalations.get(gateway_id),
                 outgoing_flows=tuple(
                     BpmnFlow(
                         id=flow_id,
