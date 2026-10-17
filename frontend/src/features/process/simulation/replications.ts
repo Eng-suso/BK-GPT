@@ -1,4 +1,5 @@
 import type { SimulationRun } from "./simulationTypes";
+import { tCdf, tQuantile } from "./studentT";
 
 /**
  * SIM-04: le ripetizioni di uno scenario e l'intervallo di ogni KPI.
@@ -78,7 +79,17 @@ export function replicationIntervals(members: SimulationRun[]): Record<Replicati
  * altrimenti la differenza potrebbe essere il caso.
  */
 export type DeltaVerdict = "better" | "worse" | "unclear";
-export type DeltaInterval = { a: number; b: number; delta: number; half: number; verdict: DeltaVerdict };
+export type DeltaInterval = {
+  a: number;
+  b: number;
+  delta: number;
+  half: number;
+  verdict: DeltaVerdict;
+  /** P(B davvero migliore di A), dalla t di Student sulla stessa differenza. */
+  probBetter: number;
+  /** I confronti di cui tiene conto l'intervallo (Bonferroni): 1 se e' l'unico. */
+  comparisons: number;
+};
 export type GroupComparison = {
   /** Ripetizioni con lo stesso seed nei due scenari: si confrontano a coppie. */
   paired: boolean;
@@ -87,30 +98,42 @@ export type GroupComparison = {
   kpis: Record<ReplicationKpi, DeltaInterval | null>;
 };
 
-export function deltaInterval(a: number[], b: number[], betterIs: "lower" | "higher", paired: boolean): DeltaInterval | null {
+/**
+ * Con piu' confronti insieme (le alternative del workspace contro l'AS-IS)
+ * l'intervallo di ognuno si allarga con Bonferroni, al livello 1 - 0,05 / m:
+ * altrimenti con cinque alternative una su quattro sembrerebbe migliore per caso.
+ */
+export function deltaInterval(a: number[], b: number[], betterIs: "lower" | "higher", paired: boolean, comparisons = 1): DeltaInterval | null {
   if (a.length < 2 || b.length < 2 || (paired && a.length !== b.length)) return null;
+  const m = Math.max(1, Math.floor(comparisons));
+  const quantile = (df: number) => (m === 1 ? t975(df) : tQuantile(1 - 0.025 / m, df));
   const ma = meanAndVariance(a);
   const mb = meanAndVariance(b);
   const delta = mb.mean - ma.mean;
-  let half: number;
+  let se: number;
+  let df: number;
   if (paired) {
     const diff = meanAndVariance(b.map((v, i) => v - a[i]));
-    half = (t975(a.length - 1) * Math.sqrt(diff.variance)) / Math.sqrt(a.length);
+    se = Math.sqrt(diff.variance) / Math.sqrt(a.length);
+    df = a.length - 1;
   } else {
     const va = ma.variance / a.length;
     const vb = mb.variance / b.length;
-    const se = Math.sqrt(va + vb);
+    se = Math.sqrt(va + vb);
     const welch = (va + vb) ** 2 / (va ** 2 / (a.length - 1) + vb ** 2 / (b.length - 1));
     // Varianze nulle o troppo piccole: i gradi di liberta' di Welch non esistono, si usano quelli dei due gruppi insieme.
-    half = t975(se > 0 && Number.isFinite(welch) ? welch : a.length + b.length - 2) * se;
+    df = se > 0 && Number.isFinite(welch) ? welch : a.length + b.length - 2;
   }
+  const half = quantile(df) * se;
   const decided = delta !== 0 && Math.abs(delta) > half;
   const bWins = betterIs === "lower" ? delta < 0 : delta > 0;
-  return { a: ma.mean, b: mb.mean, delta, half, verdict: decided ? (bWins ? "better" : "worse") : "unclear" };
+  const gain = betterIs === "lower" ? -delta : delta;
+  const probBetter = se > 0 ? tCdf(gain / se, df) : gain > 0 ? 1 : gain < 0 ? 0 : 0.5;
+  return { a: ma.mean, b: mb.mean, delta, half, verdict: decided ? (bWins ? "better" : "worse") : "unclear", probBetter, comparisons: m };
 }
 
 /** Il confronto fra i gruppi di due run, o null se uno dei due non ha almeno due ripetizioni completate. */
-export function compareGroups(runA: SimulationRun, runB: SimulationRun, runs: SimulationRun[]): GroupComparison | null {
+export function compareGroups(runA: SimulationRun, runB: SimulationRun, runs: SimulationRun[], comparisons = 1): GroupComparison | null {
   const groupA = completed(groupMembers(runA, runs));
   const groupB = completed(groupMembers(runB, runs));
   if (groupA.length < 2 || groupB.length < 2 || replicationGroup(runA) === replicationGroup(runB)) return null;
@@ -125,9 +148,9 @@ export function compareGroups(runA: SimulationRun, runB: SimulationRun, runs: Si
   const kpi = (name: ReplicationKpi): DeltaInterval | null => {
     if (paired) {
       const rows = pairs.map(([x, y]) => [KPI_VALUE[name](x), KPI_VALUE[name](y)] as const).filter(([x, y]) => finite(x) && finite(y));
-      return deltaInterval(rows.map(([x]) => x as number), rows.map(([, y]) => y as number), KPI_BETTER[name], true);
+      return deltaInterval(rows.map(([x]) => x as number), rows.map(([, y]) => y as number), KPI_BETTER[name], true, comparisons);
     }
-    return deltaInterval(groupA.map(KPI_VALUE[name]).filter(finite), groupB.map(KPI_VALUE[name]).filter(finite), KPI_BETTER[name], false);
+    return deltaInterval(groupA.map(KPI_VALUE[name]).filter(finite), groupB.map(KPI_VALUE[name]).filter(finite), KPI_BETTER[name], false, comparisons);
   };
   return {
     paired,
@@ -135,4 +158,13 @@ export function compareGroups(runA: SimulationRun, runB: SimulationRun, runs: Si
     nB: groupB.length,
     kpis: { cycle: kpi("cycle"), waiting: kpi("waiting"), costPerCase: kpi("costPerCase"), throughput: kpi("throughput") },
   };
+}
+
+/**
+ * La probabilita' di miglioramento come percentuale. Mai "100%" o "0%": con
+ * poche ripetizioni la certezza non c'e', c'e' solo una probabilita' molto alta.
+ */
+export function formatProbability(value: number, lang: "it" | "en"): string {
+  const fmt = (x: number) => x.toLocaleString(lang === "it" ? "it-IT" : "en-US", { style: "percent", maximumFractionDigits: x > 0.99 || x < 0.01 ? 1 : 0 });
+  return value > 0.999 ? `> ${fmt(0.999)}` : value < 0.001 ? `< ${fmt(0.001)}` : fmt(value);
 }

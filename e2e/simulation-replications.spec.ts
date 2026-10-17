@@ -130,6 +130,8 @@ test("the comparison says whether B is better across replications, with the inte
   const cycle = section.getByRole("row", { name: /Durata media del caso/ });
   await expect(cycle).toContainText("B migliore");
   await expect(cycle).toContainText("±");
+  await expect(section.getByRole("columnheader", { name: "Probabilità che B sia migliore" })).toBeVisible();
+  await expect(cycle.locator("[data-sim-replication-prob]")).toContainText("%");
   await expect(section.getByRole("row", { name: /Costo per caso/ })).toContainText("Differenza non certa");
   await section.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `.tmp/replication-delta-${testInfo.project.name}.png` });

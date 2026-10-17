@@ -142,6 +142,7 @@
         "unclear": "Difference not certain"
       },
       "deltaHint": "95% interval: B is better or worse only when the interval leaves zero out. Otherwise the difference could be chance.",
+      "probHeader": "Probability B is better",
       "repeatBoth": "To know whether the difference is real and not chance, repeat both scenarios at least twice (Replications in the panel). With the same starting seed the comparison is more precise."
     },
     "scenario": {
@@ -1229,13 +1230,16 @@
         "method": {
           "paired": "Paired comparison: each replication against its AS-IS twin, same seed.",
           "independent": "Groups compared as independent (Welch interval): seeds or replications differ from the AS-IS.",
-          "single": "One run each: the difference has no interval and may be chance. Replicate the scenarios at least twice."
+          "single": "One run each: the difference has no interval and may be chance. Replicate the scenarios at least twice.",
+          "bonferroni": "With {{count}} scenarios compared, each interval is Bonferroni-corrected (level 1 − 5% / {{count}}): a \"Better\" does not come from the number of comparisons."
         },
         "table": "Scenarios compared with the AS-IS",
         "caption": "For each scenario: the mean value and, below, the difference from the AS-IS.",
         "scenario": "Scenario",
         "deltaInterval": "Δ {{delta}} ± {{half}}",
         "deltaSingle": "Δ {{delta}}",
+        "deltaMismatch": "This scenario's run and the AS-IS run start from different AS-IS versions: run them again to compare.",
+        "probBetter": "probability it is better {{value}}",
         "verdict": {
           "better": "Better",
           "worse": "Worse",

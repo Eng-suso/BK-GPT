@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import "@/lib/i18n";
 
 import { ReplicationTable } from "./ReplicationSummary";
-import { compareGroups, deltaInterval, groupMembers, interval, replicationIntervals } from "./replications";
+import { compareGroups, deltaInterval, formatProbability, groupMembers, interval, replicationIntervals } from "./replications";
 import { DEFAULT_SCENARIO, scenarioToInput } from "./simulationScenario";
 import type { SimulationRun } from "./simulationTypes";
 
@@ -95,5 +95,40 @@ describe("delta interval edge cases", () => {
     const value = deltaInterval([1e-200, 2e-200, 3e-200], [5, 5, 5], "lower", false);
     expect(Number.isFinite(value?.half)).toBe(true);
     expect(value?.verdict).toBe("worse");
+  });
+});
+
+describe("probability of improvement and several comparisons (SIM-14c)", () => {
+  const a = [100, 110, 105, 108];
+  const b = [90, 98, 96, 97];
+
+  it("dice quanto e' probabile che B sia davvero migliore", () => {
+    const result = deltaInterval(a, b, "lower", true)!;
+    expect(result.probBetter).toBeGreaterThan(0.99);
+    expect(deltaInterval(b, a, "lower", true)!.probBetter).toBeLessThan(0.01);
+    // Stessa differenza vista da un KPI dove il piu' alto e' meglio: B peggiore.
+    expect(deltaInterval(a, b, "higher", true)!.probBetter).toBeLessThan(0.01);
+  });
+
+  it("senza variabilita' la probabilita' e' certa, e con delta nullo e' meta'", () => {
+    expect(deltaInterval([10, 10], [8, 8], "lower", true)!.probBetter).toBe(1);
+    expect(deltaInterval([10, 10], [10, 10], "lower", true)!.probBetter).toBe(0.5);
+  });
+
+  it("con piu' confronti l'intervallo si allarga e il verdetto puo' diventare incerto", () => {
+    const one = deltaInterval([100, 104, 98], [95, 99, 94], "lower", true)!;
+    const five = deltaInterval([100, 104, 98], [95, 99, 94], "lower", true, 5)!;
+    expect(one.comparisons).toBe(1);
+    expect(five.comparisons).toBe(5);
+    expect(five.half).toBeGreaterThan(one.half);
+    expect(five.probBetter).toBeCloseTo(one.probBetter, 10);
+  });
+});
+
+describe("formatProbability (SIM-14c)", () => {
+  it("non promette mai la certezza", () => {
+    expect(formatProbability(0.9999, "en")).toBe("> 99.9%");
+    expect(formatProbability(0.0001, "en")).toBe("< 0.1%");
+    expect(formatProbability(0.87, "en")).toBe("87%");
   });
 });

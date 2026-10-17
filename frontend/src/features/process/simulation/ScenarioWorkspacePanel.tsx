@@ -9,9 +9,10 @@ import { Skeleton } from "@/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 import { formatCurrency, formatDuration } from "./simulationResults";
-import type { ReplicationKpi } from "./replications";
+import { formatProbability, type ReplicationKpi } from "./replications";
 import {
   WORKSPACE_KPIS,
+  comparisonCount,
   scenarioDeltas,
   scenarioDisplayName,
   scenarioRuns,
@@ -99,7 +100,8 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
   };
   const signed = (kpi: ReplicationKpi, v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${format[kpi](Math.abs(v))}`;
 
-  const comparisons = rows.slice(1).map(({ results }) => (asIs ? scenarioDeltas(asIs, results, runs) : null));
+  const comparisonsCount = comparisonCount(asIs, rows.slice(1).map(({ results }) => results));
+  const comparisons = rows.slice(1).map(({ results }) => (asIs ? scenarioDeltas(asIs, results, runs, comparisonsCount) : null));
   const kinds = new Set(comparisons.flatMap((c) => (c ? Object.values(c.kpis).filter(Boolean).map((d) => (d as ScenarioDelta).kind === "single" ? "single" : c.paired ? "paired" : "independent") : [])));
 
   return (
@@ -149,6 +151,12 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
                     <span className="sim-workspace-name"><span className="sim-scenario-label">{scenario.label}</span>{scenario.kind === "alternative" && <><span className="sr-only"> · </span><span>{scenario.name}</span></>}</span>
                     <span className={cn("block text-xs", STATUS_TONE[results.status])}>{t(`simulation.scenarios.workspace.status.${results.status}`)}</span>
                     {results.members.length > 0 && <span className="block text-xs text-muted-foreground">{t("simulation.scenarios.workspace.reps", { count: results.completed.length })}</span>}
+                    {/* Sempre montata: quando un run finisce e i due non sono piu' confrontabili, lo screen reader lo annuncia. */}
+                    {index > 0 && (
+                      <span role="status" className="block text-xs text-[var(--state-warning-text)]" data-sim-workspace-mismatch={comparison?.mismatch ? "" : undefined}>
+                        {comparison?.mismatch ? t("simulation.scenarios.workspace.deltaMismatch") : null}
+                      </span>
+                    )}
                     <span className="sim-workspace-actions">
                       <Button size="sm" variant="ghost" disabled={busy} aria-label={t(results.status === "never" ? "simulation.scenarios.workspace.runScenario" : "simulation.scenarios.workspace.rerunScenario", { name })} onClick={() => void run([scenario])}>
                         <Play aria-hidden className="size-3.5" />
@@ -177,6 +185,7 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
                         {delta && <DeltaLine delta={delta} text={delta.kind === "interval"
                           ? t("simulation.scenarios.workspace.deltaInterval", { delta: signed(kpi, delta.value.delta), half: format[kpi](delta.value.half) })
                           : t("simulation.scenarios.workspace.deltaSingle", { delta: signed(kpi, delta.delta) })} />}
+                        {delta?.kind === "interval" && <span className="block text-xs tabular-nums text-muted-foreground" data-sim-workspace-prob>{t("simulation.scenarios.workspace.probBetter", { value: formatProbability(delta.value.probBetter, lang) })}</span>}
                       </td>
                     );
                   })}
@@ -187,6 +196,7 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
         </table>
       </div>
       {[...kinds].map((kind) => <p key={kind} className="text-xs text-muted-foreground" data-sim-workspace-method={kind}>{t(`simulation.scenarios.workspace.method.${kind}`)}</p>)}
+      {comparisonsCount > 1 && (kinds.has("paired") || kinds.has("independent")) && <p className="text-xs text-muted-foreground" data-sim-workspace-method="bonferroni">{t("simulation.scenarios.workspace.method.bonferroni", { count: comparisonsCount })}</p>}
     </section>
   );
 }
