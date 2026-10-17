@@ -73,6 +73,7 @@ def expand_duration_variants(bpmn_xml: str, model: SimulationModel) -> tuple[str
     taken = {element.get("id") for element in root.iter() if element.get("id")}
     activities: list[Activity] = []
     gateways = list(model.gateways)
+    updates = list(model.attribute_updates)
     for activity in model.activities:
         if activity.duration_by is None:
             activities.append(activity)
@@ -81,8 +82,17 @@ def expand_duration_variants(bpmn_xml: str, model: SimulationModel) -> tuple[str
         activities.append(activity.model_copy(update={"duration_by": None}))
         activities.extend(copies)
         gateways.append(_split_gateway(activity, copies))
+        # Una copia e' la stessa attivita': chi la completa riceve gli stessi aggiornamenti.
+        updates.extend(
+            update.model_copy(update={"element_id": copy_.element_id})
+            for update in model.attribute_updates
+            if update.element_id == activity.element_id
+            for copy_ in copies
+        )
 
-    expanded = model.model_copy(update={"activities": tuple(activities), "gateways": tuple(gateways)})
+    expanded = model.model_copy(update={
+        "activities": tuple(activities), "gateways": tuple(gateways), "attribute_updates": tuple(updates),
+    })
     xml = ET.tostring(root, encoding="unicode")
     # Rivalidato: un id generato che collide con uno esistente deve fallire qui, non nel motore.
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + xml, SimulationModel.model_validate(expanded.model_dump())

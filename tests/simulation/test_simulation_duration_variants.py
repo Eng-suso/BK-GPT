@@ -96,3 +96,18 @@ def test_a_generated_id_that_already_exists_is_refused():
             ],
             model_patch={"case_attributes": [TYPE]},
         ))
+
+
+def test_an_attribute_update_on_the_activity_runs_on_every_variant():
+    # Un caso che passa da una copia completa la stessa attivita': l'aggiornamento
+    # dell'attributo deve valere anche li', altrimenti i premium non lo ricevono.
+    request = _request(BY_TYPE).model_copy(update={"model_patch": {
+        "case_attributes": [TYPE],
+        "attribute_updates": [{"element_id": "T_approve", "name": "approvato", "expression": "1"}],
+    }})
+    request = CreateSimulationRunRequest.model_validate(request.model_dump())
+    scenario = build_prosimos_scenario(bpmn_xml=BPMN, request=request)
+
+    updated = {entry["event_id"] for entry in scenario.payload["event_attributes"]}
+    assert updated == {"T_approve", "T_approve__dur_1"}
+    assert [u["element_id"] for u in scenario.model["attribute_updates"]] == ["T_approve"]
