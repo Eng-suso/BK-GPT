@@ -289,9 +289,24 @@ class Branch(_Strict):
     provenance: Provenance | None = None
 
 
+class TimerEscalation(_Strict):
+    """SIM-35: la decisione era un timer interrompente sul bordo di un'attivita'.
+
+    Il caso prende il ramo d'escalation se l'attivita' dura piu' di
+    ``after_seconds``; le probabilita' dei rami non contano, le calcola
+    ``ir/escalations.py`` dalla durata. Approssimazione dichiarata: il timer
+    conta la lavorazione, non l'attesa in coda davanti all'attivita'.
+    """
+
+    activity_id: str = Field(min_length=1)
+    after_seconds: float = Field(gt=0)
+    normal_flow_id: str = Field(min_length=1)
+
+
 class Gateway(_Strict):
     element_id: str = Field(min_length=1)
     branches: tuple[Branch, ...] = Field(min_length=2)
+    escalation: TimerEscalation | None = None
 
     @model_validator(mode="after")
     def _consistent(self):
@@ -303,6 +318,9 @@ class Gateway(_Strict):
             # Prosimos instrada per regola solo se ogni ramo ne ha una: con un ramo
             # scoperto il caso che non soddisfa nessuna regola non avrebbe uscita.
             raise ValueError(f"gateway {self.element_id}: o tutti i rami hanno una regola o nessuno")
+        if self.escalation is not None:
+            if any(conditional) or len(flows) != 2 or self.escalation.normal_flow_id not in flows:
+                raise ValueError(f"gateway {self.element_id}: un'escalation ha il ramo normale e quello d'escalation, senza regole")
         if not any(conditional):
             total = sum(branch.probability for branch in self.branches)
             if abs(total - 1.0) > 1e-6:
@@ -404,6 +422,9 @@ class SimulationModel(_Strict):
                     raise ValueError(f"attivita' {activity.element_id}: risorsa sconosciuta {resource_id}")
 
         activity_ids = {activity.element_id for activity in self.activities}
+        for gateway in self.gateways:
+            if gateway.escalation and gateway.escalation.activity_id not in activity_ids:
+                raise ValueError(f"gateway {gateway.element_id}: l'escalation e' su {gateway.escalation.activity_id}, che non e' un'attivita'")
         for activity in self.activities:
             if activity.rework and activity.rework.back_to not in activity_ids:
                 raise ValueError(
