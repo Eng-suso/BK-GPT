@@ -23,6 +23,14 @@
     "loadError": "Could not load the process."
   },
   "simulation": {
+    "duration": {
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days",
+      "hours_one": "{{count}} hour",
+      "hours_other": "{{count}} hours",
+      "minutes_one": "{{count}} minute",
+      "minutes_other": "{{count}} minutes"
+    },
     "section": {
       "title": "Simulation",
       "navLabel": "Simulation sections",
@@ -397,6 +405,7 @@
       "durationByCategory": "Cases with {{attribute}} = {{value}}",
       "durationByMissing": "The chosen attribute is gone or not a category: pick another.",
       "invalidFlowRules": "Activities with a skip or rework to fix: {{count}}",
+      "escalation": "Timer escalation after {{after}} on «{{activity}}». The share of cases taking it comes from the activity duration: the timer counts work, not waiting in the queue.",
       "skip": {
         "legend": "Skipping «{{task}}»",
         "toggle": "Some cases skip it",
@@ -547,7 +556,8 @@
       "rework_other": "Once done, {{share}} of cases went back to {{target}}, at most {{count}} times per case.",
       "reworkWhen_one": "Once done, {{share}} of cases with {{rule}} went back to {{target}}, at most {{count}} time per case.",
       "reworkWhen_other": "Once done, {{share}} of cases with {{rule}} went back to {{target}}, at most {{count}} times per case.",
-      "reworkSelf": "redo it"
+      "reworkSelf": "redo it",
+      "escalation": "Timer escalation after {{after}} on «{{activity}}»: the share of cases whose work outlasted the timer took the escalation path, computed from the simulated duration. Queue waiting does not count."
     },
     "provenance": {
       "label": "Source",

@@ -23,6 +23,14 @@
     "loadError": "Non è stato possibile caricare il processo."
   },
   "simulation": {
+    "duration": {
+      "days_one": "{{count}} giorno",
+      "days_other": "{{count}} giorni",
+      "hours_one": "{{count}} ora",
+      "hours_other": "{{count}} ore",
+      "minutes_one": "{{count}} minuto",
+      "minutes_other": "{{count}} minuti"
+    },
     "section": {
       "title": "Simulazione",
       "navLabel": "Sezioni simulazione",
@@ -397,6 +405,7 @@
       "durationByCategory": "Casi con {{attribute}} = {{value}}",
       "durationByMissing": "L'attributo scelto non c'è più o non è a categorie: scegline un altro.",
       "invalidFlowRules": "Attività con salto o rilavorazione da correggere: {{count}}",
+      "escalation": "Escalation a tempo dopo {{after}} su «{{activity}}». La quota dei casi che la prendono viene dalla durata dell'attività: il timer conta la lavorazione, non l'attesa in coda.",
       "skip": {
         "legend": "Salto di «{{task}}»",
         "toggle": "Alcuni casi la saltano",
@@ -547,7 +556,8 @@
       "rework_other": "Finita, il {{share}} dei casi tornava a {{target}}, al più {{count}} volte per caso.",
       "reworkWhen_one": "Finita, il {{share}} dei casi con {{rule}} tornava a {{target}}, al più {{count}} volta per caso.",
       "reworkWhen_other": "Finita, il {{share}} dei casi con {{rule}} tornava a {{target}}, al più {{count}} volte per caso.",
-      "reworkSelf": "rifarla"
+      "reworkSelf": "rifarla",
+      "escalation": "Escalation a tempo dopo {{after}} su «{{activity}}»: è andata nel ramo d'escalation la quota dei casi la cui lavorazione superava il timer, calcolata dalla durata simulata. L'attesa in coda non conta."
     },
     "provenance": {
       "label": "Origine",
