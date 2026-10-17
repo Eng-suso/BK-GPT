@@ -150,7 +150,7 @@ export type SlaIssue = SlaGoalIssue | "segments";
 
 export const slaSeconds = goalSeconds;
 
-export function slaIssue(sla: SlaDraft, attributes: CaseAttributeDraft[] = []): SlaIssue | null {
+export function slaIssue(sla: SlaDraft, attributes: CaseAttributeDraft[]): SlaIssue | null {
   return goalIssue(sla) ?? (slaSegmentIssues(sla.segments ?? [], attributes).some((issue) => issue !== null) ? "segments" : null);
 }
 
