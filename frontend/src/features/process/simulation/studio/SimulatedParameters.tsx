@@ -22,6 +22,7 @@ import {
   type FlowRulesView,
   type DurationView,
 } from "./modelParameters";
+import { formatAfter } from "../escalation";
 import { useRunModel, type IrRule } from "./runModel";
 
 type Lang = "it" | "en";
@@ -89,7 +90,11 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
               <Assignment key={index} assignment={assignment} index={index} total={view.assignments.length} lang={lang} t={t} provenanceState={provenance} />
             ))}
           </>
-        : <Branches branches={view.branches} provenance={view.provenance} lang={lang} t={t} provenanceState={provenance} />;
+        : view.escalation
+          ? <p className="sim-param-note" data-escalation={elementId}>
+              {t("simulation.activityInspector.escalation", { after: formatAfter(view.escalation.afterSeconds, t), activity: view.escalation.activityName })}
+            </p>
+          : <Branches branches={view.branches} provenance={view.provenance} lang={lang} t={t} provenanceState={provenance} />;
   } else {
     // Ripiego dichiarato: run anteriore al modello conservato, o modello non arrivato.
     body = <>
