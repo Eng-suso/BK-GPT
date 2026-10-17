@@ -38,7 +38,7 @@ from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simu
 from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, claim_next_run
 from backend.simulation.result_parser import with_output_files
 from backend.simulation.costs import add_fixed_costs
-from backend.simulation.scenarios import scenario_revisions
+from backend.simulation.scenarios import bpmn_fingerprint, scenario_revisions
 from backend.simulation.sla import sla_outcome
 from backend.simulation.ir.model import SimulationModel
 from backend.simulation.ir.patch import apply_patch
@@ -126,11 +126,19 @@ def claim_proposals_for_model(
     bpmn_model: BpmnModelResponse,
     current_bpmn_xml: str | None,
 ) -> SimulationClaimsResponse:
-    """Per ogni attivita', le affermazioni dei file del progetto (e del cliente) che la nominano."""
+    """Per ogni attivita', le affermazioni dei file del progetto (e del cliente) che la nominano.
+
+    Le attivita' che il confronto sui nomi lascia senza proposte passano dal
+    ripiego con l'LLM (C3), se c'e' una chiave: anche quelle sono solo proposte.
+    """
+    from backend.simulation.claim_matching import Activity, match_with_llm, proposals_from_llm
     from backend.simulation.claims import propose
 
     template = scenario_template_for_model(bpmn_model=bpmn_model, current_bpmn_xml=current_bpmn_xml)
     names, claims = _process_claims(bpmn_model.process_id)
+    lexical = {task.element_id: propose(task.name, claims, names) for task in template.tasks}
+    unmatched = [Activity(task.element_id, task.name) for task in template.tasks if not lexical[task.element_id]]
+    from_llm = match_with_llm(bpmn_model.process_id, unmatched, claims)
     return SimulationClaimsResponse(
         sources=len(names),
         activities=[
@@ -138,7 +146,7 @@ def claim_proposals_for_model(
                 element_id=task.element_id,
                 name=task.name,
                 proposals=[ClaimProposalResponse.model_validate(p, from_attributes=True)
-                           for p in propose(task.name, claims, names)],
+                           for p in lexical[task.element_id] or proposals_from_llm(from_llm.get(task.element_id, []), claims, names)],
             )
             for task in template.tasks
         ],
@@ -283,8 +291,12 @@ def prepare_simulation_runs(
     intervalli. Il gruppo entra in coda intero o non entra; lo stesso invio
     ritentato ritrova il gruppo gia' in volo invece di crearne un altro.
     """
-    # Gruppo e posizione li scrive il servizio: quelli mandati dal client non contano.
-    request = request.model_copy(update={"replication_group": None, "replication_index": None})
+    # Gruppo, posizione e impronta del BPMN li scrive il servizio: quelli mandati dal client non contano.
+    request = request.model_copy(update={
+        "replication_group": None,
+        "replication_index": None,
+        "bpmn_fingerprint": bpmn_fingerprint(request.current_bpmn_xml or bpmn_model.xml),
+    })
     if request.replications == 1:
         return [prepare_simulation_run(bpmn_model=bpmn_model, request=request)]
     if request.seed is not None and request.seed + request.replications - 1 > SEED_MAX:
@@ -360,6 +372,7 @@ def prepare_simulation_run(
     identical simulation is still in flight, scenario is None and the caller
     must not launch execution.
     """
+    request = request.model_copy(update={"bpmn_fingerprint": bpmn_fingerprint(request.current_bpmn_xml or bpmn_model.xml)})
     bpmn_xml, scenario, idempotency_key = _plan_run(bpmn_model=bpmn_model, request=request)
     return _register_run(
         bpmn_model=bpmn_model,

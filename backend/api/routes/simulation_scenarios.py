@@ -12,6 +12,7 @@ from backend.security import require_principal
 from backend.simulation.scenarios import (
     ScenarioNotFound,
     ScenarioRevisionConflict,
+    bpmn_fingerprint,
     create_scenario,
     delete_scenario,
     get_scenario_workspace,
@@ -27,15 +28,21 @@ router = APIRouter(
 )
 
 
-def _require_model(bpmn_model_id: str) -> None:
-    if get_bpmn_model(bpmn_model_id) is None:
+def _require_model(bpmn_model_id: str) -> dict:
+    model = get_bpmn_model(bpmn_model_id)
+    if model is None:
         raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
+    return model
+
+
+def _with_fingerprint(workspace: SimulationScenarioWorkspaceResponse, model: dict) -> SimulationScenarioWorkspaceResponse:
+    return workspace.model_copy(update={"bpmn_fingerprint": bpmn_fingerprint(model.get("xml"))})
 
 
 @router.get("/bpmn-models/{bpmn_model_id}/simulation-scenarios")
 def get_workspace_simulation_scenarios(bpmn_model_id: str) -> SimulationScenarioWorkspaceResponse:
-    _require_model(bpmn_model_id)
-    return get_scenario_workspace(bpmn_model_id)
+    model = _require_model(bpmn_model_id)
+    return _with_fingerprint(get_scenario_workspace(bpmn_model_id), model)
 
 
 @router.put("/bpmn-models/{bpmn_model_id}/simulation-scenarios/baseline")
@@ -43,9 +50,9 @@ def put_workspace_simulation_baseline(
     bpmn_model_id: str,
     request: PutScenarioBaselineRequest,
 ) -> SimulationScenarioWorkspaceResponse:
-    _require_model(bpmn_model_id)
+    model = _require_model(bpmn_model_id)
     try:
-        return put_scenario_baseline(bpmn_model_id, request)
+        return _with_fingerprint(put_scenario_baseline(bpmn_model_id, request), model)
     except ScenarioRevisionConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -55,9 +62,9 @@ def create_workspace_simulation_scenario(
     bpmn_model_id: str,
     request: CreateScenarioRequest,
 ) -> SimulationScenarioWorkspaceResponse:
-    _require_model(bpmn_model_id)
+    model = _require_model(bpmn_model_id)
     try:
-        return create_scenario(bpmn_model_id, request)
+        return _with_fingerprint(create_scenario(bpmn_model_id, request), model)
     except ScenarioRevisionConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
@@ -70,9 +77,9 @@ def update_workspace_simulation_scenario(
     scenario_id: int,
     request: UpdateScenarioRequest,
 ) -> SimulationScenarioWorkspaceResponse:
-    _require_model(bpmn_model_id)
+    model = _require_model(bpmn_model_id)
     try:
-        return update_scenario(bpmn_model_id, scenario_id, request)
+        return _with_fingerprint(update_scenario(bpmn_model_id, scenario_id, request), model)
     except ScenarioNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ScenarioRevisionConflict as exc:
@@ -81,9 +88,9 @@ def update_workspace_simulation_scenario(
 
 @router.delete("/bpmn-models/{bpmn_model_id}/simulation-scenarios/{scenario_id}")
 def delete_workspace_simulation_scenario(bpmn_model_id: str, scenario_id: int) -> SimulationScenarioWorkspaceResponse:
-    _require_model(bpmn_model_id)
+    model = _require_model(bpmn_model_id)
     try:
-        return delete_scenario(bpmn_model_id, scenario_id)
+        return _with_fingerprint(delete_scenario(bpmn_model_id, scenario_id), model)
     except ScenarioNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

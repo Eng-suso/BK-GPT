@@ -355,6 +355,7 @@
       "sourcesHint": "Affermazioni dei file caricati che nominano questa attività. Collegarne una dice da dove viene la durata; il valore resta quello che imposti qui.",
       "sourceLinked": "Fonte collegata · {{file}}",
       "sourceProposed": "Proposta da {{file}}",
+      "sourceProposedByModel": "Suggerita dall'AI: le parole non coincidono con il nome, controlla che parli di questa attività.",
       "sourceSays": "La fonte indica {{duration}} («{{text}}»): è un riferimento, non il valore.",
       "linkSource": "Collega come fonte",
       "linkSourceFor": "Collega come fonte per {{task}}: {{what}}",
@@ -1238,8 +1239,9 @@
         "scenario": "Scenario",
         "deltaInterval": "Δ {{delta}} ± {{half}}",
         "deltaSingle": "Δ {{delta}}",
-        "deltaMismatch": "Il run di questo scenario e quello dell'AS-IS partono da versioni diverse dell'AS-IS: rilanciali per confrontarli.",
+        "deltaMismatch": "Il run di questo scenario e quello dell'AS-IS partono da modelli diversi (un'altra versione dell'AS-IS o del disegno): rilanciali per confrontarli.",
         "probBetter": "probabilità che sia migliore {{value}}",
+        "bpmnChanged": "Il disegno del processo è cambiato dopo questo run.",
         "verdict": {
           "better": "Migliore",
           "worse": "Peggiore",

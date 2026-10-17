@@ -289,9 +289,28 @@ test("the Workspace tool gives no verdict between runs on different AS-IS versio
   const a = page.locator('[data-sim-scenario-workspace] [data-sim-workspace-row="A"]');
   await expect(a).toContainText("Da rifare");
   await expect(a.locator("[data-sim-workspace-mismatch]")).toBeVisible();
-  await expect(a.getByRole("status")).toContainText("versioni diverse dell'AS-IS");
+  await expect(a.getByRole("status")).toContainText("partono da modelli diversi");
   await expect(a).not.toContainText("Migliore");
   await expect(a).not.toContainText("Δ");
+});
+
+test("the Workspace tool asks to rerun a scenario simulated on another process diagram", async ({ page }) => {
+  const workspace = new Workspace().seedWith(draft, { name: "+1 approvatore", patch: [{ op: "set", path: ["resources", { id: "r1" }, "amount"], value: 3 }] });
+  const fingerprinted = workspace.json.bind(workspace);
+  workspace.json = () => ({ ...fingerprinted(), bpmn_fingerprint: "saved" });
+  const runs = [
+    ...[3600, 3720, 3660].map((cycle, i) => run(41 + i, 1, cycle, { replication_group: "g-asis", replication_index: i + 1, seed: 4242 + i, bpmn_fingerprint: "saved" })),
+    ...[3000, 3130, 3070].map((cycle, i) => run(51 + i, 2, cycle, { replication_group: "g-a", replication_index: i + 1, seed: 4242 + i, bpmn_fingerprint: "before" })),
+  ];
+  await fixture(page, workspace, runs);
+  await page.goto(`${studio}/workspace/41?panel=scenarios`);
+  const panel = page.locator("[data-sim-scenario-workspace]");
+  const a = panel.locator('[data-sim-workspace-row="A"]');
+  await expect(panel.locator('[data-sim-workspace-row="AS-IS"]')).toContainText("Aggiornato");
+  await expect(a).toContainText("Da rifare");
+  await expect(a.locator("[data-sim-workspace-bpmn-changed]")).toContainText("Il disegno del processo è cambiato");
+  await expect(a.getByRole("status")).toContainText("partono da modelli diversi");
+  await expect(a).not.toContainText("Migliore");
 });
 
 test("the process and the task inspector show what a scenario changes", async ({ page }, testInfo) => {

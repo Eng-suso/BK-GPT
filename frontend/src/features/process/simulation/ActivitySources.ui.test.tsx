@@ -21,12 +21,21 @@ const CLAIMS: SimulationClaims = {
   activities: [
     { element_id: "T_approve", name: "Approva", proposals: [
       { claim_id: 7, statement: "Il responsabile approva ogni ordine.", quote: "approva ogni ordine", quote_verified: true,
-        source_id: "s1", source_name: "procedura.pdf", score: 1, duration_hint: { text: "30 minuti", seconds: 1800 } },
+        source_id: "s1", source_name: "procedura.pdf", score: 1, duration_hint: { text: "30 minuti", seconds: 1800 }, match: "lexical" },
       { claim_id: 8, statement: "Le approvazioni urgenti passano dal CFO.", quote: "approvazioni urgenti", quote_verified: true,
-        source_id: "s1", source_name: "procedura.pdf", score: 1, duration_hint: null },
+        source_id: "s1", source_name: "procedura.pdf", score: 1, duration_hint: null, match: "lexical" },
     ] },
     { element_id: "T_pay", name: "Paga", proposals: [] },
   ],
+};
+
+/** C3: Paga non ha proposte dai nomi, ma il modello ne suggerisce una. */
+const WITH_MODEL: SimulationClaims = {
+  ...CLAIMS,
+  activities: CLAIMS.activities.map((a) => a.element_id !== "T_pay" ? a : { ...a, proposals: [
+    { claim_id: 9, statement: "I bonifici partono il venerdì dalla tesoreria.", quote: "", quote_verified: false,
+      source_id: "s1", source_name: "procedura.pdf", score: 0, duration_hint: null, match: "llm" },
+  ] }),
 };
 
 const READY: ScenarioDraft = {
@@ -38,11 +47,11 @@ const READY: ScenarioDraft = {
   },
 };
 
-function Harness() {
+function Harness({ claims = CLAIMS }: { claims?: SimulationClaims }) {
   const [draft, setDraft] = React.useState(READY);
   return (
     <>
-      <SimulationConfigRail template={TEMPLATE} templateLoading={false} claims={CLAIMS} draft={draft} onDraftChange={setDraft}
+      <SimulationConfigRail template={TEMPLATE} templateLoading={false} claims={claims} draft={draft} onDraftChange={setDraft}
         isRunning={false} error={null} onRun={() => undefined} focusElementId={null} />
       <output data-testid="draft">{JSON.stringify(draft)}</output>
     </>
@@ -83,5 +92,13 @@ describe("client sources of an activity in the scenario panel (SIM-07)", () => {
     await user.click(within(approve).getByRole("button", { name: "Collega come fonte per Approva: Il responsabile approva ogni ordine." }));
     await user.click(within(approve).getByRole("button", { name: "Scollega da Approva: Il responsabile approva ogni ordine." }));
     expect(current().tasks.T_approve.claims).toEqual([]);
+  });
+
+  it("says when a proposal comes from the model and not from the names (C3)", () => {
+    render(<Harness claims={WITH_MODEL} />);
+
+    const pay = row("Paga");
+    expect(within(pay).getByText(/Suggerita dall'AI/)).toBeInTheDocument();
+    expect(within(row("Approva")).queryByText(/Suggerita dall'AI/)).toBeNull();
   });
 });

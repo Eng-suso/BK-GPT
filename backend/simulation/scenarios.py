@@ -9,6 +9,7 @@ rifiuta invece di sovrascrivere.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import secrets
 from datetime import UTC, datetime
@@ -31,6 +32,16 @@ from backend.schemas.simulation_scenarios import (
 from backend.security import get_current_tenant_id
 from backend.simulation.scenario_patch import apply_scenario_patch
 from backend.workspace_storage import WorkspaceSimulationScenario, workspace_connection
+
+
+def bpmn_fingerprint(xml: str | None) -> str | None:
+    """SIM-14b: l'impronta del BPMN che un run simula, o di quello salvato.
+
+    Un run partito da un disegno diverso da quello salvato oggi non e' piu'
+    confrontabile: il workspace lo dice "da rifare" come per una revisione vecchia.
+    """
+    clean = (xml or "").strip()
+    return hashlib.sha256(clean.encode("utf-8")).hexdigest() if clean else None
 
 
 class ScenarioNotFound(LookupError):

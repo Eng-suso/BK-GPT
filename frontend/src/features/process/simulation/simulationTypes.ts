@@ -297,6 +297,8 @@ export const claimProposalSchema = z.object({
   source_name: z.string(),
   score: z.number(),
   duration_hint: z.object({ text: z.string(), seconds: z.number() }).nullable().optional(),
+  /** C3: "llm" se la proposta viene dal ripiego con il modello, non dai nomi. */
+  match: z.enum(["lexical", "llm"]).default("lexical"),
 });
 export type ClaimProposal = z.infer<typeof claimProposalSchema>;
 

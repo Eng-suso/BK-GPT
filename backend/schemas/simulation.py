@@ -205,6 +205,9 @@ class CreateSimulationRunRequest(BaseModel):
     # SIM-14: lo scenario del workspace che il run simula. Assente per i run
     # lanciati fuori dal workspace (API, run anteriori).
     workspace_scenario: WorkspaceScenarioRef | None = None
+    # SIM-14b: l'impronta del BPMN simulato. La scrive il servizio, quella
+    # mandata dal client non conta.
+    bpmn_fingerprint: str | None = None
 
 
 class ScenarioTemplateRequest(BaseModel):
@@ -271,6 +274,8 @@ class ClaimProposalResponse(BaseModel):
     score: float
     # Una durata citata nella fonte: un riferimento, mai il valore del parametro.
     duration_hint: DurationHintResponse | None = None
+    # "llm": proposta dal ripiego con il modello (C3), il punteggio non c'e'.
+    match: Literal["lexical", "llm"] = "lexical"
 
 
 class ActivityClaimsResponse(BaseModel):

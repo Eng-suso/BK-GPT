@@ -15,7 +15,7 @@ let nextId = 100;
 const run = (
   scenarioId: number,
   cycle: number,
-  { group, index, seed, status = "completed", revision = 1, baselineRevision = 1 }: { group?: string; index?: number; seed?: number; status?: SimulationRun["status"]; revision?: number; baselineRevision?: number } = {},
+  { group, index, seed, status = "completed", revision = 1, baselineRevision = 1, bpmn }: { group?: string; index?: number; seed?: number; status?: SimulationRun["status"]; revision?: number; baselineRevision?: number; bpmn?: string } = {},
 ) => ({
   id: nextId++,
   status,
@@ -23,6 +23,7 @@ const run = (
     workspace_scenario: { id: scenarioId, revision, baseline_revision: baselineRevision },
     ...(group ? { replication_group: group, replication_index: index } : {}),
     ...(seed !== undefined ? { seed } : {}),
+    ...(bpmn ? { bpmn_fingerprint: bpmn } : {}),
   },
   summary: status === "completed" ? { cycle: { avg: cycle }, waiting: { avg: cycle / 2 }, cost: { perCase: 10 }, throughputPerHour: 3600 / cycle } : null,
 }) as unknown as SimulationRun;
@@ -46,6 +47,30 @@ describe("scenarioRuns", () => {
     expect(scenarioRuns(WORKSPACE, scenario(2, "alternative", 2), [run(2, 40)]).status).toBe("stale");
     const newBaseline = { ...WORKSPACE, baseline: scenario(1, "baseline", 3) };
     expect(scenarioRuns(newBaseline, ALT, [run(2, 40)]).status).toBe("stale");
+  });
+});
+
+describe("BPMN cambiato (SIM-14b)", () => {
+  const saved = { ...WORKSPACE, bpmn_fingerprint: "v2" };
+
+  it("un run su un altro disegno e' da rifare, e lo dice", () => {
+    const result = scenarioRuns(saved, ALT, [run(2, 40, { bpmn: "v1" })]);
+    expect(result.status).toBe("stale");
+    expect(result.bpmnChanged).toBe(true);
+    expect(scenarioRuns(saved, ALT, [run(2, 40, { bpmn: "v2" })]).status).toBe("current");
+  });
+
+  it("un run anteriore all'impronta non si segna come cambiato", () => {
+    const result = scenarioRuns(saved, ALT, [run(2, 40)]);
+    expect(result.status).toBe("current");
+    expect(result.bpmnChanged).toBe(false);
+  });
+
+  it("nessun delta fra due run su disegni diversi", () => {
+    const runs = [run(1, 100, { bpmn: "v2" }), run(2, 80, { bpmn: "v1" })];
+    const result = scenarioDeltas(scenarioRuns(saved, AS_IS, runs), scenarioRuns(saved, ALT, runs), runs);
+    expect(result.mismatch).toBe(true);
+    expect(result.kpis.cycle).toBeNull();
   });
 });
 

@@ -75,7 +75,7 @@ const claims = {
   ],
 };
 
-async function fixture(page: Page, runs: unknown[] = []) {
+async function fixture(page: Page, runs: unknown[] = [], served: unknown = claims) {
   await page.addInitScript((stored) => {
     Object.assign(window, { DELIR_API_BASE: "http://127.0.0.1:8000" });
     localStorage.setItem("delir-language", "it");
@@ -95,7 +95,7 @@ async function fixture(page: Page, runs: unknown[] = []) {
     };
     else if (path.endsWith("/simulation-template")) data = template;
     else if (path.endsWith("/simulation-provenance")) data = { has_discovery: false, elements: [] };
-    else if (path.endsWith("/simulation-claims")) data = claims;
+    else if (path.endsWith("/simulation-claims")) data = served;
     else if (path.endsWith("/simulation-runs") && request.method() === "POST") data = { ...run, status: "pending", request: request.postDataJSON() };
     else if (path.endsWith("/simulation-runs")) data = runs;
     else if (path.endsWith("/replay")) data = { run_id: 42, schema_version: 1, replay };
@@ -128,6 +128,21 @@ test("the consultant links a client file statement as the source of a duration",
   const sent = body.tasks.find((t: { element_id: string }) => t.element_id === "T_approve");
   expect(sent.claims).toEqual([{ claim_id: 7, label: "procedura-acquisti.pdf" }]);
   expect(sent.mean_seconds).toBe(1200);
+});
+
+test("a statement suggested by the model is marked to be checked (C3)", async ({ page }) => {
+  const suggested = { ...claims, activities: claims.activities.map((a) => a.element_id !== "T_pay" ? a : { ...a, proposals: [{
+    claim_id: 9, statement: "I bonifici partono il venerdì dalla tesoreria.", quote: "", quote_verified: false, source_id: "s1",
+    source_name: "procedura-acquisti.pdf", score: 0, duration_hint: null, match: "llm" }] }) };
+  await fixture(page, [], suggested);
+  await page.goto(`${studio}/scenario`);
+
+  const pay = page.locator('[data-sim-el="T_pay"]');
+  await expect(pay).toContainText("Fonti del cliente");
+  await expect(pay.locator("[data-proposed-by-model]")).toContainText("Suggerita dall'AI");
+  await expect(page.locator('[data-sim-el="T_approve"] [data-proposed-by-model]')).toHaveCount(0);
+  const axe = await new AxeBuilder({ page }).include('[data-sim-el="T_pay"]').withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
 });
 
 test("the activity inspector says the duration is declared by a client file", async ({ page }) => {

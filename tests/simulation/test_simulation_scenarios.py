@@ -29,7 +29,7 @@ def test_a_new_process_has_an_empty_workspace(api_client, new_bpmn_model):
 
     workspace = api_client.get(_url(model_id)).json()
 
-    assert workspace == {"bpmn_model_id": model_id, "seed": None, "baseline": None, "alternatives": []}
+    assert workspace == {"bpmn_model_id": model_id, "bpmn_fingerprint": None, "seed": None, "baseline": None, "alternatives": []}
 
 
 def test_the_as_is_gets_a_shared_seed_and_a_revision(api_client, new_bpmn_model):
@@ -270,3 +270,29 @@ def test_an_oversized_patch_or_draft_is_rejected(api_client, new_bpmn_model):
 
     assert patch.status_code == 422
     assert draft.status_code == 422
+
+
+def test_a_run_remembers_the_bpmn_it_simulated_and_the_workspace_the_saved_one(api_client, new_bpmn_model, fake_engine):
+    """SIM-14b: un BPMN cambiato dopo il run rende il run da rifare."""
+    from backend.simulation.scenarios import bpmn_fingerprint
+
+    model_id = new_bpmn_model()
+    assert api_client.put(f"/v1/workspace/bpmn-models/{model_id}", json={"xml": MINIMAL_BPMN}).status_code == 200
+    workspace = _with_baseline(api_client, model_id)
+    ref = {"id": workspace["baseline"]["id"], "revision": 1, "baseline_revision": 1}
+
+    # L'impronta la scrive il servizio: quella mandata dal client non conta.
+    run = _run(api_client, model_id, ref, bpmn_fingerprint="inventata")
+
+    assert run.status_code == 200, run.text
+    assert run.json()["request"]["bpmn_fingerprint"] == bpmn_fingerprint(MINIMAL_BPMN)
+    assert workspace["bpmn_fingerprint"] == bpmn_fingerprint(MINIMAL_BPMN)
+
+    edited = MINIMAL_BPMN.replace('isExecutable="false"', 'isExecutable="true"')
+    assert edited != MINIMAL_BPMN
+    assert api_client.put(f"/v1/workspace/bpmn-models/{model_id}", json={"xml": edited}).status_code == 200
+    assert api_client.get(_url(model_id)).json()["bpmn_fingerprint"] == bpmn_fingerprint(edited)
+
+
+def test_a_process_without_a_bpmn_has_no_fingerprint(api_client, new_bpmn_model):
+    assert api_client.get(_url(new_bpmn_model())).json()["bpmn_fingerprint"] is None

@@ -32,6 +32,8 @@ export const workspaceScenarioSchema = z.object({
 
 export const scenarioWorkspaceSchema = z.object({
   bpmn_model_id: z.string(),
+  /** SIM-14b: l'impronta del BPMN salvato; un run con un'altra impronta e' da rifare. */
+  bpmn_fingerprint: z.string().nullable().optional(),
   seed: z.number().nullable(),
   baseline: workspaceScenarioSchema.nullable(),
   alternatives: z.array(workspaceScenarioSchema),
@@ -105,24 +107,38 @@ export function runScenarioRef(run: SimulationRun): WorkspaceScenarioRef | null 
 
 export type ScenarioRunStatus = "never" | "pending" | "failed" | "stale" | "current";
 
+/** L'impronta del BPMN che il run ha simulato; assente per i run anteriori a SIM-14b. */
+export function runBpmnFingerprint(run: SimulationRun | null | undefined): string | null {
+  const value = run?.request?.bpmn_fingerprint;
+  return typeof value === "string" && value ? value : null;
+}
+
+/** Due impronte diverse, quando entrambe ci sono: un run anteriore all'impronta non si accusa. */
+function differentBpmn(a: string | null | undefined, b: string | null | undefined): boolean {
+  return Boolean(a && b && a !== b);
+}
+
 export type ScenarioRuns = {
   /** Il run piu' recente dello scenario e, se ripetuto, il suo gruppo in ordine. */
   latest: SimulationRun | null;
   members: SimulationRun[];
   completed: SimulationRun[];
   status: ScenarioRunStatus;
+  /** Il run e' partito da un disegno diverso da quello salvato oggi. */
+  bpmnChanged: boolean;
 };
 
 /** L'ultimo run (o gruppo di ripetizioni) di uno scenario e se e' ancora valido. */
 export function scenarioRuns(workspace: ScenarioWorkspace, scenario: WorkspaceScenario, runs: SimulationRun[]): ScenarioRuns {
   const own = runs.filter((run) => runScenarioRef(run)?.id === scenario.id);
   const latest = own.reduce<SimulationRun | null>((best, run) => (!best || run.id > best.id ? run : best), null);
-  if (!latest) return { latest: null, members: [], completed: [], status: "never" };
+  if (!latest) return { latest: null, members: [], completed: [], status: "never", bpmnChanged: false };
   const group = groupMembers(latest, runs);
   const members = group.length ? group : [latest];
   const completed = members.filter((run) => run.status === "completed" && run.summary);
   const ref = runScenarioRef(latest)!;
-  const current = ref.revision === scenario.revision && ref.baseline_revision === workspace.baseline?.revision;
+  const bpmnChanged = differentBpmn(runBpmnFingerprint(latest), workspace.bpmn_fingerprint);
+  const current = ref.revision === scenario.revision && ref.baseline_revision === workspace.baseline?.revision && !bpmnChanged;
   const status: ScenarioRunStatus = members.some((run) => run.status === "pending")
     ? "pending"
     : completed.length === 0
@@ -130,7 +146,7 @@ export function scenarioRuns(workspace: ScenarioWorkspace, scenario: WorkspaceSc
       : current
         ? "current"
         : "stale";
-  return { latest, members, completed, status };
+  return { latest, members, completed, status, bpmnChanged };
 }
 
 export const WORKSPACE_KPIS: ReplicationKpi[] = ["cycle", "waiting", "costPerCase", "throughput"];
@@ -165,15 +181,17 @@ export function scenarioValue(results: ScenarioRuns, kpi: ReplicationKpi): Scena
  * La differenza scenario − AS-IS per ogni KPI. Con almeno due ripetizioni per
  * parte: intervallo al 95% (a coppie se gli stessi seed, altrimenti Welch) e
  * "migliore" solo se esclude lo zero. Con un run solo: il delta secco, che la UI
- * dice non difendibile. Se i due run partono da versioni diverse dell'AS-IS
- * nessun delta: confronterebbe due modelli diversi (`mismatch`).
+ * dice non difendibile. Se i due run partono da versioni diverse dell'AS-IS o
+ * da disegni diversi del processo nessun delta: confronterebbe due modelli
+ * diversi (`mismatch`).
  * `comparisons`: quante alternative si confrontano insieme con l'AS-IS, per
  * l'intervallo corretto con Bonferroni.
  */
 export function scenarioDeltas(asIs: ScenarioRuns, scenario: ScenarioRuns, runs: SimulationRun[], comparisons = 1): { kpis: Record<ReplicationKpi, ScenarioDelta | null>; paired: boolean | null; mismatch: boolean } {
   const empty = { cycle: null, waiting: null, costPerCase: null, throughput: null };
   if (!asIs.latest || !scenario.latest || !asIs.completed.length || !scenario.completed.length) return { kpis: empty, paired: null, mismatch: false };
-  if (runScenarioRef(asIs.latest)?.baseline_revision !== runScenarioRef(scenario.latest)?.baseline_revision) return { kpis: empty, paired: null, mismatch: true };
+  const otherBaseline = runScenarioRef(asIs.latest)?.baseline_revision !== runScenarioRef(scenario.latest)?.baseline_revision;
+  if (otherBaseline || differentBpmn(runBpmnFingerprint(asIs.latest), runBpmnFingerprint(scenario.latest))) return { kpis: empty, paired: null, mismatch: true };
   const grouped = compareGroups(asIs.latest, scenario.latest, runs, comparisons);
   if (grouped) {
     const kpis = { ...empty } as Record<ReplicationKpi, ScenarioDelta | null>;

@@ -151,6 +151,7 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
                     <span className="sim-workspace-name"><span className="sim-scenario-label">{scenario.label}</span>{scenario.kind === "alternative" && <><span className="sr-only"> · </span><span>{scenario.name}</span></>}</span>
                     <span className={cn("block text-xs", STATUS_TONE[results.status])}>{t(`simulation.scenarios.workspace.status.${results.status}`)}</span>
                     {results.members.length > 0 && <span className="block text-xs text-muted-foreground">{t("simulation.scenarios.workspace.reps", { count: results.completed.length })}</span>}
+                    {results.bpmnChanged && <span className="block text-xs text-muted-foreground" data-sim-workspace-bpmn-changed>{t("simulation.scenarios.workspace.bpmnChanged")}</span>}
                     {/* Sempre montata: quando un run finisce e i due non sono piu' confrontabili, lo screen reader lo annuncia. */}
                     {index > 0 && (
                       <span role="status" className="block text-xs text-[var(--state-warning-text)]" data-sim-workspace-mismatch={comparison?.mismatch ? "" : undefined}>
