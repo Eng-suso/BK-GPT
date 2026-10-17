@@ -405,6 +405,19 @@
       "durationByCategory": "Casi con {{attribute}} = {{value}}",
       "durationByMissing": "L'attributo scelto non c'è più o non è a categorie: scegline un altro.",
       "invalidFlowRules": "Attività con salto o rilavorazione da correggere: {{count}}",
+      "arrivalBands": {
+        "toggle": "Ritmo diverso per fascia oraria",
+        "hint": "Ogni fascia ha il suo tempo medio fra due arrivi. Fuori dalle fasce non arriva nessuno.",
+        "band": "Fascia {{n}}",
+        "remove": "Togli {{band}}",
+        "mean": "Un caso ogni, min",
+        "add": "Aggiungi una fascia",
+        "issue": {
+          "order": "L'ora di fine deve venire dopo quella di inizio, nello stesso giorno.",
+          "mean": "Il tempo fra due arrivi deve essere più di zero.",
+          "overlap": "Si sovrappone a una fascia precedente."
+        }
+      },
       "escalation": "Escalation a tempo dopo {{after}} su «{{activity}}». La quota dei casi che la prendono viene dalla durata dell'attività: il timer conta la lavorazione, non l'attesa in coda.",
       "skip": {
         "legend": "Salto di «{{task}}»",

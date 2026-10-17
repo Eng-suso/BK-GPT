@@ -405,6 +405,19 @@
       "durationByCategory": "Cases with {{attribute}} = {{value}}",
       "durationByMissing": "The chosen attribute is gone or not a category: pick another.",
       "invalidFlowRules": "Activities with a skip or rework to fix: {{count}}",
+      "arrivalBands": {
+        "toggle": "Different pace by time band",
+        "hint": "Each band has its own mean time between two arrivals. No case arrives outside the bands.",
+        "band": "Band {{n}}",
+        "remove": "Remove {{band}}",
+        "mean": "One case every, min",
+        "add": "Add a band",
+        "issue": {
+          "order": "The end time must come after the start time, on the same day.",
+          "mean": "The time between two arrivals must be above zero.",
+          "overlap": "It overlaps an earlier band."
+        }
+      },
       "escalation": "Timer escalation after {{after}} on «{{activity}}». The share of cases taking it comes from the activity duration: the timer counts work, not waiting in the queue.",
       "skip": {
         "legend": "Skipping «{{task}}»",

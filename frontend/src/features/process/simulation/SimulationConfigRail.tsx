@@ -36,6 +36,7 @@ import { TaskDurationFields } from "./TaskDurationFields";
 import { OtherAssignments } from "./OtherAssignments";
 import { ActivitySources } from "./ActivitySources";
 import { ServiceLevelFields } from "./ServiceLevel";
+import { ArrivalBands } from "./ArrivalBands";
 import { DurationByCategory } from "./DurationByCategory";
 import { FlowRules } from "./FlowRules";
 import { formatAfter } from "./escalation";
@@ -248,6 +249,7 @@ export function SimulationConfigRail({
               : <p id="sim-warmup-hint" className="text-xs text-muted-foreground">{t("simulation.config.warmupHint")}</p>}
             <fieldset className="sim-arrivals mt-1 grid gap-2 rounded-md border border-border p-2.5" data-sim-arrivals>
               <legend className="px-1 text-xs font-medium text-foreground">{t("simulation.config.arrivals")}</legend>
+              {!draft.arrival?.bands && <>
               <p className="text-xs text-muted-foreground">{t("simulation.config.arrivalsHint")}</p>
               <TaskDurationFields
                 elementId="arrivals"
@@ -267,6 +269,14 @@ export function SimulationConfigRail({
                   {calendars.map((c) => <option key={c.id} value={c.id}>{c.name || c.id}</option>)}
                 </select>
               </label>
+              </>}
+              <ArrivalBands
+                bands={draft.arrival?.bands}
+                onChange={(bands) => onDraftChange({
+                  ...draft,
+                  arrival: { ...(draft.arrival ?? { distribution: arrivalDuration(draft).distribution }), bands },
+                })}
+              />
             </fieldset>
             <ServiceLevelFields sla={draft.sla} onChange={(next) => patch({ sla: next })} />
             {provenance && (
