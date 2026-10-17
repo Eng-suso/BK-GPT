@@ -8,6 +8,16 @@ import {
   type GatewayRulesDraft,
 } from "./caseRules";
 import {
+  reworkInput,
+  reworkIssue,
+  sanitizeRework,
+  sanitizeSkip,
+  skipInput,
+  skipIssue,
+  type ReworkDraft,
+  type SkipDraft,
+} from "./flowRules";
+import {
   simCalendarSchema,
   type CreateSimulationRunInput,
   type DistributionName,
@@ -51,6 +61,10 @@ export type TaskDraft = DurationDraft & {
   fixedCost?: number;
   /** SIM-32: durata per categoria di un attributo; le categorie senza voce usano la base. */
   durationBy?: { attributeId: string; variants: Record<string, DurationDraft> };
+  /** SIM-35: una quota dei casi salta l'attività. */
+  skip?: SkipDraft;
+  /** SIM-35: finita l'attività, una quota torna indietro a rifare il lavoro. */
+  rework?: ReworkDraft;
 };
 
 /** La durata di base di un'attivita', senza ruolo ne' altro. */
@@ -215,10 +229,14 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
   const sla = draft.sla ? slaIssue(draft.sla) !== null : false;
   const badCost = (value: number | undefined) => value !== undefined && !(Number.isFinite(value) && value >= 0);
   const costs = badCost(draft.caseFixedCost) || Object.values(draft.tasks).some((task) => badCost(task.fixedCost));
+  const activityIds = new Set(Object.keys(draft.tasks));
+  const flowRules = Object.values(draft.tasks).filter((task) =>
+    (task.skip !== undefined && skipIssue(task.skip, attributes) !== null)
+    || (task.rework !== undefined && reworkIssue(task.rework, attributes, activityIds) !== null)).length;
   const warmup = warmupIssue(draft) !== null;
   const replications = draft.replications !== undefined && !(Number.isInteger(draft.replications) && draft.replications >= 1 && draft.replications <= 20);
-  return { durations, calendars, arrival, sla, costs, warmup, replications,
-    ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs && !warmup && !replications };
+  return { durations, calendars, arrival, sla, costs, warmup, replications, flowRules,
+    ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs && !warmup && !replications && flowRules === 0 };
 }
 
 export type WarmupIssue = "notWhole" | "noCaseLeft";
@@ -368,6 +386,8 @@ export function scenarioToInput(
         ...(task.claims?.length ? { claims: task.claims } : {}),
         ...(task.fixedCost ? { fixedCost: task.fixedCost } : {}),
         ...(byCategory(task, draft.caseAttributes ?? [])),
+        ...(task.skip ? { skip: skipInput(task.skip, draft.caseAttributes ?? []) } : {}),
+        ...(task.rework ? { rework: reworkInput(task.rework, draft.caseAttributes ?? []) } : {}),
         ...(others.length ? { otherAssignments: others.map((a) => ({ resourceId: a.resourceId, ...durationInput(a) })) } : {}),
       };
     }),
@@ -483,7 +503,7 @@ export function parseScenarioDraft(value: unknown): ScenarioDraft {
     ...structuredClone(DEFAULT_SCENARIO),
     ...parsed,
     resources: migratedResources,
-    tasks: parsed.tasks ?? {},
+    tasks: sanitizeTasks(parsed.tasks),
     gateways: parsed.gateways ?? {},
     // Una bozza vecchia o modificata a mano non deve rompere il pannello.
     calendars: Array.isArray(parsed.calendars)
@@ -495,6 +515,14 @@ export function parseScenarioDraft(value: unknown): ScenarioDraft {
     gatewayRules: sanitizeGatewayRules(parsed.gatewayRules),
     casePriorities: sanitizePriorities(parsed.casePriorities),
   };
+}
+
+function sanitizeTasks(raw: unknown): Record<string, TaskDraft> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(Object.entries(raw as Record<string, TaskDraft>).map(([id, task]) => {
+    if (!task || typeof task !== "object" || (task.skip === undefined && task.rework === undefined)) return [id, task];
+    return [id, { ...task, skip: sanitizeSkip(task.skip), rework: sanitizeRework(task.rework) }];
+  }));
 }
 
 function sanitizeSla(raw: unknown): SlaDraft | undefined {

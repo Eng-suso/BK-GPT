@@ -19,6 +19,7 @@ import {
   type BranchView,
   type CalendarView,
   type DurationByView,
+  type FlowRulesView,
   type DurationView,
 } from "./modelParameters";
 import { useRunModel, type IrRule } from "./runModel";
@@ -83,6 +84,7 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
             {view.assignments.length > 1 && <p className="sim-help">{t("simulation.activityInspector.sharedActivity")}</p>}
             <FixedCost run={run} elementId={elementId} lang={lang} t={t} />
             {view.durationBy && <DurationBy durationBy={view.durationBy} lang={lang} t={t} />}
+            <FlowRules rules={view.flowRules} self={elementId} lang={lang} t={t} />
             {view.assignments.map((assignment, index) => (
               <Assignment key={index} assignment={assignment} index={index} total={view.assignments.length} lang={lang} t={t} provenanceState={provenance} />
             ))}
@@ -206,6 +208,29 @@ function DurationBy({ durationBy, lang, t }: { durationBy: DurationByView; lang:
       </div>
     ))}
     <p className="sim-help">{t("simulation.activityInspector.durationByOthers")}</p>
+  </div>;
+}
+
+/** SIM-35: salto e rilavorazione che il run ha simulato sull'attivita'. */
+function FlowRules({ rules, self, lang, t }: { rules: FlowRulesView; self: string; lang: Lang; t: T }): React.JSX.Element | null {
+  if (!rules.skip && !rules.rework) return null;
+  const percent = new Intl.NumberFormat(lang === "it" ? "it-IT" : "en-US", { style: "percent", maximumFractionDigits: 1 });
+  const { skip, rework } = rules;
+  return <div className="sim-param-group">
+    <h5>{t("simulation.activityInspector.flowRules")}</h5>
+    {skip && <p className="sim-param-note">
+      {t(skip.condition ? "simulation.activityInspector.skipWhen" : "simulation.activityInspector.skip", {
+        share: percent.format(skip.probability), rule: skip.condition ? conditionText(skip.condition, t) : "",
+      })}
+    </p>}
+    {rework && <p className="sim-param-note">
+      {t(rework.condition ? "simulation.activityInspector.reworkWhen" : "simulation.activityInspector.rework", {
+        share: percent.format(rework.probability),
+        target: rework.backTo === self ? t("simulation.activityInspector.reworkSelf") : `«${rework.backToName}»`,
+        count: rework.maxRepeats,
+        rule: rework.condition ? conditionText(rework.condition, t) : "",
+      })}
+    </p>}
   </div>;
 }
 

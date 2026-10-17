@@ -70,6 +70,17 @@ export const runModelSchema = z.object({
         attribute: z.string(),
         variants: z.array(z.object({ value: z.string(), duration: irDistributionSchema })),
       }).nullable().optional(),
+      // SIM-35: una quota dei casi salta l'attivita' o, finita, torna a rifarla.
+      skip: z.object({
+        probability: z.number(),
+        condition: z.object({ any_of: z.array(z.array(ruleSchema)) }).nullable().optional(),
+      }).nullable().optional(),
+      rework: z.object({
+        back_to: z.string(),
+        probability: z.number(),
+        max_repeats: z.number(),
+        condition: z.object({ any_of: z.array(z.array(ruleSchema)) }).nullable().optional(),
+      }).nullable().optional(),
     }),
   ),
   gateways: z

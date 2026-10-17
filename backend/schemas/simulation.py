@@ -2,6 +2,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from backend.simulation.ir.model import Rework, Skip
 from backend.simulation.ir.patch import ModelPatch
 
 
@@ -131,6 +132,9 @@ class SimTaskConfig(BaseModel):
     duration_by: SimDurationByConfig | None = None
     # SIM-10: euro per ogni esecuzione dell'attivita', oltre al tempo delle risorse.
     fixed_cost: float | None = Field(default=None, ge=0, allow_inf_nan=False, strict=True)
+    # SIM-35: una parte dei casi salta l'attivita' o, finita, torna a rifare il lavoro.
+    skip: Skip | None = None
+    rework: Rework | None = None
 
 
 class SimGatewayBranchConfig(BaseModel):

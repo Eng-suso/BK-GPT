@@ -222,17 +222,6 @@ class DurationByAttribute(_Strict):
         return self
 
 
-class Activity(_Strict):
-    element_id: str = Field(min_length=1)
-    name: str = ""
-    assignments: tuple[Assignment, ...] = Field(min_length=1)
-    duration_by: DurationByAttribute | None = None
-
-
-# --------------------------------------------------------------------------- #
-# Regole, rami, attributi
-# --------------------------------------------------------------------------- #
-
 Operator = Literal[">", ">=", "<", "<=", "=", "!="]
 
 
@@ -250,6 +239,48 @@ class Condition(_Strict):
     def attributes(self) -> set[str]:
         return {rule.attribute for group in self.any_of for rule in group}
 
+
+class Skip(_Strict):
+    """SIM-35: una parte dei casi salta l'attivita'.
+
+    Senza ``condition`` la salta una quota ``probability`` di tutti i casi; con
+    una condizione, la stessa quota dei soli casi che la soddisfano (1 = tutti
+    loro). Il motore non lo sa fare: ``ir/flow_rules.py`` mette davanti
+    all'attivita' una decisione con un ramo che la scavalca.
+    """
+
+    probability: float = Field(gt=0, le=1)
+    condition: Condition | None = None
+    provenance: Provenance | None = None
+
+
+class Rework(_Strict):
+    """SIM-35: dopo l'attivita' una parte dei casi torna indietro e rifa' il lavoro.
+
+    ``back_to`` e' l'attivita' da cui si riparte (anche questa stessa). Ogni
+    passaggio torna indietro con ``probability``, al piu' ``max_repeats`` volte
+    per caso; con ``condition`` torna indietro solo chi la soddisfa.
+    """
+
+    back_to: str = Field(min_length=1)
+    probability: float = Field(gt=0, lt=1)
+    max_repeats: int = Field(ge=1, le=10)
+    condition: Condition | None = None
+    provenance: Provenance | None = None
+
+
+class Activity(_Strict):
+    element_id: str = Field(min_length=1)
+    name: str = ""
+    assignments: tuple[Assignment, ...] = Field(min_length=1)
+    duration_by: DurationByAttribute | None = None
+    skip: Skip | None = None
+    rework: Rework | None = None
+
+
+# --------------------------------------------------------------------------- #
+# Regole, rami, attributi
+# --------------------------------------------------------------------------- #
 
 class Branch(_Strict):
     flow_id: str = Field(min_length=1)
@@ -372,10 +403,19 @@ class SimulationModel(_Strict):
                 if resource_id not in known_resources:
                     raise ValueError(f"attivita' {activity.element_id}: risorsa sconosciuta {resource_id}")
 
+        activity_ids = {activity.element_id for activity in self.activities}
+        for activity in self.activities:
+            if activity.rework and activity.rework.back_to not in activity_ids:
+                raise ValueError(
+                    f"attivita' {activity.element_id}: la rilavorazione torna a {activity.rework.back_to}, che non e' un'attivita'"
+                )
+
         attributes = {attribute.name for attribute in self.case_attributes}
         attributes |= {update.name for update in self.attribute_updates}
         conditions = [b.condition for g in self.gateways for b in g.branches if b.condition]
         conditions += [rule.condition for rule in self.priority_rules]
+        conditions += [a.skip.condition for a in self.activities if a.skip and a.skip.condition]
+        conditions += [a.rework.condition for a in self.activities if a.rework and a.rework.condition]
         for condition in conditions:
             missing = condition.attributes() - attributes
             if missing:

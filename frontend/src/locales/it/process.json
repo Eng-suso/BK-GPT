@@ -396,6 +396,35 @@
       "durationByHint": "Ogni categoria di «{{attribute}}» ha la sua durata; parte da quella di base.",
       "durationByCategory": "Casi con {{attribute}} = {{value}}",
       "durationByMissing": "L'attributo scelto non c'è più o non è a categorie: scegline un altro.",
+      "invalidFlowRules": "Attività con salto o rilavorazione da correggere: {{count}}",
+      "skip": {
+        "legend": "Salto di «{{task}}»",
+        "toggle": "Alcuni casi la saltano",
+        "percent": "Casi che la saltano, %",
+        "percentOfMatching": "Dei casi con la regola, quanti la saltano, %"
+      },
+      "rework": {
+        "legend": "Rilavorazione di «{{task}}»",
+        "toggle": "Alcuni casi la rifanno",
+        "backTo": "Si riparte da",
+        "self": "{{task}} (questa attività)",
+        "chooseTarget": "Scegli un'attività",
+        "backToHint": "Un'attività che la precede, senza rami paralleli in mezzo: da lì il caso rifà tutto il percorso.",
+        "percent": "Tornano indietro, % a ogni passaggio",
+        "maxRepeats": "Al più, volte per caso"
+      },
+      "flowRuleOnlyFor": "Solo per alcuni casi",
+      "flowRuleAll": "Per tutti i casi",
+      "flowRuleLegend": "Vale per i casi che",
+      "flowRuleReads": "Vale se {{rule}}.",
+      "flowRuleNoAttributes": "Vale per tutti i casi. Per limitarla aggiungi un attributo del caso.",
+      "flowRuleIssue": {
+        "skipPercent": "La quota deve stare fra 0 (escluso) e 100.",
+        "reworkPercent": "La quota deve stare fra 0 e 100, esclusi.",
+        "reworkTarget": "Scegli l'attività da cui ripartire.",
+        "reworkRepeats": "Un numero intero da 1 a 10.",
+        "rule": "Completa la regola."
+      },
       "warmupCases": "Casi di riscaldamento",
       "warmupHint": "Facoltativo. Il sistema parte vuoto: i primi casi trovano code corte. Restano fuori dai risultati, il replay li mostra.",
       "warmupIssue": {
@@ -510,7 +539,15 @@
       "fixedCost": "Costo fisso: {{value}} per ogni esecuzione, oltre al tempo della risorsa.",
       "durationBy": "Durata per {{attribute}}",
       "durationByCategory": "{{attribute}} = {{value}}",
-      "durationByOthers": "Gli altri casi hanno usato la durata delle risorse qui sotto."
+      "durationByOthers": "Gli altri casi hanno usato la durata delle risorse qui sotto.",
+      "flowRules": "Salto e rilavorazione",
+      "skip": "Il {{share}} dei casi l'ha saltata.",
+      "skipWhen": "Il {{share}} dei casi con {{rule}} l'ha saltata; gli altri l'hanno svolta.",
+      "rework_one": "Finita, il {{share}} dei casi tornava a {{target}}, al più {{count}} volta per caso.",
+      "rework_other": "Finita, il {{share}} dei casi tornava a {{target}}, al più {{count}} volte per caso.",
+      "reworkWhen_one": "Finita, il {{share}} dei casi con {{rule}} tornava a {{target}}, al più {{count}} volta per caso.",
+      "reworkWhen_other": "Finita, il {{share}} dei casi con {{rule}} tornava a {{target}}, al più {{count}} volte per caso.",
+      "reworkSelf": "rifarla"
     },
     "provenance": {
       "label": "Origine",
@@ -1174,6 +1211,8 @@
         "otherAssignments": "Altri ruoli",
         "claims": "Fonti",
         "durationBy": "Durata per categoria",
+        "skip": "Salto",
+        "rework": "Rilavorazione",
         "target": "Entro",
         "unit": "Unità di tempo",
         "sharePercent": "Quota di casi, %",

@@ -268,3 +268,66 @@ def test_a_v1_run_with_a_model_patch_routes_by_the_consultant_rules():
     scenario = build_prosimos_scenario(bpmn_xml=contract_spike.BPMN_PATH.read_text(encoding="utf-8"), request=request)
 
     assert contract_spike.check_branch_rules(_run(_model(), payload=scenario.payload)) is None
+
+
+def _flow_rule_rows(**approve) -> list[dict]:
+    # SIM-35: salto e rilavorazione su Approva, compilati come decisioni per regola.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    request = CreateSimulationRunRequest(
+        tasks=[
+            {"element_id": "T_receive", "mean_seconds": 600, "distribution": "fixed"},
+            {"element_id": "T_approve", "mean_seconds": 1200, "distribution": "fixed", **approve},
+            {"element_id": "T_pay", "mean_seconds": 600, "distribution": "fixed"},
+        ],
+        model_patch={
+            "case_attributes": [
+                {"name": "importo", "distribution": {"kind": "uniform", "minimum": 100, "maximum": 12000}},
+            ],
+            # Tutti i casi passano da Approva: il salto e il ritorno si leggono da soli.
+            "gateways": [{"element_id": "G_split", "branches": [
+                {"flow_id": "F_high", "probability": 1.0}, {"flow_id": "F_low", "probability": 0.0}]}],
+        },
+    )
+    bpmn = normalize_bpmn_for_prosimos(contract_spike.BPMN_PATH.read_text(encoding="utf-8"))
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    return _run(_model(), payload=scenario.payload, bpmn=scenario.bpmn_xml)
+
+
+def _executions(rows: list[dict], activity: str) -> dict[str, int]:
+    counts = {row["case_id"]: 0 for row in rows}
+    for row in rows:
+        if row["activity"] == activity:
+            counts[row["case_id"]] += 1
+    return counts
+
+
+def test_a_skipped_activity_is_left_out_by_its_share_of_cases():
+    rows = _flow_rule_rows(skip={"probability": 0.3})
+    approvals = _executions(rows, "Approva")
+    skipped = sum(1 for n in approvals.values() if n == 0) / len(approvals)
+    assert 0.2 < skipped < 0.4, skipped
+    # Chi salta prosegue: ogni caso arriva a Paga.
+    assert set(_executions(rows, "Paga").values()) == {1}
+
+
+def test_a_conditional_skip_leaves_out_only_the_matching_cases():
+    small = {"any_of": [[{"attribute": "importo", "operator": "<", "value": 4000}]]}
+    rows = _flow_rule_rows(skip={"probability": 1, "condition": small})
+    approvals = _executions(rows, "Approva")
+    amounts = {row["case_id"]: float(row["importo"]) for row in rows}
+    assert all((approvals[case] == 0) == (amounts[case] < 4000) for case in approvals)
+
+
+def test_a_rework_repeats_the_activity_by_its_share_up_to_the_limit():
+    rows = _flow_rule_rows(rework={"back_to": "T_receive", "probability": 0.6, "max_repeats": 2})
+    approvals = _executions(rows, "Approva")
+    # Al più due ritorni: tre esecuzioni per caso, mai quattro.
+    assert set(approvals.values()) <= {1, 2, 3}
+    shares = {n: sum(1 for v in approvals.values() if v == n) / len(approvals) for n in (1, 2, 3)}
+    # 0.4 / 0.6*0.4 / 0.6^2 con 200 casi.
+    assert 0.3 < shares[1] < 0.5 and 0.15 < shares[2] < 0.33 and 0.26 < shares[3] < 0.46, shares
+    # Si torna a Ricevi: lo rifà ogni ritorno.
+    assert _executions(rows, "Ricevi") == approvals

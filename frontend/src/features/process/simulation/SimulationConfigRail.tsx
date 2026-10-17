@@ -37,6 +37,8 @@ import { OtherAssignments } from "./OtherAssignments";
 import { ActivitySources } from "./ActivitySources";
 import { ServiceLevelFields } from "./ServiceLevel";
 import { DurationByCategory } from "./DurationByCategory";
+import { FlowRules } from "./FlowRules";
+import { flowRuleAttributeIds } from "./flowRules";
 import { CalendarsSection } from "./CalendarsSection";
 import { CaseAttributesSection } from "./CaseAttributesSection";
 import { GatewayModeToggle, GatewayRulesEditor } from "./GatewayRulesEditor";
@@ -139,7 +141,8 @@ export function SimulationConfigRail({
   const priorities = draft.casePriorities ?? [];
   const ruleIssues = caseRuleIssues(attributes, gatewayRules, priorities);
   const attributeUse = attributeUsage(attributes, gatewayRules, priorities,
-    Object.values(draft.tasks).flatMap((task) => (task.durationBy ? [task.durationBy.attributeId] : [])));
+    [...Object.values(draft.tasks).flatMap((task) => (task.durationBy ? [task.durationBy.attributeId] : [])),
+      ...flowRuleAttributeIds(Object.values(draft.tasks))]);
   const canRun = Boolean(template) && !templateLoading && resourceIssues.ready && parameterIssues.ready && ruleIssues.ready;
   const updateResource = (id: string, fields: Partial<ScenarioDraft["resources"][number]>) =>
     patch({ resources: draft.resources.map((r) => r.id === id ? { ...r, ...fields } : r) });
@@ -377,6 +380,7 @@ export function SimulationConfigRail({
             {parameterIssues.arrival && <p>{t("simulation.config.invalidArrival")}</p>}
             {parameterIssues.sla && <p>{t("simulation.config.invalidSla")}</p>}
             {parameterIssues.costs && <p>{t("simulation.config.invalidCosts")}</p>}
+            {parameterIssues.flowRules > 0 && <p>{t("simulation.config.invalidFlowRules", { count: parameterIssues.flowRules })}</p>}
             {parameterIssues.warmup && <p>{t("simulation.config.invalidWarmup")}</p>}
             {parameterIssues.replications && <p>{t("simulation.config.invalidReplications")}</p>}
             {ruleIssues.attributes > 0 && <p>{t("simulation.config.invalidAttributes", { count: ruleIssues.attributes })}</p>}
@@ -469,6 +473,14 @@ export function SimulationConfigRail({
                       elementId={task.element_id}
                       taskName={task.name}
                       task={cfg}
+                      attributes={attributes}
+                      onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                    />
+                    <FlowRules
+                      elementId={task.element_id}
+                      taskName={task.name}
+                      task={cfg}
+                      activities={template?.tasks ?? []}
                       attributes={attributes}
                       onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
                     />

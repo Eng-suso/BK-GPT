@@ -1,4 +1,5 @@
 import type { ModelPatchInput } from "./caseRules";
+import type { ReworkInput, SkipInput } from "./flowRules";
 import { z } from "zod";
 
 /**
@@ -319,6 +320,9 @@ export type SimTaskInput = SimDurationInput & {
   durationBy?: { attribute: string; variants: (SimDurationInput & { value: string })[] };
   /** Gli altri ruoli che possono svolgere l'attività, ognuno con la sua durata. */
   otherAssignments?: (SimDurationInput & { resourceId: string })[];
+  /** SIM-35: salto e rilavorazione. */
+  skip?: SkipInput;
+  rework?: ReworkInput;
 };
 
 export type SimGatewayInput = {

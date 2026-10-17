@@ -123,7 +123,23 @@ export function ruleSentence(groups: BranchRuleDraft, attributes: CaseAttributeD
 }
 
 type IrDistribution = { kind: "uniform"; minimum: number; maximum: number };
-type IrCondition = { any_of: Array<Array<{ attribute: string; operator: RuleOperator; value: string | number }>> };
+export type IrCondition = { any_of: Array<Array<{ attribute: string; operator: RuleOperator; value: string | number }>> };
+
+/** Una regola della bozza come condizione dell'IR: nomi degli attributi, numeri come numeri. */
+export function irCondition(groups: BranchRuleDraft, attributes: CaseAttributeDraft[]): IrCondition {
+  const byId = new Map(attributes.map((a) => [a.id, a]));
+  return {
+    any_of: groups.map((group) => group.map((rule) => {
+      const attribute = byId.get(rule.attributeId);
+      const raw = rule.value.trim();
+      return {
+        attribute: attribute?.name.trim() ?? rule.attributeId,
+        operator: rule.operator,
+        value: attribute?.kind === "number" ? Number(raw.replace(",", ".")) : raw,
+      };
+    })),
+  };
+}
 
 export type ModelPatchInput = {
   /** SIM-12: livello 1 = servito per primo quando piu' casi aspettano la stessa risorsa. */
@@ -153,18 +169,7 @@ export function toModelPatch(
   priorities: BranchRuleDraft[] = [],
 ): ModelPatchInput | undefined {
   if (attributes.length === 0) return undefined;
-  const byId = new Map(attributes.map((a) => [a.id, a]));
-  const condition = (groups: BranchRuleDraft): IrCondition => ({
-    any_of: groups.map((group) => group.map((rule) => {
-      const attribute = byId.get(rule.attributeId);
-      const raw = rule.value.trim();
-      return {
-        attribute: attribute?.name.trim() ?? rule.attributeId,
-        operator: rule.operator,
-        value: attribute?.kind === "number" ? Number(raw.replace(",", ".")) : raw,
-      };
-    })),
-  });
+  const condition = (groups: BranchRuleDraft): IrCondition => irCondition(groups, attributes);
   const caseAttributes: NonNullable<ModelPatchInput["case_attributes"]> = attributes.map((attribute) => {
     if (attribute.kind === "number") {
       return { name: attribute.name.trim(), distribution: { kind: "uniform", minimum: attribute.minimum, maximum: attribute.maximum }, provenance: PROVENANCE };
@@ -215,6 +220,10 @@ const isGroups = (groups: unknown): groups is BranchRuleDraft =>
   Array.isArray(groups) && groups.every((g) => Array.isArray(g) && g.every(isRule));
 
 /** Le priorita' salvate: quelle che non tornano si scartano. */
+export function isRuleGroups(groups: unknown): groups is BranchRuleDraft {
+  return isGroups(groups);
+}
+
 export function sanitizePriorities(raw: unknown): BranchRuleDraft[] {
   return Array.isArray(raw) ? raw.filter(isGroups) : [];
 }

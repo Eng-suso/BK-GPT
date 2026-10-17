@@ -98,6 +98,22 @@ describe("elementFromModel", () => {
     expect(view.branches[0].provenance.origin).toBe("manual");
   });
 
+  it("reads the skip and the rework the run simulated, naming where cases went back", () => {
+    const model: RunModel = {
+      ...MODEL,
+      activities: MODEL.activities.map((a) => a.element_id === "Task_B"
+        ? { ...a, skip: { probability: 0.2 }, rework: { back_to: "Task_A", probability: 0.3, max_repeats: 2, condition: { any_of: [[{ attribute: "importo", operator: ">", value: 5000 }]] } } }
+        : a),
+    };
+    const view = elementFromModel(model, "Task_B");
+    expect(view?.kind === "activity" && view.flowRules).toEqual({
+      skip: { probability: 0.2, condition: null },
+      rework: { backTo: "Task_A", backToName: "Verifica", probability: 0.3, maxRepeats: 2, condition: [[{ attribute: "importo", operator: ">", value: 5000 }]] },
+    });
+    const plain = elementFromModel(MODEL, "Task_A");
+    expect(plain?.kind === "activity" && plain.flowRules).toEqual({ skip: null, rework: null });
+  });
+
   it("returns null for an element the model does not simulate", () => {
     expect(elementFromModel(MODEL, "StartEvent_1")).toBeNull();
   });
