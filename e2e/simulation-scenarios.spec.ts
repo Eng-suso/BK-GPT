@@ -268,6 +268,23 @@ test("the Workspace tool compares every scenario with the AS-IS, with the interv
   await expect(page).toHaveURL(/panel=compare/);
 });
 
+test("the Workspace tool gives no verdict between runs on different AS-IS versions", async ({ page }) => {
+  const workspace = new Workspace().seedWith(draft, { name: "+1 approvatore", patch: [{ op: "set", path: ["resources", { id: "r1" }, "amount"], value: 3 }] });
+  workspace.baseline!.revision = 2;
+  const on = (scenarioId: number, baselineRevision: number) => ({ workspace_scenario: { id: scenarioId, revision: 1, baseline_revision: baselineRevision } });
+  const runs = [
+    ...[3600, 3720, 3660].map((cycle, i) => run(41 + i, 1, cycle, { ...on(1, 2), replication_group: "g-asis", replication_index: i + 1, seed: 4242 + i })),
+    ...[3000, 3130, 3070].map((cycle, i) => run(51 + i, 2, cycle, { ...on(2, 1), replication_group: "g-a", replication_index: i + 1, seed: 4242 + i })),
+  ];
+  await fixture(page, workspace, runs);
+  await page.goto(`${studio}/workspace/41?panel=scenarios`);
+  const a = page.locator('[data-sim-scenario-workspace] [data-sim-workspace-row="A"]');
+  await expect(a).toContainText("Da rifare");
+  await expect(a.locator("[data-sim-workspace-mismatch]")).toBeVisible();
+  await expect(a).not.toContainText("Migliore");
+  await expect(a).not.toContainText("Δ");
+});
+
 test("the process and the task inspector show what a scenario changes", async ({ page }, testInfo) => {
   const workspace = new Workspace().seedWith(draft, { name: "Approvazione veloce", patch: [{ op: "set", path: ["tasks", "T_approve", "meanMinutes"], value: 10 }] });
   await fixture(page, workspace, group(41, 1, "g-asis", [3600, 3720]));
