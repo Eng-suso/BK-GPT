@@ -172,6 +172,20 @@ class Calendar(_Strict):
 # --------------------------------------------------------------------------- #
 
 
+class ResourceShift(_Strict):
+    """SIM-30: ``amount`` unita' in piu' della risorsa, presenti solo nel calendario ``calendar_id``.
+
+    "Due operatori tutto il giorno, due in piu' dalle 9 alle 12" e' una risorsa
+    con ``amount=2`` e un turno con ``amount=2`` sul calendario 9-12. Il motore
+    non conosce organici che cambiano nel tempo: la compilazione fa del turno
+    una risorsa in piu', con le stesse attivita' e le stesse durate.
+    """
+
+    amount: int = Field(ge=1, le=1000)
+    calendar_id: str
+    provenance: Provenance | None = None
+
+
 class Resource(_Strict):
     """Un tipo di risorsa con il suo organico: ``amount`` unita' identiche."""
 
@@ -181,6 +195,7 @@ class Resource(_Strict):
     amount: int = Field(ge=1, le=1000)
     calendar_id: str
     provenance: Provenance | None = None
+    shifts: tuple[ResourceShift, ...] = Field(default=(), max_length=10)
 
 
 class ResourcePool(_Strict):
@@ -450,6 +465,9 @@ class SimulationModel(_Strict):
         for resource in self.resources().values():
             if resource.calendar_id not in known_calendars:
                 raise ValueError(f"risorsa {resource.id}: calendario sconosciuto {resource.calendar_id}")
+            for shift in resource.shifts:
+                if shift.calendar_id not in known_calendars:
+                    raise ValueError(f"risorsa {resource.id}: turno su un calendario sconosciuto {shift.calendar_id}")
 
         known_resources = set(resource_ids)
         for activity in self.activities:
