@@ -159,3 +159,12 @@ export function compareGroups(runA: SimulationRun, runB: SimulationRun, runs: Si
     kpis: { cycle: kpi("cycle"), waiting: kpi("waiting"), costPerCase: kpi("costPerCase"), throughput: kpi("throughput") },
   };
 }
+
+/**
+ * La probabilita' di miglioramento come percentuale. Mai "100%" o "0%": con
+ * poche ripetizioni la certezza non c'e', c'e' solo una probabilita' molto alta.
+ */
+export function formatProbability(value: number, lang: "it" | "en"): string {
+  const fmt = (x: number) => x.toLocaleString(lang === "it" ? "it-IT" : "en-US", { style: "percent", maximumFractionDigits: x > 0.99 || x < 0.01 ? 1 : 0 });
+  return value > 0.999 ? `> ${fmt(0.999)}` : value < 0.001 ? `< ${fmt(0.001)}` : fmt(value);
+}

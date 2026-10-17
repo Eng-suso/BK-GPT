@@ -9,7 +9,7 @@ import { Skeleton } from "@/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 import { formatCurrency, formatDuration } from "./simulationResults";
-import type { ReplicationKpi } from "./replications";
+import { formatProbability, type ReplicationKpi } from "./replications";
 import {
   WORKSPACE_KPIS,
   comparisonCount,
@@ -102,11 +102,6 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
 
   const comparisonsCount = comparisonCount(asIs, rows.slice(1).map(({ results }) => results));
   const comparisons = rows.slice(1).map(({ results }) => (asIs ? scenarioDeltas(asIs, results, runs, comparisonsCount) : null));
-  // Mai "100%" o "0%": con poche ripetizioni la certezza non c'e', c'e' solo una probabilita' molto alta.
-  const percent = (v: number) => {
-    const fmt = (x: number) => x.toLocaleString(lang === "it" ? "it-IT" : "en-US", { style: "percent", maximumFractionDigits: x > 0.99 || x < 0.01 ? 1 : 0 });
-    return v > 0.999 ? `> ${fmt(0.999)}` : v < 0.001 ? `< ${fmt(0.001)}` : fmt(v);
-  };
   const kinds = new Set(comparisons.flatMap((c) => (c ? Object.values(c.kpis).filter(Boolean).map((d) => (d as ScenarioDelta).kind === "single" ? "single" : c.paired ? "paired" : "independent") : [])));
 
   return (
@@ -185,7 +180,7 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
                         {delta && <DeltaLine delta={delta} text={delta.kind === "interval"
                           ? t("simulation.scenarios.workspace.deltaInterval", { delta: signed(kpi, delta.value.delta), half: format[kpi](delta.value.half) })
                           : t("simulation.scenarios.workspace.deltaSingle", { delta: signed(kpi, delta.delta) })} />}
-                        {delta?.kind === "interval" && <span className="block text-xs tabular-nums text-muted-foreground" data-sim-workspace-prob>{t("simulation.scenarios.workspace.probBetter", { value: percent(delta.value.probBetter) })}</span>}
+                        {delta?.kind === "interval" && <span className="block text-xs tabular-nums text-muted-foreground" data-sim-workspace-prob>{t("simulation.scenarios.workspace.probBetter", { value: formatProbability(delta.value.probBetter, lang) })}</span>}
                       </td>
                     );
                   })}

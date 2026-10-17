@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import "@/lib/i18n";
 
 import { ReplicationTable } from "./ReplicationSummary";
-import { compareGroups, deltaInterval, groupMembers, interval, replicationIntervals } from "./replications";
+import { compareGroups, deltaInterval, formatProbability, groupMembers, interval, replicationIntervals } from "./replications";
 import { DEFAULT_SCENARIO, scenarioToInput } from "./simulationScenario";
 import type { SimulationRun } from "./simulationTypes";
 
@@ -122,5 +122,13 @@ describe("probability of improvement and several comparisons (SIM-14c)", () => {
     expect(five.comparisons).toBe(5);
     expect(five.half).toBeGreaterThan(one.half);
     expect(five.probBetter).toBeCloseTo(one.probBetter, 10);
+  });
+});
+
+describe("formatProbability (SIM-14c)", () => {
+  it("non promette mai la certezza", () => {
+    expect(formatProbability(0.9999, "en")).toBe("> 99.9%");
+    expect(formatProbability(0.0001, "en")).toBe("< 0.1%");
+    expect(formatProbability(0.87, "en")).toBe("87%");
   });
 });
