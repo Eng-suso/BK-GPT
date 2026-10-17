@@ -142,6 +142,7 @@
         "unclear": "Differenza non certa"
       },
       "deltaHint": "Intervallo al 95%: B è migliore o peggiore solo se l'intervallo non comprende lo zero. Altrimenti la differenza potrebbe essere un caso.",
+      "probHeader": "Probabilità che B sia migliore",
       "repeatBoth": "Per sapere se la differenza è reale e non un caso, ripeti entrambi gli scenari almeno due volte (Ripetizioni nel pannello). Con lo stesso seed iniziale il confronto è più preciso."
     },
     "scenario": {

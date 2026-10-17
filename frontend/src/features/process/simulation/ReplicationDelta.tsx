@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 import { formatCurrency, formatDuration } from "./simulationResults";
-import { compareGroups, type DeltaInterval, type ReplicationKpi } from "./replications";
+import { compareGroups, formatProbability, type DeltaInterval, type ReplicationKpi } from "./replications";
 import type { SimulationRun } from "./simulationTypes";
 
 /**
@@ -33,6 +33,7 @@ export function ReplicationDelta({ runA, runB, runs }: { runA: SimulationRun; ru
       <td className="py-1.5 pr-3 text-right tabular-nums text-foreground">
         {t("simulation.results.replicationValue", { mean: signed(kpi, value.delta), half: formats[kpi](value.half) })}
       </td>
+      <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground" data-sim-replication-prob>{formatProbability(value.probBetter, lang)}</td>
       <td className={cn(
         "py-1.5 text-right font-medium",
         value.verdict === "better" && "text-[var(--color-status-success)]",
@@ -54,6 +55,7 @@ export function ReplicationDelta({ runA, runB, runs }: { runA: SimulationRun; ru
           <tr>
             <th scope="col" className="py-1 text-left font-normal text-muted-foreground">{t("simulation.compare.metric")}</th>
             <th scope="col" className="py-1 pr-3 text-right font-normal text-muted-foreground">{t("simulation.compare.deltaHeader")}</th>
+            <th scope="col" className="py-1 pr-3 text-right font-normal text-muted-foreground">{t("simulation.compare.probHeader")}</th>
             <th scope="col" className="py-1 text-right font-normal text-muted-foreground">{t("simulation.compare.outcome")}</th>
           </tr>
         </thead>

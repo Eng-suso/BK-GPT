@@ -142,6 +142,7 @@
         "unclear": "Difference not certain"
       },
       "deltaHint": "95% interval: B is better or worse only when the interval leaves zero out. Otherwise the difference could be chance.",
+      "probHeader": "Probability B is better",
       "repeatBoth": "To know whether the difference is real and not chance, repeat both scenarios at least twice (Replications in the panel). With the same starting seed the comparison is more precise."
     },
     "scenario": {
