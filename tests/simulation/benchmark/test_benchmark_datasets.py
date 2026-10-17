@@ -83,3 +83,32 @@ def test_a_downloaded_log_becomes_a_canonical_event_log():
     handled = log.events[1]
     assert handled.start is not None and (handled.end - handled.start).total_seconds() == pytest.approx(507.48)
     assert handled.resource == "10862"
+
+
+def _two_cases_xes() -> bytes:
+    trace = """  <trace><string key="concept:name" value="{case}"/>
+    <event><string key="concept:name" value="Ricevi"/><string key="lifecycle:transition" value="START"/><string key="org:resource" value="anna"/><date key="time:timestamp" value="2011-10-0{day}T09:00:00+02:00"/></event>
+    <event><string key="concept:name" value="Ricevi"/><string key="lifecycle:transition" value="COMPLETE"/><string key="org:resource" value="anna"/><date key="time:timestamp" value="2011-10-0{day}T09:{minutes}:00+02:00"/></event>
+  </trace>"""
+    body = "\n".join(trace.format(case=i, day=i + 1, minutes=10 * (i + 1)) for i in range(4))
+    return f'<?xml version="1.0" encoding="UTF-8"?>\n<log xmlns="http://www.xes-standard.org/">\n{body}\n</log>'.encode()
+
+
+def test_the_baseline_is_measured_or_says_why_not(tmp_path):
+    import json
+
+    from tests.simulation.benchmark.run_baseline import run
+
+    out = tmp_path / "baseline.json"
+    client, _ = _client(body=gzip.compress(_two_cases_xes()))
+
+    assert run(["bpic2012"], out, client=client) == 0
+    result = json.loads(out.read_text())["results"][0]
+    assert result["status"] == "measured"
+    assert result["cases"] == {"A": 2, "B": 2}
+    assert result["efficiency"]["human_configuration_minutes"] is None
+    # A: casi da 10 e 20 minuti, B: da 30 e 40. Lo scarto medio e' 20 minuti su 35.
+    assert result["metrics"]["cycle_time_distribution"] == pytest.approx(20 / 35, rel=1e-3)
+
+    assert run(["bpic2012"], out, client=_client(status=503)[0]) == 1
+    assert json.loads(out.read_text())["results"][0]["status"] == "unavailable"
