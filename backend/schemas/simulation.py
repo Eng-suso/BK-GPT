@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -110,7 +110,7 @@ class SimSlaConfig(BaseModel):
     segments: list[SimSlaSegment] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")
-    def _distinct_segments(self) -> SimSlaConfig:
+    def _distinct_segments(self) -> Self:
         keys = [(segment.attribute, segment.value) for segment in self.segments]
         if len(keys) != len(set(keys)):
             raise ValueError("due obiettivi per lo stesso gruppo di casi")
