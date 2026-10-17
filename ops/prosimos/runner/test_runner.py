@@ -164,3 +164,79 @@ def test_health_names_the_engine(client):
     body = client.get("/health").get_json()
 
     assert body["engine"] == "prosimos" and body["engineVersion"].startswith("2.")
+
+
+# --- SIM-08: arrivi per fascia oraria -------------------------------------------
+
+import numpy  # noqa: E402
+
+import arrival_bands  # noqa: E402
+
+MORNING = {"from": "MONDAY", "to": "FRIDAY", "beginTime": "09:00:00", "endTime": "12:00:00", "meanSeconds": 300}
+AFTERNOON = {"from": "MONDAY", "to": "FRIDAY", "beginTime": "14:00:00", "endTime": "17:00:00", "meanSeconds": 1800}
+
+
+def test_arrivals_follow_the_rate_of_each_band_and_never_fall_outside():
+    from datetime import UTC, datetime, timedelta
+
+    numpy.random.seed(7)
+    start = datetime(2026, 1, 5, 0, 0, tzinfo=UTC)  # un lunedi'
+    offsets = arrival_bands.arrival_offsets([MORNING, AFTERNOON], start, 2000)
+    moments = [start + timedelta(seconds=s) for s in offsets]
+
+    assert offsets == sorted(offsets)
+    assert all(m.weekday() < 5 and (9 <= m.hour < 12 or 14 <= m.hour < 17) for m in moments)
+    morning = sum(1 for m in moments if m.hour < 12)
+    # Ritmi 1/300 e 1/1800 su fasce di uguale durata: sei arrivi al mattino per uno al pomeriggio.
+    assert 5.0 < morning / (len(moments) - morning) < 7.2
+
+
+def test_the_same_seed_gives_the_same_arrivals_and_a_mid_week_start_is_respected():
+    from datetime import UTC, datetime
+
+    start = datetime(2026, 1, 7, 10, 30, tzinfo=UTC)  # mercoledi' dentro la fascia
+    numpy.random.seed(3)
+    first = arrival_bands.arrival_offsets([MORNING], start, 50)
+    numpy.random.seed(3)
+    assert arrival_bands.arrival_offsets([MORNING], start, 50) == first
+    # Il primo arrivo e' dopo l'inizio, non all'inizio della fascia gia' cominciata.
+    assert 0 < first[0] < 90 * 60
+
+
+@pytest.mark.parametrize("bands", [
+    [MORNING, {**MORNING, "beginTime": "11:00:00", "endTime": "13:00:00"}],
+    [{**MORNING, "meanSeconds": 0}],
+    [],
+])
+def test_bands_that_do_not_make_sense_are_refused(bands):
+    with pytest.raises(ValueError):
+        arrival_bands.weekly_intervals(bands)
+
+
+def test_the_runner_applies_the_bands_and_says_so(client):
+    scenario = {**contract_spike.base_scenario(), arrival_bands.SECTION: [MORNING]}
+    response = _post(client, scenario, cases=40, seed="11")
+
+    assert response.status_code == 200, response.data
+    body = response.get_json()
+    assert body["ArrivalBands"] == 1
+    rows = contract_spike.parse_log(_log(client, body))
+    starts = {}
+    for row in rows:
+        starts.setdefault(row["case_id"], row["enable"])
+    from datetime import UTC, datetime
+
+    hours = {datetime.fromtimestamp(t, UTC).hour for t in starts.values()}
+    assert hours <= {9, 10, 11}, hours
+
+
+def test_a_scenario_without_bands_keeps_the_engine_arrivals(client):
+    body = _post(client, contract_spike.base_scenario(), cases=10).get_json()
+    assert body["ArrivalBands"] == 0
+
+
+def test_overlapping_bands_are_a_bad_request(client):
+    scenario = {**contract_spike.base_scenario(), arrival_bands.SECTION: [MORNING, MORNING]}
+    response = _post(client, scenario, cases=10)
+    assert response.status_code == 400
+    assert "si sovrappongono" in response.get_json()["errorMessage"]
