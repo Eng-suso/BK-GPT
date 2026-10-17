@@ -15,7 +15,7 @@ from typing import Literal
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.eventlog.export import Exported, to_csv, to_xes
-from backend.eventlog.synthetic import from_prosimos_csv
+from backend.eventlog.synthetic import from_log_events, from_prosimos_csv
 from backend.schemas.workspace import BpmnModelResponse
 from backend.schemas.simulation import SEED_MAX, CreateSimulationRunRequest
 from backend.schemas.simulation_model import CreateSimulationModelRunRequest
@@ -31,6 +31,7 @@ from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
 from backend.simulation.provenance import build_scenario_provenance
 from backend.simulation.log_processor import (
     activity_name_to_element_id,
+    parse_prosimos_log,
     process_prosimos_log,
 )
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationRequest
@@ -40,7 +41,7 @@ from backend.simulation.result_parser import with_output_files
 from backend.simulation.costs import add_fixed_costs
 from backend.simulation.scenarios import bpmn_fingerprint, scenario_revisions
 from backend.simulation.sla import sla_outcome
-from backend.simulation.horizon import horizon_cases, horizon_end, horizon_start
+from backend.simulation.horizon import horizon_cases, horizon_end, horizon_start, within_horizon
 from backend.simulation.ir.model import SimulationModel
 from backend.simulation.ir.patch import apply_patch
 from backend.simulation.scenario_builder import (
@@ -591,7 +592,14 @@ def export_simulation_event_log(run_id: int, fmt: Literal["csv", "xes"]) -> Simu
     result = run.get("result") or {}
     seed = result.get("Seed")
     engine_version = result.get("EngineVersion")
-    log = from_prosimos_csv(csv_text, source_name=f"simulation-run-{run_id}")
+    request = run.get("request") or {}
+    if request.get("horizon_days") and request.get("start_date"):
+        # SIM-03: il log osservato nel periodo, come lo avrebbe un sistema reale a fine periodo.
+        end = horizon_end(request["start_date"], int(request["horizon_days"]))
+        _, arrived, _ = within_horizon(parse_prosimos_log(csv_text), end, int(request["horizon_days"]))
+        log = from_log_events([ev for ev in arrived if ev.end <= end], source_name=f"simulation-run-{run_id}")
+    else:
+        log = from_prosimos_csv(csv_text, source_name=f"simulation-run-{run_id}")
     if fmt == "xes":
         metadata: dict[str, str | int] = {"deliR:runId": run_id}
         if seed is not None:

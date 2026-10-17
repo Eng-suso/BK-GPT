@@ -149,11 +149,18 @@ def test_a_run_with_a_period_estimates_its_cases_and_reports_the_period(monkeypa
                   "arrival_interval_seconds": 1800},
         ).json()
         body = client.get(f"/v1/workspace/simulation-runs/{run['id']}").json()
+        exported = client.get(f"/v1/workspace/simulation-runs/{run['id']}/event-log").text
 
     # Calendario standard lun-ven 9-17, un giorno: 8 ore / 30 minuti = 16 arrivi, +1 apertura; x1,5 + 30.
     assert seen == {"total_cases": 56, "start_date": MONDAY}
     assert body["request"]["total_cases"] == 56
     assert body["summary"]["horizon"]["days"] == 1
+    # L'export e' il log osservato nel periodo: niente dopo la fine, niente casi arrivati dopo.
+    rows = [line.split(",") for line in exported.strip().splitlines()[1:]]
+    header = exported.splitlines()[0].split(",")
+    end_at = header.index(next(h for h in header if h.startswith("end")))
+    assert rows and all(row[end_at] < "2026-01-06" for row in rows)
+    assert len({row[0] for row in rows}) <= body["summary"]["horizon"]["arrivedCases"]
 
 
 def test_an_invalid_period_is_refused():
