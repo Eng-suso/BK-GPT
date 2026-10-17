@@ -91,7 +91,8 @@ def _model(*, busy: bool = False) -> SimulationModel:
     )
 
 
-def _run(model: SimulationModel, seed: int = 5, *, payload: dict | None = None, bpmn: str | None = None) -> list[dict]:
+def _run(model: SimulationModel, seed: int = 5, *, payload: dict | None = None, bpmn: str | None = None,
+         cases: int = 200) -> list[dict]:
     import numpy
     from prosimos.simulation_engine import run_simulation
 
@@ -104,7 +105,7 @@ def _run(model: SimulationModel, seed: int = 5, *, payload: dict | None = None, 
         if bpmn is not None:
             bpmn_path = Path(tmp) / "model.bpmn"
             bpmn_path.write_text(bpmn, encoding="utf-8")
-        run_simulation(str(bpmn_path), str(scenario), 200, None, str(log), contract_spike.START)
+        run_simulation(str(bpmn_path), str(scenario), cases, None, str(log), contract_spike.START)
         return contract_spike.parse_log(log.read_text())
 
 
@@ -478,3 +479,23 @@ def test_a_duration_by_amount_thresholds_is_applied_by_the_engine():
         band = "low" if amount < 1000 else "mid" if amount < 5000 else "high"
         seen[band].add(round(row["end"] - row["start"]))
     assert seen == {"low": {300}, "mid": {900}, "high": {1500}}, seen
+
+
+def test_the_cases_estimated_for_a_period_cover_it_on_the_engine():
+    # SIM-03: due settimane, arrivi ogni 30 minuti lun-ven 9-17. La stima deve
+    # far arrivare casi oltre la fine del periodo, senza sprecarne troppi.
+    from backend.simulation.horizon import horizon_cases, horizon_end
+
+    model = _model()
+    cases = horizon_cases(model, contract_spike.START, 14)
+    for seed in (1, 2, 3):
+        rows = _run(model, seed, cases=cases)
+        arrivals: dict[str, float] = {}
+        for row in rows:
+            arrivals[row["case_id"]] = min(arrivals.get(row["case_id"], row["enable"]), row["enable"])
+        end = horizon_end(contract_spike.START, 14)
+        inside = sum(1 for at in arrivals.values() if at < end)
+        assert max(arrivals.values()) >= end, "gli arrivi non coprono il periodo"
+        # 10 giorni x 8 ore / 30 minuti = 160 arrivi attesi nel periodo.
+        assert 130 < inside < 200, inside
+
