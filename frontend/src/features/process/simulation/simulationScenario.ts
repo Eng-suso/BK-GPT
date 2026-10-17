@@ -165,6 +165,8 @@ export type ScenarioDraft = {
   caseFixedCost?: number;
   /** SIM-03: i primi casi restano fuori dai KPI. Assente = nessuno. */
   warmupCases?: number;
+  /** SIM-03: un periodo in giorni invece di un numero di casi. Presente = si simula il periodo. */
+  horizonDays?: number;
   /** SIM-04: quante volte ripetere lo scenario (1-20). Assente = una. */
   replications?: number;
   /** fallback duration for tasks without their own config */
@@ -277,8 +279,9 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
   const shifts = draft.resources.filter((r) => (r.shifts ?? []).some((shift) => shiftIssue(shift, draft.calendars ?? []) !== null)).length;
   const warmup = warmupIssue(draft) !== null;
   const replications = draft.replications !== undefined && !(Number.isInteger(draft.replications) && draft.replications >= 1 && draft.replications <= 20);
-  return { durations, calendars, arrival, sla, costs, warmup, replications, flowRules, shifts,
-    ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs && !warmup && !replications && flowRules === 0 && shifts === 0 };
+  const horizon = horizonIssue(draft) !== null;
+  return { durations, calendars, arrival, sla, costs, warmup, replications, horizon, flowRules, shifts,
+    ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs && !warmup && !replications && !horizon && flowRules === 0 && shifts === 0 };
 }
 
 export type WarmupIssue = "notWhole" | "noCaseLeft";
@@ -288,7 +291,18 @@ export function warmupIssue(draft: ScenarioDraft): WarmupIssue | null {
   const warmup = draft.warmupCases;
   if (warmup === undefined || warmup === 0) return null;
   if (!Number.isInteger(warmup) || warmup < 0) return "notWhole";
+  // Con un periodo i casi li stima il servizio, che rifiuta un riscaldamento senza casi da misurare.
+  if (draft.horizonDays !== undefined) return null;
   return warmup >= draft.totalCases ? "noCaseLeft" : null;
+}
+
+export const MAX_HORIZON_DAYS = 366;
+
+/** SIM-03: il periodo da simulare, in giorni interi da 1 a 366. */
+export function horizonIssue(draft: ScenarioDraft): "range" | null {
+  const days = draft.horizonDays;
+  if (days === undefined) return null;
+  return Number.isInteger(days) && days >= 1 && days <= MAX_HORIZON_DAYS ? null : "range";
 }
 
 /** Gli arrivi come una durata: la stessa forma, gli stessi controlli, gli stessi campi. */
@@ -405,6 +419,7 @@ export function scenarioToInput(
     ...base,
     ...(draft.caseFixedCost ? { caseFixedCost: draft.caseFixedCost } : {}),
     ...(draft.warmupCases ? { warmupCases: draft.warmupCases } : {}),
+    ...(draft.horizonDays !== undefined ? { horizonDays: draft.horizonDays } : {}),
     ...(draft.replications && draft.replications > 1 ? { replications: draft.replications } : {}),
     ...(draft.sla ? { sla: {
       targetSeconds: slaSeconds(draft.sla),
@@ -559,6 +574,7 @@ export function parseScenarioDraft(value: unknown): ScenarioDraft {
     caseAttributes: sanitizeAttributes(parsed.caseAttributes),
     arrival: sanitizeArrival(parsed.arrival),
     sla: sanitizeSla(parsed.sla),
+    horizonDays: typeof parsed.horizonDays === "number" && Number.isFinite(parsed.horizonDays) ? parsed.horizonDays : undefined,
     gatewayRules: sanitizeGatewayRules(parsed.gatewayRules),
     casePriorities: sanitizePriorities(parsed.casePriorities),
   };
