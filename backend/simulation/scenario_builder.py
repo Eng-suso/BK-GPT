@@ -14,6 +14,8 @@ from backend.schemas.simulation import (
 )
 from backend.simulation.bpmn_resources import describe_bpmn_resources
 from backend.simulation.ir import compile_for_prosimos, model_from_request
+from backend.simulation.ir.flow_rules import expand_flow_rules
+from backend.simulation.ir.from_request import with_flow_rules
 from backend.simulation.ir.variants import expand_duration_variants
 from backend.simulation.ir.baseline import baseline_model
 from backend.simulation.ir.bpmn_check import check_model_against_bpmn
@@ -62,16 +64,20 @@ def build_prosimos_scenario(
     if request.model_patch:
         model = apply_patch(model, request.model_patch)
         check_model_against_bpmn(model, tasks, gateways)
+    model = with_flow_rules(model, request)
     return _scenario(bpmn_xml, model, tasks, gateways)
 
 
 def _scenario(bpmn_xml: str, model: SimulationModel, tasks: list[BpmnTask], gateways: list[BpmnGateway]) -> ProsimosScenario:
-    """Il payload del motore, con le durate condizionali compilate in varianti (SIM-32).
+    """Il payload del motore, con salti e rilavorazioni (SIM-35) e durate
+    condizionali (SIM-32) compilati in decisioni.
 
     Il run conserva il modello come l'ha scritto il consulente, non le varianti:
-    l'inspector mostra le durate per categoria sull'attivita' vera.
+    l'inspector mostra le durate per categoria sull'attivita' vera. I salti
+    vengono prima: una variante di durata sta dentro il salto, non attorno.
     """
-    engine_bpmn, engine_model = expand_duration_variants(bpmn_xml, model)
+    engine_bpmn, engine_model = expand_flow_rules(bpmn_xml, model)
+    engine_bpmn, engine_model = expand_duration_variants(engine_bpmn, engine_model)
     return ProsimosScenario(
         payload=compile_for_prosimos(engine_model),
         task_count=len(tasks),
