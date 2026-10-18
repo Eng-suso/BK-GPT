@@ -1,12 +1,13 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Info } from "lucide-react";
+import { ArrowRight, BarChartHorizontal, Info } from "lucide-react";
 
 import { Meter, type MeterTone } from "@/components/data";
 import { StatusIndicator, type StatusTone } from "@/components/status";
 import { Button } from "@/ui/button";
 import { cn } from "@/lib/utils";
 
+import { SENSITIVITY_DELTA, type SensitivityFactor } from "./sensitivity";
 import type { Confidence, InputConfidence } from "./simulationProvenance";
 import type { ScenarioProvenance } from "./simulationTypes";
 
@@ -32,6 +33,8 @@ type ReadinessSummaryProps = {
   dense?: boolean;
   /** Deep-link to the full scenario builder / low-confidence fields. */
   onReview?: () => void;
+  /** SIM-25: le ipotesi incerte e l'avvio dello studio di sensitivita'. */
+  sensitivity?: { factors: SensitivityFactor[]; onStart: () => void; disabled?: boolean };
   className?: string;
 };
 
@@ -40,6 +43,7 @@ export function ReadinessSummary({
   provenance,
   dense = false,
   onReview,
+  sensitivity,
   className,
 }: ReadinessSummaryProps): React.JSX.Element {
   const { t } = useTranslation("process");
@@ -133,6 +137,27 @@ export function ReadinessSummary({
           title={t("simulation.readiness.weakPoints")}
           items={provenance.weak_points}
         />
+      )}
+
+      {!dense && sensitivity && (
+        <div className="grid gap-1.5 rounded-md border border-border p-2.5" data-readiness-sensitivity>
+          <p className="text-micro font-medium text-foreground">{t("simulation.sensitivity.launchTitle")}</p>
+          <p className="text-micro leading-snug text-muted-foreground">
+            {sensitivity.factors.length > 0
+              ? t("simulation.sensitivity.launchHint", {
+                count: sensitivity.factors.length,
+                pct: Math.round(SENSITIVITY_DELTA * 100),
+                runs: sensitivity.factors.length * 2 + 1,
+              })
+              : t("simulation.sensitivity.launchNone")}
+          </p>
+          {sensitivity.factors.length > 0 && (
+            <Button type="button" size="sm" variant="outline" className="gap-1.5 self-start" disabled={sensitivity.disabled} onClick={sensitivity.onStart}>
+              <BarChartHorizontal aria-hidden className="size-3.5" />
+              {t("simulation.sensitivity.launch")}
+            </Button>
+          )}
+        </div>
       )}
 
       {onReview && (
