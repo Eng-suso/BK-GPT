@@ -17,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from backend.eventlog.export import Exported, to_csv, to_xes
 from backend.eventlog.synthetic import from_log_events, from_prosimos_csv
 from backend.schemas.workspace import BpmnModelResponse
-from backend.schemas.simulation import SEED_MAX, CreateSimulationRunRequest
+from backend.schemas.simulation import SEED_MAX, CreateSensitivityRequest, CreateSimulationRunRequest, SensitivityMark
 from backend.schemas.simulation_model import CreateSimulationModelRunRequest
 from backend.security import set_current_tenant_id
 from backend.schemas.simulation import (
@@ -40,6 +40,7 @@ from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, clai
 from backend.simulation.result_parser import with_output_files
 from backend.simulation.costs import add_fixed_costs
 from backend.simulation.scenarios import bpmn_fingerprint, scenario_revisions
+from backend.simulation.sensitivity import perturb
 from backend.simulation.sla import sla_outcome
 from backend.simulation.horizon import horizon_cases, horizon_end, horizon_start, within_horizon
 from backend.simulation.ir.model import SimulationModel
@@ -305,6 +306,8 @@ def prepare_simulation_runs(
     request = request.model_copy(update={
         "replication_group": None,
         "replication_index": None,
+        "sensitivity_study": None,
+        "sensitivity": None,
         "bpmn_fingerprint": bpmn_fingerprint(request.current_bpmn_xml or bpmn_model.xml),
     })
     request = _with_horizon(bpmn_model, request)
@@ -330,6 +333,66 @@ def prepare_simulation_runs(
             "scenario_name": f"{name} · {index + 1}/{request.replications}",
         })
         member = member.model_copy(update={"idempotency_key": f"{group_key}-{index + 1}"})
+        bpmn_xml, scenario, key = _plan_run(bpmn_model=bpmn_model, request=member)
+        members.append((member, scenario, key, scenario.bpmn_xml or bpmn_xml))
+    try:
+        runs = create_simulation_run_group(
+            bpmn_model_id=bpmn_model.id,
+            process_id=bpmn_model.process_id,
+            members=members,
+        )
+    except SimulationQueueFull as exc:
+        raise SimulationCapacityError(str(exc)) from exc
+    return [(run, scenario, bpmn_xml) for run, (_, scenario, _, bpmn_xml) in zip(runs, members, strict=True)]
+
+
+def prepare_sensitivity_runs(
+    *,
+    bpmn_model: BpmnModelResponse,
+    request: CreateSensitivityRequest,
+) -> list[tuple[dict, ProsimosScenario | None, str]]:
+    """SIM-25: il run centrale e, per ogni ipotesi incerta, una variante a -delta e una a +delta.
+
+    Tutti con lo stesso seed (numeri casuali comuni): la differenza fra due
+    varianti viene dall'ipotesi, non dal caso. Una simulazione per variante,
+    le ripetizioni dello scenario non contano qui. Lo studio entra in coda
+    intero o non entra, come un gruppo di ripetizioni; lo stesso invio
+    ritentato ritrova lo studio gia' in volo.
+    """
+    base = request.base.model_copy(update={
+        "replications": 1,
+        "replication_group": None,
+        "replication_index": None,
+        "sensitivity_study": None,
+        "sensitivity": None,
+        "bpmn_fingerprint": bpmn_fingerprint(request.base.current_bpmn_xml or bpmn_model.xml),
+    })
+    base = _with_horizon(bpmn_model, base)
+    _, _, base_key = _plan_run(bpmn_model=bpmn_model, request=base.model_copy(update={"idempotency_key": None}))
+    factors = json.dumps([f.model_dump() for f in request.factors], sort_keys=True)
+    study_key = base.idempotency_key or hashlib.sha256(f"{base_key}:sensitivity:{request.delta}:{factors}".encode()).hexdigest()
+    study = uuid.uuid4().hex
+    seed = base.seed if base.seed is not None else secrets.randbelow(2**31)
+    name = base.scenario_name.strip() or "Baseline AS-IS"
+    pct = round(request.delta * 100)
+
+    variants: list[tuple[CreateSimulationRunRequest, str]] = [(base.model_copy(update={"sensitivity_study": study}), name)]
+    for factor in request.factors:
+        for direction, sign in (("low", "-"), ("high", "+")):
+            variant = perturb(base, factor, direction, request.delta)
+            variant = _with_horizon(bpmn_model, variant).model_copy(update={
+                "sensitivity_study": study,
+                "sensitivity": SensitivityMark(**factor.model_dump(), direction=direction, delta=request.delta),
+            })
+            variants.append((variant, f"{name} · {factor.label or factor.element_id or 'arrivi'} {sign}{pct}%"))
+
+    members = []
+    for index, (variant, label) in enumerate(variants):
+        member = variant.model_copy(update={
+            "seed": seed,
+            "scenario_name": label,
+            "idempotency_key": f"{study_key}-s{index}",
+        })
         bpmn_xml, scenario, key = _plan_run(bpmn_model=bpmn_model, request=member)
         members.append((member, scenario, key, scenario.bpmn_xml or bpmn_xml))
     try:
