@@ -1483,6 +1483,23 @@
       "footer": "Generato da DeliR dai run e dallo scenario salvati: ogni numero viene da una simulazione registrata.",
       "download": "Decision record",
       "downloadFor": "Scarica il decision record di {{name}}"
+    },
+    "interpretation": {
+      "same": "Il vincolo resta «{{name}}».",
+      "moved": "Il vincolo si sposta da «{{from}}» a «{{to}}».",
+      "relieved": "«{{name}}» non è più un collo di bottiglia.",
+      "appeared": "Compare un collo di bottiglia: «{{name}}».",
+      "wait": "Attesa media lì: {{before}} → {{after}}.",
+      "unclear": "Tempo e costo per caso non cambiano in modo distinguibile dal caso.",
+      "better": "Più veloce di {{cycle}} e meno caro di {{cost}} per caso: non c'è scambio da pagare.",
+      "worse": "Più lento di {{cycle}} e più caro di {{cost}} per caso.",
+      "faster": "Più veloce di {{cycle}} per caso, al costo di {{cost}} in più: {{perHour}} per ogni ora risparmiata.",
+      "cheaper": "Meno caro di {{cost}} per caso, ma più lento di {{cycle}}: si risparmiano {{perHour}} per ogni ora in più.",
+      "onlyFaster": "Più veloce di {{cycle}} per caso, a costo invariato.",
+      "onlySlower": "Più lento di {{cycle}} per caso, a costo invariato.",
+      "onlyCheaper": "Meno caro di {{cost}} per caso, a tempi invariati.",
+      "onlyCostlier": "Più caro di {{cost}} per caso, a tempi invariati.",
+      "title": "Lettura"
     }
   },
   "side": {
