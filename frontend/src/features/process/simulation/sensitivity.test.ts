@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildTornado, studyMembers, uncertainFactors, SENSITIVITY_MAX_FACTORS } from "./sensitivity";
+import { resolveActiveRun } from "./useSimulationSection";
 import type { InputConfidence } from "./simulationProvenance";
 import type { ScenarioDraft } from "./simulationScenario";
 import type { ScenarioTemplate, SimulationRun } from "./simulationTypes";
@@ -99,5 +100,14 @@ describe("buildTornado", () => {
     expect(studyMembers(members[2], [...members, other]).map((r) => r.id)).toEqual([1, 2, 3, 4, 5]);
     expect(studyMembers(other, members)).toEqual([]);
     expect(studyMembers({ ...members[0], request: {} } as SimulationRun, members)).toEqual([]);
+  });
+});
+
+describe("default run (SIM-25)", () => {
+  it("opens on the newest scenario result, not on a variant", () => {
+    const central = run(10, {}, 100);
+    const variant = run(11, mark("arrival", null, "Arrivi", "high"), 200);
+    expect(resolveActiveRun([variant, central], undefined)?.id).toBe(10);
+    expect(resolveActiveRun([variant, central], "11")?.id).toBe(11);
   });
 });

@@ -88,6 +88,15 @@ function markOf(run: SimulationRun): Mark | null {
   return m.kind && (m.direction === "low" || m.direction === "high") && typeof m.delta === "number" ? (m as Mark) : null;
 }
 
+/**
+ * Una variante di uno studio: un'ipotesi spostata apposta. Non e' un risultato
+ * dello scenario, quindi resta fuori dal run predefinito e dal confronto del
+ * workspace. Il run centrale invece lo e'.
+ */
+export function isSensitivityVariant(run: SimulationRun): boolean {
+  return markOf(run) !== null;
+}
+
 /** I run dello studio del run: il centrale e le varianti. */
 export function studyMembers(run: SimulationRun | null | undefined, runs: SimulationRun[]): SimulationRun[] {
   const study = sensitivityStudy(run);

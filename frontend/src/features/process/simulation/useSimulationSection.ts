@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 
 import type { Project, ProjectProcess } from "../../../contracts/workspace";
 import type { SimulationRun } from "./simulationTypes";
+import { isSensitivityVariant } from "./sensitivity";
 
 export type AnalysisView = "replay" | "final" | "compare" | "heatmap";
 export type SimulationPanel = "scenario" | "scenarios" | "overview" | "compare" | "heatmap" | "insights" | "eventLog" | "widget" | "activity";
@@ -66,5 +67,7 @@ export function resolveActiveRun(
   if (Number.isFinite(id)) {
     return runs.find((run) => run.id === id) ?? null;
   }
-  return runs.find((run) => run.status === "completed") ?? runs[0] ?? null;
+  // Le varianti di sensitivita' (SIM-25) non sono il risultato di uno scenario.
+  const results = runs.filter((run) => !isSensitivityVariant(run));
+  return results.find((run) => run.status === "completed") ?? results[0] ?? runs[0] ?? null;
 }

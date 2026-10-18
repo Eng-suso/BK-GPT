@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { http } from "@/lib/http";
 
+import { isSensitivityVariant } from "./sensitivity";
 import { compareGroups, groupMembers, replicationIntervals, KPI_BETTER, type DeltaInterval, type Interval, type ReplicationKpi } from "./replications";
 import type { SimulationRun } from "./simulationTypes";
 
@@ -130,7 +131,8 @@ export type ScenarioRuns = {
 
 /** L'ultimo run (o gruppo di ripetizioni) di uno scenario e se e' ancora valido. */
 export function scenarioRuns(workspace: ScenarioWorkspace, scenario: WorkspaceScenario, runs: SimulationRun[]): ScenarioRuns {
-  const own = runs.filter((run) => runScenarioRef(run)?.id === scenario.id);
+  // Una variante di sensitivita' (SIM-25) sposta un'ipotesi apposta: non e' un risultato dello scenario.
+  const own = runs.filter((run) => runScenarioRef(run)?.id === scenario.id && !isSensitivityVariant(run));
   const latest = own.reduce<SimulationRun | null>((best, run) => (!best || run.id > best.id ? run : best), null);
   if (!latest) return { latest: null, members: [], completed: [], status: "never", bpmnChanged: false };
   const group = groupMembers(latest, runs);
