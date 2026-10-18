@@ -23,8 +23,21 @@ class ExperimentEstimate(BaseModel):
     cost_pct: float  # signed fraction
 
 
+# SIM-22: cosa si prova sul collo di bottiglia. ``add_resource``: una risorsa in
+# piu' nel suo pool. ``automate``: una quota del lavoro dell'attivita' fatta da
+# un sistema (la durata scende di ``share``). ``reallocate``: una risorsa
+# spostata da un pool poco usato (``donor_*``) a quello del collo di bottiglia.
+ExperimentKind = Literal["add_resource", "automate", "reallocate"]
+
+# Quanto lavoro toglie l'automazione proposta: meta', un primo passo credibile.
+AUTOMATION_SHARE = 0.5
+# Un pool che cede una risorsa deve restare sotto questo carico, altrimenti il
+# collo di bottiglia si sposta li'.
+DONOR_MAX_UTILIZATION = 0.85
+
+
 class Experiment(BaseModel):
-    kind: Literal["add_resource"]
+    kind: ExperimentKind
     pool_id: str
     pool_name: str
     from_amount: int
@@ -33,6 +46,13 @@ class Experiment(BaseModel):
     estimate: ExperimentEstimate
     # id of the bottleneck element the experiment targets
     target_el: str | None = None
+    target_name: str | None = None
+    # automate: la quota della durata che scompare.
+    share: float | None = None
+    # reallocate: il pool che cede una risorsa.
+    donor_pool_id: str | None = None
+    donor_pool_name: str | None = None
+    donor_from_amount: int | None = None
 
 
 class ExperimentReport(BaseModel):
@@ -94,11 +114,124 @@ def suggest_experiments(summary: dict | None, scenario: dict | None) -> Experime
             from_amount=c,
             to_amount=c + 1,
             target_el=b_el,
+            target_name=b_name,
             rationale=_rationale(c, wq_c, wait_share_of_cycle),
             estimate=ExperimentEstimate(cycle_pct=cycle_pct, cost_pct=cost_pct),
         )
     )
+
+    donor = _donor_pool(summary, scenario, exclude=str(pool["id"]))
+    if donor is not None:
+        # Stessa coda in piu' del primo esperimento, a costo quasi invariato: cambia
+        # solo la differenza fra il costo orario di chi arriva e di chi c'era.
+        hourly = _hourly_cost(scenario)
+        cost_shift = (pool["cost_per_hour"] - donor["cost_per_hour"]) / hourly if hourly > 0 else 0.0
+        report.experiments.append(
+            Experiment(
+                kind="reallocate",
+                pool_id=str(pool["id"]),
+                pool_name=str(pool.get("name") or pool["id"]),
+                from_amount=c,
+                to_amount=c + 1,
+                target_el=b_el,
+                target_name=b_name,
+                donor_pool_id=donor["id"],
+                donor_pool_name=donor["name"],
+                donor_from_amount=donor["amount"],
+                rationale=(
+                    f"{donor['name']} lavora al {round(donor['utilization'] * 100)}%: con una risorsa in meno "
+                    f"resta al {round(donor['after'] * 100)}%. Vale solo se quella persona sa fare il lavoro."
+                ),
+                estimate=ExperimentEstimate(cycle_pct=cycle_pct, cost_pct=round(cost_shift, 4)),
+            )
+        )
+
+    # Automazione: il servizio dura (1 - share), la coda si calcola con mu / (1 - share).
+    wq_auto = _mmc_wait(lam, mu / (1 - AUTOMATION_SHARE), c)
+    if wq_c == math.inf:
+        auto_ratio = 0.05 if math.isfinite(wq_auto) else 1.0
+    elif wq_c > 0:
+        auto_ratio = min(1.0, max(0.0, wq_auto / wq_c))
+    else:
+        auto_ratio = 1.0
+    proc_share = _activity_processing_share(summary, b_el, cycle_avg)
+    activity_cost_share = _activity_cost_share(summary, b_el)
+    report.experiments.append(
+        Experiment(
+            kind="automate",
+            pool_id=str(pool["id"]),
+            pool_name=str(pool.get("name") or pool["id"]),
+            from_amount=c,
+            to_amount=c,
+            target_el=b_el,
+            target_name=b_name,
+            share=AUTOMATION_SHARE,
+            rationale=(
+                f"Se un sistema fa la meta' del lavoro di {b_name or b_el}, si accorcia la lavorazione e "
+                "la coda scende con lei. Il costo del sistema non e' nella stima."
+            ),
+            estimate=ExperimentEstimate(
+                cycle_pct=-round(wait_share_of_cycle * (1.0 - auto_ratio) + proc_share * AUTOMATION_SHARE, 4),
+                cost_pct=-round(activity_cost_share * AUTOMATION_SHARE, 4),
+            ),
+        )
+    )
     return report
+
+
+def _donor_pool(summary: dict, scenario: dict, *, exclude: str) -> dict | None:
+    """Il pool meno carico che puo' cedere una risorsa restando sotto ``DONOR_MAX_UTILIZATION``."""
+    utilization: dict[str, list[float]] = {}
+    for row in summary.get("byResource") or []:
+        utilization.setdefault(str(row.get("pool") or ""), []).append(_num(row.get("utilizationPct"), 0.0) / 100)
+    best: dict | None = None
+    for profile in scenario.get("resource_profiles") or []:
+        pid = str(profile.get("id"))
+        name = str(profile.get("name") or pid)
+        if pid == exclude:
+            continue
+        amount = int(sum(_num(res.get("amount"), 1) for res in profile.get("resource_list") or []))
+        loads = utilization.get(name) or utilization.get(pid)
+        if amount < 2 or not loads:
+            continue
+        load = sum(loads) / len(loads)
+        after = load * amount / (amount - 1)
+        if after >= DONOR_MAX_UTILIZATION:
+            continue
+        cost = max((_num(res.get("cost_per_hour"), 0.0) for res in profile.get("resource_list") or []), default=0.0)
+        if best is None or load < best["utilization"]:
+            best = {"id": pid, "name": name, "amount": amount, "utilization": load, "after": after, "cost_per_hour": cost}
+    return best
+
+
+def _hourly_cost(scenario: dict) -> float:
+    return sum(
+        _num(res.get("amount"), 1) * _num(res.get("cost_per_hour"), 0.0)
+        for profile in scenario.get("resource_profiles") or []
+        for res in profile.get("resource_list") or []
+    )
+
+
+def _activity_row(summary: dict, el: str) -> dict:
+    return next((row for row in summary.get("byActivity") or [] if row.get("el") == el), {})
+
+
+def _activity_processing_share(summary: dict, el: str, cycle_avg: float) -> float:
+    """Quota del tempo di attraversamento spesa a lavorare sull'attivita'."""
+    row = _activity_row(summary, el)
+    cases = _num(summary.get("casesCompleted"), 0.0)
+    count = _num(row.get("count"), 0.0)
+    if cycle_avg <= 0 or cases <= 0:
+        return 0.0
+    per_case = _num((row.get("processing") or {}).get("avg"), 0.0) * count / cases
+    return min(1.0, per_case / cycle_avg)
+
+
+def _activity_cost_share(summary: dict, el: str) -> float:
+    row = _activity_row(summary, el)
+    total = _num((summary.get("cost") or {}).get("total"), 0.0)
+    spent = _num(row.get("avgCost"), 0.0) * _num(row.get("count"), 0.0)
+    return min(1.0, spent / total) if total > 0 else 0.0
 
 
 # --- M/M/c ---------------------------------------------------------------
