@@ -13,6 +13,7 @@ import { ROUTES } from "@/app/routes";
 import { runWaitHint, runWaitTitle } from "../runQueue";
 import { fetchSimulationExperiments } from "../simulationApi";
 import type { Experiment, SimulationSummary } from "../simulationTypes";
+import { experimentDraft } from "../experiments";
 import { useScenarioLab } from "../useScenarioLab";
 import { useSimulationSection } from "../useSimulationSection";
 import { formatDuration, formatOrMissing, formatPercent } from "../simulationResults";
@@ -57,24 +58,14 @@ export function InsightsPage({ embedded = false }: { embedded?: boolean } = {}):
         confidence.gateways[report.bottleneck_el]?.confidence === "low"));
 
   const applyExperiment = (exp: Experiment) => {
-    const servingId = exp.target_el
-      ? draft.tasks[exp.target_el]?.resourceId
-      : undefined;
-    const targetId =
-      draft.resources.find(
-        (r) => r.name.toLowerCase() === exp.pool_name.toLowerCase(),
-      )?.id ??
-      servingId;
-    updateDraft({
-      ...draft,
-      scenarioName: t("simulation.insights.scenarioName", {
-        base: draft.scenarioName,
-        pool: exp.pool_name,
-      }),
-      resources: draft.resources.map((r) =>
-        r.id === targetId ? { ...r, amount: r.amount + 1, parametersConfirmed: false } : r,
-      ),
-    });
+    const pool = exp.pool_name;
+    const name = exp.target_name ?? exp.target_el ?? "";
+    const scenarioName = exp.kind === "automate"
+      ? t("simulation.insights.automateScenarioName", { base: draft.scenarioName, name })
+      : exp.kind === "reallocate"
+        ? t("simulation.insights.reallocateScenarioName", { base: draft.scenarioName, donor: exp.donor_pool_name ?? "", pool })
+        : t("simulation.insights.scenarioName", { base: draft.scenarioName, pool });
+    updateDraft(experimentDraft(draft, exp, scenarioName));
     if (exp.target_el) selectElement?.(exp.target_el);
     if (openPanel) openPanel("scenario"); else navigate(ROUTES.projects.simulation(projectId, processId, "scenario"));
   };
@@ -168,13 +159,13 @@ function ExperimentCard({
   const costPct = exp.estimate.cost_pct;
   return (
     <section className="flex flex-col ui-surface ui-surface-panel p-4">
-      <p className="eyebrow">{t("simulation.insights.experimentKind.add_resource")}</p>
+      <p className="eyebrow">{t(`simulation.insights.experimentKind.${exp.kind}`)}</p>
       <h3 className="mt-1 text-sm font-semibold text-foreground">
-        {t("simulation.insights.addResourceTitle", {
-          pool: exp.pool_name,
-          from: exp.from_amount,
-          to: exp.to_amount,
-        })}
+        {exp.kind === "automate"
+          ? t("simulation.insights.automateTitle", { name: exp.target_name ?? exp.target_el ?? "" })
+          : exp.kind === "reallocate"
+            ? t("simulation.insights.reallocateTitle", { donor: exp.donor_pool_name ?? "", pool: exp.pool_name })
+            : t("simulation.insights.addResourceTitle", { pool: exp.pool_name, from: exp.from_amount, to: exp.to_amount })}
       </h3>
       <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
         {exp.rationale}

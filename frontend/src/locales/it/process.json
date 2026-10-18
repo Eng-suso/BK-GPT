@@ -747,12 +747,18 @@
       "diagnostic": "{{name}} assorbe {{wait}} di attesa media — il {{share}} del tempo di ciclo è coda.",
       "lowConfidenceCaveat": "Il collo di bottiglia poggia su parametri a bassa confidenza. Valida le assunzioni nel Costruttore scenario prima di agire.",
       "experimentKind": {
-        "add_resource": "Esperimento"
+        "add_resource": "Capacità",
+        "automate": "Automazione",
+        "reallocate": "Riallocazione"
       },
       "addResourceTitle": "Aggiungi 1 risorsa a {{pool}} ({{from}} → {{to}})",
       "estimateNote": "Stima — la risposta reale è simulare",
       "createScenario": "Crea scenario",
-      "scenarioName": "{{base}} · +1 {{pool}}"
+      "scenarioName": "{{base}} · +1 {{pool}}",
+      "automateTitle": "Automatizza metà del lavoro di «{{name}}»",
+      "reallocateTitle": "Sposta 1 risorsa da {{donor}} a {{pool}}",
+      "automateScenarioName": "{{base}} · automazione {{name}}",
+      "reallocateScenarioName": "{{base}} · {{donor}} → {{pool}}"
     },
     "workspace": {
       "overviewTitle": "Modello e risultati",

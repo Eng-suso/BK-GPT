@@ -747,12 +747,18 @@
       "diagnostic": "{{name}} absorbs {{wait}} of average wait — {{share}} of cycle time is queueing.",
       "lowConfidenceCaveat": "The bottleneck rests on low-confidence inputs. Validate the assumptions in the scenario builder before acting.",
       "experimentKind": {
-        "add_resource": "Experiment"
+        "add_resource": "Capacity",
+        "automate": "Automation",
+        "reallocate": "Reallocation"
       },
       "addResourceTitle": "Add 1 resource to {{pool}} ({{from}} → {{to}})",
       "estimateNote": "Estimate — the real answer is to simulate",
       "createScenario": "Create scenario",
-      "scenarioName": "{{base}} · +1 {{pool}}"
+      "scenarioName": "{{base}} · +1 {{pool}}",
+      "automateTitle": "Automate half the work of “{{name}}”",
+      "reallocateTitle": "Move 1 resource from {{donor}} to {{pool}}",
+      "automateScenarioName": "{{base}} · automate {{name}}",
+      "reallocateScenarioName": "{{base}} · {{donor}} → {{pool}}"
     },
     "workspace": {
       "overviewTitle": "Model and results",
