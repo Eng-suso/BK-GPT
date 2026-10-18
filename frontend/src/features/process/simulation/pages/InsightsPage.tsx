@@ -109,6 +109,7 @@ export function InsightsPage({ embedded = false }: { embedded?: boolean } = {}):
                   </span>
                   <Meter
                     value={Math.round((report.factors[k] ?? 0) * 100)}
+                    label={t(`simulation.heatmap.factor.${k}`)}
                     tone="warning"
                     showValue={false}
                     height={4}
@@ -158,7 +159,7 @@ function ExperimentCard({
   const cyclePct = exp.estimate.cycle_pct;
   const costPct = exp.estimate.cost_pct;
   return (
-    <section className="flex flex-col ui-surface ui-surface-panel p-4">
+    <section className="flex flex-col ui-surface ui-surface-panel p-4" data-sim-experiment={exp.kind}>
       <p className="eyebrow">{t(`simulation.insights.experimentKind.${exp.kind}`)}</p>
       <h3 className="mt-1 text-sm font-semibold text-foreground">
         {exp.kind === "automate"
