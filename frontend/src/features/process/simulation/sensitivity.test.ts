@@ -45,6 +45,11 @@ describe("uncertainFactors", () => {
     expect(factors.map((f) => `${f.kind}:${f.elementId ?? f.label}`)).toEqual(["duration:C", "gateway:G", "duration:B", "arrival:Arrivi"]);
   });
 
+  it("treats an activity whose sources disagree as uncertain, first (SIM-17)", () => {
+    const factors = uncertainFactors(confidence({ A: "high", B: "medium", C: "high" }, {}, "high"), template, draft, "Arrivi", new Set(["A"]));
+    expect(factors.map((f) => [f.elementId, f.confidence])).toEqual([["A", "low"], ["B", "medium"]]);
+  });
+
   it("caps the study", () => {
     const tasks = Array.from({ length: 12 }, (_, i) => ({ element_id: `T${i}`, name: `T${i}`, type: "task" }));
     const many = { ...template, tasks, gateways: [] } as unknown as ScenarioTemplate;

@@ -71,8 +71,8 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
 
   // SIM-25: le ipotesi incerte della bozza, da far variare nello studio di sensitivita'.
   const sensitivityFactors = React.useMemo(
-    () => uncertainFactors(confidence, template, draft, t("simulation.sensitivity.arrivalLabel")),
-    [confidence, template, draft, t],
+    () => uncertainFactors(confidence, template, draft, t("simulation.sensitivity.arrivalLabel"), new Set(conflicts.map((c) => c.elementId))),
+    [confidence, template, draft, t, conflicts],
   );
 
   // SIM-14: sul processo, le attivita' e le decisioni che lo scenario scelto cambia.
