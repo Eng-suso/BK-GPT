@@ -84,6 +84,8 @@ class SimArrivalConfig(BaseModel):
     # SIM-08: un ritmo per fascia oraria. Presenti, gli arrivi seguono le fasce
     # e non piu' distribuzione e calendario.
     bands: list[SimArrivalBandConfig] = Field(default_factory=list, max_length=21)
+    # SIM-33: un attributo del caso a categorie che riceve la fascia di arrivo.
+    band_attribute: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class SimSlaSegment(BaseModel):

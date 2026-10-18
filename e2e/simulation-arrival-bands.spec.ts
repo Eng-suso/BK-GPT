@@ -127,6 +127,34 @@ test("the consultant gives the morning a peak and the run carries the bands", as
   ]);
 });
 
+test("the arrival band becomes a case attribute the run carries (SIM-33)", async ({ page }) => {
+  await fixture(page);
+  await page.goto(`${studio}/scenario`);
+
+  const bands = page.locator("[data-arrival-bands]");
+  await bands.getByRole("checkbox", { name: "Ritmo diverso per fascia oraria" }).click();
+  await bands.getByRole("button", { name: "Aggiungi una fascia" }).click();
+  await bands.getByRole("checkbox", { name: "Usa la fascia di arrivo come attributo del caso" }).click();
+  const attribute = page.locator('[data-attribute-id="arrival-band"]');
+  await expect(attribute).toContainText("fascia_arrivo");
+  await expect(attribute).toContainText("Fascia 1, Fascia 2");
+  await expect(attribute.getByRole("textbox")).toHaveCount(0);
+
+  const axe = await new AxeBuilder({ page }).include("[data-arrival-bands]").withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+
+  const request = page.waitForRequest((req) => req.method() === "POST" && req.url().endsWith("/simulation-runs"));
+  await page.getByRole("button", { name: "Avvia simulazione", exact: true }).click();
+  const body = (await request).postDataJSON();
+  expect(body.arrival.band_attribute).toBe("fascia_arrivo");
+  const sent = body.model_patch.case_attributes.find((a: { name: string }) => a.name === "fascia_arrivo");
+  expect(sent.options.map((o: { value: string }) => o.value)).toEqual(["Fascia 1", "Fascia 2"]);
+
+  // Spento, l'attributo sparisce.
+  await bands.getByRole("checkbox", { name: "Usa la fascia di arrivo come attributo del caso" }).click();
+  await expect(attribute).toHaveCount(0);
+});
+
 test("the start event shows the arrival bands the run simulated", async ({ page }) => {
   await fixture(page, [run]);
   await page.goto(`${studio}/workspace/42?panel=activity`);

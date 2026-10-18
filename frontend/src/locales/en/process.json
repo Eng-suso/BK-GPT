@@ -457,7 +457,9 @@
           "order": "The end time must come after the start time, on the same day.",
           "mean": "The time between two arrivals must be above zero.",
           "overlap": "It overlaps an earlier band."
-        }
+        },
+        "asAttribute": "Use the arrival band as a case attribute",
+        "asAttributeHint": "Each case gets “{{name}}” with the band it arrives in (Fascia 1, Fascia 2…): durations by category and rule-based decisions can use it."
       },
       "escalation": "Timer escalation after {{after}} on «{{activity}}». The share of cases taking it comes from the activity duration: the timer counts work, not waiting in the queue.",
       "skip": {
@@ -506,7 +508,8 @@
       "invalidWarmup": "Warm-up cases need fixing.",
       "replications": "Replications",
       "replicationsHint": "The scenario runs several times, each with different cases: results get an interval and do not hinge on a lucky draw. From 1 to 20.",
-      "invalidReplications": "Replications go from 1 to 20."
+      "invalidReplications": "Replications go from 1 to 20.",
+      "bandAttributeNote": "Filled from the arrival bands with the band each case arrives in: {{values}}. Change it from the bands."
     },
     "diagram": {
       "title": "Process model",

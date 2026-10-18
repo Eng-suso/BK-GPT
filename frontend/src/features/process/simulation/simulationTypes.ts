@@ -320,7 +320,7 @@ export type SimDurationInput = {
 };
 
 /** Gli arrivi (A2-3): il tempo fra due arrivi e il calendario in cui arrivano. */
-export type SimArrivalInput = SimDurationInput & { calendarId?: string; bands?: ArrivalBandInput[] };
+export type SimArrivalInput = SimDurationInput & { calendarId?: string; bands?: ArrivalBandInput[]; bandAttribute?: string };
 
 /** SIM-07: le affermazioni dei file proposte come fonte di ogni attivita'. */
 export const claimProposalSchema = z.object({
