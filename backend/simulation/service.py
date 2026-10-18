@@ -242,6 +242,12 @@ def prepare_simulation_model_run(
             model = apply_patch(model, request.patch)
 
     scenario = build_prosimos_scenario_from_model(bpmn_xml=bpmn_xml, model=model)
+    if request.horizon_days is not None:
+        # SIM-03: come per il pannello, inizio fissato e casi stimati dagli arrivi del modello.
+        start = horizon_start(request.start_date)
+        request = request.model_copy(update={
+            "start_date": start, "total_cases": horizon_cases(model, start, request.horizon_days),
+        })
     idempotency_key = request.idempotency_key or _derive_model_idempotency_key(
         bpmn_model_id=bpmn_model.id,
         bpmn_xml=bpmn_xml,
@@ -275,6 +281,7 @@ def _derive_model_idempotency_key(
             "total_cases": request.total_cases,
             "start_date": request.start_date,
             "seed": request.seed,
+            "horizon_days": request.horizon_days,
         },
         sort_keys=True,
         ensure_ascii=False,
