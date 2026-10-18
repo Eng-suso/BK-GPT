@@ -7,6 +7,16 @@ import {
   type CaseAttributeDraft,
   type GatewayRulesDraft,
 } from "./caseRules";
+import {
+  goalIssue,
+  goalSeconds,
+  sanitizeSlaSegments,
+  slaSegmentIssues,
+  slaSegmentsInput,
+  type SlaGoalDraft,
+  type SlaGoalIssue,
+  type SlaSegmentDraft,
+} from "./slaSegments";
 import { arrivalBandIssues, arrivalBandsInput, sanitizeArrivalBands, type ArrivalBandDraft } from "./arrivalBands";
 import {
   reworkInput,
@@ -131,19 +141,17 @@ export type ArrivalDraft = Omit<DurationDraft, "meanMinutes"> & {
   bands?: ArrivalBandDraft[];
 };
 
-/** SIM-13: il caso si chiude entro ``target`` ore o giorni per almeno ``sharePercent`` dei casi. */
-export type SlaDraft = { target: number; unit: "hours" | "days"; sharePercent: number };
-export type SlaIssue = "target" | "share";
+/**
+ * SIM-13: il caso si chiude entro ``target`` ore o giorni per almeno
+ * ``sharePercent`` dei casi. SIM-13b: un gruppo di casi puo' averne uno suo.
+ */
+export type SlaDraft = SlaGoalDraft & { segments?: SlaSegmentDraft[] };
+export type SlaIssue = SlaGoalIssue | "segments";
 
-export function slaSeconds(sla: SlaDraft): number {
-  return Math.round(sla.target * (sla.unit === "days" ? 86_400 : 3600));
-}
+export const slaSeconds = goalSeconds;
 
-export function slaIssue(sla: SlaDraft): SlaIssue | null {
-  // Sui secondi inviati: un obiettivo che arrotondato vale zero non e' un obiettivo.
-  if (!(Number.isFinite(sla.target) && slaSeconds(sla) >= 1)) return "target";
-  if (!(Number.isFinite(sla.sharePercent) && sla.sharePercent > 0 && sla.sharePercent <= 100)) return "share";
-  return null;
+export function slaIssue(sla: SlaDraft, attributes: CaseAttributeDraft[]): SlaIssue | null {
+  return goalIssue(sla) ?? (slaSegmentIssues(sla.segments ?? [], attributes).some((issue) => issue !== null) ? "segments" : null);
 }
 
 export type ScenarioDraft = {
@@ -259,7 +267,7 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
   const arrival = taskDurationIssue(arrivalDuration(draft)) !== null
     || arrivalBandIssues(draft.arrival?.bands ?? []).some((issue) => issue !== null);
-  const sla = draft.sla ? slaIssue(draft.sla) !== null : false;
+  const sla = draft.sla ? slaIssue(draft.sla, attributes) !== null : false;
   const badCost = (value: number | undefined) => value !== undefined && !(Number.isFinite(value) && value >= 0);
   const costs = badCost(draft.caseFixedCost) || Object.values(draft.tasks).some((task) => badCost(task.fixedCost));
   const activityIds = new Set(Object.keys(draft.tasks));
@@ -401,6 +409,7 @@ export function scenarioToInput(
     ...(draft.sla ? { sla: {
       targetSeconds: slaSeconds(draft.sla),
       share: draft.sla.sharePercent / 100,
+      ...(draft.sla.segments?.length ? { segments: slaSegmentsInput(draft.sla.segments, draft.caseAttributes ?? []) } : {}),
     } } : {}),
     arrival: {
       ...durationInput(arrivalDuration(draft)),
@@ -568,7 +577,8 @@ function sanitizeSla(raw: unknown): SlaDraft | undefined {
   const value = raw as Partial<SlaDraft>;
   const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
   if (!finite(value.target) || !finite(value.sharePercent)) return undefined;
-  return { target: value.target, sharePercent: value.sharePercent, unit: value.unit === "hours" ? "hours" : "days" };
+  const segments = sanitizeSlaSegments(value.segments);
+  return { target: value.target, sharePercent: value.sharePercent, unit: value.unit === "hours" ? "hours" : "days", ...(segments ? { segments } : {}) };
 }
 
 function sanitizeArrival(raw: unknown): ArrivalDraft | undefined {

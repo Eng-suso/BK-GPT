@@ -395,6 +395,22 @@
         "target": "Enter a time above zero.",
         "share": "The share goes from 1 to 100."
       },
+      "slaSegments": {
+        "title": "Objectives by group of cases",
+        "needAttribute": "To give a group of cases its own objective (e.g. premium within 24 hours), add a category attribute.",
+        "group": "Group {{n}}",
+        "cases": "Cases",
+        "choose": "Choose the group",
+        "add": "Add an objective by group",
+        "remove": "Remove the objective of {{group}}",
+        "reads": "At least {{share}}% of {{group}} cases must close within {{target}} {{unit}}.",
+        "issue": {
+          "attribute": "Choose an existing category: the chosen one is gone.",
+          "duplicate": "This group already has an objective.",
+          "target": "The time must be greater than zero.",
+          "share": "The share goes from 1 to 100."
+        }
+      },
       "invalidSla": "Service objective needs fixing.",
       "fixedCost": "Fixed cost per execution, €",
       "caseFixedCost": "Fixed cost per case, €",
@@ -525,6 +541,9 @@
       "slaWithin": "{{share}} of cases closed within {{target}} (objective {{goal}}).",
       "slaLate_one": "{{count}} case of {{cases}} over the time.",
       "slaLate_other": "{{count}} cases of {{cases}} over the time.",
+      "slaSegmentEmpty": "No cases in the run",
+      "slaSegmentWithin_one": "{{share}} within {{target}} (objective {{goal}}): {{count}} case of {{cases}} over the time.",
+      "slaSegmentWithin_other": "{{share}} within {{target}} (objective {{goal}}): {{count}} cases of {{cases}} over the time.",
       "costTitle": "Scenario cost",
       "costTotal": "{{total}} in total, {{perCase}} per case.",
       "costResources": "Resource time: {{value}}",

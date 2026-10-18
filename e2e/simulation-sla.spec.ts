@@ -64,7 +64,7 @@ const model = {
   case_attributes: [{ name: "importo", distribution: { kind: "uniform", minimum: 100, maximum: 12000 }, provenance: { origin: "manual" } }],
 };
 
-async function fixture(page: Page, runs: unknown[] = []) {
+async function fixture(page: Page, runs: unknown[] = [], stored: object = draft) {
   await page.addInitScript((stored) => {
     Object.assign(window, { DELIR_API_BASE: "http://127.0.0.1:8000" });
     localStorage.setItem("delir-language", "it");
@@ -72,7 +72,7 @@ async function fixture(page: Page, runs: unknown[] = []) {
       localStorage.setItem("delir-sim-scenario:sla-model", stored);
       sessionStorage.setItem("seeded", "1");
     }
-  }, JSON.stringify(draft));
+  }, JSON.stringify(stored));
   await page.route("http://127.0.0.1:8000/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -120,6 +120,52 @@ test("the results say whether the run met the service objective", async ({ page 
   await expect(outcome).toContainText("Non rispettato");
   await expect(outcome).toContainText("87% dei casi chiusi entro 2g (obiettivo 90%).");
   await expect(outcome).toContainText("7 casi su 50 oltre il tempo.");
+  const axe = await new AxeBuilder({ page }).include("[data-sim-sla-outcome]").withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+});
+
+// SIM-13b: un attributo a categorie per dare a un gruppo di casi un obiettivo suo.
+const withTipo = {
+  ...draft,
+  caseAttributes: [{ id: "a1", name: "tipo", kind: "category", categories: [{ value: "premium", percent: 20 }, { value: "standard", percent: 80 }] }],
+};
+
+test("the consultant gives premium cases their own objective and the run carries it", async ({ page }) => {
+  await fixture(page, [], withTipo);
+  await page.goto(`${studio}/scenario`);
+
+  const sla = page.locator("[data-sim-sla]");
+  await sla.getByRole("button", { name: "Aggiungi un obiettivo di servizio" }).click();
+  await sla.getByRole("button", { name: "Aggiungi un obiettivo per gruppo" }).click();
+  await expect(sla.getByLabel("Casi · Gruppo 1")).toHaveValue("a1\u0000premium");
+  await sla.getByLabel("Entro · tipo = premium", { exact: true }).fill("24");
+  await sla.getByLabel("Unità · tipo = premium", { exact: true }).selectOption("hours");
+  await sla.getByLabel("Quota minima di casi, % · tipo = premium", { exact: true }).fill("95");
+  await expect(sla).toContainText("Almeno il 95% dei casi tipo = premium deve chiudersi entro 24 ore.");
+
+  const axe = await new AxeBuilder({ page }).include("[data-sim-sla]").withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+
+  const request = page.waitForRequest((req) => req.method() === "POST" && req.url().endsWith("/simulation-runs"));
+  await page.getByRole("button", { name: "Avvia simulazione", exact: true }).click();
+  expect((await request).postDataJSON().sla).toEqual({
+    target_seconds: 172800, share: 0.9,
+    segments: [{ attribute: "tipo", value: "premium", target_seconds: 86400, share: 0.95 }],
+  });
+});
+
+test("the results tell the outcome of each group of cases", async ({ page }) => {
+  const segmented = { ...run, summary: { ...run.summary, sla: { ...run.summary.sla, segments: [
+    { attribute: "tipo", value: "premium", target_seconds: 86400, share_target: 0.95, share_within: 0.8, cases: 10, late_cases: 2, met: false },
+    { attribute: "tipo", value: "standard", target_seconds: 259200, share_target: 0.9, share_within: 0.975, cases: 40, late_cases: 1, met: true },
+  ] } } };
+  await fixture(page, [segmented], withTipo);
+  await page.goto(`${studio}/workspace/42?panel=overview`);
+  const groups = page.getByRole("list", { name: "Obiettivi per gruppo di casi" });
+  const premium = groups.locator('[data-sla-segment-outcome="tipo = premium"]');
+  await expect(premium).toContainText("Non rispettato");
+  await expect(premium).toContainText("80% entro 1g (obiettivo 95%): 2 casi su 10 oltre il tempo.");
+  await expect(groups.locator('[data-sla-segment-outcome="tipo = standard"]')).toContainText("Rispettato");
   const axe = await new AxeBuilder({ page }).include("[data-sim-sla-outcome]").withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(axe.violations).toEqual([]);
 });
