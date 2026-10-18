@@ -30,6 +30,8 @@ class CreateSimulationModelRunRequest(BaseModel):
     patch: ModelPatch | None = None
     idempotency_key: str | None = Field(default=None, max_length=128)
     seed: int | None = Field(default=None, ge=0, le=2**32 - 1)
+    # SIM-03: un periodo in giorni invece di un numero di casi; i casi li stima il servizio.
+    horizon_days: int | None = Field(default=None, ge=1, le=366)
 
     @model_validator(mode="after")
     def _model_or_patch(self):

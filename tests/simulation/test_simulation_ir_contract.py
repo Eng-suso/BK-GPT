@@ -389,6 +389,24 @@ def test_a_full_model_runs_and_gets_an_idempotency_key(client, monkeypatch):
     assert len(sent) == 1
 
 
+def test_an_ir_run_can_simulate_a_period(client, monkeypatch):
+    # SIM-03 sul contratto v2: i casi li stima il servizio dagli arrivi del modello.
+    from backend.simulation.horizon import horizon_cases
+    from backend.simulation.scenario_builder import baseline_for_bpmn
+
+    sent = _capture_engine(monkeypatch)
+    model = baseline_for_bpmn(MINIMAL_BPMN)
+    start = "2026-01-05T00:00:00+00:00"
+    response = client.post(_runs_url(_bpmn_model_id(client)), json={
+        "current_bpmn_xml": MINIMAL_BPMN, "model": model.model_dump(mode="json"),
+        "start_date": start, "horizon_days": 7,
+    })
+
+    assert response.status_code == 200, response.text
+    assert (sent[0].total_cases, sent[0].start_date) == (horizon_cases(model, start, 7), start)
+    assert response.json()["request"]["horizon_days"] == 7
+
+
 def test_the_same_ir_request_in_flight_is_not_run_twice(client, monkeypatch):
     # Il primo run resta "pending": il motore non viene lanciato in background.
     monkeypatch.setattr("backend.api.routes.simulation.drain_simulation_queue", lambda: None)
