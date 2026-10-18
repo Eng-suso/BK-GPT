@@ -49,7 +49,8 @@ def read_review_simulations(state: Annotated[dict, InjectedState]) -> str:
     """Read recorded simulation results for this review's BPMN model. Never start a simulation or invent metrics."""
     from backend.simulation.storage import list_simulation_runs
 
-    runs = list_simulation_runs(state["bpmn_model_id"])[:5]
+    # Le varianti di sensitivita' (SIM-25) spostano un'ipotesi apposta: non sono risultati del processo.
+    runs = [run for run in list_simulation_runs(state["bpmn_model_id"]) if not (run.get("request") or {}).get("sensitivity")][:5]
     return json.dumps([{key: run.get(key) for key in ("id", "status", "scenario_name", "created_at", "summary", "error")} for run in runs], ensure_ascii=False, default=str)
 
 

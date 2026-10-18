@@ -16,6 +16,7 @@ import { ReadinessSummary } from "../ReadinessSummary";
 import { useScenarioLab } from "../useScenarioLab";
 import { ScenarioTabs } from "../ScenarioTabs";
 import { changedElements } from "../scenarioWorkspace";
+import { uncertainFactors } from "../sensitivity";
 import type { NodeDecoration } from "../canvas/SimulationCanvas";
 
 /**
@@ -47,8 +48,15 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
     isRunning,
     error,
     handleRun,
+    handleSensitivity,
     activeRun,
   } = lab;
+
+  // SIM-25: le ipotesi incerte della bozza, da far variare nello studio di sensitivita'.
+  const sensitivityFactors = React.useMemo(
+    () => uncertainFactors(confidence, template, draft, t("simulation.sensitivity.arrivalLabel")),
+    [confidence, template, draft, t],
+  );
 
   // SIM-14: sul processo, le attivita' e le decisioni che lo scenario scelto cambia.
   const selected = lab.selectedScenario;
@@ -143,6 +151,11 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
                 ? reviewLowest
                 : undefined
             }
+            sensitivity={{
+              factors: sensitivityFactors,
+              disabled: isRunning,
+              onStart: () => { setReference(null); void handleSensitivity(sensitivityFactors); },
+            }}
           />
           }
         </DialogContent>

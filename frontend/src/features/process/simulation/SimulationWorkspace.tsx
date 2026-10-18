@@ -18,6 +18,7 @@ import { SimulationResults } from "./SimulationResultsView";
 import { ServiceLevelOutcome } from "./ServiceLevel";
 import { CostBreakdown, HorizonNote, WarmupNote } from "./CostBreakdown";
 import { ReplicationSummary } from "./ReplicationSummary";
+import { SensitivityTornado } from "./SensitivityTornado";
 import {
   formatCurrency,
   formatDuration,
@@ -107,6 +108,7 @@ export function SimulationWorkspace({ embedded = false }: { embedded?: boolean }
       </section>
       }
       {activeRun && <ReplicationSummary run={activeRun} />}
+      {activeRun && <SensitivityTornado run={activeRun} />}
       {activeRun?.status === "completed" && <><HorizonNote run={activeRun} /><WarmupNote run={activeRun} /><ServiceLevelOutcome run={activeRun} /><CostBreakdown run={activeRun} /></>}
       {activeRun && <section aria-label={t("simulation.output.eyebrow")} className="shrink-0 ui-surface ui-surface-panel">
         <details open={Boolean(selectedElementId)}>

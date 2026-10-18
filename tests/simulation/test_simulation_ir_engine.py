@@ -499,3 +499,36 @@ def test_the_cases_estimated_for_a_period_cover_it_on_the_engine():
         # 10 giorni x 8 ore / 30 minuti = 160 arrivi attesi nel periodo.
         assert 130 < inside < 200, inside
 
+
+
+def test_sensitivity_variants_move_the_cycle_time_on_the_engine():
+    # SIM-25: con lo stesso seed, l'approvazione a +20% allunga l'attraversamento
+    # rispetto a -20%, e arrivi piu' fitti (-20% fra due arrivi) lo allungano anch'essi.
+    from backend.schemas.simulation import CreateSimulationRunRequest, SensitivityFactor
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+    from backend.simulation.sensitivity import perturb
+
+    base = CreateSimulationRunRequest(
+        arrival_interval_seconds=900,
+        resources=[{"id": "ops", "name": "Operatore", "cost_per_hour": 30, "amount": 2},
+                   {"id": "appr", "name": "Approvatore", "cost_per_hour": 60, "amount": 1}],
+        tasks=[
+            {"element_id": "T_receive", "mean_seconds": 600, "resource_id": "ops"},
+            {"element_id": "T_approve", "mean_seconds": 1500, "resource_id": "appr"},
+            {"element_id": "T_pay", "mean_seconds": 600, "resource_id": "ops"},
+        ],
+    )
+    bpmn = contract_spike.BPMN_PATH.read_text(encoding="utf-8")
+
+    def cycle(request) -> float:
+        rows = _run(_model(), seed=11, payload=build_prosimos_scenario(bpmn_xml=bpmn, request=request).payload)
+        cases: dict[str, list[float]] = {}
+        for row in rows:
+            span = cases.setdefault(row["case_id"], [row["start"], row["end"]])
+            span[0], span[1] = min(span[0], row["start"]), max(span[1], row["end"])
+        return sum(end - start for start, end in cases.values()) / len(cases)
+
+    approve = SensitivityFactor(kind="duration", element_id="T_approve", label="Approva")
+    arrivals = SensitivityFactor(kind="arrival")
+    assert cycle(perturb(base, approve, "high", 0.2)) > cycle(perturb(base, approve, "low", 0.2))
+    assert cycle(perturb(base, arrivals, "low", 0.2)) > cycle(perturb(base, arrivals, "high", 0.2))

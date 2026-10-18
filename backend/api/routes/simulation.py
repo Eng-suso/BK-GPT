@@ -3,6 +3,7 @@ from typing import Literal
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 
 from backend.schemas.simulation import (
+    CreateSensitivityRequest,
     CreateSimulationRunRequest,
     ScenarioProvenanceRequest,
     ScenarioProvenanceResponse,
@@ -29,6 +30,7 @@ from backend.simulation.service import (
     drain_simulation_queue,
     export_simulation_event_log,
     prepare_simulation_model_run,
+    prepare_sensitivity_runs,
     prepare_simulation_runs,
     scenario_provenance_for_model,
     scenario_template_for_model,
@@ -109,6 +111,28 @@ async def create_workspace_simulation_model_run(
     background_tasks.add_task(drain_simulation_queue)
 
     return SimulationRunResponse(**run)
+
+
+@router.post("/bpmn-models/{bpmn_model_id}/simulation-sensitivity")
+async def create_workspace_simulation_sensitivity(
+    bpmn_model_id: str,
+    request: CreateSensitivityRequest,
+    background_tasks: BackgroundTasks,
+) -> list[SimulationRunResponse]:
+    """SIM-25: il run centrale e due varianti per ipotesi incerta, in coda come un gruppo."""
+    model = get_bpmn_model(bpmn_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
+
+    try:
+        planned = prepare_sensitivity_runs(bpmn_model=BpmnModelResponse(**model), request=request)
+    except SimulationCapacityError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    background_tasks.add_task(drain_simulation_queue)
+    return [SimulationRunResponse(**run) for run, _, _ in planned]
 
 
 @router.post("/bpmn-models/{bpmn_model_id}/simulation-claims")

@@ -41,6 +41,14 @@ describe("scenarioRuns", () => {
     expect(result.members.map((r) => r.id)).toEqual(group.map((r) => r.id));
   });
 
+  it("uno studio di sensitivita' conta col run centrale, mai con le varianti (SIM-25)", () => {
+    const central = { ...run(2, 40), request: { ...run(2, 0).request, sensitivity_study: "s" } } as SimulationRun;
+    const variant = { ...run(2, 90), request: { ...run(2, 0).request, sensitivity_study: "s", sensitivity: { kind: "arrival", direction: "high", delta: 0.2 } } } as SimulationRun;
+    const result = scenarioRuns(WORKSPACE, ALT, [central, variant]);
+    expect(result.latest?.id).toBe(central.id);
+    expect(result.members.map((r) => r.id)).toEqual([central.id]);
+  });
+
   it("in corso, fallito, e da rifare se lo scenario o l'AS-IS sono cambiati", () => {
     expect(scenarioRuns(WORKSPACE, ALT, [run(2, 0, { status: "pending" })]).status).toBe("pending");
     expect(scenarioRuns(WORKSPACE, ALT, [run(2, 0, { status: "failed" })]).status).toBe("failed");

@@ -191,6 +191,31 @@ class SimGatewayConfig(BaseModel):
 SEED_MAX = 2**32 - 1
 
 
+# SIM-25: un'ipotesi incerta da far variare. ``element_id`` per durate e
+# decisioni; gli arrivi sono uno solo e non lo hanno.
+SensitivityKind = Literal["duration", "arrival", "gateway"]
+
+
+class SensitivityFactor(BaseModel):
+    kind: SensitivityKind
+    element_id: str | None = Field(default=None, min_length=1, max_length=200)
+    label: str = Field(default="", max_length=200)
+
+    @model_validator(mode="after")
+    def _element_when_needed(self) -> Self:
+        if (self.kind == "arrival") != (self.element_id is None):
+            raise ValueError("Gli arrivi non hanno un elemento; durate e decisioni si.")
+        return self
+
+
+class SensitivityMark(SensitivityFactor):
+    """Scritto dal servizio su ogni run dello studio: quale ipotesi, in che verso, di quanto."""
+
+    # Il run centrale, lo scenario cosi' com'e', ha lo studio ma nessuna variante.
+    direction: Literal["low", "high"]
+    delta: float = Field(gt=0, lt=1)
+
+
 class WorkspaceScenarioRef(BaseModel):
     """Lo scenario del workspace (SIM-14) da cui parte il run, alle revisioni usate.
 
@@ -255,6 +280,29 @@ class CreateSimulationRunRequest(BaseModel):
     # SIM-14b: l'impronta del BPMN simulato. La scrive il servizio, quella
     # mandata dal client non conta.
     bpmn_fingerprint: str | None = None
+    # SIM-25: lo studio di sensitivita' e la variante di questo run. Li scrive
+    # il servizio, quelli mandati dal client non contano.
+    sensitivity_study: str | None = Field(default=None, max_length=64)
+    sensitivity: SensitivityMark | None = None
+
+
+# Quante ipotesi al massimo: 2 run per ipotesi piu' il centrale stanno in coda.
+SENSITIVITY_MAX_FACTORS = 8
+
+
+class CreateSensitivityRequest(BaseModel):
+    """SIM-25: lo scenario di partenza e le ipotesi incerte da far variare di +-``delta``."""
+
+    base: CreateSimulationRunRequest
+    factors: list[SensitivityFactor] = Field(min_length=1, max_length=SENSITIVITY_MAX_FACTORS)
+    delta: float = Field(default=0.2, ge=0.05, le=0.5)
+
+    @model_validator(mode="after")
+    def _distinct_factors(self) -> Self:
+        keys = [(f.kind, f.element_id) for f in self.factors]
+        if len(keys) != len(set(keys)):
+            raise ValueError("La stessa ipotesi compare due volte.")
+        return self
 
 
 class ScenarioTemplateRequest(BaseModel):

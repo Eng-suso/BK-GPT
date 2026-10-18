@@ -1393,6 +1393,50 @@
       "legend": "Modificato nello scenario {{label}}",
       "unavailable": "Il workspace degli scenari non risponde: per ora modifichi la bozza salvata in questo browser.",
       "notSaved": "Lo scenario non è stato salvato: riprova prima di avviare il run."
+    },
+    "sensitivity": {
+      "title": "Sensitività delle ipotesi",
+      "intro": "Quanto cambiano i risultati se un'ipotesi incerta è sbagliata del {{pct}}%: la barra più lunga è l'ipotesi da verificare per prima.",
+      "launchTitle": "Quali ipotesi pesano di più?",
+      "launchHint_one": "{{count}} ipotesi incerta, variata di ±{{pct}}% una alla volta: {{runs}} simulazioni con lo stesso seed.",
+      "launchHint_other": "{{count}} ipotesi incerte, variate di ±{{pct}}% una alla volta: {{runs}} simulazioni con lo stesso seed.",
+      "launchNone": "Nessuna ipotesi a confidenza bassa o media da far variare.",
+      "launch": "Analizza la sensitività",
+      "arrivalLabel": "Tempo fra due arrivi",
+      "progress": "{{done}} di {{total}} simulazioni completate.",
+      "failed_one": "{{count}} non riuscita.",
+      "failed_other": "{{count}} non riuscite.",
+      "waiting": "Il tornado compare quando il run centrale e le varianti sono completi.",
+      "kpiLabel": "Indicatore",
+      "kpi": {
+        "cycle": "Tempo di attraversamento",
+        "costPerCase": "Costo per caso"
+      },
+      "center": "Valore dello scenario: {{value}}",
+      "low": "Ipotesi −{{pct}}%",
+      "high": "Ipotesi +{{pct}}%",
+      "pendingValue": "in corso",
+      "negligible": "dentro il rumore",
+      "noiseHint": "Una simulazione per variante: differenze sotto il 2% del valore dello scenario possono essere il caso.",
+      "kind": {
+        "duration": "Durata",
+        "arrival": "Arrivi",
+        "gateway": "Decisione"
+      },
+      "voiTitle": "Da chiedere prima di decidere",
+      "question": {
+        "duration": "Quanto dura davvero «{{label}}»? Servono tempi misurati o un estratto del log.",
+        "arrival": "Quanti casi arrivano davvero, e in quali giorni e ore?",
+        "gateway": "In che quota dei casi «{{label}}» prende il ramo più frequente?"
+      },
+      "voiNone": "Nessuna ipotesi sposta il risultato oltre il rumore: lo scenario regge anche se le ipotesi incerte sono sbagliate del {{pct}}%.",
+      "col": {
+        "assumption": "Ipotesi",
+        "effect": "Effetto sul risultato",
+        "values": "Risultato con l'ipotesi variata"
+      },
+      "lowValue": "−{{pct}}%: {{value}}",
+      "highValue": "+{{pct}}%: {{value}}"
     }
   },
   "side": {
