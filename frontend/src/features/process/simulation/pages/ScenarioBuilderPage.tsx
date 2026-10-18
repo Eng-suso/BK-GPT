@@ -17,9 +17,7 @@ import { useScenarioLab } from "../useScenarioLab";
 import { ScenarioTabs } from "../ScenarioTabs";
 import { changedElements } from "../scenarioWorkspace";
 import { uncertainFactors } from "../sensitivity";
-import { sourceConflicts } from "../sourceConflicts";
-import { latestMappedLog, realProcessingByElement } from "../eventlog/realVsSimulated";
-import { useEventLogAnalysis, useEventLogs } from "../eventlog/useEventLogImport";
+import { useSourceConflicts } from "../useSourceConflicts";
 import type { NodeDecoration } from "../canvas/SimulationCanvas";
 
 /**
@@ -56,18 +54,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
   } = lab;
 
   // SIM-17: pannello, file del cliente e log reale messi accanto, attivita' per attivita'.
-  const eventLogs = useEventLogs(processId);
-  const realLog = latestMappedLog(eventLogs.data);
-  const realAnalysis = useEventLogAnalysis(realLog?.id ?? null, Boolean(realLog));
-  const realSummary = realAnalysis.data?.summary ?? null;
-  const conflicts = React.useMemo(() => sourceConflicts({
-    template,
-    draft,
-    claims,
-    realProcessing: realSummary ? realProcessingByElement(realSummary) : null,
-    logName: realLog?.name ?? "",
-    panelLabel: t("simulation.sourceConflicts.panel"),
-  }), [template, draft, claims, realSummary, realLog?.name, t]);
+  const conflicts = useSourceConflicts(template, draft, claims);
 
   // SIM-25: le ipotesi incerte della bozza, da far variare nello studio di sensitivita'.
   const sensitivityFactors = React.useMemo(
