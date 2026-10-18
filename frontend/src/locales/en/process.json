@@ -1415,7 +1415,6 @@
       "center": "Scenario value: {{value}}",
       "low": "Assumption −{{pct}}%",
       "high": "Assumption +{{pct}}%",
-      "rowValues": "−{{pct}}%: {{low}} · +{{pct}}%: {{high}}",
       "pendingValue": "running",
       "negligible": "within noise",
       "noiseHint": "One simulation per variant: differences under 2% of the scenario value may be chance.",
@@ -1435,7 +1434,9 @@
         "assumption": "Assumption",
         "effect": "Effect on the result",
         "values": "Result with the assumption moved"
-      }
+      },
+      "lowValue": "−{{pct}}%: {{value}}",
+      "highValue": "+{{pct}}%: {{value}}"
     }
   },
   "side": {

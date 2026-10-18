@@ -1415,7 +1415,6 @@
       "center": "Valore dello scenario: {{value}}",
       "low": "Ipotesi −{{pct}}%",
       "high": "Ipotesi +{{pct}}%",
-      "rowValues": "−{{pct}}%: {{low}} · +{{pct}}%: {{high}}",
       "pendingValue": "in corso",
       "negligible": "dentro il rumore",
       "noiseHint": "Una simulazione per variante: differenze sotto il 2% del valore dello scenario possono essere il caso.",
@@ -1435,7 +1434,9 @@
         "assumption": "Ipotesi",
         "effect": "Effetto sul risultato",
         "values": "Risultato con l'ipotesi variata"
-      }
+      },
+      "lowValue": "−{{pct}}%: {{value}}",
+      "highValue": "+{{pct}}%: {{value}}"
     }
   },
   "side": {

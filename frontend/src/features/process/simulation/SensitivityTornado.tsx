@@ -109,11 +109,9 @@ function TornadoChart({ tornado, pct, format }: { tornado: Tornado; pct: number;
 function TornadoBar({ row, center, scale, pct, format }: { row: TornadoRow; center: number; scale: number; pct: number; format: (v: number) => string }): React.JSX.Element {
   const { t } = useTranslation("process");
   const pending = t("simulation.sensitivity.pendingValue");
-  const values = t("simulation.sensitivity.rowValues", {
-    pct,
-    low: row.low !== undefined ? format(row.low) : pending,
-    high: row.high !== undefined ? format(row.high) : pending,
-  });
+  const low = t("simulation.sensitivity.lowValue", { pct, value: row.low !== undefined ? format(row.low) : pending });
+  const high = t("simulation.sensitivity.highValue", { pct, value: row.high !== undefined ? format(row.high) : pending });
+  const values = `${low} · ${high}`;
   const segment = (value: number | undefined, color: string) => {
     if (value === undefined) return null;
     const width = (Math.abs(value - center) / scale) * 50;
@@ -123,7 +121,7 @@ function TornadoBar({ row, center, scale, pct, format }: { row: TornadoRow; cent
   return (
     <tr className="align-middle" data-sim-tornado-row={row.key}>
       <th scope="row" className="w-[34%] py-1 pr-2 text-left font-normal">
-        <span className="block truncate text-foreground" title={row.label}>{row.label}</span>
+        <span className="line-clamp-2 break-words text-foreground" title={row.label}>{row.label}</span>
         <span className="text-muted-foreground">{t(`simulation.sensitivity.kind.${row.kind}`)}</span>
       </th>
       <td className="py-1">
@@ -134,7 +132,8 @@ function TornadoBar({ row, center, scale, pct, format }: { row: TornadoRow; cent
         </div>
       </td>
       <td className={cn("w-[36%] py-1 pl-2 text-right tabular-nums", row.negligible ? "text-muted-foreground" : "text-foreground")}>
-        {values}
+        <span className="block whitespace-nowrap">{low}</span>
+        <span className="block whitespace-nowrap">{high}</span>
         {row.negligible && <span className="block text-muted-foreground">{t("simulation.sensitivity.negligible")}</span>}
       </td>
     </tr>
