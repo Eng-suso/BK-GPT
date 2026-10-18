@@ -296,6 +296,22 @@ def _activity(task: BpmnTask, override, request, default_resource_id: str, resou
     )
 
 
+def with_band_attribute(model: SimulationModel, request: CreateSimulationRunRequest) -> SimulationModel:
+    """SIM-33: la fascia di arrivo nell'attributo del caso scelto dal consulente.
+
+    Dopo la ``model_patch``, che porta l'attributo: prima non esiste ancora.
+    """
+    name = request.arrival.band_attribute if request.arrival else None
+    if not name:
+        return model
+    arrival = model.arrival.model_copy(update={"band_attribute": name})
+    try:
+        return SimulationModel.model_validate(model.model_copy(update={"arrival": arrival}).model_dump())
+    except ValidationError as exc:
+        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+        raise ValueError(f"Fascia di arrivo: {reason}.") from exc
+
+
 def with_flow_rules(model: SimulationModel, request: CreateSimulationRunRequest) -> SimulationModel:
     """Il modello con i salti e le rilavorazioni del pannello (SIM-35).
 

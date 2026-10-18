@@ -134,3 +134,29 @@ def test_an_engine_that_ignores_the_bands_is_refused(monkeypatch):
         bpmn_xml=BPMN, scenario=ProsimosScenario(payload=scenario.payload, task_count=3, gateway_count=1), total_cases=3)
     with pytest.raises(ProsimosError, match="fasce degli arrivi"):
         asyncio.run(run_prosimos_simulation(request))
+
+
+# --- SIM-33: la fascia di arrivo come attributo del caso ----------------------------
+
+def _band_attribute(values=("Fascia 1", "Fascia 2")) -> dict:
+    share = 1 / len(values)
+    return {"case_attributes": [{"name": "fascia", "options": [{"value": v, "probability": share} for v in values]}]}
+
+
+def test_the_band_attribute_reaches_the_runner_and_the_model():
+    scenario = build_prosimos_scenario(bpmn_xml=BPMN, request=_request(
+        arrival={"mean_seconds": 900, "bands": [PEAK, QUIET], "band_attribute": "fascia"},
+        model_patch=_band_attribute(),
+    ))
+    assert scenario.payload["delir_arrival_band_attribute"] == "fascia"
+    assert scenario.model["arrival"]["band_attribute"] == "fascia"
+
+
+@pytest.mark.parametrize(("arrival", "patch", "message"), [
+    ({"mean_seconds": 900, "bands": [PEAK, QUIET], "band_attribute": "fascia"}, None, "fascia non c'e'"),
+    ({"mean_seconds": 900, "bands": [PEAK, QUIET], "band_attribute": "fascia"}, _band_attribute(("Mattina", "Pomeriggio")), "Fascia 1, Fascia 2"),
+    ({"mean_seconds": 900, "band_attribute": "fascia"}, _band_attribute(("Fascia 1",)), "richiede delle fasce"),
+])
+def test_a_band_attribute_that_does_not_match_the_bands_is_refused(arrival, patch, message):
+    with pytest.raises(ValueError, match=message):
+        build_prosimos_scenario(bpmn_xml=BPMN, request=_request(arrival=arrival, **({"model_patch": patch} if patch else {})))

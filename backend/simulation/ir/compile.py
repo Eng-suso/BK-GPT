@@ -94,6 +94,8 @@ def compile_for_prosimos(model: SimulationModel) -> dict:
             {**_period(band), "meanSeconds": float(band.mean_seconds)} for band in model.arrival.bands
         ]
         payload["arrival_time_calendar"] = [_period(band) for band in model.arrival.bands]
+        if model.arrival.band_attribute:
+            payload["delir_arrival_band_attribute"] = model.arrival.band_attribute
 
     branch_rules = [
         {"id": _rule_id(gateway.element_id, branch.flow_id), "rules": _rules(branch.condition)}

@@ -424,9 +424,14 @@ class Arrival(_Strict):
     provenance: Provenance | None = None
     # Con delle fasce, gli arrivi seguono loro e non piu' interarrival e calendario.
     bands: tuple[ArrivalBand, ...] = Field(default=(), max_length=21)
+    # SIM-33: l'attributo del caso che riceve la fascia di arrivo ("Fascia 1", ...).
+    # Lo riempie il runner; durate per categoria e regole lo leggono come gli altri.
+    band_attribute: str | None = Field(default=None, min_length=1, max_length=64)
 
     @model_validator(mode="after")
     def _bands_apart(self):
+        if self.band_attribute and not self.bands:
+            raise ValueError("la fascia di arrivo come attributo richiede delle fasce degli arrivi")
         intervals = sorted(
             (day * 86_400 + _clock(band.begin), day * 86_400 + _clock(band.end))
             for band in self.bands
@@ -436,6 +441,22 @@ class Arrival(_Strict):
             if begin < end:
                 raise ValueError("due fasce degli arrivi si sovrappongono")
         return self
+
+
+def band_label(index: int) -> str:
+    """Il valore della fascia ``index`` (da 0): lo stesso che scrive il runner."""
+    return f"Fascia {index + 1}"
+
+
+def _check_band_attribute(arrival: "Arrival", case_attributes: "tuple[CaseAttribute, ...]") -> None:
+    """L'attributo della fascia ha come categorie esattamente le fasce, nel loro ordine."""
+    name = arrival.band_attribute
+    attribute = next((a for a in case_attributes if a.name == name), None)
+    expected = [band_label(i) for i in range(len(arrival.bands))]
+    if attribute is None or attribute.options is None:
+        raise ValueError(f"la fascia di arrivo va in un attributo a categorie del caso: {name} non c'e'")
+    if [option.value for option in attribute.options] != expected:
+        raise ValueError(f"attributo {name}: le categorie devono essere le fasce degli arrivi, {', '.join(expected)}")
 
 
 _WEEKDAYS = ("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY")
@@ -508,6 +529,9 @@ class SimulationModel(_Strict):
                 raise ValueError(
                     f"attivita' {activity.element_id}: la rilavorazione torna a {activity.rework.back_to}, che non e' un'attivita'"
                 )
+
+        if self.arrival.band_attribute:
+            _check_band_attribute(self.arrival, self.case_attributes)
 
         attributes = {attribute.name for attribute in self.case_attributes}
         attributes |= {update.name for update in self.attribute_updates}

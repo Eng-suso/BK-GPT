@@ -409,6 +409,57 @@ def test_arrival_bands_from_the_panel_shape_the_arrivals_through_the_runner(tmp_
     assert 4.5 < morning / afternoon < 8, (morning, afternoon)
 
 
+def test_a_duration_by_arrival_band_follows_the_band_each_case_arrived_in(tmp_path, monkeypatch):
+    # SIM-33: chi arriva la mattina viene approvato in 5 minuti, chi arriva il
+    # pomeriggio in 25. La fascia la scrive il runner nell'attributo del caso.
+    from datetime import UTC, datetime
+
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    sys.path.insert(0, str(ROOT / "ops" / "prosimos" / "runner"))
+    import runner
+
+    monkeypatch.setattr(runner, "DATA_DIR", tmp_path)
+    request = CreateSimulationRunRequest(
+        tasks=[
+            {"element_id": "T_receive", "mean_seconds": 60, "distribution": "fixed"},
+            {"element_id": "T_approve", "mean_seconds": 600, "distribution": "fixed", "duration_by": {"attribute": "fascia", "variants": [
+                {"value": "Fascia 1", "mean_seconds": 300, "distribution": "fixed"},
+                {"value": "Fascia 2", "mean_seconds": 1500, "distribution": "fixed"},
+            ]}},
+            {"element_id": "T_pay", "mean_seconds": 60, "distribution": "fixed"},
+        ],
+        arrival={"mean_seconds": 900, "band_attribute": "fascia", "bands": [
+            {"from_day": "MONDAY", "to_day": "FRIDAY", "begin": "09:00", "end": "12:00", "mean_seconds": 1200},
+            {"from_day": "MONDAY", "to_day": "FRIDAY", "begin": "13:00", "end": "16:00", "mean_seconds": 1200},
+        ]},
+        model_patch={"case_attributes": [{"name": "fascia", "options": [
+            {"value": "Fascia 1", "probability": 0.5}, {"value": "Fascia 2", "probability": 0.5}]}]},
+    )
+    bpmn = normalize_bpmn_for_prosimos(contract_spike.BPMN_PATH.read_text(encoding="utf-8"))
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    body = runner.simulate((scenario.bpmn_xml or bpmn).encode(), json.dumps(scenario.payload).encode(), 120,
+                           contract_spike.START, 13)
+
+    rows = contract_spike.parse_log((tmp_path / body["LogsFilename"]).read_text(encoding="utf-8"))
+    arrived: dict[str, float] = {}
+    for row in rows:
+        arrived[row["case_id"]] = min(arrived.get(row["case_id"], row["enable"]), row["enable"])
+    night = 16 * 3600
+    seen = {"morning": 0, "afternoon": 0}
+    for row in rows:
+        if "Approva" not in row["activity"]:
+            continue
+        morning = datetime.fromtimestamp(arrived[row["case_id"]], UTC).hour < 12
+        expected = 300 if morning else 1500
+        # Un'approvazione a cavallo della sera riprende il mattino dopo: si toglie la notte.
+        assert round(row["end"] - row["start"] - expected) % night == 0, (morning, row["end"] - row["start"])
+        seen["morning" if morning else "afternoon"] += 1
+    assert seen["morning"] > 10 and seen["afternoon"] > 10, seen
+
+
 def test_a_morning_shift_adds_staff_only_in_the_morning():
     # SIM-30: un operatore tutto il giorno, tre in piu' dalle 9 alle 12. Con
     # molti arrivi, il turno lavora solo la mattina e riduce l'attesa.
