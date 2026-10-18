@@ -51,6 +51,7 @@ export type ReadinessKey =
   | "structure"
   | "durations"
   | "resources"
+  | "calendars"
   | "arrivals"
   | "gateways";
 
@@ -237,7 +238,8 @@ export function buildInputConfidence(
   }
 
   const globals = {
-    cases: globalField(draft.totalCases !== DEFAULT_SCENARIO.totalCases, "high"),
+    // Un periodo (SIM-03) e' una scelta del consulente quanto un numero di casi.
+    cases: globalField(draft.totalCases !== DEFAULT_SCENARIO.totalCases || draft.horizonDays !== undefined, "high"),
     arrival: globalField(
       draft.arrivalIntervalMinutes !== DEFAULT_SCENARIO.arrivalIntervalMinutes,
       "high",
@@ -265,12 +267,15 @@ export function buildInputConfidence(
     globals.arrival.confidence,
   ];
 
+  const calendarConfidences = calendarsConfidence(draft);
+
   const rows: ReadinessRow[] = [
     row("structure", structurePct, countWeak([...tasks, ...gateways].map((el) =>
       isGrounded(byId.get(el.element_id)) ? "high" : "low",
     ))),
     row("durations", weightToPct(durationConfidences), countWeak(durationConfidences)),
     row("resources", weightToPct([resources.confidence]), countWeak([resources.confidence])),
+    row("calendars", weightToPct(calendarConfidences), countWeak(calendarConfidences)),
     row("arrivals", weightToPct(arrivalConfidences), countWeak(arrivalConfidences)),
     ...(gateways.length
       ? [row("gateways", weightToPct(gatewayConfidences), countWeak(gatewayConfidences))]
@@ -296,6 +301,20 @@ export function buildInputConfidence(
     resources,
     readiness: { rows, overall, lowConfidenceElementIds },
   };
+}
+
+/**
+ * SIM-18: quando lavorano i ruoli e quando arrivano i casi. Un calendario scelto
+ * dal consulente (o le fasce degli arrivi) e' fondato; il calendario standard
+ * lun-ven 9-17 e' un'assunzione plausibile, non verificata.
+ */
+function calendarsConfidence(draft: ScenarioDraft): Confidence[] {
+  const known = new Set((draft.calendars ?? []).map((c) => c.id));
+  const chosen = (id: string | undefined): Confidence => (id && known.has(id) ? "high" : "medium");
+  return [
+    ...draft.resources.map((r) => chosen(r.calendarId)),
+    draft.arrival?.bands?.length ? "high" : chosen(draft.arrival?.calendarId),
+  ];
 }
 
 function row(key: ReadinessKey, pct: number, flagged: number): ReadinessRow {
