@@ -54,7 +54,7 @@ from prosimos.simulation_engine import SimBPMEnv, execute_full_process, run_simu
 from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_setup import SimDiffSetup
 
-from arrival_bands import SECTION, arrival_offsets, weekly_intervals
+from arrival_bands import ATTRIBUTE_SECTION, SECTION, arrival_plan, band_label, weekly_intervals
 
 DATA_DIR = Path(os.environ.get("RUNNER_DATA_DIR", tempfile.gettempdir())) / "delir-prosimos"
 # I file restano quanto basta all'adapter per scaricarli subito dopo il run.
@@ -157,7 +157,8 @@ def simulate(model: bytes, scenario: bytes, cases: int, start_date: str | None, 
                 is_event_added_to_log=False,
             )
         else:
-            _simulate_with_arrivals(model_path, scenario_path, cases, start_date, bands, stats_name, logs_name)
+            _simulate_with_arrivals(model_path, scenario_path, cases, start_date, bands, _band_attribute(scenario),
+                                    stats_name, logs_name)
     resources, tasks, overall = split_stats(Path(stats_name).read_text(encoding="utf-8"))
     return {
         # Doppia codifica come upstream: l'adapter la decodifica gia' cosi'.
@@ -175,7 +176,7 @@ def simulate(model: bytes, scenario: bytes, cases: int, start_date: str | None, 
 
 
 def _simulate_with_arrivals(model_path: Path, scenario_path: Path, cases: int, start_date: str | None,
-                            bands: list[dict], stats_name: str, logs_name: str) -> None:
+                            bands: list[dict], band_attribute: str | None, stats_name: str, logs_name: str) -> None:
     """``run_simulation`` con gli arrivi calcolati dal runner per fascia oraria.
 
     Con ``fixed_arrival_times`` Prosimos 2.1 esegue il processo ma torna prima
@@ -186,14 +187,40 @@ def _simulate_with_arrivals(model_path: Path, scenario_path: Path, cases: int, s
     setup = SimDiffSetup(str(model_path), str(scenario_path), False, cases)
     start = parse_datetime(start_date, True) if start_date else pytz.utc.localize(datetime.now())
     setup.set_starting_datetime(start)
-    arrivals = arrival_offsets(bands, start, cases)
+    arrivals, indices = arrival_plan(bands, start, cases)
     writer = {"delimiter": ",", "quotechar": '"', "quoting": csv.QUOTE_MINIMAL}
     with open(stats_name, "w", newline="", encoding="utf-8") as stats, \
             open(logs_name, "w", newline="", encoding="utf-8") as logs:
         env = SimBPMEnv(setup, csv.writer(stats, **writer), csv.writer(logs, **writer))
+        if band_attribute:
+            _label_cases(env, band_attribute, indices)
         execute_full_process(env, arrivals)
         env.log_writer.force_write()
         env.log_info.save_joint_statistics(env)
+
+
+def _label_cases(env: SimBPMEnv, attribute: str, indices: list[int]) -> None:
+    """SIM-33: ogni caso riceve nell'attributo la fascia in cui arriva, poi la sua priorita'.
+
+    Prosimos estrae gli attributi di tutti i casi alla creazione dell'ambiente
+    (``CasePrioritisation``) e li condivide con regole, durate e log: si riscrive
+    il valore li', prima che parta il primo caso. La priorita' dipende dagli
+    attributi, quindi si ricalcola.
+    """
+    prioritisation = env.case_prioritisation
+    for case_id, index in enumerate(indices):
+        attributes = prioritisation.all_case_attributes[case_id]
+        if attribute not in attributes:
+            raise BadRequest(f"{ATTRIBUTE_SECTION}: l'attributo {attribute!r} non e' fra gli attributi del caso")
+        attributes[attribute] = band_label(index)
+        prioritisation.all_case_priorities[case_id] = prioritisation.prioritisation_rules.get_priority(attributes)
+
+
+def _band_attribute(scenario: bytes) -> str | None:
+    value = json.loads(scenario).get(ATTRIBUTE_SECTION)
+    if value is not None and (not isinstance(value, str) or not value):
+        raise BadRequest(f"{ATTRIBUTE_SECTION} non valido: serve il nome di un attributo del caso")
+    return value
 
 
 def _arrival_bands(scenario: bytes) -> list[dict] | None:

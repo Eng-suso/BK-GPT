@@ -24,23 +24,37 @@ from datetime import datetime, timedelta
 import numpy
 
 SECTION = "delir_arrival_bands"
+# SIM-33: il nome di un attributo del caso che riceve la fascia in cui il caso
+# e' arrivato ("Fascia 1", "Fascia 2", ... nell'ordine delle fasce). Durate per
+# categoria e decisioni per regola lo leggono come qualsiasi altro attributo.
+ATTRIBUTE_SECTION = "delir_arrival_band_attribute"
 _DAYS = ("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY")
 _WEEK = 7 * 86_400
 
 
+def band_label(index: int) -> str:
+    """Il valore dell'attributo per la fascia ``index`` (da 0), lo stesso che scrive il backend."""
+    return f"Fascia {index + 1}"
+
+
 def weekly_intervals(bands: list[dict]) -> list[tuple[float, float, float]]:
     """Le fasce come intervalli della settimana: (inizio, fine, arrivi al secondo), da lunedi' 00:00."""
+    return [(begin, end, rate) for begin, end, rate, _ in _band_intervals(bands)]
+
+
+def _band_intervals(bands: list[dict]) -> list[tuple[float, float, float, int]]:
+    """Come ``weekly_intervals``, con l'indice della fascia da cui viene ogni intervallo."""
     intervals = []
-    for band in bands:
+    for index, band in enumerate(bands):
         first, last = _DAYS.index(band["from"]), _DAYS.index(band["to"])
         begin, end = _seconds(band["beginTime"]), _seconds(band["endTime"])
         mean = float(band["meanSeconds"])
         if mean <= 0 or begin >= end:
             raise ValueError(f"fascia non valida: {band}")
         days = range(first, last + 1) if first <= last else [*range(first, 7), *range(0, last + 1)]
-        intervals.extend((day * 86_400 + begin, day * 86_400 + end, 1.0 / mean) for day in days)
+        intervals.extend((day * 86_400 + begin, day * 86_400 + end, 1.0 / mean, index) for day in days)
     intervals.sort()
-    for (_, end, _), (begin, _, _) in zip(intervals, intervals[1:]):
+    for (_, end, _, _), (begin, _, _, _) in zip(intervals, intervals[1:]):
         if begin < end:
             raise ValueError("due fasce degli arrivi si sovrappongono")
     if not intervals:
@@ -50,24 +64,31 @@ def weekly_intervals(bands: list[dict]) -> list[tuple[float, float, float]]:
 
 def arrival_offsets(bands: list[dict], start: datetime, count: int) -> list[float]:
     """I secondi dall'inizio del run a cui arrivano i primi ``count`` casi."""
-    intervals = weekly_intervals(bands)
+    return arrival_plan(bands, start, count)[0]
+
+
+def arrival_plan(bands: list[dict], start: datetime, count: int) -> tuple[list[float], list[int]]:
+    """Gli arrivi dei primi ``count`` casi e, per ognuno, l'indice della fascia in cui arriva."""
+    intervals = _band_intervals(bands)
     monday = start - timedelta(days=start.weekday(), hours=start.hour, minutes=start.minute,
                                seconds=start.second, microseconds=start.microsecond)
     origin = (start - monday).total_seconds()
     position = origin
     need = float(numpy.random.exponential(1.0))
     offsets: list[float] = []
+    indices: list[int] = []
     week = 0
     while True:
-        for begin, end, rate in intervals:
+        for begin, end, rate, index in intervals:
             low, high = max(begin + week * _WEEK, position), end + week * _WEEK
             if low >= high:
                 continue
             while need <= (high - low) * rate:
                 low += need / rate
                 offsets.append(low - origin)
+                indices.append(index)
                 if len(offsets) == count:
-                    return offsets
+                    return offsets, indices
                 need = float(numpy.random.exponential(1.0))
             need -= (high - low) * rate
             position = high

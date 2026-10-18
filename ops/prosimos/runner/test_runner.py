@@ -240,3 +240,43 @@ def test_overlapping_bands_are_a_bad_request(client):
     response = _post(client, scenario, cases=10)
     assert response.status_code == 400
     assert "si sovrappongono" in response.get_json()["errorMessage"]
+
+
+# --- SIM-33: la fascia di arrivo come attributo del caso -------------------------
+
+def _band_scenario(**extra) -> dict:
+    scenario = contract_spike.base_scenario()
+    scenario["case_attributes"] = [{"name": "fascia", "type": "discrete", "values": [
+        {"key": "Fascia 1", "value": 0.5}, {"key": "Fascia 2", "value": 0.5}]}]
+    return {**scenario, arrival_bands.SECTION: [MORNING, AFTERNOON], **extra}
+
+
+def test_each_case_carries_the_band_it_arrived_in(client):
+    from datetime import UTC, datetime
+
+    scenario = _band_scenario(**{arrival_bands.ATTRIBUTE_SECTION: "fascia"})
+    rows = contract_spike.parse_log(_log(client, _post(client, scenario, cases=60, seed="5").get_json()))
+    first: dict[str, dict] = {}
+    for row in sorted(rows, key=lambda r: r["enable"]):
+        first.setdefault(row["case_id"], row)
+    assert len(first) == 60
+    for row in first.values():
+        hour = datetime.fromtimestamp(row["enable"], UTC).hour
+        assert row["fascia"] == ("Fascia 1" if hour < 12 else "Fascia 2"), (hour, row["fascia"])
+    assert {row["fascia"] for row in first.values()} == {"Fascia 1", "Fascia 2"}
+
+
+def test_a_band_attribute_that_is_not_a_case_attribute_is_a_bad_request(client):
+    response = _post(client, _band_scenario(**{arrival_bands.ATTRIBUTE_SECTION: "altro"}), cases=5)
+    assert response.status_code == 400
+    assert "altro" in response.get_json()["errorMessage"]
+
+
+def test_the_plan_names_the_band_of_every_arrival():
+    from datetime import UTC, datetime, timedelta
+
+    numpy.random.seed(9)
+    start = datetime(2026, 1, 5, 0, 0, tzinfo=UTC)
+    offsets, indices = arrival_bands.arrival_plan([MORNING, AFTERNOON], start, 300)
+    for offset, index in zip(offsets, indices, strict=True):
+        assert ((start + timedelta(seconds=offset)).hour < 12) == (index == 0)
