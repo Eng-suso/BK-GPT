@@ -284,6 +284,10 @@ test("an alternative's decision record downloads as one printable page (SIM-27)"
   const panel = page.locator("[data-sim-scenario-workspace]");
   await expect(panel.locator('[data-sim-workspace-row="AS-IS"]')).toContainText("Aggiornato");
   await expect(panel.locator('[data-sim-workspace-row="AS-IS"] [data-sim-decision-record]')).toHaveCount(0);
+  // SIM-24: la lettura calcolata, vincolo e scambio tempo/costo.
+  const reading = panel.locator('[data-sim-workspace-reading-row="A"]');
+  await expect(reading).toContainText("Il vincolo resta «Approva».");
+  await expect(reading).toContainText("per caso, a costo invariato.");
 
   const download = page.waitForEvent("download");
   await panel.getByRole("button", { name: "Scarica il decision record di A · +1 approvatore", exact: true }).click();
@@ -296,6 +300,7 @@ test("an alternative's decision record downloads as one printable page (SIM-27)"
   expect(html).toContain("Cosa cambia rispetto all&#39;AS-IS");
   expect(html).toMatch(/Unità: 2 → 3/);
   expect(html).toContain("Confronto a coppie");
+  expect(html).toContain("<b>Lettura.</b> Il vincolo resta «Approva».");
   expect(html).toContain("Nessuno studio di sensitività su questo scenario");
 
   // La pagina scaricata si legge da sola e regge axe.
