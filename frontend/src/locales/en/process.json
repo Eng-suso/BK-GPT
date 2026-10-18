@@ -1393,6 +1393,49 @@
       "legend": "Changed in scenario {{label}}",
       "unavailable": "The scenario workspace is not responding: for now you are editing the draft saved in this browser.",
       "notSaved": "The scenario was not saved: try again before starting the run."
+    },
+    "sensitivity": {
+      "title": "Assumption sensitivity",
+      "intro": "How much the results move if an uncertain assumption is off by {{pct}}%: the longest bar is the assumption to verify first.",
+      "launchTitle": "Which assumptions matter most?",
+      "launchHint_one": "{{count}} uncertain assumption, moved by ±{{pct}}% one at a time: {{runs}} simulations on the same seed.",
+      "launchHint_other": "{{count}} uncertain assumptions, moved by ±{{pct}}% one at a time: {{runs}} simulations on the same seed.",
+      "launchNone": "No low- or medium-confidence assumption to vary.",
+      "launch": "Analyse sensitivity",
+      "arrivalLabel": "Time between arrivals",
+      "progress": "{{done}} of {{total}} simulations completed.",
+      "failed_one": "{{count}} failed.",
+      "failed_other": "{{count}} failed.",
+      "waiting": "The tornado appears once the central run and the variants are complete.",
+      "kpiLabel": "Indicator",
+      "kpi": {
+        "cycle": "Cycle time",
+        "costPerCase": "Cost per case"
+      },
+      "center": "Scenario value: {{value}}",
+      "low": "Assumption −{{pct}}%",
+      "high": "Assumption +{{pct}}%",
+      "rowValues": "−{{pct}}%: {{low}} · +{{pct}}%: {{high}}",
+      "pendingValue": "running",
+      "negligible": "within noise",
+      "noiseHint": "One simulation per variant: differences under 2% of the scenario value may be chance.",
+      "kind": {
+        "duration": "Duration",
+        "arrival": "Arrivals",
+        "gateway": "Decision"
+      },
+      "voiTitle": "Ask before deciding",
+      "question": {
+        "duration": "How long does “{{label}}” really take? Measured times or a log extract are needed.",
+        "arrival": "How many cases really arrive, and on which days and hours?",
+        "gateway": "In what share of cases does “{{label}}” take its most frequent branch?"
+      },
+      "voiNone": "No assumption moves the result beyond noise: the scenario holds even if the uncertain assumptions are off by {{pct}}%.",
+      "col": {
+        "assumption": "Assumption",
+        "effect": "Effect on the result",
+        "values": "Result with the assumption moved"
+      }
     }
   },
   "side": {

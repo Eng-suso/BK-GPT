@@ -32,6 +32,9 @@
   --sim-chart-grid: var(--color-border-subtle);
   --sim-chart-axis: var(--color-text-muted);
   --sim-chart-fill-opacity: 0.2;
+  /* SIM-25 tornado: the ipotesi −20% / +20% pair reuses the validated blue/amber pair above. */
+  --sim-tornado-low: var(--sim-chart-wip);
+  --sim-tornado-high: var(--sim-chart-queue);
 }
 
 /* Scenario is a full workspace, with bounded field widths and readable rows. */
