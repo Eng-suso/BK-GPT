@@ -667,11 +667,21 @@
     "readiness": {
       "title": "Prontezza simulazione",
       "subtitle": "Quanto sono fondati i parametri di questo scenario.",
+      "formula": {
+        "title": "Come si calcola",
+        "parameter": "Ogni parametro vale 100% se fondato (dati, discovery o scelto da te con evidenza), 60% se a media confidenza, 25% se è un valore predefinito o debole.",
+        "family": "Ogni riga è la media dei suoi parametri: una per attività, decisione, ruolo o calendario.",
+        "bands": "Una riga è alta da 75%, media da 45%, bassa sotto.",
+        "overall": "La confidenza complessiva è la media delle righe, con la struttura del processo che pesa una volta e mezza. È bassa se la struttura è sotto 50% o se tre righe sono basse; non è alta con due righe basse o con una riga sotto 45%.",
+        "calendars": "Calendari: un ruolo o gli arrivi su un calendario scelto, o con fasce orarie, valgono alta; sul calendario standard lun–ven 9–17 media.",
+        "notCounted": "Non entrano ancora: costi, attributi del caso, code e ritardi, perché oggi nessuna fonte ne dice la qualità."
+      },
       "overall": "Confidenza complessiva",
       "row": {
         "structure": "Struttura processo",
         "durations": "Durata attività",
         "resources": "Capacità risorse",
+        "calendars": "Calendari",
         "arrivals": "Dati di arrivo",
         "gateways": "Probabilità gateway"
       },

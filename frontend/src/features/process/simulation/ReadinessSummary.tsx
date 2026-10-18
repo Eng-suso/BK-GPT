@@ -22,6 +22,9 @@ const STATUS_TONE: Record<Confidence, StatusTone> = {
   low: "danger",
 };
 
+/** SIM-18: la formula della prontezza, scritta dove la si legge. */
+const FORMULA_LINES = ["parameter", "family", "bands", "overall", "calendars", "notCounted"] as const;
+
 type ReadinessSummaryProps = {
   confidence: InputConfidence;
   provenance: ScenarioProvenance | null;
@@ -96,10 +99,21 @@ export function ReadinessSummary({
                 <span className="tabular-nums text-muted-foreground">{row.pct}%</span>
               </span>
             </div>
-            <Meter value={row.pct} tone={METER_TONE[row.confidence]} showValue={false} height={4} />
+            <Meter value={row.pct} label={t(`simulation.readiness.row.${row.key}`)} tone={METER_TONE[row.confidence]} showValue={false} height={4} />
           </li>
         ))}
       </ul>
+      )}
+
+      {!dense && (
+        <details className="group text-micro text-muted-foreground" data-readiness-formula>
+          <summary className="cursor-pointer select-none font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
+            {t("simulation.readiness.formula.title")}
+          </summary>
+          <ul className="mt-1.5 grid gap-1 leading-snug">
+            {FORMULA_LINES.map((line) => <li key={line}>{t(`simulation.readiness.formula.${line}`)}</li>)}
+          </ul>
+        </details>
       )}
 
       {!dense && openGatewayQuestions > 0 && (

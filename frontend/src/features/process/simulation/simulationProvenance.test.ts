@@ -191,3 +191,32 @@ describe("buildInputConfidence", () => {
     expect(ic.activities.Task_Approve.sources?.[0].kind).toBe("event_log");
   });
 });
+
+describe("readiness of calendars and run length (SIM-18)", () => {
+  const office = { id: "cal-1", name: "Ufficio", periods: [{ from_day: "MONDAY" as const, to_day: "FRIDAY" as const, begin: "08:00", end: "18:00" }] };
+
+  it("counts a chosen calendar as grounded and the standard one as an assumption", () => {
+    const base = seeded();
+    const rowOf = (draft: ScenarioDraft) => buildInputConfidence(draft, TEMPLATE, provenance()).readiness.rows.find((r) => r.key === "calendars");
+    // Ruolo e arrivi sul calendario standard: media confidenza, due da rivedere.
+    expect(rowOf(base)).toMatchObject({ pct: 60, confidence: "medium", flagged: base.resources.length + 1 });
+
+    const chosen: ScenarioDraft = {
+      ...base,
+      calendars: [office],
+      resources: base.resources.map((r) => ({ ...r, calendarId: "cal-1" })),
+      arrival: { distribution: "expon", calendarId: "cal-1" },
+    };
+    expect(rowOf(chosen)).toMatchObject({ pct: 100, confidence: "high", flagged: 0 });
+    // Un calendario che non esiste piu' non vale come scelto.
+    expect(rowOf({ ...chosen, calendars: [] })?.confidence).toBe("medium");
+    // Le fasce degli arrivi dicono quando arrivano i casi.
+    const bands = { ...base, arrival: { distribution: "expon" as const, bands: [{ fromDay: "MONDAY" as const, toDay: "FRIDAY" as const, begin: "09:00", end: "12:00", meanMinutes: 10 }] } };
+    expect(rowOf(bands)?.pct).toBeGreaterThan(rowOf(base)!.pct);
+  });
+
+  it("treats a simulated period as a choice, like a number of cases", () => {
+    expect(buildInputConfidence(seeded(), TEMPLATE, provenance()).globals.cases.origin).toBe("default");
+    expect(buildInputConfidence({ ...seeded(), horizonDays: 20 }, TEMPLATE, provenance()).globals.cases).toMatchObject({ origin: "manual", confidence: "high" });
+  });
+});

@@ -667,11 +667,21 @@
     "readiness": {
       "title": "Simulation readiness",
       "subtitle": "How grounded this scenario's parameters are.",
+      "formula": {
+        "title": "How it is calculated",
+        "parameter": "Each parameter counts 100% when grounded (data, discovery, or set by you with evidence), 60% at medium confidence, 25% when it is a default or weak value.",
+        "family": "Each row is the mean of its parameters: one per activity, decision, role or calendar.",
+        "bands": "A row is high from 75%, medium from 45%, low below.",
+        "overall": "Overall confidence is the mean of the rows, with process structure weighing one and a half. It is low when structure is under 50% or three rows are low; it is not high with two low rows or one row under 45%.",
+        "calendars": "Calendars: a role or the arrivals on a chosen calendar, or with time bands, count high; on the standard Mon–Fri 9–17 calendar, medium.",
+        "notCounted": "Not counted yet: costs, case attributes, queues and delays, because no source tells their quality today."
+      },
       "overall": "Overall confidence",
       "row": {
         "structure": "Process structure",
         "durations": "Activity durations",
         "resources": "Resource capacity",
+        "calendars": "Calendars",
         "arrivals": "Arrival data",
         "gateways": "Gateway probabilities"
       },
