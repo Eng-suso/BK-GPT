@@ -31,6 +31,8 @@ export type DecisionRecordInput = {
   conflicts: SourceConflict[];
   /** Lo studio di sensitivita' del run dell'alternativa, se c'e'. */
   tornado: Tornado | null;
+  /** SIM-24: la lettura calcolata (vincolo e scambio tempo/costo). */
+  reading?: string[];
 };
 
 const escape = (value: string) =>
@@ -149,6 +151,7 @@ ${input.alternative.changes.length ? list(input.alternative.changes) : `<p>${esc
 <table><thead><tr><th scope="col">${escape(k("kpi"))}</th><th scope="col">${escape(input.asIs.name)}</th><th scope="col">${escape(input.alternative.name)}</th><th scope="col">${escape(k("delta"))}</th></tr></thead>
 <tbody>${resultsRows}</tbody></table>
 <p class="note">${escape(method)}</p>
+${input.reading?.length ? `<p><b>${escape(t("simulation.interpretation.title"))}.</b> ${escape(input.reading.join(" "))}</p>` : ""}
 
 <h2>${escape(k("assumptionsTitle"))}</h2>
 <table><thead><tr><th scope="col">${escape(k("family"))}</th><th scope="col">${escape(k("readiness"))}</th><th scope="col">${escape(k("confidence"))}</th></tr></thead>

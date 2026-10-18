@@ -23,6 +23,7 @@ import {
   type WorkspaceScenario,
 } from "./scenarioWorkspace";
 import { decisionRecordHtml } from "./decisionRecord";
+import { interpret, interpretationLines } from "./interpretation";
 import { buildTornado, studyMembers } from "./sensitivity";
 import { buildInputConfidence } from "./simulationProvenance";
 import { sourceConflicts } from "./sourceConflicts";
@@ -123,6 +124,9 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
       uncertain,
       conflicts: sourceConflicts({ template: lab.template, draft, claims: lab.claims, realProcessing: real.byElement, logName: real.logName, panelLabel: t("simulation.sourceConflicts.panel") }),
       tornado: members.length ? buildTornado(members, "cycle") : null,
+      reading: comparisons[index - 1]
+        ? interpretationLines(interpret(asIs, results, comparisons[index - 1]!), t, { duration: (v) => formatDuration(v, lang), currency: (v) => formatCurrency(v, lang) })
+        : [],
     }, t, lang);
     const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
     const link = document.createElement("a");
@@ -245,6 +249,25 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
           </tbody>
         </table>
       </div>
+      {asIs && rows.length > 1 && (
+        <div className="grid gap-1.5" data-sim-workspace-reading>
+          <p className="text-xs font-medium text-foreground">{t("simulation.interpretation.title")}</p>
+          <ul className="grid gap-1.5">
+            {rows.slice(1).map(({ scenario, results }, i) => {
+              const comparison = comparisons[i];
+              if (!comparison || !results.completed.length || !asIs.completed.length) return null;
+              const lines = interpretationLines(interpret(asIs, results, comparison), t, { duration: (v) => formatDuration(v, lang), currency: (v) => formatCurrency(v, lang) });
+              if (!lines.length) return null;
+              return (
+                <li key={scenario.id} className="text-xs leading-snug text-muted-foreground" data-sim-workspace-reading-row={scenario.label}>
+                  <span className="font-medium text-foreground">{scenarioDisplayName(scenario)}</span>
+                  {" · "}{lines.join(" ")}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
       {[...kinds].map((kind) => <p key={kind} className="text-xs text-muted-foreground" data-sim-workspace-method={kind}>{t(`simulation.scenarios.workspace.method.${kind}`)}</p>)}
       {comparisonsCount > 1 && (kinds.has("paired") || kinds.has("independent")) && <p className="text-xs text-muted-foreground" data-sim-workspace-method="bonferroni">{t("simulation.scenarios.workspace.method.bonferroni", { count: comparisonsCount })}</p>}
     </section>
