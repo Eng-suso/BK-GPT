@@ -6,6 +6,7 @@
  * (ops/prosimos/runner/arrival_bands.py). Fuori da ogni fascia non arriva
  * nessuno. Qui stanno la bozza, cosa le manca per partire e la sua traduzione.
  */
+import type { CaseAttributeDraft } from "./caseRules";
 import { WEEKDAYS, type Weekday } from "./simulationTypes";
 
 export type ArrivalBandDraft = { fromDay: Weekday; toDay: Weekday; begin: string; end: string; meanMinutes: number };
@@ -58,4 +59,32 @@ function days(band: ArrivalBandDraft): number[] {
 function minutes(clock: string): number {
   const [h, m] = clock.split(":").map(Number);
   return h * 60 + m;
+}
+
+/**
+ * SIM-33: la fascia di arrivo come attributo del caso. L'attributo lo tiene il
+ * pannello (id fisso, categorie = fasce) e lo riempie il runner con la fascia in
+ * cui ogni caso arriva; durate per categoria e regole lo usano come gli altri.
+ */
+export const BAND_ATTRIBUTE_ID = "arrival-band";
+export const BAND_ATTRIBUTE_NAME = "fascia_arrivo";
+
+/** La categoria della fascia ``index`` (da 0): la stessa che scrive il runner. */
+export function bandLabel(index: number): string {
+  return `Fascia ${index + 1}`;
+}
+
+/** Gli attributi del caso con quello della fascia allineato alle fasce, o senza se non serve. */
+export function withBandAttribute(attributes: CaseAttributeDraft[], bands: ArrivalBandDraft[] | undefined, enabled: boolean): CaseAttributeDraft[] {
+  const others = attributes.filter((a) => a.id !== BAND_ATTRIBUTE_ID);
+  if (!enabled || !bands?.length) return others.length === attributes.length ? attributes : others;
+  // Le quote non contano: il runner sovrascrive il valore con la fascia vera.
+  const band: CaseAttributeDraft = {
+    id: BAND_ATTRIBUTE_ID,
+    name: BAND_ATTRIBUTE_NAME,
+    kind: "category",
+    categories: bands.map((_, i) => ({ value: bandLabel(i), percent: 100 / bands.length })),
+  };
+  const index = attributes.findIndex((a) => a.id === BAND_ATTRIBUTE_ID);
+  return index < 0 ? [...attributes, band] : attributes.map((a, i) => (i === index ? band : a));
 }

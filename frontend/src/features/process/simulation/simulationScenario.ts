@@ -17,7 +17,7 @@ import {
   type SlaGoalIssue,
   type SlaSegmentDraft,
 } from "./slaSegments";
-import { arrivalBandIssues, arrivalBandsInput, sanitizeArrivalBands, type ArrivalBandDraft } from "./arrivalBands";
+import { BAND_ATTRIBUTE_NAME, arrivalBandIssues, arrivalBandsInput, sanitizeArrivalBands, type ArrivalBandDraft } from "./arrivalBands";
 import {
   reworkInput,
   reworkIssue,
@@ -139,6 +139,8 @@ export type ArrivalDraft = Omit<DurationDraft, "meanMinutes"> & {
   calendarId?: string;
   /** SIM-08: un ritmo per fascia oraria. Presenti, contano solo loro. */
   bands?: ArrivalBandDraft[];
+  /** SIM-33: la fascia di arrivo diventa l'attributo del caso `fascia_arrivo`. */
+  bandAttribute?: boolean;
 };
 
 /**
@@ -430,6 +432,7 @@ export function scenarioToInput(
       ...durationInput(arrivalDuration(draft)),
       calendarId: arrivalCalendar && calendarIds.has(arrivalCalendar) ? arrivalCalendar : undefined,
       ...(draft.arrival?.bands?.length ? { bands: arrivalBandsInput(draft.arrival.bands) } : {}),
+      ...(draft.arrival?.bands?.length && draft.arrival.bandAttribute ? { bandAttribute: BAND_ATTRIBUTE_NAME } : {}),
     },
     resources: draft.resources.map((r) => ({
       id: r.id,
@@ -609,6 +612,7 @@ function sanitizeArrival(raw: unknown): ArrivalDraft | undefined {
     maxMinutes: number(value.maxMinutes),
     calendarId: typeof value.calendarId === "string" ? value.calendarId : undefined,
     bands: sanitizeArrivalBands(value.bands),
+    ...(value.bandAttribute === true ? { bandAttribute: true } : {}),
   };
 }
 

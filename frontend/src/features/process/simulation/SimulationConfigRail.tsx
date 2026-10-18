@@ -38,6 +38,7 @@ import { ActivitySources } from "./ActivitySources";
 import { ServiceLevelFields } from "./ServiceLevel";
 import { RunLength } from "./RunLength";
 import { ArrivalBands } from "./ArrivalBands";
+import { withBandAttribute } from "./arrivalBands";
 import { DurationByCategory } from "./DurationByCategory";
 import { FlowRules } from "./FlowRules";
 import { ResourceShifts } from "./ResourceShifts";
@@ -268,10 +269,9 @@ export function SimulationConfigRail({
               </>}
               <ArrivalBands
                 bands={draft.arrival?.bands}
-                onChange={(bands) => onDraftChange({
-                  ...draft,
-                  arrival: { ...(draft.arrival ?? { distribution: arrivalDuration(draft).distribution }), bands },
-                })}
+                asAttribute={draft.arrival?.bandAttribute === true}
+                onChange={(bands) => onDraftChange(withArrivalBands(draft, { bands }))}
+                onAsAttributeChange={(bandAttribute) => onDraftChange(withArrivalBands(draft, { bandAttribute }))}
               />
             </fieldset>
             <ServiceLevelFields sla={draft.sla} attributes={draft.caseAttributes ?? []} onChange={(next) => patch({ sla: next })} />
@@ -799,4 +799,12 @@ function formatDate(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/** Gli arrivi cambiati, con l'attributo della fascia (SIM-33) allineato alle fasce. */
+function withArrivalBands(draft: ScenarioDraft, change: Partial<NonNullable<ScenarioDraft["arrival"]>>): ScenarioDraft {
+  const arrival = { ...(draft.arrival ?? { distribution: arrivalDuration(draft).distribution }), ...change };
+  if (!arrival.bands) delete arrival.bandAttribute;
+  const caseAttributes = withBandAttribute(draft.caseAttributes ?? [], arrival.bands, arrival.bandAttribute === true);
+  return { ...draft, arrival, caseAttributes };
 }

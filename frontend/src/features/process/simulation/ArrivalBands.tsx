@@ -6,7 +6,7 @@ import { Button } from "@/ui/button";
 import { Checkbox } from "@/ui/checkbox";
 import { Input } from "@/ui/input";
 
-import { MAX_BANDS, arrivalBandIssues, newArrivalBand, type ArrivalBandDraft } from "./arrivalBands";
+import { BAND_ATTRIBUTE_NAME, MAX_BANDS, arrivalBandIssues, newArrivalBand, type ArrivalBandDraft } from "./arrivalBands";
 import { WEEKDAYS, type Weekday } from "./simulationTypes";
 
 const NATIVE_SELECT = "h-8 w-full min-w-0 ui-field rounded-xl px-2 text-sm";
@@ -15,9 +15,12 @@ const NATIVE_SELECT = "h-8 w-full min-w-0 ui-field rounded-xl px-2 text-sm";
  * SIM-08: un ritmo degli arrivi per fascia oraria. Con le fasce, distribuzione e
  * calendario degli arrivi non contano: fuori dalle fasce non arriva nessuno.
  */
-export function ArrivalBands({ bands, onChange }: {
+export function ArrivalBands({ bands, onChange, asAttribute = false, onAsAttributeChange }: {
   bands: ArrivalBandDraft[] | undefined;
   onChange: (bands: ArrivalBandDraft[] | undefined) => void;
+  /** SIM-33: la fascia di arrivo diventa l'attributo del caso `fascia_arrivo`. */
+  asAttribute?: boolean;
+  onAsAttributeChange?: (enabled: boolean) => void;
 }): React.JSX.Element {
   const { t } = useTranslation("process");
   const list = bands ?? [];
@@ -89,6 +92,18 @@ export function ArrivalBands({ bands, onChange }: {
             <Plus aria-hidden className="size-3.5" />
             {t("simulation.config.arrivalBands.add")}
           </Button>
+          {onAsAttributeChange && (
+            <div className="grid gap-1" data-arrival-band-attribute>
+              <label className="flex items-center gap-2 text-xs font-medium text-foreground">
+                <Checkbox checked={asAttribute} onCheckedChange={(checked) => onAsAttributeChange(checked === true)}
+                  aria-describedby="sim-arrival-band-attribute-hint" />
+                {t("simulation.config.arrivalBands.asAttribute")}
+              </label>
+              <p id="sim-arrival-band-attribute-hint" className="text-xs text-muted-foreground">
+                {t("simulation.config.arrivalBands.asAttributeHint", { name: BAND_ATTRIBUTE_NAME })}
+              </p>
+            </div>
+          )}
         </>
       )}
     </div>

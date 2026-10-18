@@ -6,6 +6,7 @@ import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
 
 import { attributeIssue, categorySum, newAttributeId, type CaseAttributeDraft } from "./caseRules";
+import { BAND_ATTRIBUTE_ID } from "./arrivalBands";
 
 type Category = Extract<CaseAttributeDraft, { kind: "category" }>;
 
@@ -28,6 +29,15 @@ export function CaseAttributesSection({ attributes, usedBy, onChange }: {
       <p className="text-sm leading-relaxed text-muted-foreground">{t("simulation.config.attributesHint")}</p>
       <ul className="grid gap-3">
         {attributes.map((attribute) => {
+          if (attribute.id === BAND_ATTRIBUTE_ID && attribute.kind === "category") {
+            // SIM-33: lo tengono le fasce degli arrivi e lo riempie il runner; qui si legge soltanto.
+            return (
+              <li key={attribute.id} data-attribute-id={attribute.id} className="min-w-0 rounded-lg border border-border bg-muted/40 p-3">
+                <p className="text-xs font-medium text-foreground">{attribute.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t("simulation.config.bandAttributeNote", { values: attribute.categories.map((c) => c.value).join(", ") })}</p>
+              </li>
+            );
+          }
           const issue = attributeIssue(attribute, attributes);
           const issueId = `sim-attribute-issue-${attribute.id}`;
           const inUse = usedBy[attribute.id] ?? 0;
