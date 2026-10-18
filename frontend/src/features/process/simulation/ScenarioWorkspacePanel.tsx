@@ -1,7 +1,7 @@
 import React from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Dices, Pencil, Play, ScanEye } from "lucide-react";
+import { Dices, FileText, Pencil, Play, ScanEye } from "lucide-react";
 
 import { EmptyState } from "@/components/feedback";
 import { Button } from "@/ui/button";
@@ -22,7 +22,14 @@ import {
   type ScenarioRuns,
   type WorkspaceScenario,
 } from "./scenarioWorkspace";
+import { decisionRecordHtml } from "./decisionRecord";
+import { interpret, interpretationLines } from "./interpretation";
+import { buildTornado, studyMembers } from "./sensitivity";
+import { buildInputConfidence } from "./simulationProvenance";
+import { sourceConflicts } from "./sourceConflicts";
+import { useScenarioChanges } from "./useScenarioChanges";
 import { useScenarioLab } from "./useScenarioLab";
+import { useRealProcessing } from "./useSourceConflicts";
 import { useSimulationSection } from "./useSimulationSection";
 
 const STATUS_TONE = {
@@ -43,7 +50,9 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const lab = useScenarioLab();
-  const { runs } = useSimulationSection();
+  const { runs, process } = useSimulationSection();
+  const changes = useScenarioChanges(lab.baselineDraft, lab.template);
+  const real = useRealProcessing();
   const [params, setParams] = useSearchParams();
   const [starting, setStarting] = React.useState<Set<number>>(new Set());
   const { workspace } = lab;
@@ -89,6 +98,44 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
       setStarting((current) => new Set([...current].filter((id) => !scenarios.some((s) => s.id === id))));
     }
   };
+  /** SIM-27: il decision record dell'alternativa, scaricato come pagina HTML da stampare o inoltrare. */
+  const downloadRecord = (scenario: WorkspaceScenario, results: ScenarioRuns, index: number) => {
+    if (!asIs || !rows[0]) return;
+    const draft = lab.draftOf(scenario);
+    const confidence = buildInputConfidence(draft, lab.template, lab.provenance);
+    const names = new Map([...(lab.template?.tasks ?? []), ...(lab.template?.gateways ?? [])].map((el) => [el.element_id, el.name || el.element_id]));
+    const uncertain = [
+      ...Object.entries(confidence.activities),
+      ...Object.entries(confidence.gateways),
+      [t("simulation.readiness.row.arrivals"), confidence.globals.arrival] as const,
+      [t("simulation.readiness.row.resources"), confidence.resources] as const,
+    ].filter(([, field]) => field.confidence !== "high")
+      .map(([id, field]) => ({ name: names.get(id) ?? id, confidence: field.confidence, origin: field.origin }));
+    const members = studyMembers(results.latest, runs);
+    const html = decisionRecordHtml({
+      processName: process.name,
+      generatedAt: new Date(),
+      seed: workspace.seed ?? null,
+      asIs: { name: scenarioDisplayName(rows[0].scenario), results: asIs },
+      alternative: { name: scenarioDisplayName(scenario), results, changes: changes.read(scenario).map(changes.text) },
+      deltas: comparisons[index - 1] ?? { kpis: { cycle: null, waiting: null, costPerCase: null, throughput: null }, paired: null, mismatch: false },
+      comparisons: comparisonsCount,
+      readiness: confidence.readiness,
+      uncertain,
+      conflicts: sourceConflicts({ template: lab.template, draft, claims: lab.claims, realProcessing: real.byElement, logName: real.logName, panelLabel: t("simulation.sourceConflicts.panel") }),
+      tornado: members.length ? buildTornado(members, "cycle") : null,
+      reading: comparisons[index - 1]
+        ? interpretationLines(interpret(asIs, results, comparisons[index - 1]!), t, { duration: (v) => formatDuration(v, lang), currency: (v) => formatCurrency(v, lang) })
+        : [],
+    }, t, lang);
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `decision-record-${scenario.label}-${new Date().toISOString().slice(0, 10)}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const toRun = rows.filter(({ results }) => results.status !== "current" && results.status !== "pending").map(({ scenario }) => scenario);
 
   const number = (v: number) => v.toLocaleString(lang === "it" ? "it-IT" : "en-US", { maximumFractionDigits: 2 });
@@ -168,10 +215,16 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
                         {t("simulation.scenarios.workspace.edit")}
                       </Button>
                       {index > 0 && asIs?.completed.length && results.completed.length ? (
-                        <Button size="sm" variant="ghost" aria-label={t("simulation.scenarios.workspace.showOnProcessFor", { name })} onClick={() => showOnProcess(results)}>
-                          <ScanEye aria-hidden className="size-3.5" />
-                          {t("simulation.scenarios.workspace.showOnProcess")}
-                        </Button>
+                        <>
+                          <Button size="sm" variant="ghost" aria-label={t("simulation.scenarios.workspace.showOnProcessFor", { name })} onClick={() => showOnProcess(results)}>
+                            <ScanEye aria-hidden className="size-3.5" />
+                            {t("simulation.scenarios.workspace.showOnProcess")}
+                          </Button>
+                          <Button size="sm" variant="ghost" aria-label={t("simulation.decisionRecord.downloadFor", { name })} onClick={() => downloadRecord(scenario, results, index)} data-sim-decision-record>
+                            <FileText aria-hidden className="size-3.5" />
+                            {t("simulation.decisionRecord.download")}
+                          </Button>
+                        </>
                       ) : null}
                     </span>
                   </th>
@@ -196,6 +249,25 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
           </tbody>
         </table>
       </div>
+      {asIs && rows.length > 1 && (
+        <div className="grid gap-1.5" data-sim-workspace-reading>
+          <p className="text-xs font-medium text-foreground">{t("simulation.interpretation.title")}</p>
+          <ul className="grid gap-1.5">
+            {rows.slice(1).map(({ scenario, results }, i) => {
+              const comparison = comparisons[i];
+              if (!comparison || !results.completed.length || !asIs.completed.length) return null;
+              const lines = interpretationLines(interpret(asIs, results, comparison), t, { duration: (v) => formatDuration(v, lang), currency: (v) => formatCurrency(v, lang) });
+              if (!lines.length) return null;
+              return (
+                <li key={scenario.id} className="text-xs leading-snug text-muted-foreground" data-sim-workspace-reading-row={scenario.label}>
+                  <span className="font-medium text-foreground">{scenarioDisplayName(scenario)}</span>
+                  {" · "}{lines.join(" ")}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
       {[...kinds].map((kind) => <p key={kind} className="text-xs text-muted-foreground" data-sim-workspace-method={kind}>{t(`simulation.scenarios.workspace.method.${kind}`)}</p>)}
       {comparisonsCount > 1 && (kinds.has("paired") || kinds.has("independent")) && <p className="text-xs text-muted-foreground" data-sim-workspace-method="bonferroni">{t("simulation.scenarios.workspace.method.bonferroni", { count: comparisonsCount })}</p>}
     </section>

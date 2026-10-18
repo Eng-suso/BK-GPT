@@ -747,12 +747,18 @@
       "diagnostic": "{{name}} assorbe {{wait}} di attesa media — il {{share}} del tempo di ciclo è coda.",
       "lowConfidenceCaveat": "Il collo di bottiglia poggia su parametri a bassa confidenza. Valida le assunzioni nel Costruttore scenario prima di agire.",
       "experimentKind": {
-        "add_resource": "Esperimento"
+        "add_resource": "Capacità",
+        "automate": "Automazione",
+        "reallocate": "Riallocazione"
       },
       "addResourceTitle": "Aggiungi 1 risorsa a {{pool}} ({{from}} → {{to}})",
       "estimateNote": "Stima — la risposta reale è simulare",
       "createScenario": "Crea scenario",
-      "scenarioName": "{{base}} · +1 {{pool}}"
+      "scenarioName": "{{base}} · +1 {{pool}}",
+      "automateTitle": "Automatizza metà del lavoro di «{{name}}»",
+      "reallocateTitle": "Sposta 1 risorsa da {{donor}} a {{pool}}",
+      "automateScenarioName": "{{base}} · automazione {{name}}",
+      "reallocateScenarioName": "{{base}} · {{donor}} → {{pool}}"
     },
     "workspace": {
       "overviewTitle": "Modello e risultati",
@@ -1437,6 +1443,63 @@
       },
       "lowValue": "−{{pct}}%: {{value}}",
       "highValue": "+{{pct}}%: {{value}}"
+    },
+    "sourceConflicts": {
+      "title": "Fonti in disaccordo",
+      "hint": "Stessa attività, durate diverse di oltre il 25%. Nessuna fonte vince da sola: chiedi al cliente.",
+      "question": "«{{name}}»: {{shortLabel}} dice {{short}}, {{longLabel}} dice {{long}}. Quale vale, e per quali casi?",
+      "panel": "il pannello",
+      "more_one": "e {{count}} altra attività",
+      "more_other": "e altre {{count}} attività"
+    },
+    "decisionRecord": {
+      "title": "Decision record · {{name}}",
+      "meta": "Processo: {{process}} · generato il {{date}} · seed comune {{seed}}",
+      "runs": "Run usati: {{asIs}} {{asIsRuns}} · {{alternative}} {{alternativeRuns}}",
+      "changesTitle": "Cosa cambia rispetto all'AS-IS",
+      "noChanges": "Nessuna modifica: lo scenario coincide con l'AS-IS.",
+      "resultsTitle": "Risultati",
+      "kpi": "Indicatore",
+      "delta": "Differenza",
+      "noInterval": "senza intervallo",
+      "methodSingle": "Un run per parte: la differenza non ha intervallo e può essere il caso.",
+      "mismatch": "I due run partono da versioni diverse dell'AS-IS o del processo: nessun confronto.",
+      "assumptionsTitle": "Ipotesi e provenienza",
+      "family": "Famiglia di parametri",
+      "readiness": "Prontezza",
+      "confidence": "Confidenza",
+      "overall": "Prontezza complessiva: {{level}}.",
+      "uncertainTitle": "Ipotesi a confidenza bassa o media:",
+      "uncertainItem": "{{name}}: {{origin}}, confidenza {{confidence}}",
+      "noUncertain": "Nessuna ipotesi a confidenza bassa o media.",
+      "sensitivityTitle": "Sensitività",
+      "noSensitivity": "Nessuno studio di sensitività su questo scenario: lancialo da Ipotesi e prontezza prima di consegnare.",
+      "sensitivityIntro": "Tempo di attraversamento con ogni ipotesi incerta variata di ±{{pct}}%, una alla volta, attorno a {{center}}.",
+      "risksTitle": "Rischi e domande aperte",
+      "noRisks": "Nessun rischio rilevato dai dati dello scenario.",
+      "riskStale": "Un run è stato fatto su una versione precedente dello scenario o dell'AS-IS: rilancialo prima di decidere.",
+      "riskSingle": "Una sola simulazione per scenario: la differenza può essere il caso. Ripeti gli scenari almeno 2 volte.",
+      "riskReadiness": "Prontezza complessiva {{level}}: i risultati dipendono da ipotesi ancora da verificare.",
+      "footer": "Generato da DeliR dai run e dallo scenario salvati: ogni numero viene da una simulazione registrata.",
+      "download": "Decision record",
+      "downloadFor": "Scarica il decision record di {{name}}"
+    },
+    "interpretation": {
+      "same": "Il vincolo resta «{{name}}».",
+      "moved": "Il vincolo si sposta da «{{from}}» a «{{to}}».",
+      "relieved": "«{{name}}» non è più un collo di bottiglia.",
+      "appeared": "Compare un collo di bottiglia: «{{name}}».",
+      "wait": "Attesa media lì: {{before}} → {{after}}.",
+      "unclear": "Tempo e costo per caso non cambiano in modo distinguibile dal caso.",
+      "better": "Più veloce di {{cycle}} e meno caro di {{cost}} per caso: non c'è scambio da pagare.",
+      "worse": "Più lento di {{cycle}} e più caro di {{cost}} per caso.",
+      "faster": "Più veloce di {{cycle}} per caso, al costo di {{cost}} in più: {{perHour}} per ogni ora risparmiata.",
+      "cheaper": "Meno caro di {{cost}} per caso, ma più lento di {{cycle}}: si risparmiano {{perHour}} per ogni ora in più.",
+      "onlyFaster": "Più veloce di {{cycle}} per caso, a costo invariato.",
+      "onlySlower": "Più lento di {{cycle}} per caso, a costo invariato.",
+      "onlyCheaper": "Meno caro di {{cost}} per caso, a tempi invariati.",
+      "onlyCostlier": "Più caro di {{cost}} per caso, a tempi invariati.",
+      "title": "Lettura"
     }
   },
   "side": {

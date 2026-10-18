@@ -195,6 +195,29 @@ export function compareRealToSimulated(real: EventLogSummary, simulated: Simulat
   };
 }
 
+/**
+ * SIM-17: la lavorazione media di ogni elemento del modello nel log reale,
+ * pesata sulle esecuzioni quando piu' attivita' del log finiscono sullo stesso
+ * elemento. Con il solo completamento la lavorazione contiene l'attesa: nessun valore.
+ */
+export function realProcessingByElement(real: EventLogSummary): Map<string, { seconds: number; count: number }> {
+  const out = new Map<string, { seconds: number; count: number }>();
+  if (real.timing === "complete_only") return out;
+  const totals = new Map<string, { weighted: number; count: number }>();
+  for (const row of rows(real)) {
+    const el = typeof row.el === "string" ? row.el : null;
+    const count = num(row.count) ?? 0;
+    const processing = at(row, "processing", "avg");
+    if (!el || count <= 0 || processing === null) continue;
+    const total = totals.get(el) ?? { weighted: 0, count: 0 };
+    total.weighted += processing * count;
+    total.count += count;
+    totals.set(el, total);
+  }
+  for (const [el, total] of totals) out.set(el, { seconds: total.weighted / total.count, count: total.count });
+  return out;
+}
+
 /** Lo scarto con il segno, nella lingua del consulente: "+12%", "-5%", "0%". */
 export function signedPercent(gap: number | null, lang: "it" | "en"): string {
   if (gap === null || !Number.isFinite(gap)) return "—";

@@ -276,6 +276,40 @@ test("the Workspace tool compares every scenario with the AS-IS, with the interv
   await expect(page).toHaveURL(/panel=compare/);
 });
 
+test("an alternative's decision record downloads as one printable page (SIM-27)", async ({ page }, testInfo) => {
+  const workspace = new Workspace().seedWith(draft,
+    { name: "+1 approvatore", patch: [{ op: "set", path: ["resources", { id: "r1" }, "amount"], value: 3 }] });
+  await fixture(page, workspace, [...group(41, 1, "g-asis", [3600, 3720, 3660]), ...group(51, 2, "g-a", [3000, 3130, 3070])]);
+  await page.goto(`${studio}/workspace/41?panel=scenarios`);
+  const panel = page.locator("[data-sim-scenario-workspace]");
+  await expect(panel.locator('[data-sim-workspace-row="AS-IS"]')).toContainText("Aggiornato");
+  await expect(panel.locator('[data-sim-workspace-row="AS-IS"] [data-sim-decision-record]')).toHaveCount(0);
+  // SIM-24: la lettura calcolata, vincolo e scambio tempo/costo.
+  const reading = panel.locator('[data-sim-workspace-reading-row="A"]');
+  await expect(reading).toContainText("Il vincolo resta «Approva».");
+  await expect(reading).toContainText("per caso, a costo invariato.");
+
+  const download = page.waitForEvent("download");
+  await panel.getByRole("button", { name: "Scarica il decision record di A · +1 approvatore", exact: true }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^decision-record-A-\d{4}-\d{2}-\d{2}\.html$/);
+  const path = testInfo.outputPath("decision-record.html");
+  await file.saveAs(path);
+  const html = (await import("node:fs")).readFileSync(path, "utf-8");
+  expect(html).toContain("<title>Decision record · A · +1 approvatore</title>");
+  expect(html).toContain("Cosa cambia rispetto all&#39;AS-IS");
+  expect(html).toMatch(/Unità: 2 → 3/);
+  expect(html).toContain("Confronto a coppie");
+  expect(html).toContain("<b>Lettura.</b> Il vincolo resta «Approva».");
+  expect(html).toContain("Nessuno studio di sensitività su questo scenario");
+
+  // La pagina scaricata si legge da sola e regge axe.
+  await page.goto(`file://${path}`);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Decision record · A · +1 approvatore");
+  const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+});
+
 test("the Workspace tool gives no verdict between runs on different AS-IS versions", async ({ page }) => {
   const workspace = new Workspace().seedWith(draft, { name: "+1 approvatore", patch: [{ op: "set", path: ["resources", { id: "r1" }, "amount"], value: 3 }] });
   workspace.baseline!.revision = 2;

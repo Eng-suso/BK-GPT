@@ -17,6 +17,7 @@ import { useScenarioLab } from "../useScenarioLab";
 import { ScenarioTabs } from "../ScenarioTabs";
 import { changedElements } from "../scenarioWorkspace";
 import { uncertainFactors } from "../sensitivity";
+import { useSourceConflicts } from "../useSourceConflicts";
 import type { NodeDecoration } from "../canvas/SimulationCanvas";
 
 /**
@@ -52,10 +53,13 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
     activeRun,
   } = lab;
 
+  // SIM-17: pannello, file del cliente e log reale messi accanto, attivita' per attivita'.
+  const conflicts = useSourceConflicts(template, draft, claims);
+
   // SIM-25: le ipotesi incerte della bozza, da far variare nello studio di sensitivita'.
   const sensitivityFactors = React.useMemo(
-    () => uncertainFactors(confidence, template, draft, t("simulation.sensitivity.arrivalLabel")),
-    [confidence, template, draft, t],
+    () => uncertainFactors(confidence, template, draft, t("simulation.sensitivity.arrivalLabel"), new Set(conflicts.map((c) => c.elementId))),
+    [confidence, template, draft, t, conflicts],
   );
 
   // SIM-14: sul processo, le attivita' e le decisioni che lo scenario scelto cambia.
@@ -151,6 +155,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
                 ? reviewLowest
                 : undefined
             }
+            conflicts={conflicts}
             sensitivity={{
               factors: sensitivityFactors,
               disabled: isRunning,

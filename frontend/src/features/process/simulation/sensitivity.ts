@@ -38,10 +38,12 @@ export function uncertainFactors(
   template: ScenarioTemplate | null,
   draft: ScenarioDraft,
   arrivalLabel: string,
+  /** SIM-17: attivita' su cui le fonti non sono d'accordo, incerte qualunque sia la confidenza. */
+  disputed: ReadonlySet<string> = new Set(),
 ): SensitivityFactor[] {
   const factors: SensitivityFactor[] = [];
   for (const task of template?.tasks ?? []) {
-    const c = confidence.activities[task.element_id]?.confidence;
+    const c = disputed.has(task.element_id) ? "low" : confidence.activities[task.element_id]?.confidence;
     if (uncertain(c) && draft.tasks[task.element_id]) {
       factors.push({ kind: "duration", elementId: task.element_id, label: task.name || task.element_id, confidence: c });
     }

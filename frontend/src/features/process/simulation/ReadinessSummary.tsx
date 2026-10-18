@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, BarChartHorizontal, Info } from "lucide-react";
+import { AlertTriangle, ArrowRight, BarChartHorizontal, Info } from "lucide-react";
 
 import { Meter, type MeterTone } from "@/components/data";
 import { StatusIndicator, type StatusTone } from "@/components/status";
@@ -8,6 +8,8 @@ import { Button } from "@/ui/button";
 import { cn } from "@/lib/utils";
 
 import { SENSITIVITY_DELTA, type SensitivityFactor } from "./sensitivity";
+import type { SourceConflict } from "./sourceConflicts";
+import { formatParameterDuration } from "./studio/activityParameters";
 import type { Confidence, InputConfidence } from "./simulationProvenance";
 import type { ScenarioProvenance } from "./simulationTypes";
 
@@ -33,6 +35,8 @@ type ReadinessSummaryProps = {
   dense?: boolean;
   /** Deep-link to the full scenario builder / low-confidence fields. */
   onReview?: () => void;
+  /** SIM-17: le attivita' su cui le fonti dicono durate diverse. */
+  conflicts?: SourceConflict[];
   /** SIM-25: le ipotesi incerte e l'avvio dello studio di sensitivita'. */
   sensitivity?: { factors: SensitivityFactor[]; onStart: () => void; disabled?: boolean };
   className?: string;
@@ -44,6 +48,7 @@ export function ReadinessSummary({
   dense = false,
   onReview,
   sensitivity,
+  conflicts = [],
   className,
 }: ReadinessSummaryProps): React.JSX.Element {
   const { t } = useTranslation("process");
@@ -139,6 +144,8 @@ export function ReadinessSummary({
         />
       )}
 
+      {!dense && conflicts.length > 0 && <SourceConflicts conflicts={conflicts} />}
+
       {!dense && sensitivity && (
         <div className="grid gap-1.5 rounded-md border border-border p-2.5" data-readiness-sensitivity>
           <p className="text-micro font-medium text-foreground">{t("simulation.sensitivity.launchTitle")}</p>
@@ -173,6 +180,41 @@ export function ReadinessSummary({
             : t("simulation.readiness.reviewAssumptions")}
           <ArrowRight aria-hidden className="size-3.5" />
         </Button>
+      )}
+    </div>
+  );
+}
+
+/** Le domande che i disaccordi fra le fonti aprono, al massimo cinque. */
+const MAX_CONFLICTS = 5;
+
+function SourceConflicts({ conflicts }: { conflicts: SourceConflict[] }): React.JSX.Element {
+  const { t, i18n } = useTranslation("process");
+  const lang = i18n.language.startsWith("it") ? "it" : "en";
+  const shown = conflicts.slice(0, MAX_CONFLICTS);
+  const label = (source: SourceConflict["shortest"]) => (source.kind === "panel" ? t("simulation.sourceConflicts.panel") : `«${source.label}»`);
+  return (
+    <div className="grid gap-1.5 rounded-md border border-[var(--state-warning-border)] bg-[var(--state-warning-surface)] p-2.5" data-readiness-conflicts>
+      <p className="flex items-center gap-1.5 text-micro font-medium text-foreground">
+        <AlertTriangle aria-hidden className="size-3.5 shrink-0 text-[var(--state-warning-text)]" />
+        {t("simulation.sourceConflicts.title")}
+      </p>
+      <p className="text-micro leading-snug text-muted-foreground">{t("simulation.sourceConflicts.hint")}</p>
+      <ul className="grid gap-1">
+        {shown.map((conflict) => (
+          <li key={conflict.elementId} className="text-micro leading-snug text-foreground" data-conflict={conflict.elementId}>
+            {t("simulation.sourceConflicts.question", {
+              name: conflict.name,
+              shortLabel: label(conflict.shortest),
+              short: formatParameterDuration(conflict.shortest.seconds, lang),
+              longLabel: label(conflict.longest),
+              long: formatParameterDuration(conflict.longest.seconds, lang),
+            })}
+          </li>
+        ))}
+      </ul>
+      {conflicts.length > shown.length && (
+        <p className="text-micro text-muted-foreground">{t("simulation.sourceConflicts.more", { count: conflicts.length - shown.length })}</p>
       )}
     </div>
   );

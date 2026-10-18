@@ -56,3 +56,24 @@ describe("sensitivity launch (SIM-25)", () => {
     expect(screen.queryByRole("button", { name: "Analizza la sensitività" })).not.toBeInTheDocument();
   });
 });
+
+describe("source conflicts (SIM-17)", () => {
+  it("asks which source holds, naming both durations", () => {
+    const draft = seedDraftFromTemplate(structuredClone(DEFAULT_SCENARIO), TEMPLATE);
+    const conflicts = [{
+      elementId: "T", name: "Verifica", spread: 1,
+      shortest: { kind: "claim" as const, label: "Procedure.pdf", seconds: 600 },
+      longest: { kind: "log" as const, label: "Log 2025", seconds: 1200 },
+      sources: [],
+    }];
+    render(<ReadinessSummary confidence={buildInputConfidence(draft, TEMPLATE, null)} provenance={null} conflicts={conflicts} />);
+    expect(screen.getByText("Fonti in disaccordo")).toBeInTheDocument();
+    expect(screen.getByText("«Verifica»: «Procedure.pdf» dice 10 min, «Log 2025» dice 20 min. Quale vale, e per quali casi?")).toBeInTheDocument();
+  });
+
+  it("stays silent without conflicts", () => {
+    const draft = seedDraftFromTemplate(structuredClone(DEFAULT_SCENARIO), TEMPLATE);
+    render(<ReadinessSummary confidence={buildInputConfidence(draft, TEMPLATE, null)} provenance={null} />);
+    expect(screen.queryByText("Fonti in disaccordo")).not.toBeInTheDocument();
+  });
+});

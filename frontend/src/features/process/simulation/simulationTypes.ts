@@ -278,7 +278,7 @@ export const experimentReportSchema = z.object({
   factors: z.record(z.string(), z.number()).default({}),
   experiments: z.array(
     z.object({
-      kind: z.literal("add_resource"),
+      kind: z.enum(["add_resource", "automate", "reallocate"]),
       pool_id: z.string(),
       pool_name: z.string(),
       from_amount: z.number(),
@@ -286,6 +286,12 @@ export const experimentReportSchema = z.object({
       rationale: z.string(),
       estimate: z.object({ cycle_pct: z.number(), cost_pct: z.number() }),
       target_el: z.string().nullable().optional(),
+      target_name: z.string().nullable().optional(),
+      // SIM-22: la quota di lavoro automatizzata; il pool che cede una risorsa.
+      share: z.number().nullable().optional(),
+      donor_pool_id: z.string().nullable().optional(),
+      donor_pool_name: z.string().nullable().optional(),
+      donor_from_amount: z.number().nullable().optional(),
     }),
   ),
 });

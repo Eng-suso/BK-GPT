@@ -87,6 +87,8 @@ export type ScenarioLab = {
   runScenario: (scenario: WorkspaceScenario) => Promise<boolean>;
   /** Il motivo per cui uno scenario non puo' partire, o null. */
   scenarioBlocker: (scenario: WorkspaceScenario) => string | null;
+  /** La bozza di uno scenario del workspace, con le modifiche non ancora salvate. */
+  draftOf: (scenario: WorkspaceScenario) => ScenarioDraft;
 };
 
 /**
@@ -515,6 +517,7 @@ export function useScenarioLab(): ScenarioLab {
     newSeed,
     runScenario,
     scenarioBlocker,
+    draftOf,
   };
 }
 
