@@ -1437,6 +1437,14 @@
       },
       "lowValue": "−{{pct}}%: {{value}}",
       "highValue": "+{{pct}}%: {{value}}"
+    },
+    "sourceConflicts": {
+      "title": "Fonti in disaccordo",
+      "hint": "Stessa attività, durate diverse di oltre il 25%. Nessuna fonte vince da sola: chiedi al cliente.",
+      "question": "«{{name}}»: {{shortLabel}} dice {{short}}, {{longLabel}} dice {{long}}. Quale vale, e per quali casi?",
+      "panel": "il pannello",
+      "more_one": "e {{count}} altra attività",
+      "more_other": "e altre {{count}} attività"
     }
   },
   "side": {

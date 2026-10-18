@@ -1437,6 +1437,14 @@
       },
       "lowValue": "−{{pct}}%: {{value}}",
       "highValue": "+{{pct}}%: {{value}}"
+    },
+    "sourceConflicts": {
+      "title": "Sources that disagree",
+      "hint": "Same activity, durations more than 25% apart. No source wins on its own: ask the client.",
+      "question": "“{{name}}”: {{shortLabel}} says {{short}}, {{longLabel}} says {{long}}. Which one holds, and for which cases?",
+      "panel": "the panel",
+      "more_one": "and {{count}} more activity",
+      "more_other": "and {{count}} more activities"
     }
   },
   "side": {
