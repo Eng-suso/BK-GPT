@@ -16,6 +16,23 @@ export function WarmupNote({ run }: { run: SimulationRun }): React.JSX.Element |
   );
 }
 
+/** SIM-03: il run ha simulato un periodo; i KPI misurano i casi completati, gli altri restano aperti. */
+export function HorizonNote({ run }: { run: SimulationRun }): React.JSX.Element | null {
+  const { t } = useTranslation("process");
+  const horizon = run.summary?.horizon;
+  if (!horizon) return null;
+  return (
+    <div className="mb-3 grid gap-1" data-sim-horizon-note>
+      <p className="text-xs text-muted-foreground">
+        {t("simulation.results.horizonNote", {
+          count: horizon.days, completed: horizon.completedCases, open: horizon.openCases, arrived: horizon.arrivedCases,
+        })}
+      </p>
+      {!horizon.covered && <p role="status" className="text-xs font-medium text-warning">{t("simulation.results.horizonUncovered")}</p>}
+    </div>
+  );
+}
+
 /** SIM-10: da dove viene il costo del run, quando lo scenario ha costi fissi. */
 export function CostBreakdown({ run }: { run: SimulationRun }): React.JSX.Element | null {
   const { t, i18n } = useTranslation("process");

@@ -222,6 +222,9 @@ class CreateSimulationRunRequest(BaseModel):
     replication_index: int | None = Field(default=None, ge=1, le=20)
     # SIM-03: i primi casi escono dai KPI (il sistema parte vuoto). Il replay li mostra.
     warmup_cases: int = Field(default=0, ge=0, le=10_000)
+    # SIM-03: un periodo da simulare, in giorni, invece di un numero di casi.
+    # Il servizio fissa l'inizio e stima ``total_cases`` dagli arrivi.
+    horizon_days: int | None = Field(default=None, ge=1, le=366)
     # SIM-10: euro per ogni caso completato, oltre al tempo delle risorse.
     case_fixed_cost: float | None = Field(default=None, ge=0, allow_inf_nan=False, strict=True)
     default_task_duration_seconds: int = Field(default=900, ge=1)

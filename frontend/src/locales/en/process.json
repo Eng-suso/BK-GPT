@@ -412,6 +412,7 @@
         }
       },
       "invalidSla": "Service objective needs fixing.",
+      "invalidHorizon": "Period to fix.",
       "fixedCost": "Fixed cost per execution, €",
       "caseFixedCost": "Fixed cost per case, €",
       "invalidCosts": "Fixed costs need fixing: they must be zero or more.",
@@ -488,6 +489,15 @@
         "rule": "Complete the rule."
       },
       "warmupCases": "Warm-up cases",
+      "runLength": {
+        "by": "Simulate by",
+        "cases": "Number of cases",
+        "period": "Period",
+        "days": "Simulated days",
+        "hint_one": "Cases arrive at the arrival rhythm for {{count}} day; at the end of the period unfinished cases stay open and the results count them.",
+        "hint_other": "Cases arrive at the arrival rhythm for {{count}} days; at the end of the period unfinished cases stay open and the results count them.",
+        "issue": "The period goes from 1 to {{max}} whole days."
+      },
       "warmupHint": "Optional. The system starts empty: the first cases meet short queues. They stay out of the results; the replay shows them.",
       "warmupIssue": {
         "notWhole": "Enter a whole number of cases.",
@@ -550,6 +560,9 @@
       "costActivities": "Activity fixed costs: {{value}}",
       "costCases": "Fixed costs per case: {{value}}",
       "warmupNote": "Results computed on {{measured}} cases: the first {{excluded}} filled the queues and are left out.",
+      "horizonNote_one": "Period of {{count}} day: {{completed}} cases completed of {{arrived}} arrived, {{open}} still open at the end. Results measure the completed ones.",
+      "horizonNote_other": "Period of {{count}} days: {{completed}} cases completed of {{arrived}} arrived, {{open}} still open at the end. Results measure the completed ones.",
+      "horizonUncovered": "The generated arrivals do not cover the whole period: results hold for fewer cases than would have arrived. Retry or shorten the period.",
       "replications": "Scenario replications",
       "replicationProgress": "Replications completed: {{done}} of {{total}}.",
       "replicationFailed_one": "{{count}} failed.",
@@ -1299,6 +1312,7 @@
         "sla": "Service target",
         "caseFixedCost": "Fixed cost per case, €",
         "warmupCases": "Warm-up cases",
+        "horizonDays": "Simulated period, days",
         "replications": "Replications",
         "defaultTaskMinutes": "Default duration, min",
         "resources": "Resources",

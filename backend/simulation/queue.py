@@ -71,6 +71,8 @@ class ClaimedRun:
     fixed_costs: FixedCosts = field(default_factory=FixedCosts)
     # SIM-03: i primi casi, che trovano il sistema vuoto, restano fuori dai KPI.
     warmup_cases: int = 0
+    # SIM-03: il periodo simulato, in giorni da ``start_date``. Assente = un numero di casi.
+    horizon_days: int | None = None
 
 
 def now_iso() -> str:
@@ -204,6 +206,7 @@ def claim_next_run(worker_id: str) -> ClaimedRun | None:
                 per_case=float(request.get("case_fixed_cost") or 0.0),
             ),
             warmup_cases=int(request.get("warmup_cases") or 0),
+            horizon_days=int(request["horizon_days"]) if request.get("horizon_days") else None,
         )
 
 

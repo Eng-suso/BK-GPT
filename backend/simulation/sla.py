@@ -15,6 +15,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from backend.schemas.simulation import SimSlaSegment
+from backend.simulation.horizon import within_horizon
 from backend.simulation.log_processor import after_warmup, parse_prosimos_log
 
 
@@ -59,12 +60,13 @@ def sla_outcome(
     share: float,
     warmup_cases: int = 0,
     segments: Sequence[SimSlaSegment] = (),
+    horizon: tuple[float, int] | None = None,
 ) -> SlaOutcome | None:
     """Quanti casi completati stanno nel target, e se l'obiettivo e' rispettato.
 
     ``None`` se il log non ha casi: senza casi non c'e' niente da giudicare.
     """
-    cases = _cases(log_csv, warmup_cases)
+    cases = _cases(log_csv, warmup_cases, horizon)
     if not cases:
         return None
     within = _within(cases, target_seconds)
@@ -100,12 +102,16 @@ def _within(cases: list[_Case], target_seconds: float) -> int:
     return sum(1 for case in cases if case.cycle <= target_seconds)
 
 
-def _cases(log_csv: str, warmup_cases: int) -> list[_Case]:
+def _cases(log_csv: str, warmup_cases: int, horizon: tuple[float, int] | None) -> list[_Case]:
     first_enable: dict[str, float] = {}
     last_end: dict[str, float] = {}
     attributes: dict[str, dict[str, str]] = {}
+    events = parse_prosimos_log(log_csv)
+    if horizon is not None:
+        # Con un periodo, i casi completati entro la fine (SIM-03).
+        events, _, _ = within_horizon(events, *horizon)
     # Gli stessi casi dei KPI: quelli del riscaldamento (SIM-03) non contano.
-    for event in after_warmup(parse_prosimos_log(log_csv), warmup_cases):
+    for event in after_warmup(events, warmup_cases):
         first_enable[event.case_id] = min(first_enable.get(event.case_id, event.enable), event.enable)
         last_end[event.case_id] = max(last_end.get(event.case_id, event.end), event.end)
         # Un attributo del caso vale lo stesso su ogni evento: basta il primo che lo porta.

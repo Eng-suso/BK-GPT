@@ -36,6 +36,7 @@ import { TaskDurationFields } from "./TaskDurationFields";
 import { OtherAssignments } from "./OtherAssignments";
 import { ActivitySources } from "./ActivitySources";
 import { ServiceLevelFields } from "./ServiceLevel";
+import { RunLength } from "./RunLength";
 import { ArrivalBands } from "./ArrivalBands";
 import { DurationByCategory } from "./DurationByCategory";
 import { FlowRules } from "./FlowRules";
@@ -215,13 +216,7 @@ export function SimulationConfigRail({
               />
             </label>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <NumberField
-                label={t("simulation.fields.cases")}
-                value={draft.totalCases}
-                min={1}
-                max={100000}
-                onChange={(v) => patch({ totalCases: v })}
-              />
+              <RunLength draft={draft} onChange={(fields) => patch(fields)} />
               <NumberField
                 label={t("simulation.config.defaultDurationMin")}
                 value={draft.defaultTaskMinutes}
@@ -397,6 +392,7 @@ export function SimulationConfigRail({
             {parameterIssues.flowRules > 0 && <p>{t("simulation.config.invalidFlowRules", { count: parameterIssues.flowRules })}</p>}
             {parameterIssues.warmup && <p>{t("simulation.config.invalidWarmup")}</p>}
             {parameterIssues.replications && <p>{t("simulation.config.invalidReplications")}</p>}
+            {parameterIssues.horizon && <p>{t("simulation.config.invalidHorizon")}</p>}
             {ruleIssues.attributes > 0 && <p>{t("simulation.config.invalidAttributes", { count: ruleIssues.attributes })}</p>}
             {ruleIssues.gateways > 0 && <p>{t("simulation.config.invalidRules", { count: ruleIssues.gateways })}</p>}
             {ruleIssues.priorities > 0 && <p>{t("simulation.config.invalidPriorities", { count: ruleIssues.priorities })}</p>}

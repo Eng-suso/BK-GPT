@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from backend.settings import settings
+from backend.simulation.horizon import within_horizon
 
 EXPECTED_LOG_HEADER = [
     "case_id",
@@ -247,9 +248,21 @@ def process_prosimos_log(
     max_cases: int | None = None,
     buckets: int | None = None,
     warmup_cases: int = 0,
+    horizon: tuple[float, int] | None = None,
 ) -> tuple[dict, dict]:
-    events = parse_prosimos_log(csv_text)
-    measured = after_warmup(events, warmup_cases)
+    """Riepilogo e replay del run. ``horizon`` = (fine del periodo, giorni), se il run ne ha uno."""
+    events = all_events = parse_prosimos_log(csv_text)
+    measured, period = events, None
+    if horizon is not None:
+        # SIM-03: si misurano i casi completati nel periodo; il replay mostra quelli arrivati.
+        measured, arrived, period = within_horizon(events, *horizon)
+        if not measured:
+            raise ProsimosLogError("nessun caso completato nel periodo")
+        events = arrived
+    measured = after_warmup(measured, warmup_cases)
+    if not measured:
+        # Con un periodo i casi completati possono essere meno del riscaldamento.
+        raise ProsimosLogError("il riscaldamento esclude tutti i casi completati nel periodo")
     max_cases = max_cases or settings.sim_replay_max_cases
     buckets = buckets or settings.sim_replay_buckets
 
@@ -284,9 +297,17 @@ def process_prosimos_log(
         )
     else:
         summary = _warm_summary(
-            events, measured, warmup_cases,
+            all_events, measured, warmup_cases,
             name_to_element_id=name_to_element_id, prosimos_stats=prosimos_stats, pools=pools,
         )
+    if period is not None:
+        summary["horizon"] = {
+            "days": period.days,
+            "arrivedCases": period.arrived_cases,
+            "completedCases": period.completed_cases,
+            "openCases": period.open_cases,
+            "covered": period.covered,
+        }
     replay = _build_replay(
         events=events,
         by_case=by_case,
@@ -328,7 +349,7 @@ def _warm_summary(
     prosimos_stats: dict,
     pools: dict,
 ) -> dict:
-    """Il riepilogo sui soli casi dopo il riscaldamento.
+    """Il riepilogo sui soli casi misurati: dopo il riscaldamento, o completati nel periodo.
 
     Tempi, code e colli di bottiglia si ricalcolano sugli eventi misurati. Il
     costo di Prosimos e' dell'intero run: si attribuisce ai casi misurati in
@@ -358,7 +379,8 @@ def _warm_summary(
     cases = len(by_case)
     total = float(summary["cost"]["total"]) * share
     summary["cost"] = {**summary["cost"], "total": total, "perCase": total / cases if cases else 0.0}
-    summary["warmup"] = {"excludedCases": warmup_cases, "measuredCases": cases}
+    if warmup_cases > 0:
+        summary["warmup"] = {"excludedCases": warmup_cases, "measuredCases": cases}
     return summary
 
 

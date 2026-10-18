@@ -22,6 +22,14 @@ export const simulationSummarySchema = z
     }),
     /** SIM-03: quanti casi del riscaldamento sono rimasti fuori dai KPI. */
     warmup: z.object({ excludedCases: z.number(), measuredCases: z.number() }).optional(),
+    /** SIM-03: il periodo simulato e i casi a fine periodo. */
+    horizon: z.object({
+      days: z.number(),
+      arrivedCases: z.number(),
+      completedCases: z.number(),
+      openCases: z.number(),
+      covered: z.boolean(),
+    }).optional(),
     /** SIM-13: l'esito dell'obiettivo di servizio, se lo scenario ne aveva uno. */
     sla: z.object({
       target_seconds: z.number(),
@@ -366,6 +374,8 @@ export type CreateSimulationRunInput = {
   caseFixedCost?: number;
   /** SIM-03: i primi casi fuori dai KPI. */
   warmupCases?: number;
+  /** SIM-03: periodo in giorni; il servizio stima i casi dagli arrivi. */
+  horizonDays?: number;
   /** SIM-04: ripetizioni dello scenario. */
   replications?: number;
   resources?: SimResourceInput[];

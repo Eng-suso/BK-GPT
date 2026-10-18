@@ -41,6 +41,7 @@ export async function runProsimosSimulation(
         },
         case_fixed_cost: input.caseFixedCost,
         warmup_cases: input.warmupCases,
+        horizon_days: input.horizonDays,
         replications: input.replications,
         arrival: input.arrival && {
           mean_seconds: input.arrival.meanSeconds,
