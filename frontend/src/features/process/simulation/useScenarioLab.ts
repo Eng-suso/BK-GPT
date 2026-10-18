@@ -11,6 +11,7 @@ import {
   fetchScenarioTemplate,
   fetchSimulationClaims,
   runProsimosSimulation,
+  runSensitivityStudy,
 } from "./simulationApi";
 import type { ScenarioTemplate, SimulationClaims, SimulationRun } from "./simulationTypes";
 import {
@@ -40,6 +41,7 @@ import {
 import { resolveActiveRun, useSimulationSection } from "./useSimulationSection";
 import { useInputConfidence } from "./useInputConfidence";
 import type { InputConfidence } from "./simulationProvenance";
+import type { SensitivityFactor } from "./sensitivity";
 import type { ScenarioProvenance } from "./simulationTypes";
 
 const POLL_INTERVAL_MS = 2000;
@@ -66,6 +68,8 @@ export type ScenarioLab = {
   isPending: boolean;
   error: string | null;
   handleRun: () => Promise<void>;
+  /** SIM-25: il run centrale e due varianti per ogni ipotesi incerta. */
+  handleSensitivity: (factors: SensitivityFactor[]) => Promise<void>;
   /** SIM-14: il workspace AS-IS | A | B | C e lo scenario che il pannello modifica. */
   workspace: ScenarioWorkspace | null;
   workspaceError: string | null;
@@ -429,6 +433,41 @@ export function useScenarioLab(): ScenarioLab {
     }
   }, [draft, bpmnXml, template, templateLoading, t, syncSection, pollRun, selectRun, flushSave, submit, selectedScenario]);
 
+  /** SIM-25: lo studio di sensitivita' della bozza; il pannello segue il run centrale. */
+  const handleSensitivity = React.useCallback(async (factors: SensitivityFactor[]) => {
+    if (!template || templateLoading || !bpmnXml || !scenarioResourceIssues(draft).ready) {
+      setError(t("simulation.config.resourceSetupRequired"));
+      return;
+    }
+    if (factors.length === 0) return;
+    setIsRunning(true);
+    setError(null);
+    try {
+      await flushSave();
+      if (selectedScenario && pendingRef.current[selectedScenario.id]) throw new Error(t("simulation.scenarios.notSaved"));
+      const current = workspaceRef.current;
+      const latest = selectedScenario ? workspaceScenarios(current).find((s) => s.id === selectedScenario.id) ?? selectedScenario : null;
+      const ref = current && latest ? scenarioRef(current, latest) : null;
+      const [central] = await runSensitivityStudy(bpmnModelId, {
+        ...scenarioToInput(latest ? { ...draft, scenarioName: scenarioDisplayName(latest) } : draft, bpmnXml),
+        ...(ref ? { workspaceScenario: ref, seed: current?.seed ?? undefined } : {}),
+        idempotencyKey:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${bpmnModelId}-${Date.now()}`,
+      }, factors);
+      setPolledRun(central);
+      selectRun?.(central.id);
+      syncSection();
+      if (central.status === "pending") await pollRun(central.id);
+      else setPickedRunId(central.id);
+    } catch (err) {
+      setError(readError(err));
+    } finally {
+      if (mountedRef.current) setIsRunning(false);
+    }
+  }, [draft, bpmnXml, bpmnModelId, template, templateLoading, t, syncSection, pollRun, selectRun, flushSave, selectedScenario]);
+
   const runScenario = React.useCallback(async (scenario: WorkspaceScenario) => {
     if (!template || !bpmnXml) return false;
     const blocker = scenarioBlocker(scenario);
@@ -462,6 +501,7 @@ export function useScenarioLab(): ScenarioLab {
     isPending: activeRun?.status === "pending",
     error,
     handleRun,
+    handleSensitivity,
     workspace,
     // Senza workspace il pannello resta utilizzabile sulla bozza del browser: lo si dice in chiaro.
     workspaceError: workspaceError ?? (workspaceQuery.error ? t("simulation.scenarios.unavailable") : null),

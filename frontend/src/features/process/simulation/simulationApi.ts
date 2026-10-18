@@ -16,6 +16,7 @@ import {
   type SimulationReplay,
   type SimulationRun,
 } from "./simulationTypes";
+import type { SensitivityFactor } from "./sensitivity";
 
 export async function runProsimosSimulation(
   bpmnModelId: string,
@@ -23,103 +24,124 @@ export async function runProsimosSimulation(
 ): Promise<SimulationRun> {
   const raw = await http<unknown>(
     `/v1/workspace/bpmn-models/${bpmnModelId}/simulation-runs`,
+    { method: "POST", body: runRequestBody(input) },
+  );
+
+  return simulationRunSchema.parse(raw);
+}
+
+/** SIM-25: il run centrale e due varianti per ogni ipotesi incerta, in coda come un gruppo. */
+export async function runSensitivityStudy(
+  bpmnModelId: string,
+  input: CreateSimulationRunInput,
+  factors: SensitivityFactor[],
+): Promise<SimulationRun[]> {
+  const raw = await http<unknown>(
+    `/v1/workspace/bpmn-models/${bpmnModelId}/simulation-sensitivity`,
     {
       method: "POST",
       body: {
-        scenario_name: input.scenarioName,
-        total_cases: input.totalCases,
-        current_bpmn_xml: input.currentBpmnXml,
-        arrival_interval_seconds: input.arrivalIntervalSeconds,
-        default_task_duration_seconds: input.defaultTaskDurationSeconds,
-        default_cost_per_hour: input.defaultCostPerHour,
-        resource_amount: input.resourceAmount,
-        resource_name: input.resourceName,
-        sla: input.sla && {
-          target_seconds: input.sla.targetSeconds,
-          share: input.sla.share,
-          segments: input.sla.segments?.map((s) => ({ attribute: s.attribute, value: s.value, target_seconds: s.targetSeconds, share: s.share })),
-        },
-        case_fixed_cost: input.caseFixedCost,
-        warmup_cases: input.warmupCases,
-        horizon_days: input.horizonDays,
-        replications: input.replications,
-        arrival: input.arrival && {
-          mean_seconds: input.arrival.meanSeconds,
-          distribution: input.arrival.distribution,
-          std_seconds: input.arrival.stdSeconds,
-          min_seconds: input.arrival.minSeconds,
-          max_seconds: input.arrival.maxSeconds,
-          calendar_id: input.arrival.calendarId,
-          bands: input.arrival.bands?.map((band) => ({
-            from_day: band.fromDay,
-            to_day: band.toDay,
-            begin: band.begin,
-            end: band.end,
-            mean_seconds: band.meanSeconds,
-          })),
-        },
-        resources: input.resources?.map((r) => ({
-          id: r.id,
-          name: r.name,
-          cost_per_hour: r.costPerHour,
-          amount: r.amount,
-          calendar_id: r.calendarId,
-          shifts: r.shifts?.map((shift) => ({ amount: shift.amount, calendar_id: shift.calendarId })),
-        })),
-        tasks: input.tasks?.map((task) => ({
-          element_id: task.elementId,
-          mean_seconds: task.meanSeconds,
-          distribution: task.distribution,
-          resource_id: task.resourceId,
-          std_seconds: task.stdSeconds,
-          min_seconds: task.minSeconds,
-          max_seconds: task.maxSeconds,
-          claims: task.claims?.map((claim) => ({ claim_id: claim.claimId, label: claim.label })),
-          fixed_cost: task.fixedCost,
-          duration_by: task.durationBy && {
-            attribute: task.durationBy.attribute,
-            variants: task.durationBy.variants.map((v) => ({
-              ...(v.upTo !== undefined ? { up_to: v.upTo } : { value: v.value }),
-              mean_seconds: v.meanSeconds,
-              distribution: v.distribution,
-              std_seconds: v.stdSeconds,
-              min_seconds: v.minSeconds,
-              max_seconds: v.maxSeconds,
-            })),
-          },
-          other_assignments: task.otherAssignments?.map((other) => ({
-            resource_id: other.resourceId,
-            mean_seconds: other.meanSeconds,
-            distribution: other.distribution,
-            std_seconds: other.stdSeconds,
-            min_seconds: other.minSeconds,
-            max_seconds: other.maxSeconds,
-          })),
-          skip: task.skip,
-          rework: task.rework && {
-            back_to: task.rework.backTo,
-            probability: task.rework.probability,
-            max_repeats: task.rework.maxRepeats,
-            condition: task.rework.condition,
-          },
-        })),
-        gateways: input.gateways?.map((g) => ({
-          element_id: g.elementId,
-          branches: g.branches.map((b) => ({
-            flow_id: b.flowId,
-            probability: b.probability,
-          })),
-        })),
-        calendars: input.calendars?.length ? input.calendars : undefined,
-        model_patch: input.modelPatch,
-        idempotency_key: input.idempotencyKey,
-        seed: input.seed,
-        workspace_scenario: input.workspaceScenario,
+        base: runRequestBody(input),
+        factors: factors.map((f) => ({ kind: f.kind, element_id: f.elementId, label: f.label })),
       },
     },
   );
 
-  return simulationRunSchema.parse(raw);
+  return simulationRunsSchema.parse(raw);
+}
+
+function runRequestBody(input: CreateSimulationRunInput) {
+  return {
+    scenario_name: input.scenarioName,
+    total_cases: input.totalCases,
+    current_bpmn_xml: input.currentBpmnXml,
+    arrival_interval_seconds: input.arrivalIntervalSeconds,
+    default_task_duration_seconds: input.defaultTaskDurationSeconds,
+    default_cost_per_hour: input.defaultCostPerHour,
+    resource_amount: input.resourceAmount,
+    resource_name: input.resourceName,
+    sla: input.sla && {
+      target_seconds: input.sla.targetSeconds,
+      share: input.sla.share,
+      segments: input.sla.segments?.map((s) => ({ attribute: s.attribute, value: s.value, target_seconds: s.targetSeconds, share: s.share })),
+    },
+    case_fixed_cost: input.caseFixedCost,
+    warmup_cases: input.warmupCases,
+    horizon_days: input.horizonDays,
+    replications: input.replications,
+    arrival: input.arrival && {
+      mean_seconds: input.arrival.meanSeconds,
+      distribution: input.arrival.distribution,
+      std_seconds: input.arrival.stdSeconds,
+      min_seconds: input.arrival.minSeconds,
+      max_seconds: input.arrival.maxSeconds,
+      calendar_id: input.arrival.calendarId,
+      bands: input.arrival.bands?.map((band) => ({
+        from_day: band.fromDay,
+        to_day: band.toDay,
+        begin: band.begin,
+        end: band.end,
+        mean_seconds: band.meanSeconds,
+      })),
+    },
+    resources: input.resources?.map((r) => ({
+      id: r.id,
+      name: r.name,
+      cost_per_hour: r.costPerHour,
+      amount: r.amount,
+      calendar_id: r.calendarId,
+      shifts: r.shifts?.map((shift) => ({ amount: shift.amount, calendar_id: shift.calendarId })),
+    })),
+    tasks: input.tasks?.map((task) => ({
+      element_id: task.elementId,
+      mean_seconds: task.meanSeconds,
+      distribution: task.distribution,
+      resource_id: task.resourceId,
+      std_seconds: task.stdSeconds,
+      min_seconds: task.minSeconds,
+      max_seconds: task.maxSeconds,
+      claims: task.claims?.map((claim) => ({ claim_id: claim.claimId, label: claim.label })),
+      fixed_cost: task.fixedCost,
+      duration_by: task.durationBy && {
+        attribute: task.durationBy.attribute,
+        variants: task.durationBy.variants.map((v) => ({
+          ...(v.upTo !== undefined ? { up_to: v.upTo } : { value: v.value }),
+          mean_seconds: v.meanSeconds,
+          distribution: v.distribution,
+          std_seconds: v.stdSeconds,
+          min_seconds: v.minSeconds,
+          max_seconds: v.maxSeconds,
+        })),
+      },
+      other_assignments: task.otherAssignments?.map((other) => ({
+        resource_id: other.resourceId,
+        mean_seconds: other.meanSeconds,
+        distribution: other.distribution,
+        std_seconds: other.stdSeconds,
+        min_seconds: other.minSeconds,
+        max_seconds: other.maxSeconds,
+      })),
+      skip: task.skip,
+      rework: task.rework && {
+        back_to: task.rework.backTo,
+        probability: task.rework.probability,
+        max_repeats: task.rework.maxRepeats,
+        condition: task.rework.condition,
+      },
+    })),
+    gateways: input.gateways?.map((g) => ({
+      element_id: g.elementId,
+      branches: g.branches.map((b) => ({
+        flow_id: b.flowId,
+        probability: b.probability,
+      })),
+    })),
+    calendars: input.calendars?.length ? input.calendars : undefined,
+    model_patch: input.modelPatch,
+    idempotency_key: input.idempotencyKey,
+    seed: input.seed,
+    workspace_scenario: input.workspaceScenario,
+  };
 }
 
 export async function fetchScenarioTemplate(
