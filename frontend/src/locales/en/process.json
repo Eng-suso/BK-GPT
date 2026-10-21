@@ -1510,7 +1510,8 @@
       "consultant": "Consultant",
       "operations": "Operations",
       "consultantHint": "Assumptions, distributions, provenance, data quality, intervals and validation",
-      "operationsHint": "Process health, service targets, queues, cost and what to try, without parameters"
+      "operationsHint": "Process health, service targets, queues, cost and what to try, without parameters",
+      "configureAsConsultant": "Configure in the consultant view"
     }
   },
   "side": {

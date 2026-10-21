@@ -1510,7 +1510,8 @@
       "consultant": "Consulente",
       "operations": "Operations",
       "consultantHint": "Ipotesi, distribuzioni, provenienza, qualità dei dati, intervalli e validazione",
-      "operationsHint": "Salute del processo, obiettivi di servizio, code, costo e cosa provare, senza parametri"
+      "operationsHint": "Salute del processo, obiettivi di servizio, code, costo e cosa provare, senza parametri",
+      "configureAsConsultant": "Configura nella vista consulente"
     }
   },
   "side": {
