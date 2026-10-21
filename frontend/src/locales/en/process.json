@@ -1503,6 +1503,14 @@
       "onlyCheaper": "Cheaper by {{cost}} per case, same time.",
       "onlyCostlier": "Costlier by {{cost}} per case, same time.",
       "title": "Reading"
+    },
+    "perspective": {
+      "label": "Perspective",
+      "hint": "Only changes what you see: the scenario stays as it is and no run starts.",
+      "consultant": "Consultant",
+      "operations": "Operations",
+      "consultantHint": "Assumptions, distributions, provenance, data quality, intervals and validation",
+      "operationsHint": "Process health, service targets, queues, cost and what to try, without parameters"
     }
   },
   "side": {

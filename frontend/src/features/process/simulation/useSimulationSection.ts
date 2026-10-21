@@ -3,6 +3,7 @@ import { createContext, useContext } from "react";
 import type { Project, ProjectProcess } from "../../../contracts/workspace";
 import type { SimulationRun } from "./simulationTypes";
 import { isSensitivityVariant } from "./sensitivity";
+import type { Perspective } from "./perspective";
 
 export type AnalysisView = "replay" | "final" | "compare" | "heatmap";
 export type SimulationPanel = "scenario" | "scenarios" | "overview" | "compare" | "heatmap" | "insights" | "eventLog" | "widget" | "activity";
@@ -27,7 +28,10 @@ export type SimulationSectionValue = {
   setAnalysisView?: (view: AnalysisView) => void;
   panel?: SimulationPanel | null;
   openPanel?: (panel: SimulationPanel | null) => void;
-
+  /** SIM-21: Consultant View o Operations View sullo stesso stato. */
+  perspective?: Perspective;
+  /** Cambia prospettiva; con `panel` apre anche quel pannello nello stesso passo. */
+  setPerspective?: (perspective: Perspective, panel?: SimulationPanel | null) => void;
 };
 
 export const SimulationSectionContext =
