@@ -209,7 +209,8 @@
           "scene": "lv-problem",
           "to": 40
         }
-      ]
+      ],
+      "poster": 16
     },
     "02-agitate": {
       "chapter": "agitate",
@@ -218,7 +219,8 @@
           "scene": "lv-agitate",
           "to": 40
         }
-      ]
+      ],
+      "poster": 34
     },
     "03-discovery": {
       "chapter": "discovery",
@@ -232,7 +234,8 @@
           "scene": "lv-chat",
           "to": 32
         }
-      ]
+      ],
+      "poster": 42
     },
     "04-evidence": {
       "chapter": "evidence",
@@ -241,7 +244,8 @@
           "scene": "lv-evidence",
           "to": 49
         }
-      ]
+      ],
+      "poster": 30
     },
     "05-simulation": {
       "chapter": "simulation",
@@ -257,7 +261,8 @@
           "scene": "lv-sim-tobe",
           "to": 17
         }
-      ]
+      ],
+      "poster": 19
     },
     "06-results": {
       "chapter": "results",
@@ -269,7 +274,8 @@
         {
           "scene": "lv-handover"
         }
-      ]
+      ],
+      "poster": 6
     },
     "walkthrough": {
       "chapter": "walkthrough",
@@ -292,7 +298,8 @@
         },
         {
           "scene": "lv-sim-asis",
-          "chapter": "simulation"
+          "chapter": "simulation",
+          "to": 38
         },
         {
           "scene": "lv-heatmap",
@@ -300,7 +307,8 @@
         },
         {
           "scene": "lv-sim-tobe",
-          "chapter": "simulation"
+          "chapter": "simulation",
+          "to": 30
         },
         {
           "scene": "lv-compare",
@@ -310,7 +318,8 @@
           "scene": "lv-handover",
           "chapter": "results"
         }
-      ]
+      ],
+      "poster": 150
     }
   }
 }
