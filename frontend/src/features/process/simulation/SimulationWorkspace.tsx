@@ -19,6 +19,7 @@ import { ServiceLevelOutcome } from "./ServiceLevel";
 import { CostBreakdown, HorizonNote, WarmupNote } from "./CostBreakdown";
 import { ReplicationSummary } from "./ReplicationSummary";
 import { SensitivityTornado } from "./SensitivityTornado";
+import { OperationsBrief } from "./OperationsBrief";
 import {
   formatCurrency,
   formatDuration,
@@ -46,7 +47,9 @@ export function SimulationWorkspace({ embedded = false }: { embedded?: boolean }
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const navigate = useNavigate();
 
-  const { projectId, processId, selectedElementId: sharedSelection, selectElement } = useSimulationSection();
+  const { projectId, processId, selectedElementId: sharedSelection, selectElement, perspective = "consultant" } = useSimulationSection();
+  // SIM-21: Operations legge salute, obiettivi, code e costo; ipotesi e intervalli restano al consulente.
+  const operations = perspective === "operations";
   const lab = useScenarioLab();
   const { bpmnXml, activeRun, isPending } = lab;
 
@@ -107,9 +110,11 @@ export function SimulationWorkspace({ embedded = false }: { embedded?: boolean }
         {bpmnXml ? <SimulationBpmnView className="min-h-0 flex-1" bpmnXml={bpmnXml} overlays={overlays} selectedElementId={selectedElementId} onSelectElement={setSelectedElementId} /> : <EmptyState variant="inline" title={t("simulation.diagram.noModel")} />}
       </section>
       }
-      {activeRun && <ReplicationSummary run={activeRun} />}
-      {activeRun && <SensitivityTornado run={activeRun} />}
-      {activeRun?.status === "completed" && <><HorizonNote run={activeRun} /><WarmupNote run={activeRun} /><ServiceLevelOutcome run={activeRun} /><CostBreakdown run={activeRun} /></>}
+      {operations ? activeRun?.status === "completed" && <><ServiceLevelOutcome run={activeRun} /><OperationsBrief insights={insights} /><CostBreakdown run={activeRun} /></> : <>
+        {activeRun && <ReplicationSummary run={activeRun} />}
+        {activeRun && <SensitivityTornado run={activeRun} />}
+        {activeRun?.status === "completed" && <><HorizonNote run={activeRun} /><WarmupNote run={activeRun} /><ServiceLevelOutcome run={activeRun} /><CostBreakdown run={activeRun} /></>}
+      </>}
       {activeRun && <section aria-label={t("simulation.output.eyebrow")} className="shrink-0 ui-surface ui-surface-panel">
         <details open={Boolean(selectedElementId)}>
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">{t("simulation.results.summary")}</summary>

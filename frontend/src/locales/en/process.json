@@ -1511,7 +1511,15 @@
       "operations": "Operations",
       "consultantHint": "Assumptions, distributions, provenance, data quality, intervals and validation",
       "operationsHint": "Process health, service targets, queues, cost and what to try, without parameters",
-      "configureAsConsultant": "Configure in the consultant view"
+      "configureAsConsultant": "Configure in the consultant view",
+      "ops": {
+        "queuesTitle": "Where work piles up",
+        "queuesHint": "Activities ranked by total waiting in the run: average wait per case and share of all process waiting.",
+        "noQueues": "No activity has waiting cases in this run.",
+        "queueRow": "{{wait}} waiting · {{share}} of total",
+        "queueShare": "Share of total waiting: {{name}}",
+        "whatToTry": "What to try"
+      }
     }
   },
   "side": {

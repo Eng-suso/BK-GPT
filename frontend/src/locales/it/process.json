@@ -1511,7 +1511,15 @@
       "operations": "Operations",
       "consultantHint": "Ipotesi, distribuzioni, provenienza, qualità dei dati, intervalli e validazione",
       "operationsHint": "Salute del processo, obiettivi di servizio, code, costo e cosa provare, senza parametri",
-      "configureAsConsultant": "Configura nella vista consulente"
+      "configureAsConsultant": "Configura nella vista consulente",
+      "ops": {
+        "queuesTitle": "Dove si accumula il lavoro",
+        "queuesHint": "Attività ordinate per attesa totale nel run: attesa media per caso e quota di tutta l’attesa del processo.",
+        "noQueues": "Nel run nessuna attività ha casi in attesa.",
+        "queueRow": "{{wait}} di attesa · {{share}} del totale",
+        "queueShare": "Quota dell’attesa totale: {{name}}",
+        "whatToTry": "Cosa provare"
+      }
     }
   },
   "side": {
