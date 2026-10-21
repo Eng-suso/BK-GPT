@@ -11,7 +11,7 @@
  * scripts/landing_videos_edit.py. Processo: il caso semplice (simpleData.ts).
  */
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { IDS } from "./demo";
@@ -460,10 +460,20 @@ test("lv-overlays", async ({ page }) => {
     for (const [key, text] of Object.entries(tags as Record<string, { it: string; en: string }>)) {
       const name = `tag-${sceneId}-${key}`;
       index[name] = text.it;
-      await render(name, `<div style="padding:12px 22px 13px;background:#0f172a;border-radius:14px;max-width:820px;box-shadow:0 10px 30px rgba(15,23,42,.25)">
+      await render(name, `<div style="padding:12px 22px 13px;background:#0f172a;border-radius:14px;white-space:nowrap;box-shadow:0 10px 30px rgba(15,23,42,.25)">
         <div style="display:flex;gap:10px;align-items:baseline"><span style="flex:none;font-size:11px;font-weight:700;letter-spacing:.06em;color:#93c5fd">IT</span><span style="font-size:22px;font-weight:620;letter-spacing:-.01em;color:#fff;line-height:1.25">${esc(text.it)}</span></div>
         <div style="display:flex;gap:10px;align-items:baseline;margin-top:4px"><span style="flex:none;font-size:11px;font-weight:700;letter-spacing:.06em;color:#93c5fd">EN</span><span style="font-size:17px;font-weight:450;color:#cbd5e1;line-height:1.25">${esc(text.en)}</span></div></div>`);
     }
+  }
+  // Una riga sola e dentro la fascia libera fra capitolo e disclaimer.
+  for (const name of Object.keys(index)) {
+    const { width } = await page.evaluate(async (src) => {
+      const image = new Image();
+      image.src = src;
+      await image.decode();
+      return { width: image.naturalWidth };
+    }, `data:image/png;base64,${readFileSync(resolve(dir, `${name}.png`)).toString("base64")}`);
+    expect(width, `${name} troppo larga`).toBeLessThanOrEqual(840);
   }
   for (const [key, text] of Object.entries(script.chapters)) {
     await render(`chapter-${key}`, `<div style="display:inline-flex;align-items:center;gap:10px;padding:8px 14px;background:#fff;border:1px solid #dbe4f0;border-radius:999px;box-shadow:0 6px 18px rgba(15,23,42,.08)">
