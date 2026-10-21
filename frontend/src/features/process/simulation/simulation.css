@@ -12,6 +12,12 @@
   --sim-heat-2: color-mix(in oklab, var(--color-status-warning) 34%, transparent);
   --sim-heat-3: color-mix(in oklab, var(--color-status-warning) 52%, transparent);
   --sim-heat-4: color-mix(in oklab, var(--color-status-danger) 46%, transparent);
+  /* SIM-20: lente Affidabilita', dall'intervento piu' urgente al validato. */
+  --sim-trust-calibrate: var(--domain-validation-fail-border);
+  --sim-trust-weak: var(--domain-validation-warning-border);
+  --sim-trust-partial: var(--domain-evidence-missing-border);
+  --sim-trust-solid: var(--sim-info);
+  --sim-trust-validated: var(--domain-validation-pass-border);
   --sim-bottleneck-surface: color-mix(in oklab, var(--color-status-warning) 12%, var(--color-surface-primary));
   --sim-bottleneck-border: color-mix(in oklab, var(--color-status-warning) 38%, transparent);
 
@@ -413,3 +419,22 @@
 .sim-workspace-table tbody tr:first-child { background: color-mix(in oklab, var(--sim-info) 5%, transparent); }
 .sim-workspace-name { display: flex; gap: 6px; align-items: baseline; color: var(--color-text-primary); }
 .sim-workspace-actions { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 4px; margin-inline-start: -8px; }
+
+/* SIM-20: lente Affidabilita' sul BPMN. Il tratteggio distingue l'ipotesi
+ * debole dal da calibrare anche senza colore. */
+.djs-element.sim-trust-calibrate .djs-visual > :nth-child(1) { stroke: var(--sim-trust-calibrate) !important; stroke-width: var(--stroke-width-emphasis); }
+.djs-element.sim-trust-weak .djs-visual > :nth-child(1) { stroke: var(--sim-trust-weak) !important; stroke-width: var(--stroke-width-emphasis); stroke-dasharray: 6 4; }
+.djs-element.sim-trust-partial .djs-visual > :nth-child(1) { stroke: var(--sim-trust-partial) !important; stroke-dasharray: 3 3; }
+.djs-element.sim-trust-solid .djs-visual > :nth-child(1) { stroke: var(--sim-trust-solid) !important; }
+.djs-element.sim-trust-validated .djs-visual > :nth-child(1) { stroke: var(--sim-trust-validated) !important; stroke-width: var(--stroke-width-emphasis); }
+.sim-trust-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: var(--font-size-75); color: var(--foreground); }
+.sim-trust-swatch { display: inline-block; width: 10px; height: 10px; flex-shrink: 0; border-radius: 2px; border: 2px solid var(--sim-trust-solid); }
+[data-trust="calibrate"] .sim-trust-swatch, .sim-trust-chip[data-trust="calibrate"] .sim-trust-swatch { border-color: var(--sim-trust-calibrate); }
+[data-trust="weak"] .sim-trust-swatch { border-color: var(--sim-trust-weak); border-style: dashed; }
+[data-trust="toConfirm"] .sim-trust-swatch { border-color: var(--sim-trust-partial); border-style: dotted; }
+[data-trust="validated"] .sim-trust-swatch { border-color: var(--sim-trust-validated); background: var(--sim-trust-validated); }
+.sim-process-legend i.sim-trust-swatch { border-width: 2px; border-color: var(--sim-trust-solid); }
+.sim-process-legend [data-trust="calibrate"] i.sim-trust-swatch { border-color: var(--sim-trust-calibrate); }
+.sim-process-legend [data-trust="weak"] i.sim-trust-swatch { border-color: var(--sim-trust-weak); }
+.sim-process-legend [data-trust="toConfirm"] i.sim-trust-swatch { border-color: var(--sim-trust-partial); }
+.sim-process-legend [data-trust="validated"] i.sim-trust-swatch { border-color: var(--sim-trust-validated); }
