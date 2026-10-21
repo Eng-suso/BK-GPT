@@ -156,7 +156,8 @@
 .sim-process-legend i { display:inline-block; width:10px; height:10px; border:1px solid var(--border); border-radius:2px; }
 
 /* SIM-21: prospettiva Consulente | Operations, segmentata come le tab degli scenari. */
-.sim-perspective-switch { display:flex; gap:2px; padding:2px; flex-shrink:0; border:1px solid var(--border); border-radius:var(--radius-control, 6px); background:var(--color-surface-inset, transparent); }
+/* Senza bordo ne' padding propri: alto quanto la select del run, la barra non cresce. */
+.sim-perspective-switch { display:flex; gap:2px; flex-shrink:0; }
 
 /* Compact operational controls reserve usable process space on small screens. */
 @media(max-width:800px) {
