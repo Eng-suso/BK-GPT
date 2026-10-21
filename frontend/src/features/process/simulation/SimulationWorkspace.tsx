@@ -110,7 +110,7 @@ export function SimulationWorkspace({ embedded = false }: { embedded?: boolean }
         {bpmnXml ? <SimulationBpmnView className="min-h-0 flex-1" bpmnXml={bpmnXml} overlays={overlays} selectedElementId={selectedElementId} onSelectElement={setSelectedElementId} /> : <EmptyState variant="inline" title={t("simulation.diagram.noModel")} />}
       </section>
       }
-      {operations ? activeRun?.status === "completed" && <><ServiceLevelOutcome run={activeRun} /><OperationsBrief insights={insights} /><CostBreakdown run={activeRun} /></> : <>
+      {operations ? activeRun?.status === "completed" && <><ServiceLevelOutcome run={activeRun} /><OperationsBrief summary={summary} /><CostBreakdown run={activeRun} /></> : <>
         {activeRun && <ReplicationSummary run={activeRun} />}
         {activeRun && <SensitivityTornado run={activeRun} />}
         {activeRun?.status === "completed" && <><HorizonNote run={activeRun} /><WarmupNote run={activeRun} /><ServiceLevelOutcome run={activeRun} /><CostBreakdown run={activeRun} /></>}

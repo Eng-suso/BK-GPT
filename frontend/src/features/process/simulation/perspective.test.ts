@@ -1,16 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { isPanelVisible, panelInPerspective, parsePerspective, queueHotspots } from "./perspective";
-import type { SimulationInsights, TaskStat } from "./simulationResults";
 
-const task = (name: string, avgWaitingSec: number, volume: number): TaskStat => ({
-  name, elementId: name, volume, avgWaitingSec, avgProcessingSec: 60, avgCycleSec: avgWaitingSec + 60, avgCost: 1, totalCost: volume, waitingShare: 0,
-});
-
-const insights = (tasks: TaskStat[]): SimulationInsights => ({
-  hasData: true, casesCompleted: 10, avgCycleSec: 0, avgProcessingSec: 0, avgWaitingSec: 0, waitingShare: 0,
-  totalCost: 0, avgCostPerCase: 0, resources: [], tasks, bottleneck: null, bottleneckElementId: null, files: [],
-} as SimulationInsights);
+const act = (name: string, avg: number, count: number, queue?: number) => ({ el: `el-${name}`, name, count, wait: { avg }, ...(queue === undefined ? {} : { queue: { avg: queue, max: 3 } }) });
 
 describe("perspective (SIM-21)", () => {
   it("parte dal consulente se la prospettiva manca o non e' valida", () => {
@@ -33,18 +25,21 @@ describe("perspective (SIM-21)", () => {
   });
 
   it("ordina le code per attesa totale e ne da' la quota", () => {
-    const rows = queueHotspots(insights([task("A", 100, 1), task("B", 10, 50), task("C", 0, 99), task("D", 50, 4)]));
-    expect(rows.map((row) => row.task.name)).toEqual(["B", "D", "A"]);
+    const rows = queueHotspots([act("A", 100, 1), act("B", 10, 50, 1.5), act("C", 0, 99), act("D", 50, 4)]);
+    expect(rows.map((row) => row.name)).toEqual(["B", "D", "A"]);
+    expect(rows[0]).toMatchObject({ el: "el-B", avgWaitSec: 10, count: 50, queueAvg: 1.5 });
+    expect(rows[1].queueAvg).toBeNull();
     expect(rows[0].share).toBeCloseTo(500 / 800);
     expect(rows.reduce((acc, row) => acc + row.share, 0)).toBeCloseTo(1);
   });
 
   it("senza attesa misurata non inventa code", () => {
-    expect(queueHotspots(insights([task("A", 0, 10)]))).toEqual([]);
-    expect(queueHotspots(insights([]))).toEqual([]);
+    expect(queueHotspots([act("A", 0, 10)])).toEqual([]);
+    expect(queueHotspots([{ name: "X" }])).toEqual([]);
+    expect(queueHotspots(null)).toEqual([]);
   });
 
   it("rispetta il limite", () => {
-    expect(queueHotspots(insights([task("A", 1, 1), task("B", 2, 1), task("C", 3, 1)]), 2)).toHaveLength(2);
+    expect(queueHotspots([act("A", 1, 1), act("B", 2, 1), act("C", 3, 1)], 2)).toHaveLength(2);
   });
 });

@@ -1521,7 +1521,9 @@
         "whatToTry": "What to try",
         "parametersElsewhere": "Durations, assigned resources and sources for this activity are in the consultant view.",
         "showParameters": "Show parameters",
-        "prepareScenario": "Prepare the scenario with the consultant"
+        "prepareScenario": "Prepare the scenario with the consultant",
+        "queueLength_one": "On average {{value}} case queued",
+        "queueLength_other": "On average {{value}} cases queued"
       }
     }
   },

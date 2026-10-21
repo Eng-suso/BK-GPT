@@ -7,17 +7,11 @@ import "@/lib/i18n";
 
 import { OperationsBrief } from "./OperationsBrief";
 import { PerspectiveSwitch } from "./PerspectiveSwitch";
-import type { SimulationInsights, TaskStat } from "./simulationResults";
+import type { SimulationSummary } from "./simulationTypes";
 import { SimulationSectionContext, type SimulationSectionValue } from "./useSimulationSection";
 
-const task = (name: string, avgWaitingSec: number, volume: number): TaskStat => ({
-  name, elementId: `el-${name}`, volume, avgWaitingSec, avgProcessingSec: 60, avgCycleSec: avgWaitingSec + 60, avgCost: 1, totalCost: volume, waitingShare: 0,
-});
-
-const insights = (tasks: TaskStat[]): SimulationInsights => ({
-  hasData: true, casesCompleted: 10, avgCycleSec: 0, avgProcessingSec: 0, avgWaitingSec: 0, waitingShare: 0,
-  totalCost: 0, avgCostPerCase: 0, resources: [], tasks, bottleneck: null, bottleneckElementId: null, files: [],
-} as SimulationInsights);
+const act = (name: string, avg: number, count: number, queue?: number) => ({ el: `el-${name}`, name, count, wait: { avg }, ...(queue === undefined ? {} : { queue: { avg: queue, max: 3 } }) });
+const summary = (byActivity: Record<string, unknown>[]) => ({ byActivity } as unknown as SimulationSummary);
 
 function withSection(ui: React.ReactNode, section: Partial<SimulationSectionValue>) {
   return <SimulationSectionContext.Provider value={section as SimulationSectionValue}>{ui}</SimulationSectionContext.Provider>;
@@ -41,11 +35,13 @@ describe("prospettive (SIM-21)", () => {
     const user = userEvent.setup();
     const selectElement = vi.fn();
     const openPanel = vi.fn();
-    render(withSection(<OperationsBrief insights={insights([task("Verifica", 600, 10), task("Approva", 60, 10), task("Archivia", 0, 10)])} />, { selectElement, openPanel, selectedElementId: null }));
+    render(withSection(<OperationsBrief summary={summary([act("Verifica", 600, 10, 2.25), act("Approva", 60, 10), act("Archivia", 0, 10)])} />, { selectElement, openPanel, selectedElementId: null }));
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(2);
     expect(items[0]).toHaveTextContent("Verifica");
     expect(items[0]).toHaveTextContent("91% del totale");
+    expect(items[0]).toHaveTextContent("In media 2,3 casi in coda");
+    expect(items[1]).not.toHaveTextContent("in coda");
     await user.click(screen.getByRole("button", { name: "Verifica" }));
     expect(selectElement).toHaveBeenCalledWith("el-Verifica");
     await user.click(screen.getByRole("button", { name: /Cosa provare/ }));
@@ -53,7 +49,7 @@ describe("prospettive (SIM-21)", () => {
   });
 
   it("senza attesa nel run lo dice invece di mostrare code a zero", () => {
-    render(withSection(<OperationsBrief insights={insights([task("Verifica", 0, 10)])} />, {}));
+    render(withSection(<OperationsBrief summary={summary([act("Verifica", 0, 10)])} />, {}));
     expect(screen.getByText("Nel run nessuna attività ha casi in attesa.")).toBeInTheDocument();
     expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
   });

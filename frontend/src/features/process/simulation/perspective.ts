@@ -9,7 +9,6 @@
  *   cosa provare, senza parametri del modello.
  */
 import type { SimulationPanel } from "./useSimulationSection";
-import type { SimulationInsights, TaskStat } from "./simulationResults";
 
 export type Perspective = "consultant" | "operations";
 
@@ -36,24 +35,37 @@ export function panelInPerspective(panel: SimulationPanel | null, perspective: P
 }
 
 export type QueueHotspot = {
-  task: TaskStat;
-  /** Quota dell'attesa totale del processo (attesa media x volume), 0-1. */
+  /** Elemento BPMN dell'attivita', quando il log lo riconosce. */
+  el: string | null;
+  name: string;
+  avgWaitSec: number;
+  count: number;
+  /** Casi in coda in media nel run (pesata sul tempo), se misurata. */
+  queueAvg: number | null;
+  /** Quota dell'attesa totale del processo (attesa media x occorrenze), 0-1. */
   share: number;
 };
 
+const num = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) ? value : null;
+
 /**
- * Dove si accumula il lavoro: le attivita' con piu' attesa totale, con la loro
- * quota dell'attesa complessiva. Nessuna attesa misurata = nessuna riga, non
- * una riga a zero.
+ * Dove si accumula il lavoro, dal riepilogo del run sul log completo
+ * (`summary.byActivity`): le attivita' con piu' attesa totale e la loro quota
+ * dell'attesa complessiva. Nessuna attesa misurata = nessuna riga, non una
+ * riga a zero.
  */
-export function queueHotspots(insights: SimulationInsights, limit = 3): QueueHotspot[] {
-  const waiting = insights.tasks
-    .map((task) => ({ task, total: task.avgWaitingSec * Math.max(task.volume, 0) }))
-    .filter((row) => row.total > 0);
-  const sum = waiting.reduce((acc, row) => acc + row.total, 0);
-  if (sum <= 0) return [];
-  return waiting
-    .sort((a, b) => b.total - a.total || a.task.name.localeCompare(b.task.name))
+export function queueHotspots(byActivity: readonly Record<string, unknown>[] | null | undefined, limit = 3): QueueHotspot[] {
+  const rows = (byActivity ?? []).flatMap((row) => {
+    const avgWaitSec = num((row.wait as { avg?: unknown } | undefined)?.avg) ?? 0;
+    const count = Math.max(num(row.count) ?? 0, 0);
+    const total = avgWaitSec * count;
+    if (total <= 0) return [];
+    const name = typeof row.name === "string" ? row.name : typeof row.el === "string" ? row.el : "—";
+    return [{ el: typeof row.el === "string" ? row.el : null, name, avgWaitSec, count, queueAvg: num((row.queue as { avg?: unknown } | undefined)?.avg), total }];
+  });
+  const sum = rows.reduce((acc, row) => acc + row.total, 0);
+  return rows
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
     .slice(0, limit)
-    .map((row) => ({ task: row.task, share: row.total / sum }));
+    .map(({ total, ...row }) => ({ ...row, share: total / sum }));
 }
