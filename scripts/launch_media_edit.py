@@ -209,7 +209,8 @@ def build_entry(entry: dict, cut: dict):
 
 
 def build_shot(entry: dict, cut: dict) -> Shot:
-    scene = next(item for item in STORYBOARD["scenes"] if item["id"] == entry["id"])
+    # Le scene del caso semplice (video della landing) stanno in `simpleScenes`.
+    scene = next(item for item in STORYBOARD["scenes"] + STORYBOARD.get("simpleScenes", []) if item["id"] == entry["id"])
     meta = json.loads((RAW / entry["id"] / "scene.json").read_text(encoding="utf-8"))
     offset = meta.get("offset", 0.0)
     end = meta["end"]
