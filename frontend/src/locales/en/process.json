@@ -1518,7 +1518,9 @@
         "noQueues": "No activity has waiting cases in this run.",
         "queueRow": "{{wait}} waiting · {{share}} of total",
         "queueShare": "Share of total waiting: {{name}}",
-        "whatToTry": "What to try"
+        "whatToTry": "What to try",
+        "parametersElsewhere": "Durations, assigned resources and sources for this activity are in the consultant view.",
+        "showParameters": "Show parameters"
       }
     }
   },
