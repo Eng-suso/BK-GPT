@@ -157,7 +157,8 @@ def build_part(entry: dict, cut: dict) -> Part:
     meta = json.loads((RAW / scene / "scene.json").read_text(encoding="utf-8"))
     offset = meta.get("offset", 0.0)
     marks = {name: value - offset for name, value in meta.get("marks", {}).items()}
-    mark = lambda value, default: default if value is None else value if isinstance(value, (int, float)) else marks[value]
+    # Un segno per nome ("cut", "end") o per targhetta ("francesca" = "tag:francesca").
+    mark = lambda value, default: default if value is None else value if isinstance(value, (int, float)) else marks.get(value, marks.get(f"tag:{value}"))
     raw0 = mark(entry.get("from"), 0.0)
     raw1 = min(mark(entry.get("to"), marks.get("end", meta["end"])), meta["end"] - 0.05)
     frames_t = [frame["t"] for frame in meta["frames"]]
@@ -199,7 +200,12 @@ def chrome(canvas: Image.Image, part: Part, t: float, weight: float) -> None:
     rise = ease_out((t - start) / TAG_IN) if start > 0 else 1.0
     fall = min(1.0, (end - t) / TAG_OUT) if end < part.duration - 0.01 else 1.0
     alpha = max(0.0, min(rise, fall)) * weight
-    draw(canvas, image, (W - image.width) // 2, STRIP - image.height // 2 + round((1 - rise) * 14), alpha)
+    # Al centro dello spazio libero fra il capitolo e il disclaimer.
+    disclaimer = overlay("disclaimer")
+    left = PX + (chapter.width if chapter else 0) + 24
+    right = PX + PW - (disclaimer.width if disclaimer else 0) - 24
+    x = max(left, min((W - image.width) // 2, right - image.width))
+    draw(canvas, image, x, STRIP - image.height // 2 + round((1 - rise) * 14), alpha)
 
 
 def frame_of(part: Part, t: float, weight: float = 1.0) -> Image.Image:
