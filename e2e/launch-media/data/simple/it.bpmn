@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:delir="https://delir.app/schema/bpmn/1.0" id="Definitions_richiesta" targetNamespace="https://delir.ai/bpmn">
+  <bpmn:collaboration id="Collaboration_richiesta"><bpmn:participant id="Participant_richiesta" name="Richiesta di acquisto" processRef="Process_richiesta" /></bpmn:collaboration>
+  <bpmn:process id="Process_richiesta" name="Richiesta di acquisto" isExecutable="false">
+    <bpmn:laneSet id="Process_richiesta_lanes">
+      <bpmn:lane id="requester" name="Richiedente"><bpmn:flowNodeRef>start</bpmn:flowNodeRef><bpmn:flowNodeRef>send_request</bpmn:flowNodeRef><bpmn:flowNodeRef>complete_request</bpmn:flowNodeRef></bpmn:lane>
+      <bpmn:lane id="purchasing" name="Ufficio Acquisti"><bpmn:flowNodeRef>check_request</bpmn:flowNodeRef><bpmn:flowNodeRef>gw_complete</bpmn:flowNodeRef><bpmn:flowNodeRef>issue_po</bpmn:flowNodeRef><bpmn:flowNodeRef>end</bpmn:flowNodeRef></bpmn:lane>
+      <bpmn:lane id="manager" name="Responsabile"><bpmn:flowNodeRef>approve_spend</bpmn:flowNodeRef></bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="start" name="Fabbisogno rilevato"><bpmn:outgoing>f_start</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="send_request" name="Invia richiesta d'acquisto" delir:owner="Paolo Marchetti" delir:office="Manutenzione" delir:systems="Mail" delir:files="Procedura acquisti v3.pdf; Intervista Paolo Marchetti · Manutenzione"><bpmn:documentation>«Quando mi serve qualcosa mando una mail ad Acquisti con quello che mi serve.» (Paolo Marchetti)
+
+DeliR traceability: {"source_refs": ["steps:send_request"]}</bpmn:documentation><bpmn:incoming>f_start</bpmn:incoming><bpmn:outgoing>f_send</bpmn:outgoing></bpmn:userTask>
+    <bpmn:userTask id="complete_request" name="Completa la richiesta" delir:owner="Paolo Marchetti" delir:office="Manutenzione" delir:risks="Una richiesta su due torna indietro (stima di Francesca, non misurata)." delir:systems="Mail" delir:files="Intervista Francesca Neri · Ufficio Acquisti"><bpmn:documentation>«Una richiesta su due arriva senza codice o senza quantità, e la rimando indietro.» (Francesca Neri)
+
+DeliR traceability: {"source_refs": ["steps:complete_request"]}</bpmn:documentation><bpmn:incoming>f_incomplete</bpmn:incoming><bpmn:outgoing>f_back</bpmn:outgoing></bpmn:userTask>
+    <bpmn:userTask id="check_request" name="Verifica la richiesta" delir:owner="Francesca Neri" delir:office="Ufficio Acquisti" delir:rules="Completa: codice articolo, quantità e centro di costo." delir:systems="Mail, gestionale" delir:files="Intervista Francesca Neri · Ufficio Acquisti; Procedura acquisti v3.pdf"><bpmn:documentation>«Controllo che ci siano codice articolo, quantità e centro di costo.» (Francesca Neri)
+
+DeliR traceability: {"source_refs": ["steps:check_request"]}</bpmn:documentation><bpmn:incoming>f_send</bpmn:incoming><bpmn:incoming>f_back</bpmn:incoming><bpmn:outgoing>f_check</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="gw_complete" name="Richiesta completa?" default="f_complete"><bpmn:incoming>f_check</bpmn:incoming><bpmn:outgoing>f_incomplete</bpmn:outgoing><bpmn:outgoing>f_complete</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="issue_po" name="Emetti l'ordine" delir:owner="Francesca Neri" delir:office="Ufficio Acquisti" delir:systems="Gestionale" delir:files="Intervista Francesca Neri · Ufficio Acquisti"><bpmn:documentation>«Con la firma emetto l'ordine nel gestionale e lo mando al fornitore.» (Francesca Neri)
+
+DeliR traceability: {"source_refs": ["steps:issue_po"]}</bpmn:documentation><bpmn:incoming>f_approved</bpmn:incoming><bpmn:outgoing>f_end</bpmn:outgoing></bpmn:userTask>
+    <bpmn:endEvent id="end" name="Ordine inviato"><bpmn:incoming>f_end</bpmn:incoming></bpmn:endEvent>
+    <bpmn:userTask id="approve_spend" name="Autorizza la spesa" delir:owner="Laura Conti" delir:office="Responsabile Acquisti" delir:rules="Serve sopra una soglia di importo che nessuna fonte dichiara: domanda aperta." delir:risks="Nessun sostituto: quando la responsabile non c'è la richiesta resta ferma." delir:systems="Mail" delir:files="Intervista Francesca Neri · Ufficio Acquisti; Procedura acquisti v3.pdf"><bpmn:documentation>«Laura firma il martedì e il giovedì, quando è in sede.» (Francesca Neri)
+
+DeliR traceability: {"source_refs": ["steps:approve_spend"]}</bpmn:documentation><bpmn:incoming>f_complete</bpmn:incoming><bpmn:outgoing>f_approved</bpmn:outgoing></bpmn:userTask>
+    <bpmn:sequenceFlow id="f_start" sourceRef="start" targetRef="send_request" />
+    <bpmn:sequenceFlow id="f_send" sourceRef="send_request" targetRef="check_request" />
+    <bpmn:sequenceFlow id="f_check" sourceRef="check_request" targetRef="gw_complete" />
+    <bpmn:sequenceFlow id="f_incomplete" name="No" sourceRef="gw_complete" targetRef="complete_request" />
+    <bpmn:sequenceFlow id="f_back" sourceRef="complete_request" targetRef="check_request" />
+    <bpmn:sequenceFlow id="f_complete" name="Sì" sourceRef="gw_complete" targetRef="approve_spend" />
+    <bpmn:sequenceFlow id="f_approved" sourceRef="approve_spend" targetRef="issue_po" />
+    <bpmn:sequenceFlow id="f_end" sourceRef="issue_po" targetRef="end" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_richiesta"><bpmndi:BPMNPlane id="Plane_richiesta" bpmnElement="Collaboration_richiesta">
+    <bpmndi:BPMNShape id="Participant_richiesta_di" bpmnElement="Participant_richiesta" isHorizontal="true"><dc:Bounds x="0" y="0" width="1180" height="450" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="requester_di" bpmnElement="requester" isHorizontal="true"><dc:Bounds x="30" y="0" width="1150" height="150" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="purchasing_di" bpmnElement="purchasing" isHorizontal="true"><dc:Bounds x="30" y="150" width="1150" height="150" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="manager_di" bpmnElement="manager" isHorizontal="true"><dc:Bounds x="30" y="300" width="1150" height="150" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="start_di" bpmnElement="start"><dc:Bounds x="90" y="57" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="63" y="97" width="90" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="send_request_di" bpmnElement="send_request"><dc:Bounds x="170" y="35" width="120" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="complete_request_di" bpmnElement="complete_request"><dc:Bounds x="480" y="35" width="120" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="check_request_di" bpmnElement="check_request"><dc:Bounds x="330" y="185" width="120" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="gw_complete_di" bpmnElement="gw_complete" isMarkerVisible="true"><dc:Bounds x="515" y="200" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="440" y="170" width="90" height="27" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="issue_po_di" bpmnElement="issue_po"><dc:Bounds x="800" y="185" width="120" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="end_di" bpmnElement="end"><dc:Bounds x="1000" y="207" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="973" y="247" width="90" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="approve_spend_di" bpmnElement="approve_spend"><dc:Bounds x="640" y="335" width="120" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge id="f_start_di" bpmnElement="f_start"><di:waypoint x="126" y="75" /><di:waypoint x="170" y="75" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_send_di" bpmnElement="f_send"><di:waypoint x="230" y="115" /><di:waypoint x="230" y="225" /><di:waypoint x="330" y="225" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_check_di" bpmnElement="f_check"><di:waypoint x="450" y="225" /><di:waypoint x="515" y="225" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_incomplete_di" bpmnElement="f_incomplete"><di:waypoint x="540" y="200" /><di:waypoint x="540" y="115" /><bpmndi:BPMNLabel><dc:Bounds x="548" y="140" width="24" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_back_di" bpmnElement="f_back"><di:waypoint x="480" y="75" /><di:waypoint x="390" y="75" /><di:waypoint x="390" y="185" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_complete_di" bpmnElement="f_complete"><di:waypoint x="540" y="250" /><di:waypoint x="540" y="375" /><di:waypoint x="640" y="375" /><bpmndi:BPMNLabel><dc:Bounds x="548" y="290" width="24" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_approved_di" bpmnElement="f_approved"><di:waypoint x="760" y="375" /><di:waypoint x="860" y="375" /><di:waypoint x="860" y="265" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_end_di" bpmnElement="f_end"><di:waypoint x="920" y="225" /><di:waypoint x="1000" y="225" /></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>

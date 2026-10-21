@@ -1,0 +1,316 @@
+{
+ "simulation_template": {
+  "resources": [
+   {
+    "id": "bpmn-lane-2591c674ea8032f0",
+    "name": "Richiedente",
+    "kind": "lane",
+    "bpmn_id": "requester",
+    "pool_name": "Richiesta di acquisto",
+    "parent_name": null,
+    "task_ids": [
+     "send_request",
+     "complete_request"
+    ]
+   },
+   {
+    "id": "bpmn-lane-93fa6393336f975a",
+    "name": "Ufficio Acquisti",
+    "kind": "lane",
+    "bpmn_id": "purchasing",
+    "pool_name": "Richiesta di acquisto",
+    "parent_name": null,
+    "task_ids": [
+     "check_request",
+     "issue_po"
+    ]
+   },
+   {
+    "id": "bpmn-lane-6ee4a469cd4e9105",
+    "name": "Responsabile",
+    "kind": "lane",
+    "bpmn_id": "manager",
+    "pool_name": "Richiesta di acquisto",
+    "parent_name": null,
+    "task_ids": [
+     "approve_spend"
+    ]
+   }
+  ],
+  "tasks": [
+   {
+    "element_id": "send_request",
+    "name": "Invia richiesta d'acquisto",
+    "type": "task"
+   },
+   {
+    "element_id": "complete_request",
+    "name": "Completa la richiesta",
+    "type": "task"
+   },
+   {
+    "element_id": "check_request",
+    "name": "Verifica la richiesta",
+    "type": "task"
+   },
+   {
+    "element_id": "issue_po",
+    "name": "Emetti l'ordine",
+    "type": "task"
+   },
+   {
+    "element_id": "approve_spend",
+    "name": "Autorizza la spesa",
+    "type": "task"
+   }
+  ],
+  "gateways": [
+   {
+    "element_id": "gw_complete",
+    "name": "Richiesta completa?",
+    "type": "exclusiveGateway",
+    "branches": [
+     {
+      "flow_id": "f_incomplete",
+      "flow_name": "No",
+      "target_name": "Completa la richiesta"
+     },
+     {
+      "flow_id": "f_complete",
+      "flow_name": "Sì",
+      "target_name": "Autorizza la spesa"
+     }
+    ],
+    "escalation": null
+   }
+  ],
+  "standard_calendar": {
+   "id": "delir-calendar-standard",
+   "name": "Standard office calendar",
+   "periods": [
+    {
+     "from_day": "MONDAY",
+     "to_day": "FRIDAY",
+     "begin": "09:00",
+     "end": "17:00"
+    }
+   ]
+  }
+ },
+ "simulation_provenance": {
+  "has_discovery": true,
+  "elements": []
+ },
+ "simulation_compatibility": {
+  "elements": [
+   {
+    "element_id": "Process_richiesta_lanes",
+    "name": "",
+    "bpmn_type": "laneSet",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "requester",
+    "name": "Richiedente",
+    "bpmn_type": "lane",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "purchasing",
+    "name": "Ufficio Acquisti",
+    "bpmn_type": "lane",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "manager",
+    "name": "Responsabile",
+    "bpmn_type": "lane",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "start",
+    "name": "Fabbisogno rilevato",
+    "bpmn_type": "startEvent",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "startEvent",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "send_request",
+    "name": "Invia richiesta d'acquisto",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "complete_request",
+    "name": "Completa la richiesta",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "check_request",
+    "name": "Verifica la richiesta",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "gw_complete",
+    "name": "Richiesta completa?",
+    "bpmn_type": "exclusiveGateway",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "exclusiveGateway",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "issue_po",
+    "name": "Emetti l'ordine",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "end",
+    "name": "Ordine inviato",
+    "bpmn_type": "endEvent",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "endEvent",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "approve_spend",
+    "name": "Autorizza la spesa",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "f_start",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "f_send",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "f_check",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "f_incomplete",
+    "name": "No",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "f_back",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "f_complete",
+    "name": "Sì",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "f_approved",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "f_end",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   }
+  ],
+  "counts": {
+   "preserved": 16,
+   "approximated": 0,
+   "flattened": 0,
+   "removed": 4
+  },
+  "kpi_affecting": 0,
+  "undeclared": 0
+ }
+}
