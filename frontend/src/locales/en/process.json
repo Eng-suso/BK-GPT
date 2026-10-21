@@ -1520,7 +1520,8 @@
         "queueShare": "Share of total waiting: {{name}}",
         "whatToTry": "What to try",
         "parametersElsewhere": "Durations, assigned resources and sources for this activity are in the consultant view.",
-        "showParameters": "Show parameters"
+        "showParameters": "Show parameters",
+        "prepareScenario": "Prepare the scenario with the consultant"
       }
     }
   },

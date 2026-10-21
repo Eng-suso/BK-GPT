@@ -31,7 +31,8 @@ export function InsightsPage({ embedded = false }: { embedded?: boolean } = {}):
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const navigate = useNavigate();
-  const { projectId, processId, openPanel, selectElement } = useSimulationSection();
+  const { projectId, processId, openPanel, selectElement, perspective, setPerspective } = useSimulationSection();
+  const operations = perspective === "operations";
 
   const lab = useScenarioLab();
   const { activeRun, draft, updateDraft, confidence } = lab;
@@ -67,7 +68,9 @@ export function InsightsPage({ embedded = false }: { embedded?: boolean } = {}):
         : t("simulation.insights.scenarioName", { base: draft.scenarioName, pool });
     updateDraft(experimentDraft(draft, exp, scenarioName));
     if (exp.target_el) selectElement?.(exp.target_el);
-    if (openPanel) openPanel("scenario"); else navigate(ROUTES.projects.simulation(projectId, processId, "scenario"));
+    // SIM-21: lo scenario si modifica nella vista consulente.
+    if (operations && setPerspective) setPerspective("consultant", "scenario");
+    else if (openPanel) openPanel("scenario"); else navigate(ROUTES.projects.simulation(projectId, processId, "scenario"));
   };
 
   return (
@@ -134,7 +137,7 @@ export function InsightsPage({ embedded = false }: { embedded?: boolean } = {}):
 
       <div className={embedded ? "grid gap-3" : "grid gap-3 lg:grid-cols-2"}>
         {(report?.experiments ?? []).map((exp, i) => (
-          <ExperimentCard key={i} exp={exp} onApply={() => applyExperiment(exp)} />
+          <ExperimentCard key={i} exp={exp} operations={operations} onApply={() => applyExperiment(exp)} />
         ))}
         {report && report.experiments.length === 0 && (
           <section className="ui-surface ui-surface-panel p-4">
@@ -150,9 +153,11 @@ export function InsightsPage({ embedded = false }: { embedded?: boolean } = {}):
 
 function ExperimentCard({
   exp,
+  operations = false,
   onApply,
 }: {
   exp: Experiment;
+  operations?: boolean;
   onApply: () => void;
 }) {
   const { t } = useTranslation("process");
@@ -189,7 +194,7 @@ function ExperimentCard({
       </p>
 
       <Button type="button" size="sm" className="mt-3 gap-1.5 self-start" onClick={onApply}>
-        {t("simulation.insights.createScenario")}
+        {t(operations ? "simulation.perspective.ops.prepareScenario" : "simulation.insights.createScenario")}
         <ArrowRight aria-hidden className="size-3.5" />
       </Button>
     </section>

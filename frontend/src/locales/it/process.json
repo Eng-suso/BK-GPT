@@ -1520,7 +1520,8 @@
         "queueShare": "Quota dell’attesa totale: {{name}}",
         "whatToTry": "Cosa provare",
         "parametersElsewhere": "Durate, risorse assegnate e fonti di questa attività sono nella vista consulente.",
-        "showParameters": "Mostra i parametri"
+        "showParameters": "Mostra i parametri",
+        "prepareScenario": "Prepara lo scenario con il consulente"
       }
     }
   },
