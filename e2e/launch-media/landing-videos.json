@@ -36,47 +36,47 @@
   "scenes": {
     "lv-problem": {
       "interviews": {
-        "it": "Ogni incarico parte da qui: interviste a persone diverse",
-        "en": "Every engagement starts here: interviews with different people"
+        "it": "Si parte da interviste a persone diverse",
+        "en": "It starts with interviews with different people"
       },
       "text": {
         "it": "Pagine di trascrizione, in testo libero",
         "en": "Pages of free-text transcripts"
       },
       "scattered": {
-        "it": "I passaggi del processo sono sparsi tra le risposte",
-        "en": "The process steps are scattered across the answers"
+        "it": "I passaggi sono sparsi tra le risposte",
+        "en": "The process steps are scattered across answers"
       },
       "manual": {
-        "it": "Senza strumenti, si ricostruisce tutto a mano, per giorni",
-        "en": "Without tools, it all gets rebuilt by hand, for days"
+        "it": "Tre persone, tre versioni del processo",
+        "en": "Three people, three versions of the process"
       }
     },
     "lv-agitate": {
       "assumption": {
-        "it": "Nessuno dice sopra quale cifra serve l'autorizzazione",
-        "en": "Nobody says above what amount approval is needed"
+        "it": "Nessuno sa sopra quale cifra si autorizza",
+        "en": "Nobody knows the approval threshold"
       },
       "who": {
         "it": "Chi fa cosa? Le persone non lo sanno",
         "en": "Who does what? The people involved don't know"
       },
       "wait": {
-        "it": "E intanto le richieste aspettano: 1g 9h sull'autorizzazione",
-        "en": "Meanwhile requests wait: 1d 9h at approval"
+        "it": "Intanto le richieste aspettano 1g 9h",
+        "en": "Meanwhile requests wait 1d 9h at approval"
       }
     },
     "lv-sources": {
       "open": {
-        "it": "Le interviste del cliente entrano nel progetto",
-        "en": "The client's interviews go into the project"
+        "it": "Le interviste del cliente sono nel progetto",
+        "en": "The client's interviews are in the project"
       },
       "laura": {
-        "it": "Apri un'intervista: DeliR ne estrae le affermazioni",
-        "en": "Open an interview: DeliR extracts its statements"
+        "it": "DeliR estrae le affermazioni dalle interviste",
+        "en": "DeliR extracts statements from the interviews"
       },
       "verified": {
-        "it": "Ogni affermazione ha la sua citazione verificata",
+        "it": "Ogni affermazione ha la sua citazione",
         "en": "Every statement has its verified quote"
       },
       "francesca": {
@@ -98,39 +98,39 @@
         "en": "DeliR reads the sources and extracts the facts"
       },
       "answer": {
-        "it": "La risposta cita le persone: niente di inventato",
-        "en": "The answer quotes people: nothing is invented"
+        "it": "La risposta cita le persone: nulla di inventato",
+        "en": "The answer quotes people: nothing invented"
       },
       "gap": {
-        "it": "Ciò che nessuno dice diventa una domanda aperta",
+        "it": "Ciò che nessuno dice diventa una domanda",
         "en": "What nobody says becomes an open question"
       }
     },
     "lv-evidence": {
       "canvas": {
-        "it": "Il processo As-Is in BPMN 2.0: due corsie, cinque attività",
-        "en": "The As-Is process in BPMN 2.0: two lanes, five activities"
+        "it": "L'As-Is in BPMN 2.0: 2 corsie, 5 attività",
+        "en": "The As-Is in BPMN 2.0: 2 lanes, 5 activities"
       },
       "evidence": {
-        "it": "Il disegno è confrontato con le fonti: 100% coperto",
-        "en": "The diagram is checked against the sources: 100% covered"
+        "it": "Il disegno coincide con le fonti al 100%",
+        "en": "The diagram matches the sources: 100%"
       },
       "quotes": {
-        "it": "Ogni elemento mostra la frase che lo sostiene",
-        "en": "Each element shows the sentence that supports it"
+        "it": "Ogni elemento mostra la sua citazione",
+        "en": "Each element shows its supporting quote"
       },
       "versions": {
-        "it": "Ogni versione resta tracciata, fino a quella validata",
-        "en": "Every version is tracked, up to the validated one"
+        "it": "Ogni versione resta tracciata",
+        "en": "Every version stays tracked"
       }
     },
     "lv-hypotheses": {
       "list": {
-        "it": "Le ipotesi To-Be nascono da chi lavora nel processo",
+        "it": "Le ipotesi To-Be nascono da chi lavora",
         "en": "To-Be hypotheses come from the people doing the work"
       },
       "second": {
-        "it": "Ogni proposta porta con sé le sue citazioni",
+        "it": "Ogni proposta porta le sue citazioni",
         "en": "Each proposal carries its own quotes"
       }
     },
@@ -140,35 +140,35 @@
         "en": "Simulating today's process (As-Is)"
       },
       "flow": {
-        "it": "Le richieste attraversano il processo, una per una",
-        "en": "Requests flow through the process, one by one"
+        "it": "Le richieste attraversano il processo",
+        "en": "Requests flow through the process"
       },
       "queue": {
         "it": "La coda cresce su «Autorizza spesa»",
         "en": "The queue builds up at “Approve spend”"
       },
       "kpi": {
-        "it": "Sei KPI si aggiornano mentre la simulazione avanza",
+        "it": "Sei KPI si aggiornano in tempo reale",
         "en": "Six KPIs update as the simulation runs"
       }
     },
     "lv-heatmap": {
       "heat": {
-        "it": "La heatmap mostra dove le richieste aspettano",
+        "it": "La heatmap mostra dove si aspetta",
         "en": "The heatmap shows where requests wait"
       },
       "bottleneck": {
-        "it": "Collo di bottiglia misurato: 1g 9h di attesa media",
-        "en": "Measured bottleneck: 1d 9h average wait"
+        "it": "Collo di bottiglia: 1g 9h di attesa media",
+        "en": "Bottleneck: 1d 9h average wait"
       }
     },
     "lv-sim-tobe": {
       "start": {
-        "it": "Scenario To-Be: richiesta completa e delega giornaliera",
-        "en": "To-Be scenario: complete request and daily delegate"
+        "it": "To-Be: richiesta completa e delega",
+        "en": "To-Be: complete request and a daily delegate"
       },
       "flow": {
-        "it": "Stesse richieste, nessuna coda sull'autorizzazione",
+        "it": "Stesse richieste, nessuna coda",
         "en": "Same requests, no queue at approval"
       },
       "kpi": {
@@ -178,26 +178,26 @@
     },
     "lv-compare": {
       "delta": {
-        "it": "As-Is contro To-Be: attraversamento −95%, costo per caso −43%",
-        "en": "As-Is vs To-Be: cycle time −95%, cost per case −43%"
+        "it": "To-Be: attraversamento −95%, costo −43%",
+        "en": "To-Be: cycle time −95%, cost per case −43%"
       },
       "note": {
-        "it": "Valori simulati dallo scenario, non risultati garantiti",
-        "en": "Values simulated from the scenario, not guaranteed results"
+        "it": "Valori simulati, non risultati garantiti",
+        "en": "Simulated values, not guaranteed results"
       }
     },
     "lv-handover": {
       "checks": {
-        "it": "Prima della consegna DeliR verifica che il lavoro sia completo",
-        "en": "Before handover DeliR checks the work is complete"
+        "it": "DeliR verifica che il lavoro sia completo",
+        "en": "DeliR checks the work is complete"
       },
       "preview": {
-        "it": "Il process owner riceve un cruscotto in sola lettura",
+        "it": "Il process owner riceve un cruscotto",
         "en": "The process owner gets a read-only dashboard"
       },
       "done": {
         "it": "Dalle interviste alla decisione, con i numeri",
-        "en": "From interviews to decision, backed by numbers"
+        "en": "From interviews to decision, with numbers"
       }
     }
   },
