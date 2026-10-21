@@ -1,7 +1,6 @@
 import React from "react";
 import { useSearchParams } from "react-router-dom";
 import { runWaitHint, runWaitTitle } from "./runQueue";
-import type { HeatMetric } from "./simulationResults";
 import { useReplayEngine } from "./replay/useReplay";
 import { useTranslation } from "react-i18next";
 import { SlidersHorizontal, ListChecks, GitCompareArrows, Layers, Lightbulb, FileSpreadsheet, Columns3 } from "lucide-react";
@@ -16,7 +15,7 @@ import { useSimulationSection, resolveActiveRun, type SimulationPanel } from "./
 import { ScenarioBuilderPage } from "./pages/ScenarioBuilderPage";
 import { SimulationWorkspace } from "./SimulationWorkspace";
 import { ComparePage } from "./pages/ComparePage";
-import { HeatmapPage } from "./pages/HeatmapPage";
+import { HeatmapPage, type HeatLens } from "./pages/HeatmapPage";
 import { InsightsPage } from "./pages/InsightsPage";
 import { EventLogPanel } from "./eventlog/EventLogPanel";
 import { ScenarioWorkspacePanel } from "./ScenarioWorkspacePanel";
@@ -35,7 +34,7 @@ export function SimulationStudio(): React.JSX.Element {
   const { engine, isLoading, noArtifact, error } = useReplaySession();
   const run = resolveActiveRun(runs, activeRunId != null ? String(activeRunId) : undefined);
   const ready = engine && run?.status === "completed";
-  const [heatMetric, setHeatMetric] = React.useState<HeatMetric>("wait");
+  const [heatMetric, setHeatMetric] = React.useState<HeatLens>("wait");
   const [decorations, setDecorations] = React.useState<NodeDecoration[]>([]);
   // Scarti reale contro simulato dal pannello del log: valgono solo con il pannello aperto.
   const [logDecorations, setLogDecorations] = React.useState<NodeDecoration[] | null>(null);
@@ -97,7 +96,7 @@ export function SimulationStudio(): React.JSX.Element {
   >
       <section className="contents" aria-label={t("simulation.unified.canvas")}>
         {ready && displayedEngine && analysisRun ? <DashboardWorkspace engine={displayedEngine} run={analysisRun} final={aggregate} unavailable={unavailable} artifactLoading={finalReplay.isLoading} integrated commandsHost={commandsHost} inspectorHost={host} onProcessActionsHost={setActionsHost}
-          process={<ProcessSurface engine={displayedEngine} aggregate={aggregate} unavailable={unavailable} summary={aggregate ? analysisRun.summary : undefined} legend={scenarioOverlay ? { label: t("simulation.scenarios.legend", { label: scenarioOverlay[0]?.badge ?? "" }), scenario: true } : panel === "eventLog" && logDecorations ? { label: t("simulation.eventLog.compare.legend"), fidelity: true } : view === "compare" ? { label: t("simulation.diagram.legendWait"), delta: !["a", "b"].includes(query.get("compareMode") ?? "") } : (view === "heatmap" || (aggregate && panel === "heatmap")) ? { label: t(`simulation.heatmap.metric.${heatMetric}`) } : undefined} inspectorHost={host} actionsHost={actionsHost} decorations={scenarioOverlay ?? (panel === "eventLog" && logDecorations ? logDecorations : view === "compare" || view === "heatmap" || (aggregate && panel === "heatmap") ? decorations : aggregate ? [] : undefined)} />}
+          process={<ProcessSurface engine={displayedEngine} aggregate={aggregate} unavailable={unavailable} summary={aggregate ? analysisRun.summary : undefined} legend={scenarioOverlay ? { label: t("simulation.scenarios.legend", { label: scenarioOverlay[0]?.badge ?? "" }), scenario: true } : panel === "eventLog" && logDecorations ? { label: t("simulation.eventLog.compare.legend"), fidelity: true } : view === "compare" ? { label: t("simulation.diagram.legendWait"), delta: !["a", "b"].includes(query.get("compareMode") ?? "") } : (view === "heatmap" || (aggregate && panel === "heatmap")) ? heatMetric === "trust" ? { label: t("simulation.trust.legend"), trust: true } : { label: t(`simulation.heatmap.metric.${heatMetric}`) } : undefined} inspectorHost={host} actionsHost={actionsHost} decorations={scenarioOverlay ?? (panel === "eventLog" && logDecorations ? logDecorations : view === "compare" || view === "heatmap" || (aggregate && panel === "heatmap") ? decorations : aggregate ? [] : undefined)} />}
           processScope={scope} />
           : <div className="sim-studio-start"><div className="sim-studio-empty-process"><SimulationCanvas bpmnXml={bpmnXml} selectedElementId={selectedElementId} onSelectElement={selectElement} decorations={scenarioOverlay ?? undefined} /></div>
             <EmptyState title={!isLoading && !noArtifact && run?.status === "pending" ? runWaitTitle(run?.queue?.state, run?.queue?.position, t) : t(isLoading ? "simulation.loading" : noArtifact ? "simulation.replay.noArtifact" : run?.status === "failed" ? "simulation.status.failed" : "simulation.replay.noRun")} description={error ?? run?.error ?? (run?.status === "pending" ? runWaitHint(run?.queue?.state, t) : undefined) ?? t("simulation.unified.startHint")}

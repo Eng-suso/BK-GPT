@@ -11,12 +11,13 @@ import { useReplayFrame } from "../replay/useReplay";
 import { CaseTimeline } from "../replay/CaseTimeline";
 import { useReplayStatus } from "../replay/useReplay";
 import { useSimulationSection } from "../useSimulationSection";
+import { TRUST_ORDER } from "./trustMap";
 
 /** Scala dello scarto reale contro simulato, con i token di validazione. */
 const FIDELITY_TONE = { close: "pass", calibrate: "warning", far: "fail" } as const;
 
 export function ProcessSurface({ engine, decorations, aggregate, inspectorHost, unavailable = false, summary, legend, actionsHost }: {
-  engine: ReplayEngine; decorations?: NodeDecoration[]; aggregate: boolean; unavailable?: boolean; summary?: SimulationSummary | null; legend?: { label: string; delta?: boolean; fidelity?: boolean; scenario?: boolean }; inspectorHost?: HTMLElement | null; actionsHost?: HTMLElement | null;
+  engine: ReplayEngine; decorations?: NodeDecoration[]; aggregate: boolean; unavailable?: boolean; summary?: SimulationSummary | null; legend?: { label: string; delta?: boolean; fidelity?: boolean; scenario?: boolean; trust?: boolean }; inspectorHost?: HTMLElement | null; actionsHost?: HTMLElement | null;
 }): React.JSX.Element {
   const { t } = useTranslation("process");
   const { bpmnXml, selectedElementId, selectElement, openPanel } = useSimulationSection();
@@ -35,7 +36,7 @@ export function ProcessSurface({ engine, decorations, aggregate, inspectorHost, 
     <div className="sim-process-diagram">
       <SimulationCanvas sharedCanvas bpmnXml={bpmnXml} decorations={decorations ?? pressure} selectedElementId={selectedElementId} onViewerReady={setViewer}
         onSelectElement={(id) => { selectElement?.(id); if (id && engine.payload.elements[id]) openPanel?.("activity"); }}
-        toolbarStart={!actionsHost || legend ? <>{!actionsHost && <Button size="sm" variant="ghost" aria-pressed={visible} onClick={() => setVisible((current) => !current)}>{t("simulation.studio.charts")}</Button>}{legend && <div className="sim-process-legend">{legend.scenario ? <span><i aria-hidden style={{ background: "var(--sim-info)" }} />{legend.label}</span> : <span>{legend.label}</span>}{legend.scenario ? null : legend.fidelity ? <>{(["close", "calibrate", "far"] as const).map(level => <span key={level}><i aria-hidden style={{ background: `var(--domain-validation-${FIDELITY_TONE[level]}-border)` }} />{t(`simulation.eventLog.compare.fidelity.${level}`)}</span>)}</> : legend.delta ? <><span><i aria-hidden style={{ background: "var(--color-status-success)" }} />{t("simulation.compare.better")}</span><span><i aria-hidden style={{ background: "var(--color-status-danger)" }} />{t("simulation.compare.worse")}</span></> : <><span>{t("simulation.heatmap.legendLow")}</span><span className="sim-heat-legend" aria-hidden>{[0,1,2,3,4].map(level => <i key={level} style={{ background: `var(--sim-heat-${level})` }} />)}</span><span>{t("simulation.heatmap.legendHigh")}</span></>}</div>}</> : null} />
+        toolbarStart={!actionsHost || legend ? <>{!actionsHost && <Button size="sm" variant="ghost" aria-pressed={visible} onClick={() => setVisible((current) => !current)}>{t("simulation.studio.charts")}</Button>}{legend && <div className="sim-process-legend">{legend.scenario ? <span><i aria-hidden style={{ background: "var(--sim-info)" }} />{legend.label}</span> : <span>{legend.label}</span>}{legend.scenario ? null : legend.trust ? <>{TRUST_ORDER.map(status => <span key={status} data-trust={status}><i aria-hidden className="sim-trust-swatch" />{t(`simulation.trust.status.${status}`)}</span>)}</> : legend.fidelity ? <>{(["close", "calibrate", "far"] as const).map(level => <span key={level}><i aria-hidden style={{ background: `var(--domain-validation-${FIDELITY_TONE[level]}-border)` }} />{t(`simulation.eventLog.compare.fidelity.${level}`)}</span>)}</> : legend.delta ? <><span><i aria-hidden style={{ background: "var(--color-status-success)" }} />{t("simulation.compare.better")}</span><span><i aria-hidden style={{ background: "var(--color-status-danger)" }} />{t("simulation.compare.worse")}</span></> : <><span>{t("simulation.heatmap.legendLow")}</span><span className="sim-heat-legend" aria-hidden>{[0,1,2,3,4].map(level => <i key={level} style={{ background: `var(--sim-heat-${level})` }} />)}</span><span>{t("simulation.heatmap.legendHigh")}</span></>}</div>}</> : null} />
       {!aggregate && <TokenLayer viewer={viewer} engine={engine} />}
       {frame && !unavailable && <CanvasAnalytics viewer={viewer} engine={engine} frame={frame} summary={summary} selectedId={selectedElementId ?? null} visible={visible} inspectorHost={inspectorHost} actionsHost={actionsHost} onVisibilityChange={setVisible} />}
     </div>
