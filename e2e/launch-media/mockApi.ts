@@ -2,6 +2,7 @@ import type { Page, Route } from "@playwright/test";
 
 import {
   IDS,
+  PROCESS_NAME,
   api,
   bpmnXml,
   chatMessages,
@@ -31,6 +32,7 @@ import {
 } from "./demo";
 import { heroApi, heroRunData, heroRunRecords, heroSimulationLayout, heroWorkspace, heroXml } from "./heroData";
 import { HERO_SOURCES, englishJson } from "./heroLocale";
+import { simpleApi, simpleClaims, simpleDiscoveryQuestion, simpleDiscoveryScript, simpleImpactReview, simpleOwnerDashboard, simpleProvenance, simpleVersionNotes, simpleRunData, simpleRunRecords, simpleSimulationLayout, simpleXml } from "./simpleData";
 
 export const API = "http://127.0.0.1:8000";
 
@@ -40,8 +42,9 @@ export const unhandled = new Set<string>();
 /**
  * `live`: la discussione del processo parte vuota e le risposte dell'agente
  * arrivano in streaming da `streamServer.mjs`, come dal backend vero.
+ * `simple`: il processo semplice dei video della landing (simpleData.ts).
  */
-export async function installDemoApi(page: Page, language: "it" | "en" = "it", options: { live?: boolean; hero?: boolean } = {}): Promise<void> {
+export async function installDemoApi(page: Page, language: "it" | "en" = "it", options: { live?: boolean; hero?: boolean; simple?: boolean } = {}): Promise<void> {
   const reviewSessions: { thread_id: string; scope_key: string; title: string; messages: { role: string; content: string }[] }[] = [];
   await page.addInitScript(
     ({ base, lng, layoutKey, layout }) => {
@@ -50,7 +53,7 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
       // Il layout che il consulente ha salvato per la tela di simulazione.
       window.localStorage.setItem(layoutKey, layout);
     },
-    { base: API, lng: language, layoutKey: simulationLayoutKey, layout: JSON.stringify(options.hero ? heroSimulationLayout : simulationLayout) },
+    { base: API, lng: language, layoutKey: simulationLayoutKey, layout: JSON.stringify(options.simple ? simpleSimulationLayout : options.hero ? heroSimulationLayout : simulationLayout) },
   );
 
   await page.route(`${API}/**`, async (route: Route) => {
@@ -59,7 +62,7 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
     const path = url.pathname;
     const method = request.method();
     // Hero della landing: interfaccia e nomi del caso demo in inglese.
-    const json = (body: unknown, headers?: Record<string, string>) => route.fulfill({ json: options.hero ? englishJson(body) : body, headers });
+    const json = (body: unknown, headers?: Record<string, string>) => route.fulfill({ json: options.hero ? englishJson(body) : options.simple ? simpleNames(body) : body, headers });
 
     if (path === "/v1/workspace/projects" && method === "GET") {
       return json(projects, { "X-DeliR-Total": String(projects.length) });
@@ -84,23 +87,29 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
     const sourceMatch = path.match(/^\/v1\/workspace\/sources\/([^/]+)(?:\/(claims|relations|document))?$/);
     if (sourceMatch) {
       const [, sourceId, part] = sourceMatch;
-      if (part === "claims") return json(claimsOf(sourceId));
+      if (part === "claims") return json(options.simple ? simpleClaims(sourceId, claimsOf(sourceId)) : claimsOf(sourceId));
       if (part === "relations") return json(relationsOf(sourceId));
       if (part === "document") return json(sourceDocument(sourceId));
       return json(sources.find((source) => source.id === sourceId) ?? null);
     }
 
     if (path === `/v1/workspace/bpmn-models/${IDS.model}` && method === "GET") {
-      return json({ id: IDS.model, process_id: IDS.process, name: "As-Is v3", xml: options.hero ? heroXml : bpmnXml, version_id: 3 });
+      return json({ id: IDS.model, process_id: IDS.process, name: "As-Is v3", xml: options.simple ? simpleXml : options.hero ? heroXml : bpmnXml, version_id: 3 });
     }
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/versions`) {
-      return json(versions.map((version) => ({ ...version, xml: bpmnXml })));
+      return json(versions.map((version) => options.simple
+        ? { ...version, xml: simpleXml, change_summary: simpleVersionNotes[version.id as number] ?? version.change_summary }
+        : { ...version, xml: bpmnXml }));
     }
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/review` && method === "GET") return json(review);
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/review/versions`) return json([]);
-    if (path === `/v1/workspace/processes/${IDS.process}/provenance`) return json(provenance);
+    if (path === `/v1/workspace/processes/${IDS.process}/provenance`) return json(options.simple ? simpleProvenance : provenance);
     if (path === `/v1/workspace/processes/${IDS.process}/conformance`) return json(conformance);
-    if (path === `/v1/workspace/processes/${IDS.process}/impact-review`) return json(impactReview);
+    if (path === `/v1/workspace/processes/${IDS.process}/impact-review`) return json(options.simple ? simpleImpactReview(impactReview) : impactReview);
+    if (path === `/v1/workspace/processes/${IDS.process}/owner-dashboard`) return json(simpleOwnerDashboard());
+    if (path === `/v1/workspace/processes/${IDS.process}/owner-link`) {
+      return json({ active: true, created_at: "2026-10-20T09:00:00Z", expires_at: "2026-11-20T09:00:00Z", last_viewed_at: "2026-10-20T16:12:00Z", view_count: 3 });
+    }
 
     if (path === `/v1/workspace/processes/${IDS.process}/event-logs` && method === "GET") return json([eventLog.log]);
     const logId = String(eventLog.log.id);
@@ -108,20 +117,21 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
     if (path === `/v1/workspace/event-logs/${logId}/preview`) return json(eventLog.preview);
     if (path === `/v1/workspace/event-logs/${logId}/analysis` || path === `/v1/workspace/event-logs/${logId}/mapping`) return json(eventLog.analysis);
     if (path === "/v1/workspace/event-log-templates") return json([]);
-    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-template`) return json(options.hero ? heroApi.simulation_template : api.simulation_template);
-    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-provenance`) return json(options.hero ? heroApi.simulation_provenance : api.simulation_provenance);
+    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-template`) return json(options.simple ? simpleApi.simulation_template : options.hero ? heroApi.simulation_template : api.simulation_template);
+    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-provenance`) return json(options.simple ? simpleApi.simulation_provenance : options.hero ? heroApi.simulation_provenance : api.simulation_provenance);
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-compatibility`) return json(api.simulation_compatibility);
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-model`) {
-      return json({ bpmn_model_id: IDS.model, model: runs().as_is.model });
+      return json({ bpmn_model_id: IDS.model, model: options.simple ? simpleRunData(IDS.asIsRun)!.model : runs().as_is.model });
     }
     // Hero: il processo compatto con i suoi due run (il workspace a tre scenari resta per il caso grande).
-    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-runs` && method === "GET") return json(options.hero ? heroRunRecords : simulationRuns);
+    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-runs` && method === "GET") return json(options.simple ? simpleRunRecords : options.hero ? heroRunRecords : simulationRuns);
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-scenarios` && method === "GET") return json(heroWorkspace);
 
     const runMatch = path.match(/^\/v1\/workspace\/simulation-runs\/(\d+)(?:\/(replay|experiments|model))?$/);
     if (runMatch) {
       const id = Number(runMatch[1]);
-      const data = (options.hero ? heroRunData(id) : runData(id)) as ReturnType<typeof runData>;
+      const data = (options.simple ? simpleRunData(id) : options.hero ? heroRunData(id) : runData(id)) as ReturnType<typeof runData>;
+      if (options.simple && !runMatch[2]) return json(simpleRunRecords.find((run) => run.id === id) ?? null);
       if (options.hero && !runMatch[2]) return json(heroRunRecords.find((run) => run.id === id) ?? null);
       if (!data) return route.fulfill({ status: 404, json: { detail: "Simulazione non trovata." } });
       if (runMatch[2] === "replay") return json({ run_id: id, schema_version: 1, replay: data.replay });
@@ -156,7 +166,7 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
       const session = reviewSessions.find((item) => item.thread_id === streamMatch[1]);
       const body = request.postDataJSON() as Record<string, unknown>;
       const script = !session?.scope_key.includes(":review:")
-        ? discoveryScript
+        ? (options.simple ? simpleDiscoveryScript : discoveryScript)
         : session.scope_key.endsWith(`:review:${AS_IS_REVIEW_NODE}`) ? asIsReviewScript : reviewScript;
       session?.messages.push({ role: "user", content: String(body.message ?? "") }, { role: "assistant", content: script.answer });
       // Lo streaming lo fa streamServer.mjs, con il copione del turno.
@@ -165,7 +175,10 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
     const reviewSession = reviewSessions.find((item) => path === `/v1/consultant-chat/sessions/${item.thread_id}`);
     if (reviewSession) return json(reviewSession);
     if (path === `/v1/consultant-chat/sessions/${IDS.thread}`) {
-      return json({ ...chatSession, model_name: "delir", messages: chatMessages });
+      const messages = options.simple
+        ? [{ id: 1, role: "user", content: simpleDiscoveryQuestion }, { id: 2, role: "assistant", content: simpleDiscoveryScript.answer }]
+        : chatMessages;
+      return json({ ...chatSession, model_name: "delir", messages });
     }
 
     if (path === "/v1/auth/me") {
@@ -184,6 +197,11 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
     unhandled.add(`${method} ${path}`);
     return route.fulfill({ status: 200, json: [] });
   });
+}
+
+/** Nel caso semplice il processo si chiama come il suo pool. */
+function simpleNames<T>(body: T): T {
+  return JSON.parse(JSON.stringify(body).split(PROCESS_NAME).join("Richiesta di acquisto")) as T;
 }
 
 function runs() {
