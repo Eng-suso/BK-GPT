@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_simple" targetNamespace="https://delir.ai/bpmn">
+  <bpmn:collaboration id="Collaboration_simple"><bpmn:participant id="Participant_simple" name="Richiesta di acquisto" processRef="Process_simple" /></bpmn:collaboration>
+  <bpmn:process id="Process_simple" name="Richiesta di acquisto" isExecutable="false">
+    <bpmn:laneSet id="Process_simple_lanes">
+      <bpmn:lane id="requester" name="Richiedente"><bpmn:flowNodeRef>start</bpmn:flowNodeRef><bpmn:flowNodeRef>send_request</bpmn:flowNodeRef><bpmn:flowNodeRef>complete_request</bpmn:flowNodeRef></bpmn:lane>
+      <bpmn:lane id="purchasing" name="Ufficio Acquisti"><bpmn:flowNodeRef>gw_merge</bpmn:flowNodeRef><bpmn:flowNodeRef>check_request</bpmn:flowNodeRef><bpmn:flowNodeRef>gw_complete</bpmn:flowNodeRef><bpmn:flowNodeRef>approve_spend</bpmn:flowNodeRef><bpmn:flowNodeRef>issue_po</bpmn:flowNodeRef><bpmn:flowNodeRef>end</bpmn:flowNodeRef></bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="start" name="Fabbisogno rilevato"><bpmn:outgoing>f_start</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="send_request" name="Invia richiesta di acquisto"><bpmn:incoming>f_start</bpmn:incoming><bpmn:outgoing>f_send</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="gw_merge"><bpmn:incoming>f_send</bpmn:incoming><bpmn:incoming>f_back</bpmn:incoming><bpmn:outgoing>f_merge</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="check_request" name="Verifica richiesta"><bpmn:incoming>f_merge</bpmn:incoming><bpmn:outgoing>f_check</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="gw_complete" name="Richiesta completa?"><bpmn:incoming>f_check</bpmn:incoming><bpmn:outgoing>f_incomplete</bpmn:outgoing><bpmn:outgoing>f_complete</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="complete_request" name="Completa la richiesta"><bpmn:incoming>f_incomplete</bpmn:incoming><bpmn:outgoing>f_back</bpmn:outgoing></bpmn:userTask>
+    <bpmn:userTask id="approve_spend" name="Autorizza spesa"><bpmn:incoming>f_complete</bpmn:incoming><bpmn:outgoing>f_approved</bpmn:outgoing></bpmn:userTask>
+    <bpmn:userTask id="issue_po" name="Emetti ordine"><bpmn:incoming>f_approved</bpmn:incoming><bpmn:outgoing>f_end</bpmn:outgoing></bpmn:userTask>
+    <bpmn:endEvent id="end" name="Ordine inviato"><bpmn:incoming>f_end</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_start" sourceRef="start" targetRef="send_request" />
+    <bpmn:sequenceFlow id="f_send" sourceRef="send_request" targetRef="gw_merge" />
+    <bpmn:sequenceFlow id="f_merge" sourceRef="gw_merge" targetRef="check_request" />
+    <bpmn:sequenceFlow id="f_check" sourceRef="check_request" targetRef="gw_complete" />
+    <bpmn:sequenceFlow id="f_incomplete" name="No" sourceRef="gw_complete" targetRef="complete_request" />
+    <bpmn:sequenceFlow id="f_back" sourceRef="complete_request" targetRef="gw_merge" />
+    <bpmn:sequenceFlow id="f_complete" name="Sì" sourceRef="gw_complete" targetRef="approve_spend" />
+    <bpmn:sequenceFlow id="f_approved" sourceRef="approve_spend" targetRef="issue_po" />
+    <bpmn:sequenceFlow id="f_end" sourceRef="issue_po" targetRef="end" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_simple"><bpmndi:BPMNPlane id="Plane_simple" bpmnElement="Collaboration_simple">
+    <bpmndi:BPMNShape id="Participant_simple_di" bpmnElement="Participant_simple" isHorizontal="true"><dc:Bounds x="0" y="0" width="1060" height="320" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="requester_di" bpmnElement="requester" isHorizontal="true"><dc:Bounds x="30" y="0" width="1030" height="150" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="purchasing_di" bpmnElement="purchasing" isHorizontal="true"><dc:Bounds x="30" y="150" width="1030" height="170" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="start_di" bpmnElement="start"><dc:Bounds x="82" y="57" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="55" y="98" width="90" height="27" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="send_request_di" bpmnElement="send_request"><dc:Bounds x="160" y="35" width="130" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="complete_request_di" bpmnElement="complete_request"><dc:Bounds x="400" y="35" width="130" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="gw_merge_di" bpmnElement="gw_merge" isMarkerVisible="true"><dc:Bounds x="320" y="210" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="check_request_di" bpmnElement="check_request"><dc:Bounds x="400" y="195" width="130" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="gw_complete_di" bpmnElement="gw_complete" isMarkerVisible="true"><dc:Bounds x="570" y="210" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="550" y="266" width="90" height="27" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="approve_spend_di" bpmnElement="approve_spend"><dc:Bounds x="670" y="195" width="130" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="issue_po_di" bpmnElement="issue_po"><dc:Bounds x="840" y="195" width="130" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="end_di" bpmnElement="end"><dc:Bounds x="1002" y="217" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="980" y="258" width="80" height="27" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge id="f_start_di" bpmnElement="f_start"><di:waypoint x="118" y="75" /><di:waypoint x="160" y="75" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_send_di" bpmnElement="f_send"><di:waypoint x="225" y="115" /><di:waypoint x="225" y="235" /><di:waypoint x="320" y="235" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_merge_di" bpmnElement="f_merge"><di:waypoint x="370" y="235" /><di:waypoint x="400" y="235" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_check_di" bpmnElement="f_check"><di:waypoint x="530" y="235" /><di:waypoint x="570" y="235" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_incomplete_di" bpmnElement="f_incomplete"><di:waypoint x="595" y="210" /><di:waypoint x="595" y="75" /><di:waypoint x="530" y="75" /><bpmndi:BPMNLabel><dc:Bounds x="603" y="160" width="20" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_back_di" bpmnElement="f_back"><di:waypoint x="400" y="75" /><di:waypoint x="345" y="75" /><di:waypoint x="345" y="210" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_complete_di" bpmnElement="f_complete"><di:waypoint x="620" y="235" /><di:waypoint x="670" y="235" /><bpmndi:BPMNLabel><dc:Bounds x="636" y="215" width="20" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_approved_di" bpmnElement="f_approved"><di:waypoint x="800" y="235" /><di:waypoint x="840" y="235" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="f_end_di" bpmnElement="f_end"><di:waypoint x="970" y="235" /><di:waypoint x="1002" y="235" /></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>
