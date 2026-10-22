@@ -9,7 +9,9 @@ AS_IS = {
     "scenarioName": "Baseline AS-IS",
     "totalCases": 100,
     "resources": [{"id": "approver", "name": "Approvatore", "amount": 2, "costPerHour": 40}],
-    "tasks": {"Task_1": {"meanMinutes": 30, "resourceId": "approver"}},
+    # Le attivita' di MINIMAL_BPMN: un run del workspace porta la bozza com'e'.
+    "tasks": {task: {"meanMinutes": 30, "distribution": "norm", "resourceId": "approver", "assignmentSource": "manual"}
+              for task in ("Task_A", "Task_B", "Task_C")},
 }
 PLUS_ONE_APPROVER = [{"op": "set", "path": ["resources", {"id": "approver"}, "amount"], "value": 3}]
 
@@ -189,10 +191,26 @@ def test_another_tenant_sees_neither_the_workspace_nor_its_scenarios(api_client,
     assert api_client.get(_url(other_model), headers=TENANT_B).json()["baseline"] is None
 
 
+def _panel_body(api_client, model_id: str, scenario_id: int) -> dict:
+    """La richiesta che il pannello costruisce dalla bozza salvata, con il seed comune."""
+    from backend.schemas.simulation import ScenarioTemplateResponse
+    from backend.simulation.draft_request import expected_request_body
+
+    workspace = api_client.get(_url(model_id)).json()
+    scenarios = [workspace["baseline"], *workspace["alternatives"]] if workspace["baseline"] else []
+    scenario = next((s for s in scenarios if s["id"] == scenario_id), None)
+    if scenario is None:
+        return {"total_cases": 5}
+    template = api_client.post(f"/v1/workspace/bpmn-models/{model_id}/simulation-template", json={"current_bpmn_xml": MINIMAL_BPMN})
+    name = scenario["name"] if scenario["kind"] == "baseline" else f"{scenario['label']} · {scenario['name']}"
+    body = expected_request_body(scenario["draft"], name, ScenarioTemplateResponse.model_validate(template.json()))
+    return {**body, "seed": workspace["seed"]}
+
+
 def _run(api_client, model_id: str, ref: dict, **extra):
     return api_client.post(
         f"/v1/workspace/bpmn-models/{model_id}/simulation-runs",
-        json={"total_cases": 5, "current_bpmn_xml": MINIMAL_BPMN, "workspace_scenario": ref, **extra},
+        json={**_panel_body(api_client, model_id, ref["id"]), "current_bpmn_xml": MINIMAL_BPMN, "workspace_scenario": ref, **extra},
     )
 
 
@@ -203,7 +221,9 @@ def test_a_run_remembers_the_scenario_and_revisions_it_simulated(api_client, new
     ref = {"id": scenario["id"], "revision": 1, "baseline_revision": 1}
 
     single = _run(api_client, model_id, ref)
-    group = _run(api_client, model_id, {**ref, "id": workspace["baseline"]["id"]}, replications=2, seed=workspace["seed"])
+    # Le ripetizioni sono nella bozza, come le imposta il pannello.
+    assert api_client.put(_url(model_id, "/baseline"), json={"name": "AS-IS", "draft": {**AS_IS, "replications": 2}, "revision": 1}).status_code == 200
+    group = _run(api_client, model_id, {"id": workspace["baseline"]["id"], "revision": 2, "baseline_revision": 2})
 
     assert single.status_code == 200, single.text
     assert single.json()["request"]["workspace_scenario"] == ref
@@ -296,3 +316,59 @@ def test_a_run_remembers_the_bpmn_it_simulated_and_the_workspace_the_saved_one(a
 
 def test_a_process_without_a_bpmn_has_no_fingerprint(api_client, new_bpmn_model):
     assert api_client.get(_url(new_bpmn_model())).json()["bpmn_fingerprint"] is None
+
+
+def test_a_run_of_a_scenario_carries_the_saved_draft(api_client, new_bpmn_model, fake_engine):
+    """Il server rifa' la traduzione del pannello: un run diverso dalla bozza salvata non passa per lo scenario."""
+    model_id = new_bpmn_model()
+    workspace = _with_baseline(api_client, model_id)
+    ref = {"id": workspace["baseline"]["id"], "revision": 1, "baseline_revision": 1}
+    body = _panel_body(api_client, model_id, ref["id"])
+    task = body["tasks"][0]
+
+    more_cases = _run(api_client, model_id, ref, total_cases=body["total_cases"] + 1)
+    longer_task = _run(api_client, model_id, ref, tasks=[{**task, "mean_seconds": task["mean_seconds"] * 2}, *body["tasks"][1:]])
+    other_seed = _run(api_client, model_id, ref, seed=workspace["seed"] + 1)
+    renamed = _run(api_client, model_id, ref, scenario_name="Un altro nome")
+    as_saved = _run(api_client, model_id, ref)
+
+    for refused, field in ((more_cases, "total_cases"), (longer_task, "tasks"), (renamed, "scenario_name")):
+        assert refused.status_code == 400, refused.text
+        assert field in refused.json()["error"]["message"]
+    assert other_seed.status_code == 400
+    assert "seed comune" in other_seed.json()["error"]["message"]
+    assert as_saved.status_code == 200, as_saved.text
+
+
+def test_an_alternative_runs_with_its_patch_not_with_the_as_is(api_client, new_bpmn_model, fake_engine):
+    model_id = new_bpmn_model()
+    workspace = _with_baseline(api_client, model_id)
+    alternative = api_client.post(_url(model_id), json={"name": "Piu' approvatori", "patch": PLUS_ONE_APPROVER}).json()["alternatives"][0]
+    ref = {"id": alternative["id"], "revision": 1, "baseline_revision": 1}
+    as_is = _panel_body(api_client, model_id, workspace["baseline"]["id"])
+
+    with_patch = _run(api_client, model_id, ref)
+    as_is_as_a = _run(api_client, model_id, ref, **{**as_is, "scenario_name": "A · Piu' approvatori"})
+
+    assert with_patch.status_code == 200, with_patch.text
+    assert with_patch.json()["request"]["resources"][0]["amount"] == 3
+    assert as_is_as_a.status_code == 400
+    assert "resources" in as_is_as_a.json()["error"]["message"]
+
+
+def test_a_sensitivity_study_of_a_scenario_starts_from_the_saved_draft(api_client, new_bpmn_model, fake_engine):
+    model_id = new_bpmn_model()
+    workspace = _with_baseline(api_client, model_id)
+    ref = {"id": workspace["baseline"]["id"], "revision": 1, "baseline_revision": 1}
+    base = {**_panel_body(api_client, model_id, ref["id"]), "current_bpmn_xml": MINIMAL_BPMN, "workspace_scenario": ref}
+    factors = [{"kind": "duration", "element_id": "Task_A", "label": "Ricevi richiesta"}]
+    url = f"/v1/workspace/bpmn-models/{model_id}/simulation-sensitivity"
+
+    edited = api_client.post(url, json={"base": {**base, "total_cases": base["total_cases"] + 1}, "factors": factors})
+    saved = api_client.post(url, json={"base": base, "factors": factors})
+
+    assert edited.status_code == 400
+    assert "total_cases" in edited.json()["error"]["message"]
+    # Le varianti nascono dopo il controllo: lo studio entra intero.
+    assert saved.status_code == 200, saved.text
+    assert len(saved.json()) == 3
