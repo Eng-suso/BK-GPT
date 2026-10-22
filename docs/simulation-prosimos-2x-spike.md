@@ -68,7 +68,7 @@ non può girare né nel backend né nell'immagine attuale.
 | SIM-34 routing condizionale | **Solo 2.x**: la 1.2.6 accetta la sezione e la ignora in silenzio. |
 | SIM-12 code | Priorità sì; LIFO no. LIFO resta fuori dalla prima versione. |
 | SIM-32 durate condizionali | Non native. Compilazione lato IR: il task diventa varianti dietro un XOR con `branch_rules` (richiede 2.x). |
-| SIM-33 parametri per fascia oraria | Arrivi e capacità sì (calendari); durate e routing per fascia no: da compilare lato IR o da rimandare. |
+| SIM-33 parametri per fascia oraria | Arrivi e capacità sì (calendari); durate e routing per fascia no. Fatto poi nel runner DeliR: fascia di arrivo come attributo del caso (#141) e durata per ora d'inizio con una patch di `TaskEvent.__init__` legata a prosimos 2.1.0 (`ops/prosimos/runner/duration_windows.py`). |
 | SIM-11 / SIM-35 semantica BPMN | Il normalizer resta necessario anche con 2.x. Rework con `gateway_execution_limit`; escalation e boundary da compilare nell'IR. |
 | SIM-04 repliche e seed | Seed riproducibile solo se DeliR controlla il processo che chiama Prosimos. |
 

@@ -19,6 +19,16 @@ come stringhe JSON doppiamente codificate, `StatsFilename`, `LogsFilename`) più
 - `Seed`: il seed usato. Se la richiesta non ne manda uno, il runner ne sceglie
   uno nuovo e lo restituisce: ogni run si può rifare identico.
 - `EngineVersion`: la versione di Prosimos.
+- `ArrivalBands`: quante fasce degli arrivi (`delir_arrival_bands`) il runner ha
+  applicato.
+- `DurationWindows`: quante attività hanno durate per ora d'inizio
+  (`delir_duration_windows`, SIM-33b). Prosimos non lo sa fare: il runner
+  avvolge `TaskEvent.__init__` e riscala la durata campionata
+  (`duration_windows.py`). La patch è scritta per prosimos 2.1.0: con un'altra
+  versione la sezione si rifiuta con un `400`.
+
+L'adapter confronta questi conteggi con le sezioni che ha mandato e rifiuta un
+motore che le ignorerebbe in silenzio.
 
 Errori: `400` per input non valido (parametri, BPMN o scenario rifiutati dal
 motore), `500` per il resto, sempre con `errorMessage` leggibile.
