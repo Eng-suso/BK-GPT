@@ -122,7 +122,11 @@ describe("elementFromModel", () => {
       ], escalation: { activity_id: "Task_B", after_seconds: 172_800, normal_flow_id: "f1" } }],
     };
     const view = elementFromModel(model, "B_late");
-    expect(view?.kind === "gateway" && view.escalation).toEqual({ afterSeconds: 172_800, activityName: "Approva" });
+    expect(view?.kind === "gateway" && view.escalation).toEqual({ afterSeconds: 172_800, activityName: "Approva", interrupting: true });
+    const parallel = elementFromModel({ ...model, gateways: model.gateways.map((g) => ({
+      ...g, escalation: g.escalation && { ...g.escalation, interrupting: false },
+    })) }, "B_late");
+    expect(parallel?.kind === "gateway" && parallel.escalation && parallel.escalation.interrupting).toBe(false);
     const plain = elementFromModel(MODEL, "Gw");
     expect(plain?.kind === "gateway" && plain.escalation).toBeNull();
   });
