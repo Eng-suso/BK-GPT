@@ -66,6 +66,12 @@ class SimArrivalBandConfig(SimCalendarPeriodConfig):
     mean_seconds: float = Field(gt=0)
 
 
+class SimDurationWindowConfig(SimCalendarPeriodConfig):
+    """SIM-33b: un'attivita' che inizia in questa fascia dura ``factor`` volte tanto."""
+
+    factor: float = Field(gt=0, le=10, allow_inf_nan=False)
+
+
 class SimArrivalConfig(BaseModel):
     """Come arrivano i casi: la distribuzione del tempo fra un arrivo e il
     successivo e il calendario in cui arrivano.
@@ -177,6 +183,8 @@ class SimTaskConfig(BaseModel):
     # SIM-35: una parte dei casi salta l'attivita' o, finita, torna a rifare il lavoro.
     skip: Skip | None = None
     rework: Rework | None = None
+    # SIM-33b: la durata cambia con l'ora in cui l'attivita' inizia.
+    duration_windows: list[SimDurationWindowConfig] = Field(default_factory=list, max_length=21)
 
 
 class SimGatewayBranchConfig(BaseModel):
