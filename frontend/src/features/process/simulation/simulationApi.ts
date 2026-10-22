@@ -50,7 +50,7 @@ export async function runSensitivityStudy(
   return simulationRunsSchema.parse(raw);
 }
 
-function runRequestBody(input: CreateSimulationRunInput) {
+export function runRequestBody(input: CreateSimulationRunInput) {
   return {
     scenario_name: input.scenarioName,
     total_cases: input.totalCases,
