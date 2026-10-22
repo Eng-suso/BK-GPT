@@ -12,6 +12,9 @@ class BpmnTask(BaseModel):
     # SIM-11f: una multi-istanza con un numero fisso di istanze.
     instances: int = 1
     sequential_instances: bool = True
+    # SIM-11h: una multi-istanza senza un numero fisso nel BPMN: le istanze le
+    # imposta il consulente, e senza resta eseguita una volta.
+    open_instances: bool = False
 
 
 class BpmnWait(BaseModel):

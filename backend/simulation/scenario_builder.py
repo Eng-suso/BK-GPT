@@ -34,6 +34,7 @@ from backend.simulation.timers import (
     ESCALATION_NORMAL_FLOW,
     ESCALATION_OF,
     INSTANCES,
+    INSTANCES_OPEN,
     INSTANCES_SEQUENTIAL,
     TIMER_OF,
     duration_seconds,
@@ -136,7 +137,15 @@ def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = N
         ],
         resources=describe_bpmn_resources(source_bpmn_xml or bpmn_xml, {task.id for task in tasks}),
         tasks=[
-            ScenarioTemplateTask(element_id=task.id, name=task.name, type=task.type)
+            ScenarioTemplateTask(
+                element_id=task.id, name=task.name, type=task.type,
+                # SIM-11h: il pannello chiede le istanze solo dove il BPMN non le fissa.
+                multi_instance=(
+                    ("sequential" if task.sequential_instances else "parallel")
+                    if task.instances > 1 or task.open_instances else None
+                ),
+                instances=task.instances if task.instances > 1 else None,
+            )
             for task in tasks
         ],
         standard_calendar=_standard_calendar_config(),
@@ -231,6 +240,7 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
                 id=element_id, name=name or element_id, type=tag,
                 instances=int(element.attrib.get(INSTANCES, "1")),
                 sequential_instances=element.attrib.get(INSTANCES_SEQUENTIAL, "true") == "true",
+                open_instances=element.attrib.get(INSTANCES_OPEN) == "true",
             ))
         elif tag in BRANCHING_GATEWAY_TYPES:
             gateway_types[element_id] = tag

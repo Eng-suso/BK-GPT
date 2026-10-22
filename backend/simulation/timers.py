@@ -27,6 +27,9 @@ TIMER_OF = f"{{{DELIR_SIM_NS}}}timerOf"
 INSTANCES = f"{{{DELIR_SIM_NS}}}instances"
 INSTANCES_SEQUENTIAL = f"{{{DELIR_SIM_NS}}}instancesSequential"
 MAX_INSTANCES = 50
+# SIM-11h: una multi-istanza senza un numero fisso (una collezione, un'espressione):
+# quante istanze per caso lo dice il consulente nel pannello.
+INSTANCES_OPEN = f"{{{DELIR_SIM_NS}}}instancesOpen"
 
 # Solo durate fisse: anni e mesi non hanno una lunghezza in secondi.
 _DURATION = re.compile(

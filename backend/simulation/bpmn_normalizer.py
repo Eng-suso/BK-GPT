@@ -9,6 +9,7 @@ from backend.simulation.timers import (
     ESCALATION_NORMAL_FLOW,
     ESCALATION_OF,
     INSTANCES,
+    INSTANCES_OPEN,
     INSTANCES_SEQUENTIAL,
     MAX_INSTANCES,
     TIMER_OF,
@@ -365,11 +366,26 @@ def fixed_instances(element: ElementTree.Element) -> tuple[int, bool] | None:
     return int(text), loop.get("isSequential") == "true"
 
 
+def open_instances(element: ElementTree.Element) -> bool | None:
+    """SIM-11h: una multi-istanza senza un numero fisso: ``True`` se in sequenza, ``None`` se non lo e'."""
+    loop = element.find(_q(BPMN_MODEL_NS, "multiInstanceLoopCharacteristics"))
+    if loop is None or fixed_instances(element) is not None:
+        return None
+    return loop.get("isSequential") == "true"
+
+
 def _mark_fixed_instances(element: ElementTree.Element) -> None:
-    fixed = fixed_instances(element) if _local(element.tag) in _ACTIVITY_TAGS else None
+    if _local(element.tag) not in _ACTIVITY_TAGS:
+        return
+    fixed = fixed_instances(element)
     if fixed is not None:
         element.set(INSTANCES, str(fixed[0]))
         element.set(INSTANCES_SEQUENTIAL, "true" if fixed[1] else "false")
+        return
+    sequential = open_instances(element)
+    if sequential is not None:
+        element.set(INSTANCES_OPEN, "true")
+        element.set(INSTANCES_SEQUENTIAL, "true" if sequential else "false")
 
 
 def _keep_only_flow_refs(element: ElementTree.Element) -> None:
