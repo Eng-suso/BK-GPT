@@ -461,6 +461,21 @@
         "asAttribute": "Usa la fascia di arrivo come attributo del caso",
         "asAttributeHint": "Ogni caso riceve «{{name}}» con la fascia in cui arriva (Fascia 1, Fascia 2…): durate per categoria e decisioni per regola possono usarla."
       },
+      "durationWindows": {
+        "toggle": "La durata cambia con l'ora d'inizio",
+        "hint": "Un'attività che inizia in una fascia dura di più (o di meno) della durata di base. Conta l'ora d'inizio; fuori dalle fasce vale la durata di base.",
+        "window": "Fascia oraria {{n}}",
+        "remove": "Togli {{window}}",
+        "percent": "Variazione della durata, %",
+        "add": "Aggiungi una fascia",
+        "issue": {
+          "order": "L'ora di fine deve venire dopo quella di inizio, nello stesso giorno.",
+          "percent": "La variazione va da {{min}}% a +{{max}}%.",
+          "overlap": "Si sovrappone a una fascia precedente."
+        },
+        "inspector": "Per ora d'inizio",
+        "inspectorWindow": "{{days}} {{begin}}–{{end}}: {{change}}"
+      },
       "escalation": "Escalation a tempo dopo {{after}} su «{{activity}}». La quota dei casi che la prendono viene dalla durata dell'attività: il timer conta la lavorazione, non l'attesa in coda.",
       "skip": {
         "legend": "Salto di «{{task}}»",

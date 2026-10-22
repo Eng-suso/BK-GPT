@@ -461,6 +461,21 @@
         "asAttribute": "Use the arrival band as a case attribute",
         "asAttributeHint": "Each case gets “{{name}}” with the band it arrives in (Fascia 1, Fascia 2…): durations by category and rule-based decisions can use it."
       },
+      "durationWindows": {
+        "toggle": "Duration changes with the start time",
+        "hint": "An activity that starts inside a band takes longer (or shorter) than the base duration. The start time counts; outside the bands the base duration applies.",
+        "window": "Time band {{n}}",
+        "remove": "Remove {{window}}",
+        "percent": "Duration change, %",
+        "add": "Add a band",
+        "issue": {
+          "order": "The end time must come after the start time, on the same day.",
+          "percent": "The change goes from {{min}}% to +{{max}}%.",
+          "overlap": "It overlaps an earlier band."
+        },
+        "inspector": "By start time",
+        "inspectorWindow": "{{days}} {{begin}}–{{end}}: {{change}}"
+      },
       "escalation": "Timer escalation after {{after}} on «{{activity}}». The share of cases taking it comes from the activity duration: the timer counts work, not waiting in the queue.",
       "skip": {
         "legend": "Skipping «{{task}}»",

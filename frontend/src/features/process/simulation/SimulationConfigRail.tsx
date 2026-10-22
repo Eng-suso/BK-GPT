@@ -40,6 +40,7 @@ import { RunLength } from "./RunLength";
 import { ArrivalBands } from "./ArrivalBands";
 import { withBandAttribute } from "./arrivalBands";
 import { DurationByCategory } from "./DurationByCategory";
+import { DurationWindows } from "./DurationWindows";
 import { FlowRules } from "./FlowRules";
 import { ResourceShifts } from "./ResourceShifts";
 import { formatAfter } from "./escalation";
@@ -484,6 +485,12 @@ export function SimulationConfigRail({
                       taskName={task.name}
                       task={cfg}
                       attributes={attributes}
+                      onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                    />
+                    <DurationWindows
+                      elementId={task.element_id}
+                      taskName={task.name}
+                      task={cfg}
                       onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
                     />
                     <FlowRules
