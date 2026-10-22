@@ -112,9 +112,34 @@ test("the timer shows the wait the run simulated (SIM-11c)", async ({ page }) =>
   await page.locator('.djs-element[data-element-id="W_timer"]').first().click();
   const params = page.getByRole("region", { name: "Parametri simulati", exact: true });
   const wait = params.locator("[data-wait-inspector]");
-  await expect(wait).toContainText("Attesa del timer");
+  await expect(wait).toContainText("Attesa");
   await expect(wait).toContainText("2g");
   await expect(wait).toContainText("il timer conta l'orologio, non il calendario");
   const axe = await new AxeBuilder({ page }).include("[data-wait-inspector]").withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(axe.violations).toEqual([]);
+});
+
+test("the consultant sets how long the case waits for the customer's reply (SIM-11d)", async ({ page }) => {
+  await fixture(page);
+  await page.route("http://127.0.0.1:8000/**/simulation-template", (route) => route.fulfill({ json: { ...template, waits: [
+    { element_id: "W_timer", name: "Attendi 2 giorni", kind: "timer", seconds: 172800 },
+    { element_id: "W_reply", name: "Risposta del cliente", kind: "message" },
+  ] } }));
+  await page.goto(`${studio}/scenario`);
+
+  const waits = page.locator("[data-sim-waits]");
+  await waits.scrollIntoViewIfNeeded();
+  await expect(waits.locator('[data-sim-wait="W_timer"]')).toContainText("Dal BPMN: 2g, a qualsiasi ora.");
+  const reply = waits.locator('[data-sim-wait="W_reply"]');
+  await expect(reply).toContainText("Attesa non impostata: il caso prosegue subito.");
+  await reply.getByRole("button", { name: "Imposta l'attesa di Risposta del cliente" }).click();
+  await reply.getByLabel("Durata, min · Risposta del cliente").fill("2880");
+
+  const axe = await new AxeBuilder({ page }).include("[data-sim-waits]").withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+
+  const request = page.waitForRequest((req) => req.method() === "POST" && req.url().endsWith("/simulation-runs"));
+  await page.getByRole("button", { name: "Avvia simulazione", exact: true }).click();
+  const body = (await request).postDataJSON();
+  expect(body.waits).toEqual([{ element_id: "W_reply", mean_seconds: 172800, distribution: "expon" }]);
 });
