@@ -23,6 +23,7 @@ import {
   type WorkspaceScenario,
 } from "./scenarioWorkspace";
 import { decisionRecordHtml } from "./decisionRecord";
+import { ScenarioOutcomes } from "./ScenarioOutcome";
 import { interpret, interpretationLines } from "./interpretation";
 import { buildTornado, studyMembers } from "./sensitivity";
 import { buildInputConfidence } from "./simulationProvenance";
@@ -50,7 +51,7 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const lab = useScenarioLab();
-  const { runs, process } = useSimulationSection();
+  const { runs, process, processId } = useSimulationSection();
   const changes = useScenarioChanges(lab.baselineDraft, lab.template);
   const real = useRealProcessing();
   const [params, setParams] = useSearchParams();
@@ -268,6 +269,13 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
           </ul>
         </div>
       )}
+      <ScenarioOutcomes
+        processId={processId}
+        asIs={asIs}
+        alternatives={rows.slice(1).map(({ scenario, results }, i) => ({ scenario, results, comparison: comparisons[i] ?? null }))}
+        onRecord={lab.recordOutcome}
+        lang={lang}
+      />
       {[...kinds].map((kind) => <p key={kind} className="text-xs text-muted-foreground" data-sim-workspace-method={kind}>{t(`simulation.scenarios.workspace.method.${kind}`)}</p>)}
       {comparisonsCount > 1 && (kinds.has("paired") || kinds.has("independent")) && <p className="text-xs text-muted-foreground" data-sim-workspace-method="bonferroni">{t("simulation.scenarios.workspace.method.bonferroni", { count: comparisonsCount })}</p>}
     </section>
