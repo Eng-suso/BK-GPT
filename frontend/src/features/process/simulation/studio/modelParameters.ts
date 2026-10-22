@@ -67,8 +67,22 @@ export type FlowRulesView = {
 /** SIM-33b: una fascia oraria d'inizio e il fattore sulla durata. */
 export type DurationWindowView = { fromDay: string; toDay: string; begin: string; end: string; factor: number };
 export type ElementView =
-  | { kind: "activity"; assignments: AssignmentView[]; durationBy: DurationByView | null; flowRules: FlowRulesView; durationWindows: DurationWindowView[] }
+  | { kind: "activity"; assignments: AssignmentView[]; durationBy: DurationByView | null; flowRules: FlowRulesView; durationWindows: DurationWindowView[]; instances: { count: number; sequential: boolean } | null }
   | { kind: "gateway"; branches: BranchView[]; provenance: FieldProvenance; escalation: EscalationView | null };
+
+/** SIM-11c: un timer intermedio che il caso aspettava, con la durata simulata. */
+export type WaitView = { name: string; kind: "timer" | "message" | "signal" | "conditional"; duration: DurationView | null; manual: boolean };
+
+export function waitFromModel(model: RunModel, elementId: string): WaitView | null {
+  const wait = (model.waits ?? []).find((w) => w.element_id === elementId);
+  if (!wait) return null;
+  return {
+    name: wait.name || wait.element_id,
+    kind: wait.kind,
+    duration: wait.duration ? durationView(wait.duration) : null,
+    manual: wait.provenance?.origin === "manual",
+  };
+}
 
 /** SIM-35: un timer d'escalation; la quota dei rami veniva dalla durata dell'attivita'. */
 export type EscalationView = { afterSeconds: number; activityName: string };
@@ -163,6 +177,7 @@ export function elementFromModel(
           }
           : null,
       },
+      instances: (activity.instances ?? 1) > 1 ? { count: activity.instances ?? 1, sequential: activity.sequential_instances ?? true } : null,
       durationWindows: (activity.duration_windows ?? []).map((w) => ({
         fromDay: w.from_day, toDay: w.to_day, begin: w.begin.slice(0, 5), end: w.end.slice(0, 5), factor: w.factor,
       })),

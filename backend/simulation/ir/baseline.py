@@ -56,6 +56,8 @@ def baseline_model(
             Activity(
                 element_id=task.id,
                 name=task.name,
+                instances=task.instances,
+                sequential_instances=task.sequential_instances,
                 assignments=(
                     Assignment(
                         resource_id=owners.get(task.id, fallback),

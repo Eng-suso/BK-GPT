@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -9,6 +9,22 @@ class BpmnTask(BaseModel):
     id: str
     name: str
     type: str = "task"
+    # SIM-11f: una multi-istanza con un numero fisso di istanze.
+    instances: int = 1
+    sequential_instances: bool = True
+
+
+class BpmnWait(BaseModel):
+    """SIM-11c/d: un evento intermedio rimasto nel BPMN normalizzato, che il caso aspetta.
+
+    Un timer porta la sua durata (``seconds``); un messaggio, un segnale o una
+    condizione no: la imposta il consulente.
+    """
+
+    id: str
+    name: str = ""
+    kind: Literal["timer", "message", "signal", "conditional"] = "timer"
+    seconds: float | None = None
 
 
 class BpmnFlow(BaseModel):

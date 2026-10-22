@@ -16,6 +16,11 @@ DELIR_SIM_NS = "https://delir.ai/bpmn/simulation"
 ESCALATION_OF = f"{{{DELIR_SIM_NS}}}escalationOf"
 ESCALATION_AFTER = f"{{{DELIR_SIM_NS}}}escalationAfter"
 ESCALATION_NORMAL_FLOW = f"{{{DELIR_SIM_NS}}}escalationNormalFlow"
+# SIM-11f: un'attivita' multi-istanza con un numero fisso di istanze; il
+# normalizer lo lascia qui prima di ridurla a un task.
+INSTANCES = f"{{{DELIR_SIM_NS}}}instances"
+INSTANCES_SEQUENTIAL = f"{{{DELIR_SIM_NS}}}instancesSequential"
+MAX_INSTANCES = 50
 
 # Solo durate fisse: anni e mesi non hanno una lunghezza in secondi.
 _DURATION = re.compile(

@@ -507,6 +507,128 @@ def test_a_duration_window_slows_the_activities_that_start_in_it(tmp_path, monke
     assert seen["morning"] > 10 and seen["afternoon"] > 10, seen
 
 
+def test_a_timer_in_the_flow_makes_the_case_wait_on_the_engine(tmp_path, monkeypatch):
+    # SIM-11c: "Attendi 2 ore" fra le due attivita'. Prima il timer spariva e
+    # il secondo passo partiva subito; ora parte due ore dopo, anche fuori orario.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    sys.path.insert(0, str(ROOT / "ops" / "prosimos" / "runner"))
+    import runner
+
+    monkeypatch.setattr(runner, "DATA_DIR", tmp_path)
+    source = contract_spike.BPMN_PATH.read_text(encoding="utf-8")
+    flow = next(line for line in source.splitlines() if 'sourceRef="T_approve"' in line)
+    target = flow.split('targetRef="')[1].split('"')[0]
+    bpmn = normalize_bpmn_for_prosimos(source.replace(flow, flow.replace(f'targetRef="{target}"', 'targetRef="W"') + (
+        '<intermediateCatchEvent id="W" name="Attendi 2 ore"><timerEventDefinition><timeDuration>PT2H</timeDuration>'
+        f'</timerEventDefinition></intermediateCatchEvent><sequenceFlow id="F_wait" sourceRef="W" targetRef="{target}"/>'
+    )))
+    request = CreateSimulationRunRequest(
+        tasks=[{"element_id": t, "mean_seconds": 60, "distribution": "fixed", "resource_id": "r"} for t in ("T_receive", "T_approve", "T_pay")],
+        resources=[{"id": "r", "name": "Ufficio", "amount": 5, "cost_per_hour": 30}],
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    body = runner.simulate(bpmn.encode(), json.dumps(scenario.payload).encode(), 40, contract_spike.START, 7)
+
+    rows = contract_spike.parse_log((tmp_path / body["LogsFilename"]).read_text(encoding="utf-8"))
+    cases: dict[str, dict[str, dict]] = {}
+    for row in rows:
+        cases.setdefault(row["case_id"], {})[row["activity"]] = row
+    waited = [case for case in cases.values() if "Approva" in case and "Paga" in case]
+    assert len(waited) > 5
+    for case in waited:
+        gap = case["Paga"]["enable"] - case["Approva"]["end"]
+        assert gap == 7200, gap
+
+
+def test_a_subprocess_runs_step_by_step_on_the_engine(tmp_path, monkeypatch):
+    # SIM-11e: "Istruttoria" contiene Verifica e poi Approva o Rifiuta. Prima era
+    # un'unica attivita'; ora il log ha i passi interni con le loro durate.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+    sys.path.insert(0, str(ROOT / "ops" / "prosimos" / "runner"))
+    import runner
+
+    monkeypatch.setattr(runner, "DATA_DIR", tmp_path)
+    bpmn = normalize_bpmn_for_prosimos("""<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D"><bpmn:process id="P" isExecutable="false">
+  <bpmn:startEvent id="S" /><bpmn:task id="A" name="Ricevi" />
+  <bpmn:subProcess id="SP" name="Istruttoria">
+    <bpmn:startEvent id="SP_s" /><bpmn:task id="SP_check" name="Verifica" /><bpmn:exclusiveGateway id="SP_g" />
+    <bpmn:task id="SP_ok" name="Approva" /><bpmn:task id="SP_ko" name="Rifiuta" /><bpmn:exclusiveGateway id="SP_j" /><bpmn:endEvent id="SP_e" />
+    <bpmn:sequenceFlow id="SP_f1" sourceRef="SP_s" targetRef="SP_check" /><bpmn:sequenceFlow id="SP_f2" sourceRef="SP_check" targetRef="SP_g" />
+    <bpmn:sequenceFlow id="SP_ok_f" sourceRef="SP_g" targetRef="SP_ok" /><bpmn:sequenceFlow id="SP_ko_f" sourceRef="SP_g" targetRef="SP_ko" />
+    <bpmn:sequenceFlow id="SP_f3" sourceRef="SP_ok" targetRef="SP_j" /><bpmn:sequenceFlow id="SP_f4" sourceRef="SP_ko" targetRef="SP_j" />
+    <bpmn:sequenceFlow id="SP_f5" sourceRef="SP_j" targetRef="SP_e" />
+  </bpmn:subProcess>
+  <bpmn:task id="B" name="Comunica" /><bpmn:endEvent id="E" />
+  <bpmn:sequenceFlow id="f1" sourceRef="S" targetRef="A" /><bpmn:sequenceFlow id="f2" sourceRef="A" targetRef="SP" />
+  <bpmn:sequenceFlow id="f3" sourceRef="SP" targetRef="B" /><bpmn:sequenceFlow id="f4" sourceRef="B" targetRef="E" />
+</bpmn:process></bpmn:definitions>""")
+    seconds = {"A": 60, "SP_check": 300, "SP_ok": 600, "SP_ko": 900, "B": 60}
+    request = CreateSimulationRunRequest(
+        resources=[{"id": "r", "name": "Ufficio", "amount": 10, "cost_per_hour": 30}],
+        tasks=[{"element_id": t, "mean_seconds": s, "distribution": "fixed", "resource_id": "r"} for t, s in seconds.items()],
+        gateways=[{"element_id": "SP_g", "branches": [{"flow_id": "SP_ok_f", "probability": 0.7}, {"flow_id": "SP_ko_f", "probability": 0.3}]}],
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    body = runner.simulate(bpmn.encode(), json.dumps(scenario.payload).encode(), 60, contract_spike.START, 3)
+
+    rows = contract_spike.parse_log((tmp_path / body["LogsFilename"]).read_text(encoding="utf-8"))
+    names = {"Ricevi": 60, "Verifica": 300, "Approva": 600, "Rifiuta": 900, "Comunica": 60}
+    assert {row["activity"] for row in rows} == set(names)
+    night = 16 * 3600
+    for row in rows:
+        assert round(row["end"] - row["start"] - names[row["activity"]]) % night == 0, row["activity"]
+    approved = sum(row["activity"] == "Approva" for row in rows)
+    rejected = sum(row["activity"] == "Rifiuta" for row in rows)
+    assert approved > rejected > 0
+
+
+@pytest.mark.parametrize("sequential", [True, False])
+def test_a_multi_instance_activity_runs_its_instances_on_the_engine(tmp_path, monkeypatch, sequential):
+    # SIM-11f: "firma ognuno dei 3 documenti". In sequenza le firme si
+    # susseguono; in parallelo partono insieme su tre persone diverse.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    sys.path.insert(0, str(ROOT / "ops" / "prosimos" / "runner"))
+    import runner
+
+    monkeypatch.setattr(runner, "DATA_DIR", tmp_path)
+    loop = f'<bpmn:multiInstanceLoopCharacteristics isSequential="{str(sequential).lower()}"><bpmn:loopCardinality>3</bpmn:loopCardinality></bpmn:multiInstanceLoopCharacteristics>'
+    bpmn = normalize_bpmn_for_prosimos(f"""<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D"><bpmn:process id="P" isExecutable="false">
+  <bpmn:startEvent id="S" /><bpmn:userTask id="SIGN" name="Firma">{loop}</bpmn:userTask><bpmn:endEvent id="E" />
+  <bpmn:sequenceFlow id="f1" sourceRef="S" targetRef="SIGN" /><bpmn:sequenceFlow id="f2" sourceRef="SIGN" targetRef="E" />
+</bpmn:process></bpmn:definitions>""")
+    # Arrivi ogni due ore esatte: i casi non si contendono le persone, conta solo il parallelismo.
+    request = CreateSimulationRunRequest(
+        arrival={"mean_seconds": 7200, "distribution": "fixed"},
+        resources=[{"id": "r", "name": "Ufficio", "amount": 5, "cost_per_hour": 30}],
+        tasks=[{"element_id": "SIGN", "mean_seconds": 600, "distribution": "fixed", "resource_id": "r"}],
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    body = runner.simulate(scenario.bpmn_xml.encode(), json.dumps(scenario.payload).encode(), 20, contract_spike.START, 5)
+
+    rows = contract_spike.parse_log((tmp_path / body["LogsFilename"]).read_text(encoding="utf-8"))
+    by_case: dict[str, list[dict]] = {}
+    for row in rows:
+        assert row["activity"] == "Firma"
+        by_case.setdefault(row["case_id"], []).append(row)
+    assert len(by_case) == 20 and all(len(signs) == 3 for signs in by_case.values())
+    for signs in by_case.values():
+        signs.sort(key=lambda r: r["start"])
+        if sequential:
+            assert all(b["start"] >= a["end"] for a, b in zip(signs, signs[1:], strict=False))
+        else:
+            assert signs[0]["start"] == signs[2]["start"] and len({r["resource"] for r in signs}) == 3
+
+
 def test_a_morning_shift_adds_staff_only_in_the_morning():
     # SIM-30: un operatore tutto il giorno, tre in piu' dalle 9 alle 12. Con
     # molti arrivi, il turno lavora solo la mattina e riduce l'attesa.

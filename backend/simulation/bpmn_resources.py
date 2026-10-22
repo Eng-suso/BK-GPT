@@ -44,6 +44,19 @@ def describe_bpmn_resources(xml: str, task_ids: set[str]) -> list[ScenarioTempla
                 if task_id in task_ids and lane.get("id"):
                     if lane not in memberships.setdefault(task_id, []):
                         memberships[task_id].append(lane)
+        # SIM-11e: un passo dentro un sottoprocesso sta nella lane del sottoprocesso,
+        # che il normalizer srotola nel processo.
+        lane_refs = {_reference(ref.text or "") for lane in lanes for ref in lane.findall(NS + "flowNodeRef")}
+        for node in process.iter():
+            node_id = node.get("id")
+            if node_id not in task_ids or node_id in memberships:
+                continue
+            ancestor = parent.get(node)
+            while ancestor is not None and ancestor.get("id") not in lane_refs:
+                ancestor = parent.get(ancestor)
+            if ancestor is not None and ancestor.tag == NS + "subProcess":
+                memberships[node_id] = [lane for lane in lanes if any(
+                    _reference(ref.text or "") == ancestor.get("id") for ref in lane.findall(NS + "flowNodeRef"))]
         owners: dict[str, ET.Element] = {}
         for task_id, members in memberships.items():
             deepest = max(len(ancestry(lane)) for lane in members)

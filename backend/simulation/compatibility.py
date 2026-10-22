@@ -28,6 +28,7 @@ from backend.schemas.simulation import (
 )
 from backend.schemas.workspace import BpmnModelResponse
 from backend.simulation.bpmn_normalizer import (
+    fixed_instances,
     _ACTIVITY_TAGS,
     _GATEWAY_REWRITE,
     _NOISE_TAGS,
@@ -121,7 +122,10 @@ class _ProcessReport:
                     "quindi i casi che nella realta' lo attivano non ne pagano tempo e costo."
                 ),
             )
-        if local in _SUBPROCESS_TAGS:
+        if local in _SUBPROCESS_TAGS and flattened_into is None and self._expanded(element):
+            # SIM-11e: srotolato nel processo, i passi interni si leggono come gli altri.
+            entries.extend(self._expanded_children(element))
+        elif local in _SUBPROCESS_TAGS:
             # I passi interni spariscono dentro la scatola nera del sottoprocesso.
             parent = flattened_into or element_id
             for child in element:
@@ -129,6 +133,31 @@ class _ProcessReport:
         elif local == "laneSet":
             for child in element:
                 entries.extend(self._visit_lanes(child))
+        return entries
+
+    def _expanded(self, sub: ElementTree.Element) -> bool:
+        """Un sottoprocesso che il normalizer ha srotolato: sparito lui, restano i suoi passi."""
+        steps = [c.get("id") for c in sub if _local(c.tag) in _ACTIVITY_TAGS | _SUBPROCESS_TAGS | {"task"}]
+        return sub.get("id") not in self.after.tags and any(step in self.after.tags for step in steps)
+
+    def _expanded_children(self, sub: ElementTree.Element) -> list[BpmnElementCompatibility]:
+        entries: list[BpmnElementCompatibility] = []
+        bounds = {c.get("id") for c in sub if _local(c.tag) in {"startEvent", "endEvent"}}
+        for child in sub:
+            local = _local(child.tag)
+            joined = local in {"startEvent", "endEvent"} or (
+                local == "sequenceFlow" and (child.get("sourceRef") in bounds or child.get("targetRef") in bounds)
+            )
+            if joined and child.get("id"):
+                entries.append(_entry(
+                    child, local, "approximated", "none", parent_id=sub.get("id"),
+                    note="Assorbito: il flusso del processo entra nel primo passo del sottoprocesso ed esce dall'ultimo.",
+                ))
+            else:
+                entries.extend(
+                    entry if entry.parent_id else entry.model_copy(update={"parent_id": sub.get("id")})
+                    for entry in self._visit(child, flattened_into=None)
+                )
         return entries
 
     def _visit_lanes(self, element: ElementTree.Element) -> list[BpmnElementCompatibility]:
@@ -171,6 +200,11 @@ class _ProcessReport:
                     "Parte da un evento, non dal flusso: il motore non lo esegue, "
                     "quindi i casi che nella realta' lo attivano non ne pagano tempo e costo."
                 ),
+            )
+        if local in _SUBPROCESS_TAGS and element_id not in self.after.tags and self._expanded(element):
+            return _entry(
+                element, local, "preserved", "none", simulated_as="expanded",
+                note="Simulato passo per passo: ogni attività interna ha la sua durata, le sue risorse e i suoi rami.",
             )
         if local in _SUBPROCESS_TAGS:
             return _entry(
@@ -215,6 +249,17 @@ class _ProcessReport:
         element_id = element.get("id", "")
         if element_id not in self.after.tags:
             return _exception_entry(element, local)
+        fixed = fixed_instances(element)
+        if fixed is not None:
+            count, sequential = fixed
+            return _entry(
+                element, local, "preserved", "none", simulated_as=f"task × {count}",
+                note=(
+                    f"Eseguita {count} volte per caso, {'una dopo l’altra' if sequential else 'in parallelo'}, "
+                    "ogni istanza con la sua durata e la sua risorsa. Con durate per categoria, salti o "
+                    "rilavorazioni sull'attività si simula una volta sola."
+                ),
+            )
         if any(_local(child.tag) in _LOOP_TAGS for child in element):
             return _entry(
                 element, local, "approximated", "high", simulated_as="task",
@@ -268,9 +313,27 @@ class _ProcessReport:
 
     def _intermediate(self, element: ElementTree.Element, local: str) -> BpmnElementCompatibility:
         definitions = {_local(child.tag) for child in element}
+        if element.get("id") in self.after.tags and "timerEventDefinition" in definitions:
+            # SIM-11c: un timer con durata fissa resta nel BPMN e il caso aspetta.
+            return _entry(
+                element, local, "preserved", "none", simulated_as="timer",
+                note="Il caso aspetta la durata del timer, a qualsiasi ora: il timer conta l'orologio, non il calendario.",
+            )
+        if element.get("id") in self.after.tags and definitions & _WAITING_DEFINITIONS:
+            # SIM-11d: l'evento resta; quanto si aspetta lo dice il consulente.
+            return _entry(
+                element, local, "approximated", "medium", simulated_as="wait",
+                note=(
+                    "Il caso aspetta il tempo impostato nel pannello, in Attese; "
+                    "finché non lo imposti, prosegue subito."
+                ),
+            )
         if "timerEventDefinition" in definitions and local == "intermediateCatchEvent":
             impact: KpiImpact = "high"
-            note = "L'attesa del timer non è simulata: il cycle time e il tempo di attesa sono sottostimati."
+            note = (
+                "L'attesa del timer non è simulata (una data, un ciclo o un timer dopo un gateway a eventi): "
+                "il cycle time e il tempo di attesa sono sottostimati."
+            )
         elif definitions & _WAITING_DEFINITIONS and local == "intermediateCatchEvent":
             impact = "medium"
             note = "L'attesa dell'evento non è simulata: il caso prosegue subito."

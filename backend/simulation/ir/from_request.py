@@ -42,6 +42,7 @@ from backend.simulation.ir.model import (
     Skip,
     SourceRef,
     Uniform,
+    Wait,
 )
 from backend.simulation.models import BpmnGateway, BpmnTask
 
@@ -296,6 +297,8 @@ def _activity(task: BpmnTask, override, request, default_resource_id: str, resou
             assignments=(primary, *_other_assignments(task, override, resource_id, resource_ids)),
             duration_by=_duration_by(task, override),
             duration_windows=_duration_windows(override),
+            instances=task.instances,
+            sequential_instances=task.sequential_instances,
         )
     except ValidationError as exc:
         reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
@@ -311,6 +314,28 @@ def _duration_windows(override) -> tuple[DurationWindow, ...]:
                        factor=float(window.factor), provenance=_MANUAL)
         for window in override.duration_windows
     )
+
+
+def with_request_waits(model: SimulationModel, request: CreateSimulationRunRequest) -> SimulationModel:
+    """SIM-11d: le attese che il consulente ha impostato agli eventi intermedi.
+
+    Che l'evento esista nel BPMN lo verifica ``ir/waits.py``, che completa le altre.
+    """
+    if not request.waits:
+        return model
+    waits = []
+    for cfg in request.waits:
+        try:
+            value = duration(cfg.distribution, float(cfg.mean_seconds), std=cfg.std_seconds,
+                             minimum=cfg.min_seconds, maximum=cfg.max_seconds)
+        except ValueError as exc:
+            raise ValueError(f"Attesa di {cfg.element_id}: {exc}") from exc
+        waits.append(Wait(element_id=cfg.element_id, duration=value, provenance=_MANUAL))
+    try:
+        return SimulationModel.model_validate(model.model_copy(update={"waits": tuple(waits)}).model_dump())
+    except ValidationError as exc:
+        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+        raise ValueError(f"Attese: {reason}.") from exc
 
 
 def with_band_attribute(model: SimulationModel, request: CreateSimulationRunRequest) -> SimulationModel:

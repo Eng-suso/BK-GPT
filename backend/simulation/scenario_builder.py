@@ -10,6 +10,7 @@ from backend.schemas.simulation import (
     ScenarioTemplateGateway,
     ScenarioTemplateResponse,
     ScenarioTemplateTask,
+    ScenarioTemplateWait,
     SimCalendarConfig,
     SimCalendarPeriodConfig,
 )
@@ -17,15 +18,24 @@ from backend.simulation.bpmn_resources import describe_bpmn_resources
 from backend.simulation.ir import compile_for_prosimos, model_from_request
 from backend.simulation.ir.escalations import expand_escalations
 from backend.simulation.ir.flow_rules import expand_flow_rules
-from backend.simulation.ir.from_request import with_band_attribute, with_flow_rules
+from backend.simulation.ir.instances import expand_instances
+from backend.simulation.ir.from_request import with_band_attribute, with_flow_rules, with_request_waits
 from backend.simulation.ir.variants import expand_duration_variants
+from backend.simulation.ir.waits import with_bpmn_waits
 from backend.simulation.ir.baseline import baseline_model
 from backend.simulation.ir.bpmn_check import check_model_against_bpmn
 from backend.simulation.ir.from_request import standard_calendar
 from backend.simulation.ir.model import SimulationModel, TimerEscalation
 from backend.simulation.ir.patch import apply_patch
-from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, ProsimosScenario
-from backend.simulation.timers import ESCALATION_AFTER, ESCALATION_NORMAL_FLOW, ESCALATION_OF
+from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, BpmnWait, ProsimosScenario
+from backend.simulation.timers import (
+    ESCALATION_AFTER,
+    ESCALATION_NORMAL_FLOW,
+    ESCALATION_OF,
+    INSTANCES,
+    INSTANCES_SEQUENTIAL,
+    duration_seconds,
+)
 from backend.simulation.validation import validate_simulation_bpmn
 
 
@@ -69,6 +79,7 @@ def build_prosimos_scenario(
         check_model_against_bpmn(model, tasks, gateways)
     model = with_band_attribute(model, request)
     model = with_flow_rules(model, request)
+    model = with_bpmn_waits(with_request_waits(model, request), parse_bpmn_waits(bpmn_xml))
     return _scenario(bpmn_xml, model, tasks, gateways)
 
 
@@ -80,7 +91,8 @@ def _scenario(bpmn_xml: str, model: SimulationModel, tasks: list[BpmnTask], gate
     l'inspector mostra le durate per categoria sull'attivita' vera. I salti
     vengono prima: una variante di durata sta dentro il salto, non attorno.
     """
-    engine_bpmn, engine_model = expand_escalations(bpmn_xml, model)
+    engine_bpmn, engine_model = expand_instances(bpmn_xml, model)
+    engine_bpmn, engine_model = expand_escalations(engine_bpmn, engine_model)
     engine_bpmn, engine_model = expand_flow_rules(engine_bpmn, engine_model)
     engine_bpmn, engine_model = expand_duration_variants(engine_bpmn, engine_model)
     return ProsimosScenario(
@@ -100,7 +112,7 @@ def baseline_for_bpmn(bpmn_xml: str, *, source_bpmn_xml: str | None = None) -> S
     """
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     resources = describe_bpmn_resources(source_bpmn_xml or bpmn_xml, {task.id for task in tasks})
-    return baseline_model(tasks, gateways, resources)
+    return with_bpmn_waits(baseline_model(tasks, gateways, resources), parse_bpmn_waits(bpmn_xml))
 
 
 def build_prosimos_scenario_from_model(*, bpmn_xml: str, model: SimulationModel) -> ProsimosScenario:
@@ -108,12 +120,17 @@ def build_prosimos_scenario_from_model(*, bpmn_xml: str, model: SimulationModel)
     validate_simulation_bpmn(bpmn_xml)
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     check_model_against_bpmn(model, tasks, gateways)
+    model = with_bpmn_waits(model, parse_bpmn_waits(bpmn_xml))
     return _scenario(bpmn_xml, model, tasks, gateways)
 
 
 def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = None) -> ScenarioTemplateResponse:
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     return ScenarioTemplateResponse(
+        waits=[
+            ScenarioTemplateWait(element_id=wait.id, name=wait.name or wait.id, kind=wait.kind, seconds=wait.seconds)
+            for wait in parse_bpmn_waits(bpmn_xml)
+        ],
         resources=describe_bpmn_resources(source_bpmn_xml or bpmn_xml, {task.id for task in tasks}),
         tasks=[
             ScenarioTemplateTask(element_id=task.id, name=task.name, type=task.type)
@@ -157,6 +174,32 @@ def _standard_calendar_config() -> SimCalendarConfig:
 # --- BPMN parsing -----------------------------------------------------------
 
 
+def parse_bpmn_waits(bpmn_xml: str) -> list[BpmnWait]:
+    """SIM-11c/d: gli eventi intermedi rimasti nel BPMN normalizzato, che il caso aspetta."""
+    try:
+        root = ElementTree.fromstring(bpmn_xml.encode("utf-8"))
+    except ElementTree.ParseError as exc:
+        raise ValueError("XML BPMN non valido.") from exc
+    kinds = {"timerEventDefinition": "timer", "messageEventDefinition": "message",
+             "signalEventDefinition": "signal", "conditionalEventDefinition": "conditional"}
+    waits = []
+    for element in root.iter():
+        if _local_name(element.tag) != "intermediateCatchEvent" or not element.attrib.get("id"):
+            continue
+        definitions = [child for child in element if _local_name(child.tag) in kinds]
+        if len(definitions) != 1:
+            continue
+        kind = kinds[_local_name(definitions[0].tag)]
+        seconds = None
+        if kind == "timer":
+            text = next((c.text for c in definitions[0] if _local_name(c.tag) == "timeDuration"), None)
+            seconds = duration_seconds(text)
+            if seconds is None:
+                continue
+        waits.append(BpmnWait(id=element.attrib["id"], name=element.attrib.get("name") or "", kind=kind, seconds=seconds))
+    return waits
+
+
 def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnGateway]]:
     try:
         root = ElementTree.fromstring(bpmn_xml.encode("utf-8"))
@@ -180,7 +223,11 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
             names_by_id[element_id] = name
 
         if tag in TASK_TYPES:
-            tasks.append(BpmnTask(id=element_id, name=name or element_id, type=tag))
+            tasks.append(BpmnTask(
+                id=element_id, name=name or element_id, type=tag,
+                instances=int(element.attrib.get(INSTANCES, "1")),
+                sequential_instances=element.attrib.get(INSTANCES_SEQUENTIAL, "true") == "true",
+            ))
         elif tag in BRANCHING_GATEWAY_TYPES:
             gateway_types[element_id] = tag
             gateway_names[element_id] = name

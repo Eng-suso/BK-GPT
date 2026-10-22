@@ -189,6 +189,8 @@ export type ScenarioDraft = {
   casePriorities?: BranchRuleDraft[];
   /** Proposte di fonti scartate dal consulente: element_id -> id delle affermazioni. */
   dismissedClaims?: Record<string, number[]>;
+  /** SIM-11d: element_id -> quanto il caso aspetta a quel messaggio o segnale. Assente = prosegue subito. */
+  waits?: Record<string, DurationDraft>;
 };
 
 export const DEFAULT_SCENARIO: ScenarioDraft = {
@@ -271,7 +273,8 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
       .some((duration) => taskDurationIssue(duration) !== null)
     // Una durata per categoria su un attributo tolto o non a categorie va rivista.
     || (task.durationBy !== undefined && durationVariants(task, attributes) === null)
-    || durationWindowIssues(task.durationWindows ?? []).some((issue) => issue !== null)).length;
+    || durationWindowIssues(task.durationWindows ?? []).some((issue) => issue !== null)).length
+    + Object.values(draft.waits ?? {}).filter((wait) => taskDurationIssue(wait) !== null).length;
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
   const arrival = taskDurationIssue(arrivalDuration(draft)) !== null
     || arrivalBandIssues(draft.arrival?.bands ?? []).some((issue) => issue !== null);
@@ -462,6 +465,9 @@ export function scenarioToInput(
       };
     }),
     calendars: draft.calendars ?? [],
+    ...(Object.keys(draft.waits ?? {}).length
+      ? { waits: Object.entries(draft.waits ?? {}).map(([elementId, wait]) => ({ elementId, ...durationInput(wait) })) }
+      : {}),
     modelPatch: toModelPatch(draft.caseAttributes ?? [], draft.gatewayRules ?? {}, draft.casePriorities ?? []),
     gateways: Object.entries(draft.gateways).map(([elementId, branches]) => ({
       elementId,
@@ -538,7 +544,11 @@ export function seedDraftFromTemplate(
     if (rules && flows.length === Object.keys(rules).length && flows.every((f) => f in rules)) gatewayRules[gateway.element_id] = rules;
   }
 
-  return { ...draft, resources, tasks, gateways, gatewayRules };
+  // SIM-11d: restano le attese dei messaggi e segnali ancora nel BPMN; un timer ha la sua durata.
+  const settable = new Set((template.waits ?? []).filter((w) => w.kind !== "timer").map((w) => w.element_id));
+  const waits = draft.waits ? { waits: Object.fromEntries(Object.entries(draft.waits).filter(([id]) => settable.has(id))) } : {};
+
+  return { ...draft, resources, tasks, gateways, gatewayRules, ...waits };
 }
 
 // --- localStorage persistence (best-effort, per bpmn model) ------------------

@@ -44,6 +44,14 @@ export const runModelSchema = z.object({
     bands: z.array(z.object({ from_day: z.string(), to_day: z.string(), begin: z.string(), end: z.string(), mean_seconds: z.number() })).default([]),
   }).optional(),
   priority_rules: z.array(z.object({ level: z.number(), condition: z.object({ any_of: z.array(z.array(ruleSchema)) }) })).optional(),
+  // SIM-11c: i timer intermedi del BPMN che il caso aspettava.
+  waits: z.array(z.object({
+    element_id: z.string(),
+    name: z.string().default(""),
+    kind: z.enum(["timer", "message", "signal", "conditional"]).default("timer"),
+    duration: irDistributionSchema.nullable().optional(),
+    provenance,
+  })).optional(),
   calendars: z.array(
     z.object({
       id: z.string(),
@@ -89,6 +97,9 @@ export const runModelSchema = z.object({
         max_repeats: z.number(),
         condition: z.object({ any_of: z.array(z.array(ruleSchema)) }).nullable().optional(),
       }).nullable().optional(),
+      // SIM-11f: una multi-istanza con un numero fisso.
+      instances: z.number().optional(),
+      sequential_instances: z.boolean().optional(),
       // SIM-33b: la durata cambia con l'ora d'inizio.
       duration_windows: z.array(z.object({
         from_day: z.string(), to_day: z.string(), begin: z.string(), end: z.string(), factor: z.number(),

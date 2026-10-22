@@ -7,6 +7,9 @@ from backend.simulation.timers import (
     ESCALATION_AFTER,
     ESCALATION_NORMAL_FLOW,
     ESCALATION_OF,
+    INSTANCES,
+    INSTANCES_SEQUENTIAL,
+    MAX_INSTANCES,
     duration_seconds,
 )
 
@@ -60,6 +63,9 @@ _PASSTHROUGH_EVENT_TAGS = frozenset(
     }
 )
 
+# SIM-11d: catch events whose wait the consultant sets in the panel.
+WAITING_DEFINITIONS = frozenset({"messageEventDefinition", "signalEventDefinition", "conditionalEventDefinition"})
+
 # Attached / decorative elements Prosimos ignores -> removed outright.
 _NOISE_TAGS = frozenset(
     {
@@ -92,11 +98,14 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
 
     Per process, in order:
       1. strip decorative elements (lanes, data objects, annotations)
-      2. down-cast every activity kind to <task>; black-box sub-processes
+      2. inline simple embedded sub-processes (SIM-11e); down-cast every
+         activity kind to <task>; the other sub-processes become black boxes
       3. rewrite unsupported gateways to exclusiveGateway
       4. turn interrupting timers on an activity into a decision after it
          (SIM-35); splice out the other boundary events and their exception flow
-      5. splice out intermediate catch/throw events
+      5. splice out intermediate catch/throw events, except timers with a fixed
+         duration and message, signal or conditional catches, which the engine
+         runs as a wait (SIM-11c/d)
       6. collapse multiple start events into one
       7. collapse multiple end events into one
     Finally, drop DI shapes/edges that no longer reference a live element.
@@ -115,6 +124,7 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
     for process in root.iter(_q(BPMN_MODEL_NS, "process")):
         changed |= _strip_noise(process)
         changed |= _drop_event_started_activities(process)
+        changed |= _expand_subprocesses(process)
         changed |= _downcast_activities(process)
         changed |= _rewrite_gateways(process)
         changed |= _start_instantiating_gateways(process)
@@ -225,6 +235,89 @@ def _strip_noise(process: ElementTree.Element) -> bool:
     return changed
 
 
+def expandable_subprocess_ids(process: ElementTree.Element) -> set[str]:
+    """SIM-11e: i sottoprocessi che si possono srotolare nel processo che li contiene.
+
+    Uno solo inizio e una sola fine senza eventi, un flusso che entra e uno che
+    esce, nessun evento sul bordo, nessun ciclo o multi-istanza, nessun
+    sottoprocesso a evento dentro: allora i passi interni sono il percorso del
+    caso, uno dopo l'altro, e il motore li simula ciascuno con la sua durata, le
+    sue risorse e i suoi rami. Gli altri restano una scatola nera.
+    """
+    flows = _seq_flows(process)
+    attached = {e.get("attachedToRef") for e in process if _local(e.tag) == "boundaryEvent"}
+    result = set()
+    for sub in process:
+        sub_id = sub.get("id", "")
+        if _local(sub.tag) != "subProcess" or not sub_id or sub_id in attached:
+            continue
+        children = list(sub)
+        if any(_local(c.tag) in {"standardLoopCharacteristics", "multiInstanceLoopCharacteristics"} for c in children):
+            continue
+        if any(c.get("triggeredByEvent") == "true" or c.get("isForCompensation") == "true" for c in children):
+            continue
+        starts = [c for c in children if _local(c.tag) == "startEvent"]
+        ends = [c for c in children if _local(c.tag) == "endEvent"]
+        if len(starts) != 1 or len(ends) != 1 or any(_has_definition(e) for e in (*starts, *ends)):
+            continue
+        inner = [c for c in children if _local(c.tag) == "sequenceFlow"]
+        out_of_start = [f for f in inner if f.get("sourceRef") == starts[0].get("id")]
+        into_end = [f for f in inner if f.get("targetRef") == ends[0].get("id")]
+        if len(out_of_start) != 1 or len(into_end) != 1 or out_of_start[0].get("targetRef") == ends[0].get("id"):
+            continue
+        if sum(f.get("targetRef") == sub_id for f in flows) != 1 or sum(f.get("sourceRef") == sub_id for f in flows) != 1:
+            continue
+        result.add(sub_id)
+    return result
+
+
+def _has_definition(event: ElementTree.Element) -> bool:
+    return any(_local(child.tag).endswith("EventDefinition") for child in event)
+
+
+def _expand_subprocesses(process: ElementTree.Element) -> bool:
+    """Inline the expandable sub-processes, outermost first, until none is left."""
+    changed = False
+    while True:
+        expandable = expandable_subprocess_ids(process)
+        sub = next((e for e in process if e.get("id") in expandable), None)
+        if sub is None:
+            return changed
+        _inline_subprocess(process, sub)
+        changed = True
+
+
+def _inline_subprocess(process: ElementTree.Element, sub: ElementTree.Element) -> None:
+    sub_id = sub.get("id", "")
+    flows = _seq_flows(process)
+    entering = next(f for f in flows if f.get("targetRef") == sub_id)
+    leaving = next(f for f in flows if f.get("sourceRef") == sub_id)
+    start = next(c for c in sub if _local(c.tag) == "startEvent")
+    end = next(c for c in sub if _local(c.tag) == "endEvent")
+    inner = [c for c in sub if _local(c.tag) == "sequenceFlow"]
+    first = next(f for f in inner if f.get("sourceRef") == start.get("id"))
+    last = next(f for f in inner if f.get("targetRef") == end.get("id"))
+    # The flow into the sub-process now reaches its first step; its last step
+    # leaves on the flow that left the sub-process.
+    entering.set("targetRef", first.get("targetRef", ""))
+    leaving.set("sourceRef", last.get("sourceRef", ""))
+    renamed = {first.get("id"): entering.get("id"), last.get("id"): leaving.get("id")}
+    position = list(process).index(sub)
+    moved = [c for c in sub if c not in (start, end, first, last) and _local(c.tag) not in _SUBPROCESS_ONLY_TAGS]
+    for child in moved:
+        for ref in child:
+            if _local(ref.tag) in {"incoming", "outgoing"} and ref.text in renamed:
+                ref.text = renamed[ref.text]
+        process.insert(position, child)
+        position += 1
+    process.remove(sub)
+
+
+# Children that describe the sub-process itself, not a step of it.
+_SUBPROCESS_ONLY_TAGS = frozenset({"incoming", "outgoing", "documentation", "extensionElements", "ioSpecification",
+                                   "property", "dataInputAssociation", "dataOutputAssociation"})
+
+
 def _downcast_activities(process: ElementTree.Element) -> bool:
     task_tag = _q(BPMN_MODEL_NS, "task")
     targets = [
@@ -233,9 +326,32 @@ def _downcast_activities(process: ElementTree.Element) -> bool:
         if _local(element.tag) in _ACTIVITY_TAGS or _local(element.tag) in _SUBPROCESS_TAGS
     ]
     for element in targets:
+        _mark_fixed_instances(element)
         element.tag = task_tag
         _keep_only_flow_refs(element)
     return bool(targets)
+
+
+def fixed_instances(element: ElementTree.Element) -> tuple[int, bool] | None:
+    """SIM-11f: (istanze, in sequenza) di una multi-istanza con un numero fisso, o ``None``.
+
+    Solo ``loopCardinality`` con un intero da 2 a ``MAX_INSTANCES``: una
+    collezione o un'espressione non dicono quante istanze avra' ogni caso.
+    """
+    loop = element.find(_q(BPMN_MODEL_NS, "multiInstanceLoopCharacteristics"))
+    if loop is None or loop.find(_q(BPMN_MODEL_NS, "completionCondition")) is not None:
+        return None
+    text = (loop.findtext(_q(BPMN_MODEL_NS, "loopCardinality")) or "").strip()
+    if not text.isdigit() or not 2 <= int(text) <= MAX_INSTANCES:
+        return None
+    return int(text), loop.get("isSequential") == "true"
+
+
+def _mark_fixed_instances(element: ElementTree.Element) -> None:
+    fixed = fixed_instances(element) if _local(element.tag) in _ACTIVITY_TAGS else None
+    if fixed is not None:
+        element.set(INSTANCES, str(fixed[0]))
+        element.set(INSTANCES_SEQUENTIAL, "true" if fixed[1] else "false")
 
 
 def _keep_only_flow_refs(element: ElementTree.Element) -> None:
@@ -391,13 +507,40 @@ def _join_link_events(process: ElementTree.Element) -> bool:
 
 
 def _splice_passthrough_events(process: ElementTree.Element) -> bool:
+    waits = wait_event_ids(process)
     changed = False
     for element in list(process):
-        if _local(element.tag) in _PASSTHROUGH_EVENT_TAGS:
+        if _local(element.tag) in _PASSTHROUGH_EVENT_TAGS and element.get("id") not in waits:
             _splice_node(process, element.get("id"))
             process.remove(element)
             changed = True
     return changed
+
+
+def wait_event_ids(process: ElementTree.Element) -> set[str]:
+    """SIM-11c/d: gli eventi intermedi che il motore simula come un'attesa.
+
+    Un timer con una durata fissa (``PT48H``) resta nel BPMN: il caso aspetta
+    quella durata, a qualsiasi ora (il timer conta l'orologio, non il
+    calendario). Restano anche messaggi, segnali e condizioni: quanto si
+    aspetta lo dice il consulente nel pannello, e finche' non lo dice il caso
+    prosegue subito, come prima. Si tolgono i timer con una data o un ciclo e
+    ogni evento dopo un gateway a eventi, dove l'evento decide il ramo.
+    """
+    event_gateways = {g.get("id") for g in process if _local(g.tag) == "eventBasedGateway"}
+    after_event_gateway = {f.get("targetRef") for f in _seq_flows(process) if f.get("sourceRef") in event_gateways}
+    waits = set()
+    for event in process.findall(_q(BPMN_MODEL_NS, "intermediateCatchEvent")):
+        if event.get("id") in after_event_gateway:
+            continue
+        definitions = {_local(child.tag) for child in event}
+        timer = event.find(_q(BPMN_MODEL_NS, "timerEventDefinition"))
+        if timer is not None:
+            if duration_seconds(timer.findtext(_q(BPMN_MODEL_NS, "timeDuration"))) is not None:
+                waits.add(event.get("id", ""))
+        elif len(definitions & WAITING_DEFINITIONS) == 1:
+            waits.add(event.get("id", ""))
+    return waits
 
 
 def _splice_node(process: ElementTree.Element, node_id: str | None) -> None:
