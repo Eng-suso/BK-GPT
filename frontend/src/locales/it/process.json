@@ -669,7 +669,9 @@
       "wait": "Attesa",
       "waitNote": "Il caso aspettava questa durata a qualsiasi ora: il timer conta l'orologio, non il calendario. Nessuna risorsa era occupata.",
       "waitUnset": "Attesa non impostata nel pannello: il caso proseguiva subito.",
-      "waitNoteManual": "Il caso aspettava questa durata, impostata nel pannello, a qualsiasi ora. Nessuna risorsa era occupata."
+      "waitNoteManual": "Il caso aspettava questa durata, impostata nel pannello, a qualsiasi ora. Nessuna risorsa era occupata.",
+      "instancesSequential": "Eseguita {{count}} volte per caso, una dopo l'altra: ogni istanza ha la sua durata.",
+      "instancesParallel": "Eseguita {{count}} volte per caso, in parallelo: ogni istanza prende la sua risorsa."
     },
     "provenance": {
       "label": "Origine",

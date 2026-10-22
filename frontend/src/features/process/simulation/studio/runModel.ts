@@ -97,6 +97,9 @@ export const runModelSchema = z.object({
         max_repeats: z.number(),
         condition: z.object({ any_of: z.array(z.array(ruleSchema)) }).nullable().optional(),
       }).nullable().optional(),
+      // SIM-11f: una multi-istanza con un numero fisso.
+      instances: z.number().optional(),
+      sequential_instances: z.boolean().optional(),
       // SIM-33b: la durata cambia con l'ora d'inizio.
       duration_windows: z.array(z.object({
         from_day: z.string(), to_day: z.string(), begin: z.string(), end: z.string(), factor: z.number(),

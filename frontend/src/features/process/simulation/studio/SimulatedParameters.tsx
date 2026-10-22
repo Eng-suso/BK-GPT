@@ -88,6 +88,7 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
       ? <p className="sim-help">{t("simulation.activityInspector.notSimulated")}</p>
       : view.kind === "activity"
         ? <>
+            {view.instances && <p className="sim-param-note" data-instances>{t(view.instances.sequential ? "simulation.activityInspector.instancesSequential" : "simulation.activityInspector.instancesParallel", { count: view.instances.count })}</p>}
             {view.assignments.length > 1 && <p className="sim-help">{t("simulation.activityInspector.sharedActivity")}</p>}
             <FixedCost run={run} elementId={elementId} lang={lang} t={t} />
             {view.durationBy && <DurationBy durationBy={view.durationBy} lang={lang} t={t} />}
