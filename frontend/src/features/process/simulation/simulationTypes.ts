@@ -1,5 +1,6 @@
 import type { ModelPatchInput } from "./caseRules";
 import type { ArrivalBandInput } from "./arrivalBands";
+import type { DurationWindowInput } from "./durationWindows";
 import type { ReworkInput, SkipInput } from "./flowRules";
 import { z } from "zod";
 
@@ -357,6 +358,8 @@ export type SimTaskInput = SimDurationInput & {
   /** SIM-35: salto e rilavorazione. */
   skip?: SkipInput;
   rework?: ReworkInput;
+  /** SIM-33b: la durata per fascia oraria d'inizio, come fattore. */
+  durationWindows?: DurationWindowInput[];
 };
 
 export type SimGatewayInput = {
