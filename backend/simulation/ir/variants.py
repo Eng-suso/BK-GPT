@@ -144,6 +144,8 @@ def _expand_activity(root: ET.Element, activity: Activity, taken: set[str]) -> l
                 Assignment(resource_id=a.resource_id, duration=variant.duration, provenance=variant.provenance or a.provenance)
                 for a in activity.assignments
             ),
+            # SIM-33b: l'ora d'inizio conta anche per la durata di una categoria.
+            duration_windows=activity.duration_windows,
         ))
     # Le copie subito dopo l'originale, poi l'unione: il nome nel log si riconduce
     # all'id originale (vince la prima occorrenza).
