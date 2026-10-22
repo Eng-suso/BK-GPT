@@ -23,7 +23,8 @@ function bodyFor(c: DraftRequestCase) {
   const draft = seedDraftFromTemplate(parseScenarioDraft(structuredClone(c.draft)), c.template as ScenarioTemplate);
   const body = runRequestBody({ ...scenarioToInput({ ...draft, scenarioName: c.scenarioName }, null), idempotencyKey: "" });
   // Fuori cio' che non viene dalla bozza: BPMN, chiave, seed e scenario li aggiunge chi invia.
-  const { current_bpmn_xml: _xml, idempotency_key: _key, seed: _seed, workspace_scenario: _ref, ...fromDraft } = body;
+  const fromDraft: Record<string, unknown> = { ...body };
+  for (const key of ["current_bpmn_xml", "idempotency_key", "seed", "workspace_scenario"]) delete fromDraft[key];
   return JSON.parse(JSON.stringify(fromDraft));
 }
 
