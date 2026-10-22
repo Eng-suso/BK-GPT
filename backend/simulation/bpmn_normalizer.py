@@ -96,7 +96,8 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
       3. rewrite unsupported gateways to exclusiveGateway
       4. turn interrupting timers on an activity into a decision after it
          (SIM-35); splice out the other boundary events and their exception flow
-      5. splice out intermediate catch/throw events
+      5. splice out intermediate catch/throw events, except timers with a fixed
+         duration, which the engine runs as a wait (SIM-11c)
       6. collapse multiple start events into one
       7. collapse multiple end events into one
     Finally, drop DI shapes/edges that no longer reference a live element.
@@ -391,13 +392,34 @@ def _join_link_events(process: ElementTree.Element) -> bool:
 
 
 def _splice_passthrough_events(process: ElementTree.Element) -> bool:
+    waits = timer_wait_ids(process)
     changed = False
     for element in list(process):
-        if _local(element.tag) in _PASSTHROUGH_EVENT_TAGS:
+        if _local(element.tag) in _PASSTHROUGH_EVENT_TAGS and element.get("id") not in waits:
             _splice_node(process, element.get("id"))
             process.remove(element)
             changed = True
     return changed
+
+
+def timer_wait_ids(process: ElementTree.Element) -> set[str]:
+    """SIM-11c: i timer intermedi che il motore simula come un'attesa.
+
+    Un timer con una durata fissa (``PT48H``) resta nel BPMN: il caso aspetta
+    quella durata, a qualsiasi ora (il timer conta l'orologio, non il
+    calendario). Restano fuori, e si tolgono come prima, i timer con una data o
+    un ciclo e quelli dopo un gateway a eventi, dove l'evento decide il ramo.
+    """
+    event_gateways = {g.get("id") for g in process if _local(g.tag) == "eventBasedGateway"}
+    after_event_gateway = {f.get("targetRef") for f in _seq_flows(process) if f.get("sourceRef") in event_gateways}
+    waits = set()
+    for event in process.findall(_q(BPMN_MODEL_NS, "intermediateCatchEvent")):
+        timer = event.find(_q(BPMN_MODEL_NS, "timerEventDefinition"))
+        if timer is None or event.get("id") in after_event_gateway:
+            continue
+        if duration_seconds(timer.findtext(_q(BPMN_MODEL_NS, "timeDuration"))) is not None:
+            waits.add(event.get("id", ""))
+    return waits
 
 
 def _splice_node(process: ElementTree.Element, node_id: str | None) -> None:
