@@ -166,7 +166,9 @@ jobs:
     # reported Playwright as "skipped", and a WCAG contrast regression on the
     # HomePage sat unnoticed behind a failing Python test. Merges stay gated:
     # "All CI checks passed" below still requires this job to succeed.
-    timeout-minutes: 30
+    # 45: with ~190 specs webkit reached the old 30-minute limit before the
+    # last spec on a slow runner (#146), with every test green.
+    timeout-minutes: 45
 
     strategy:
       fail-fast: false
