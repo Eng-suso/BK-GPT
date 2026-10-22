@@ -54,6 +54,7 @@ from prosimos.simulation_engine import SimBPMEnv, execute_full_process, run_simu
 from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_setup import SimDiffSetup
 
+import duration_windows
 from arrival_bands import ATTRIBUTE_SECTION, SECTION, arrival_plan, band_label, weekly_intervals
 
 DATA_DIR = Path(os.environ.get("RUNNER_DATA_DIR", tempfile.gettempdir())) / "delir-prosimos"
@@ -146,19 +147,21 @@ def simulate(model: bytes, scenario: bytes, cases: int, start_date: str | None, 
         os.close(logs_fd)
         _seed_everything(seed)
         bands = _arrival_bands(scenario)
-        if bands is None:
-            run_simulation(
-                str(model_path),
-                str(scenario_path),
-                total_cases=cases,
-                stat_out_path=stats_name,
-                log_out_path=logs_name,
-                starting_at=start_date,
-                is_event_added_to_log=False,
-            )
-        else:
-            _simulate_with_arrivals(model_path, scenario_path, cases, start_date, bands, _band_attribute(scenario),
-                                    stats_name, logs_name)
+        windows = _duration_windows(scenario)
+        with duration_windows.applied(windows):
+            if bands is None:
+                run_simulation(
+                    str(model_path),
+                    str(scenario_path),
+                    total_cases=cases,
+                    stat_out_path=stats_name,
+                    log_out_path=logs_name,
+                    starting_at=start_date,
+                    is_event_added_to_log=False,
+                )
+            else:
+                _simulate_with_arrivals(model_path, scenario_path, cases, start_date, bands, _band_attribute(scenario),
+                                        stats_name, logs_name)
     resources, tasks, overall = split_stats(Path(stats_name).read_text(encoding="utf-8"))
     return {
         # Doppia codifica come upstream: l'adapter la decodifica gia' cosi'.
@@ -172,7 +175,24 @@ def simulate(model: bytes, scenario: bytes, cases: int, start_date: str | None, 
         # Quante fasce degli arrivi il runner ha applicato: l'adapter rifiuta un
         # motore che le ignorerebbe in silenzio.
         "ArrivalBands": 0 if bands is None else len(bands),
+        # SIM-33b: le attivita' con durate per fascia oraria che il runner ha applicato.
+        "DurationWindows": len(windows),
     }
+
+
+def _duration_windows(scenario: bytes) -> dict[str, duration_windows.Intervals]:
+    try:
+        payload = json.loads(scenario)
+    except ValueError:
+        return {}
+    raw = payload.get(duration_windows.SECTION) if isinstance(payload, dict) else None
+    if raw is None:
+        return {}
+    try:
+        duration_windows.check_engine()
+        return duration_windows.parse_windows(raw)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise BadRequest(f"{duration_windows.SECTION} non valido: {exc}") from exc
 
 
 def _simulate_with_arrivals(model_path: Path, scenario_path: Path, cases: int, start_date: str | None,
