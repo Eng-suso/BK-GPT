@@ -507,6 +507,42 @@ def test_a_duration_window_slows_the_activities_that_start_in_it(tmp_path, monke
     assert seen["morning"] > 10 and seen["afternoon"] > 10, seen
 
 
+def test_a_timer_in_the_flow_makes_the_case_wait_on_the_engine(tmp_path, monkeypatch):
+    # SIM-11c: "Attendi 2 ore" fra le due attivita'. Prima il timer spariva e
+    # il secondo passo partiva subito; ora parte due ore dopo, anche fuori orario.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    sys.path.insert(0, str(ROOT / "ops" / "prosimos" / "runner"))
+    import runner
+
+    monkeypatch.setattr(runner, "DATA_DIR", tmp_path)
+    source = contract_spike.BPMN_PATH.read_text(encoding="utf-8")
+    flow = next(line for line in source.splitlines() if 'sourceRef="T_approve"' in line)
+    target = flow.split('targetRef="')[1].split('"')[0]
+    bpmn = normalize_bpmn_for_prosimos(source.replace(flow, flow.replace(f'targetRef="{target}"', 'targetRef="W"') + (
+        '<intermediateCatchEvent id="W" name="Attendi 2 ore"><timerEventDefinition><timeDuration>PT2H</timeDuration>'
+        f'</timerEventDefinition></intermediateCatchEvent><sequenceFlow id="F_wait" sourceRef="W" targetRef="{target}"/>'
+    )))
+    request = CreateSimulationRunRequest(
+        tasks=[{"element_id": t, "mean_seconds": 60, "distribution": "fixed", "resource_id": "r"} for t in ("T_receive", "T_approve", "T_pay")],
+        resources=[{"id": "r", "name": "Ufficio", "amount": 5, "cost_per_hour": 30}],
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    body = runner.simulate(bpmn.encode(), json.dumps(scenario.payload).encode(), 40, contract_spike.START, 7)
+
+    rows = contract_spike.parse_log((tmp_path / body["LogsFilename"]).read_text(encoding="utf-8"))
+    cases: dict[str, dict[str, dict]] = {}
+    for row in rows:
+        cases.setdefault(row["case_id"], {})[row["activity"]] = row
+    waited = [case for case in cases.values() if "Approva" in case and "Paga" in case]
+    assert len(waited) > 5
+    for case in waited:
+        gap = case["Paga"]["enable"] - case["Approva"]["end"]
+        assert gap == 7200, gap
+
+
 def test_a_morning_shift_adds_staff_only_in_the_morning():
     # SIM-30: un operatore tutto il giorno, tre in piu' dalle 9 alle 12. Con
     # molti arrivi, il turno lavora solo la mattina e riduce l'attesa.
