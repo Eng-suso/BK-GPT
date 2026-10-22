@@ -215,6 +215,8 @@ jobs:
             # The interrupted apt may still hold the lock or leave packages half-configured.
             sudo pkill -9 -f 'apt-get|dpkg' || true
             sudo dpkg --configure -a || true
+            # GitHub runners read their mirrors from a mirror list, not only from sources.list.
+            echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt >/dev/null || true
             sudo sed -i 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null || true
             npx playwright install "$BROWSER" --with-deps
           fi
