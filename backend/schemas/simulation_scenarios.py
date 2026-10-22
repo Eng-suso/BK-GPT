@@ -1,6 +1,7 @@
 """SIM-14: il workspace degli scenari AS-IS | A | B | C di un processo."""
 
 import json
+from datetime import date
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -89,6 +90,68 @@ class UpdateScenarioRequest(BaseModel):
     _patch_size = field_validator("patch")(_check_patch_size)
 
 
+# --- SIM-28: previsto contro osservato -----------------------------------------
+
+OutcomeKpi = Literal["cycle", "waiting", "costPerCase", "throughput"]
+
+
+class PredictedKpi(BaseModel):
+    """Il KPI come il workspace lo prevedeva quando l'alternativa e' stata scelta."""
+
+    as_is: float = Field(gt=0, allow_inf_nan=False)
+    alternative: float = Field(ge=0, allow_inf_nan=False)
+    # Mezza ampiezza al 95% della differenza alternativa - AS-IS, con le ripetizioni.
+    half: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+
+
+class PutScenarioOutcomeRequest(BaseModel):
+    """L'alternativa e' stata implementata: data, previsione e i log reali prima e dopo.
+
+    Prima e dopo possono essere lo stesso log: conta la data d'inizio di ogni caso.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    implemented_on: date
+    before_event_log_id: str = Field(min_length=1, max_length=64)
+    after_event_log_id: str = Field(min_length=1, max_length=64)
+    as_is_run_id: int | None = None
+    alternative_run_id: int | None = None
+    predicted: dict[OutcomeKpi, PredictedKpi] = Field(min_length=1)
+
+
+class ScenarioOutcomeLog(BaseModel):
+    event_log_id: str
+    name: str
+    cases: int
+
+
+class ScenarioOutcomeKpi(BaseModel):
+    """Variazioni relative: -0,2 vuol dire il 20% in meno dell'AS-IS (o del prima)."""
+
+    kpi: OutcomeKpi
+    predicted_change: float
+    predicted_low: float | None = None
+    predicted_high: float | None = None
+    before: float | None = None
+    after: float | None = None
+    observed_change: float | None = None
+    # Osservato meno previsto, in punti della variazione relativa.
+    error: float | None = None
+    # L'osservato cade nell'intervallo previsto; None senza intervallo o senza osservato.
+    within: bool | None = None
+
+
+class ScenarioOutcomeResponse(BaseModel):
+    implemented_on: str
+    recorded_at: str
+    as_is_run_id: int | None = None
+    alternative_run_id: int | None = None
+    before: ScenarioOutcomeLog
+    after: ScenarioOutcomeLog
+    kpis: list[ScenarioOutcomeKpi]
+
+
 class SimulationScenarioResponse(BaseModel):
     id: int
     kind: Literal["baseline", "alternative"]
@@ -103,6 +166,8 @@ class SimulationScenarioResponse(BaseModel):
     conflicts: list[int]
     created_at: str
     updated_at: str
+    # SIM-28: l'alternativa implementata, con quanto aveva ragione la previsione.
+    outcome: ScenarioOutcomeResponse | None = None
 
 
 class SimulationScenarioWorkspaceResponse(BaseModel):
