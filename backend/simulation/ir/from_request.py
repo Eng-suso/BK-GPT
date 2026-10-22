@@ -285,6 +285,7 @@ def _activity(task: BpmnTask, override, request, default_resource_id: str, resou
         "norm", float(request.default_task_duration_seconds)
     )
     resource_id = override.resource_id if override and override.resource_id in resource_ids else default_resource_id
+    instances = _instances(task, override)
     primary = Assignment(
         resource_id=resource_id,
         duration=duration_,
@@ -297,12 +298,25 @@ def _activity(task: BpmnTask, override, request, default_resource_id: str, resou
             assignments=(primary, *_other_assignments(task, override, resource_id, resource_ids)),
             duration_by=_duration_by(task, override),
             duration_windows=_duration_windows(override),
-            instances=task.instances,
+            instances=instances,
             sequential_instances=task.sequential_instances,
         )
     except ValidationError as exc:
         reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
         raise ValueError(f"«{task.name or task.id}», fasce orarie della durata: {reason}.") from exc
+
+
+def _instances(task: BpmnTask, override) -> int:
+    """SIM-11f/h: il numero fisso del BPMN, o quello del consulente per una multi-istanza aperta."""
+    asked = getattr(override, "instances", None) if override else None
+    if asked is None:
+        return task.instances
+    if not task.open_instances:
+        raise ValueError(
+            f"«{task.name or task.id}»: le istanze per caso si impostano solo su un'attività multi-istanza "
+            "senza un numero fisso nel BPMN."
+        )
+    return asked
 
 
 def _duration_windows(override) -> tuple[DurationWindow, ...]:

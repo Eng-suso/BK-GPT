@@ -29,6 +29,7 @@ from backend.schemas.simulation import (
 from backend.schemas.workspace import BpmnModelResponse
 from backend.simulation.bpmn_normalizer import (
     fixed_instances,
+    open_instances,
     _ACTIVITY_TAGS,
     _GATEWAY_REWRITE,
     _NOISE_TAGS,
@@ -258,6 +259,15 @@ class _ProcessReport:
                     f"Eseguita {count} volte per caso, {'una dopo l’altra' if sequential else 'in parallelo'}, "
                     "ogni istanza con la sua durata e la sua risorsa. Con durate per categoria, salti o "
                     "rilavorazioni sull'attività si simula una volta sola."
+                ),
+            )
+        if open_instances(element) is not None:
+            return _entry(
+                element, local, "approximated", "high", simulated_as="task",
+                note=(
+                    "Multi-istanza su una collezione: il BPMN non dice quante istanze avrà ogni caso. "
+                    "Imposta nel pannello le istanze per caso; finché non le imposti è eseguita una volta, "
+                    "e durata, costo e carico della risorsa sono sottostimati."
                 ),
             )
         if any(_local(child.tag) in _LOOP_TAGS for child in element):
