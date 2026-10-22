@@ -39,7 +39,8 @@ from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simu
 from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, claim_next_run
 from backend.simulation.result_parser import with_output_files
 from backend.simulation.costs import add_fixed_costs
-from backend.simulation.scenarios import bpmn_fingerprint, scenario_revisions
+from backend.simulation.draft_request import expected_request_body
+from backend.simulation.scenarios import bpmn_fingerprint, get_scenario_workspace, scenario_revisions
 from backend.simulation.sensitivity import perturb
 from backend.simulation.sla import sla_outcome
 from backend.simulation.horizon import horizon_cases, horizon_end, horizon_start, within_horizon
@@ -184,6 +185,49 @@ def _check_workspace_scenario(request: CreateSimulationRunRequest, bpmn_model_id
         raise ValueError("Lo scenario e' cambiato nel frattempo: ricarica il workspace e avvia di nuovo.")
 
 
+# Cio' che la richiesta porta oltre alla bozza: il BPMN, la chiave e lo scenario
+# li aggiunge il pannello, gruppi e impronta li scrive il servizio.
+_NOT_FROM_DRAFT = {
+    "current_bpmn_xml", "idempotency_key", "seed", "workspace_scenario", "start_date",
+    "replication_group", "replication_index", "sensitivity_study", "sensitivity", "bpmn_fingerprint",
+}
+
+
+def _check_workspace_draft(request: CreateSimulationRunRequest, bpmn_model: BpmnModelResponse) -> None:
+    """Il run di uno scenario del workspace simula la bozza salvata, col seed comune.
+
+    Il server rifa' la traduzione del pannello (``draft_request.py``) dalla
+    bozza salvata alle revisioni citate: una scheda con modifiche non salvate,
+    o una richiesta scritta a mano, non passa per lo scenario.
+    """
+    ref = request.workspace_scenario
+    if ref is None:
+        return
+    workspace = get_scenario_workspace(bpmn_model.id)
+    baseline = workspace.baseline
+    scenario = next((s for s in ([baseline] if baseline else []) + workspace.alternatives if s.id == ref.id), None)
+    if scenario is None or baseline is None:
+        raise ValueError("Lo scenario del workspace non esiste piu' su questo processo: ricarica il workspace.")
+    if (ref.revision, ref.baseline_revision) != (scenario.revision, baseline.revision):
+        raise ValueError("Lo scenario e' cambiato nel frattempo: ricarica il workspace e avvia di nuovo.")
+    if request.seed != workspace.seed:
+        raise ValueError("Il run di uno scenario del workspace usa il seed comune: ricarica il workspace e avvia di nuovo.")
+    name = scenario.name if scenario.kind == "baseline" else f"{scenario.label} · {scenario.name}"
+    template = scenario_template_for_model(bpmn_model=bpmn_model, current_bpmn_xml=request.current_bpmn_xml)
+    expected = CreateSimulationRunRequest.model_validate({
+        **expected_request_body(scenario.draft, name, template),
+        **request.model_dump(include=_NOT_FROM_DRAFT),
+    })
+    sent, saved = request.model_dump(exclude=_NOT_FROM_DRAFT), expected.model_dump(exclude=_NOT_FROM_DRAFT)
+    differing = sorted(key for key in sent if sent[key] != saved[key])
+    if differing:
+        logger.info("Run rifiutato: la richiesta non e' la bozza salvata dello scenario %s (%s)", ref.id, ", ".join(differing))
+        raise ValueError(
+            "La richiesta non corrisponde allo scenario salvato nel workspace "
+            f"({', '.join(differing)}): ricarica il workspace e avvia di nuovo."
+        )
+
+
 def _check_claims(request: CreateSimulationRunRequest, process_id: str) -> None:
     """Una fonte collegata deve essere un'affermazione dei file di questo progetto, ancora presente."""
     linked = {ref.claim_id for task in request.tasks or [] for ref in task.claims}
@@ -310,6 +354,7 @@ def prepare_simulation_runs(
         "sensitivity": None,
         "bpmn_fingerprint": bpmn_fingerprint(request.current_bpmn_xml or bpmn_model.xml),
     })
+    _check_workspace_draft(request, bpmn_model)
     request = _with_horizon(bpmn_model, request)
     if request.replications == 1:
         return [prepare_simulation_run(bpmn_model=bpmn_model, request=request)]
@@ -367,6 +412,8 @@ def prepare_sensitivity_runs(
         "sensitivity": None,
         "bpmn_fingerprint": bpmn_fingerprint(request.base.current_bpmn_xml or bpmn_model.xml),
     })
+    # La bozza e' quella del run centrale: le varianti nascono dopo, dal servizio.
+    _check_workspace_draft(request.base, bpmn_model)
     base = _with_horizon(bpmn_model, base)
     _, _, base_key = _plan_run(bpmn_model=bpmn_model, request=base.model_copy(update={"idempotency_key": None}))
     factors = json.dumps([f.model_dump() for f in request.factors], sort_keys=True)
