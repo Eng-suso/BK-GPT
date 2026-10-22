@@ -543,6 +543,51 @@ def test_a_timer_in_the_flow_makes_the_case_wait_on_the_engine(tmp_path, monkeyp
         assert gap == 7200, gap
 
 
+def test_a_subprocess_runs_step_by_step_on_the_engine(tmp_path, monkeypatch):
+    # SIM-11e: "Istruttoria" contiene Verifica e poi Approva o Rifiuta. Prima era
+    # un'unica attivita'; ora il log ha i passi interni con le loro durate.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+    sys.path.insert(0, str(ROOT / "ops" / "prosimos" / "runner"))
+    import runner
+
+    monkeypatch.setattr(runner, "DATA_DIR", tmp_path)
+    bpmn = normalize_bpmn_for_prosimos("""<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D"><bpmn:process id="P" isExecutable="false">
+  <bpmn:startEvent id="S" /><bpmn:task id="A" name="Ricevi" />
+  <bpmn:subProcess id="SP" name="Istruttoria">
+    <bpmn:startEvent id="SP_s" /><bpmn:task id="SP_check" name="Verifica" /><bpmn:exclusiveGateway id="SP_g" />
+    <bpmn:task id="SP_ok" name="Approva" /><bpmn:task id="SP_ko" name="Rifiuta" /><bpmn:exclusiveGateway id="SP_j" /><bpmn:endEvent id="SP_e" />
+    <bpmn:sequenceFlow id="SP_f1" sourceRef="SP_s" targetRef="SP_check" /><bpmn:sequenceFlow id="SP_f2" sourceRef="SP_check" targetRef="SP_g" />
+    <bpmn:sequenceFlow id="SP_ok_f" sourceRef="SP_g" targetRef="SP_ok" /><bpmn:sequenceFlow id="SP_ko_f" sourceRef="SP_g" targetRef="SP_ko" />
+    <bpmn:sequenceFlow id="SP_f3" sourceRef="SP_ok" targetRef="SP_j" /><bpmn:sequenceFlow id="SP_f4" sourceRef="SP_ko" targetRef="SP_j" />
+    <bpmn:sequenceFlow id="SP_f5" sourceRef="SP_j" targetRef="SP_e" />
+  </bpmn:subProcess>
+  <bpmn:task id="B" name="Comunica" /><bpmn:endEvent id="E" />
+  <bpmn:sequenceFlow id="f1" sourceRef="S" targetRef="A" /><bpmn:sequenceFlow id="f2" sourceRef="A" targetRef="SP" />
+  <bpmn:sequenceFlow id="f3" sourceRef="SP" targetRef="B" /><bpmn:sequenceFlow id="f4" sourceRef="B" targetRef="E" />
+</bpmn:process></bpmn:definitions>""")
+    seconds = {"A": 60, "SP_check": 300, "SP_ok": 600, "SP_ko": 900, "B": 60}
+    request = CreateSimulationRunRequest(
+        resources=[{"id": "r", "name": "Ufficio", "amount": 10, "cost_per_hour": 30}],
+        tasks=[{"element_id": t, "mean_seconds": s, "distribution": "fixed", "resource_id": "r"} for t, s in seconds.items()],
+        gateways=[{"element_id": "SP_g", "branches": [{"flow_id": "SP_ok_f", "probability": 0.7}, {"flow_id": "SP_ko_f", "probability": 0.3}]}],
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    body = runner.simulate(bpmn.encode(), json.dumps(scenario.payload).encode(), 60, contract_spike.START, 3)
+
+    rows = contract_spike.parse_log((tmp_path / body["LogsFilename"]).read_text(encoding="utf-8"))
+    names = {"Ricevi": 60, "Verifica": 300, "Approva": 600, "Rifiuta": 900, "Comunica": 60}
+    assert {row["activity"] for row in rows} == set(names)
+    night = 16 * 3600
+    for row in rows:
+        assert round(row["end"] - row["start"] - names[row["activity"]]) % night == 0, row["activity"]
+    approved = sum(row["activity"] == "Approva" for row in rows)
+    rejected = sum(row["activity"] == "Rifiuta" for row in rows)
+    assert approved > rejected > 0
+
+
 def test_a_morning_shift_adds_staff_only_in_the_morning():
     # SIM-30: un operatore tutto il giorno, tre in piu' dalle 9 alle 12. Con
     # molti arrivi, il turno lavora solo la mattina e riduce l'attesa.

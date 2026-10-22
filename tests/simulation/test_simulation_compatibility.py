@@ -101,9 +101,10 @@ def test_every_element_of_the_bpmn_has_an_entry(rich):
 @pytest.mark.parametrize(
     ("element_id", "status", "impact"),
     [
-        ("SP", "flattened", "high"),
-        ("SP_t", "flattened", "none"),
-        ("SP_f1", "flattened", "none"),
+        # SIM-11e: un sottoprocesso semplice si srotola nel processo.
+        ("SP", "preserved", "none"),
+        ("SP_t", "preserved", "none"),
+        ("SP_f1", "approximated", "none"),
         ("T_loop", "approximated", "high"),
         ("G_complex", "approximated", "medium"),
         ("B_timer", "removed", "high"),
@@ -129,7 +130,7 @@ def test_each_change_has_its_status_and_kpi_impact(rich, element_id, status, imp
     assert (entry.status, entry.impact) == (status, impact), entry.note
 
 
-def test_flattened_steps_point_to_their_subprocess(rich):
+def test_the_steps_of_a_subprocess_point_to_it(rich):
     _, by_id = rich
     assert {by_id[i].parent_id for i in ("SP_s", "SP_t", "SP_e", "SP_f1", "SP_f2")} == {"SP"}
 
@@ -142,9 +143,10 @@ def test_merged_events_name_the_survivor(rich):
 
 def test_a_spliced_event_reconnects_its_flow_and_says_so(rich):
     _, by_id = rich
-    # f4 entrava nel timer: ora entra direttamente nel sottoprocesso.
+    # f4 entrava nel timer: ora entra direttamente nel primo passo del
+    # sottoprocesso, srotolato nel processo (SIM-11e).
     assert by_id["f4"].status == "approximated"
-    assert by_id["f4"].simulated_as == "T_loop → SP"
+    assert by_id["f4"].simulated_as == "T_loop → SP_t"
 
 
 def test_a_downcast_activity_is_preserved_but_explains_the_new_type(rich):
@@ -217,7 +219,7 @@ def test_the_api_reports_the_bpmn_being_edited(client):
     body = response.json()
     assert body["undeclared"] == 0
     by_id = {entry["element_id"]: entry for entry in body["elements"]}
-    assert by_id["SP"]["status"] == "flattened"
+    assert (by_id["SP"]["status"], by_id["SP"]["simulated_as"]) == ("preserved", "expanded")
     assert by_id["B_timer"]["impact"] == "high"
     assert body["counts"]["removed"] > 0
 
