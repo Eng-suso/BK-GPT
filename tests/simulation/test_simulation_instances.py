@@ -93,3 +93,45 @@ def test_an_activity_with_categories_skips_or_rework_runs_once():
     assert expandable(model) == [sign]
     for change in ({"duration_by": by_category}, {"skip": Skip(probability=0.5)}):
         assert expandable(model.model_copy(update={"activities": (sign.model_copy(update=change),)})) == []
+
+
+# --- SIM-11h: multi-istanza su una collezione ---------------------------------
+
+COLLECTION = ('<bpmn:multiInstanceLoopCharacteristics isSequential="true" camunda:collection="${righe}" />'
+              .replace(' camunda:collection="${righe}"', ""))
+EXPRESSION = '<bpmn:multiInstanceLoopCharacteristics><bpmn:loopCardinality>${righe.size()}</bpmn:loopCardinality></bpmn:multiInstanceLoopCharacteristics>'
+
+
+def test_the_panel_asks_the_instances_only_where_the_bpmn_does_not_fix_them():
+    open_task = describe_scenario_template(normalize_bpmn_for_prosimos(_bpmn(EXPRESSION))).tasks[0]
+    fixed_task = describe_scenario_template(normalize_bpmn_for_prosimos(_bpmn(SEQUENTIAL))).tasks[0]
+    plain_task = describe_scenario_template(normalize_bpmn_for_prosimos(_bpmn(""))).tasks[0]
+
+    assert (open_task.multi_instance, open_task.instances) == ("parallel", None)
+    assert (fixed_task.multi_instance, fixed_task.instances) == ("sequential", 3)
+    assert (plain_task.multi_instance, plain_task.instances) == (None, None)
+    collection = describe_scenario_template(normalize_bpmn_for_prosimos(_bpmn(COLLECTION))).tasks[0]
+    assert (collection.multi_instance, collection.instances) == ("sequential", None)
+
+
+@pytest.mark.parametrize(("loop", "sequential"), [(EXPRESSION, False), (COLLECTION, True)], ids=["parallelo", "in sequenza"])
+def test_the_instances_set_by_the_consultant_reach_the_engine(loop, sequential):
+    scenario = _scenario(loop, instances=4)
+
+    [activity] = scenario.model["activities"]
+    assert (activity["instances"], activity["sequential_instances"]) == (4, sequential)
+    engine = scenario.bpmn_xml or ""
+    assert engine.count('name="Firma un documento"') == 4
+
+
+def test_instances_on_an_activity_the_bpmn_fixes_or_that_is_not_multi_instance_are_refused():
+    for loop in (SEQUENTIAL, ""):
+        with pytest.raises(ValueError, match="senza un numero fisso nel BPMN"):
+            _scenario(loop, instances=4)
+
+
+def test_the_report_asks_to_set_the_instances_in_the_panel():
+    report = {e.element_id: e for e in bpmn_compatibility_report(_bpmn(EXPRESSION)).elements}["SIGN"]
+
+    assert (report.status, report.impact) == ("approximated", "high")
+    assert "Imposta nel pannello le istanze per caso" in report.note
