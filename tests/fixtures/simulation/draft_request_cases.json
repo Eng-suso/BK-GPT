@@ -427,7 +427,8 @@
                 }
               ]
             ]
-          }
+          },
+          "durationWindows": []
         },
         "T3": {
           "meanMinutes": 30,
@@ -440,7 +441,23 @@
             "backTo": "T2",
             "percent": 5,
             "maxRepeats": 1
-          }
+          },
+          "durationWindows": [
+            {
+              "fromDay": "MONDAY",
+              "toDay": "FRIDAY",
+              "begin": "16:00",
+              "end": "18:00",
+              "percent": 30
+            },
+            {
+              "fromDay": "SATURDAY",
+              "toDay": "SATURDAY",
+              "begin": "09:00",
+              "end": "13:00",
+              "percent": -12.5
+            }
+          ]
         },
         "T_gone": {
           "meanMinutes": 99,
@@ -734,7 +751,23 @@
             "back_to": "T2",
             "probability": 0.05,
             "max_repeats": 1
-          }
+          },
+          "duration_windows": [
+            {
+              "from_day": "MONDAY",
+              "to_day": "FRIDAY",
+              "begin": "16:00",
+              "end": "18:00",
+              "factor": 1.3
+            },
+            {
+              "from_day": "SATURDAY",
+              "to_day": "SATURDAY",
+              "begin": "09:00",
+              "end": "13:00",
+              "factor": 0.875
+            }
+          ]
         }
       ],
       "gateways": [
@@ -1009,7 +1042,23 @@
           "distribution": "expon",
           "resourceId": "lane-a",
           "assignmentSource": "bpmn",
-          "otherAssignments": "rotto"
+          "otherAssignments": "rotto",
+          "durationWindows": [
+            {
+              "fromDay": "MOON",
+              "toDay": "FRIDAY",
+              "begin": "16:00",
+              "end": "18:00",
+              "percent": 30
+            },
+            {
+              "fromDay": "MONDAY",
+              "toDay": "MONDAY",
+              "begin": "08:00",
+              "end": "09:00",
+              "percent": "tanto"
+            }
+          ]
         },
         "T2": {
           "meanMinutes": 12,
@@ -1022,7 +1071,16 @@
           "rework": {
             "backTo": "T1",
             "percent": 10
-          }
+          },
+          "durationWindows": [
+            {
+              "fromDay": "MONDAY",
+              "toDay": "TUESDAY",
+              "begin": "08:00",
+              "end": "09:00",
+              "percent": 15
+            }
+          ]
         }
       },
       "gateways": {
@@ -1093,7 +1151,16 @@
           "element_id": "T2",
           "mean_seconds": 720,
           "distribution": "norm",
-          "resource_id": ""
+          "resource_id": "",
+          "duration_windows": [
+            {
+              "from_day": "MONDAY",
+              "to_day": "TUESDAY",
+              "begin": "08:00",
+              "end": "09:00",
+              "factor": 1.15
+            }
+          ]
         }
       ],
       "gateways": [
