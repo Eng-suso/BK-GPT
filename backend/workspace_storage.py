@@ -356,6 +356,8 @@ class WorkspaceSimulationScenario(WorkspaceBase):
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
+    # SIM-28: l'alternativa implementata, con la previsione e i KPI osservati prima e dopo.
+    outcome_json: Mapped[str | None] = mapped_column(Text)
 
 
 class WorkspaceEventLog(WorkspaceBase):

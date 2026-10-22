@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { changedElements, comparisonCount, scenarioDeltas, scenarioRuns, scenarioValue, type ScenarioWorkspace, type WorkspaceScenario } from "./scenarioWorkspace";
+import { changedElements, comparisonCount, predictedSnapshot, scenarioDeltas, scenarioRuns, scenarioValue, type ScenarioWorkspace, type WorkspaceScenario } from "./scenarioWorkspace";
 import type { SimulationRun } from "./simulationTypes";
 
 const scenario = (id: number, kind: WorkspaceScenario["kind"], revision = 1, patch: WorkspaceScenario["patch"] = []): WorkspaceScenario => ({
@@ -156,5 +156,28 @@ describe("changedElements", () => {
       { op: "set", path: ["resources", { id: "r" }, "amount"], value: 2 },
     ];
     expect([...changedElements({ patch })]).toEqual(["T1", "G1"]);
+  });
+});
+
+describe("predictedSnapshot (SIM-28)", () => {
+  it("la previsione come la mostra il workspace: medie e, con le ripetizioni, la mezza ampiezza", () => {
+    const runs = [
+      ...[100, 110, 105].map((cycle, i) => run(1, cycle, { group: "base", index: i + 1, seed: 7 + i })),
+      ...[80, 91, 84].map((cycle, i) => run(2, cycle, { group: "alt", index: i + 1, seed: 7 + i })),
+    ];
+    const asIs = scenarioRuns(WORKSPACE, AS_IS, runs);
+    const alt = scenarioRuns(WORKSPACE, ALT, runs);
+    const snapshot = predictedSnapshot(asIs, alt, scenarioDeltas(asIs, alt, runs));
+    expect(snapshot.cycle?.as_is).toBeCloseTo(105, 5);
+    expect(snapshot.cycle?.alternative).toBeCloseTo(85, 5);
+    expect(snapshot.cycle?.half).toBeGreaterThan(0);
+    expect(Object.keys(snapshot).sort()).toEqual(["costPerCase", "cycle", "throughput", "waiting"]);
+  });
+
+  it("con un run per parte niente intervallo", () => {
+    const runs = [run(1, 100), run(2, 80)];
+    const asIs = scenarioRuns(WORKSPACE, AS_IS, runs);
+    const alt = scenarioRuns(WORKSPACE, ALT, runs);
+    expect(predictedSnapshot(asIs, alt, scenarioDeltas(asIs, alt, runs)).cycle).toEqual({ as_is: 100, alternative: 80 });
   });
 });

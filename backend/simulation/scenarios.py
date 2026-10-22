@@ -25,6 +25,7 @@ from backend.schemas.simulation_scenarios import (
     WORKSPACE_SEED_MAX,
     CreateScenarioRequest,
     PutScenarioBaselineRequest,
+    ScenarioOutcomeResponse,
     SimulationScenarioResponse,
     SimulationScenarioWorkspaceResponse,
     UpdateScenarioRequest,
@@ -89,6 +90,7 @@ def _to_response(row: WorkspaceSimulationScenario, baseline_draft: dict[str, Any
         conflicts=conflicts,
         created_at=row.created_at,
         updated_at=row.updated_at,
+        outcome=ScenarioOutcomeResponse.model_validate_json(row.outcome_json) if row.outcome_json else None,
     )
 
 
@@ -209,6 +211,26 @@ def delete_scenario(bpmn_model_id: str, scenario_id: int) -> SimulationScenarioW
         session.delete(row)
         session.flush()
         return _workspace(bpmn_model_id, [item for item in rows if item.id != scenario_id])
+
+
+def set_scenario_outcome(
+    bpmn_model_id: str, scenario_id: int, outcome: ScenarioOutcomeResponse | None,
+) -> SimulationScenarioWorkspaceResponse:
+    """SIM-28: registra (o toglie) l'esito osservato di un'alternativa.
+
+    La revisione non cambia: l'esito non tocca cio' che lo scenario simula, e i
+    suoi run restano quelli di prima.
+    """
+    with workspace_connection() as session:
+        rows = _rows(session, bpmn_model_id, lock=True)
+        row = next((item for item in rows if item.id == scenario_id), None)
+        if row is None:
+            raise ScenarioNotFound("Scenario non trovato.")
+        if row.kind == "baseline":
+            raise ValueError("L'AS-IS non si implementa: l'esito si registra su un'alternativa.")
+        row.outcome_json = outcome.model_dump_json() if outcome is not None else None
+        session.flush()
+        return _workspace(bpmn_model_id, rows)
 
 
 def scenario_revisions(bpmn_model_id: str, scenario_id: int) -> tuple[int, int] | None:

@@ -27,14 +27,17 @@ import {
 import { diffScenario } from "./scenarioPatch";
 import {
   createWorkspaceScenario,
+  deleteScenarioOutcome,
   deleteWorkspaceScenario,
   fetchScenarioWorkspace,
   putScenarioBaseline,
+  putScenarioOutcome,
   scenarioDisplayName,
   scenarioRef,
   updateWorkspaceScenario,
   WORKSPACE_SEED_MAX,
   workspaceScenarios,
+  type ScenarioOutcomeInput,
   type ScenarioWorkspace,
   type WorkspaceScenario,
 } from "./scenarioWorkspace";
@@ -82,6 +85,8 @@ export type ScenarioLab = {
   deleteScenario: (scenario: WorkspaceScenario) => Promise<boolean>;
   /** Toglie una modifica dallo scenario: per quel punto torna come l'AS-IS. */
   revertChange: (scenario: WorkspaceScenario, index: number) => Promise<void>;
+  /** SIM-28: registra (o, con ``null``, toglie) l'esito osservato di un'alternativa implementata. */
+  recordOutcome: (scenario: WorkspaceScenario, body: ScenarioOutcomeInput | null) => Promise<boolean>;
   newSeed: () => Promise<void>;
   /** Avvia uno scenario del workspace, con il seed comune. */
   runScenario: (scenario: WorkspaceScenario) => Promise<boolean>;
@@ -327,6 +332,12 @@ export function useScenarioLab(): ScenarioLab {
     return updated !== null;
   }, [bpmnModelId, mutate, requestedId, selectScenario]);
 
+  /** SIM-28: l'esito osservato di un'alternativa implementata; ``null`` lo toglie. */
+  const recordOutcome = React.useCallback(async (scenario: WorkspaceScenario, body: ScenarioOutcomeInput | null) => {
+    const updated = await mutate(() => body ? putScenarioOutcome(bpmnModelId, scenario.id, body) : deleteScenarioOutcome(bpmnModelId, scenario.id));
+    return updated !== null;
+  }, [bpmnModelId, mutate]);
+
   const revertChange = React.useCallback(async (scenario: WorkspaceScenario, index: number) => {
     // La riga mostrata, non la sua posizione: un salvataggio in coda puo' rigenerare la patch.
     const target = scenario.patch[index];
@@ -514,6 +525,7 @@ export function useScenarioLab(): ScenarioLab {
     createScenario,
     deleteScenario,
     revertChange,
+    recordOutcome,
     newSeed,
     runScenario,
     scenarioBlocker,

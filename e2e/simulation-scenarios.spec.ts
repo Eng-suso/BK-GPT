@@ -32,7 +32,7 @@ const draft = {
   gateways: {},
 };
 
-type Scenario = { id: number; kind: "baseline" | "alternative"; label: string; name: string; revision: number; draft?: object; patch: ScenarioPatchOp[] };
+type Scenario = { id: number; kind: "baseline" | "alternative"; label: string; name: string; revision: number; draft?: object; patch: ScenarioPatchOp[]; outcome?: object | null };
 
 /** Un workspace finto con le stesse regole del backend: revisioni, lettere, patch risolte. */
 class Workspace {
@@ -47,7 +47,7 @@ class Workspace {
     const base = this.baseline?.draft ?? {};
     const view = (s: Scenario) => {
       const { draft: resolved, conflicts } = s.kind === "baseline" ? { draft: base, conflicts: [] } : applyScenarioPatch(base, s.patch);
-      return { id: s.id, kind: s.kind, label: s.label, name: s.name, revision: s.revision, draft: resolved, patch: s.patch, conflicts, created_at: "", updated_at: "" };
+      return { id: s.id, kind: s.kind, label: s.label, name: s.name, revision: s.revision, draft: resolved, patch: s.patch, conflicts, created_at: "", updated_at: "", outcome: s.outcome ?? null };
     };
     return { bpmn_model_id: "ws-model", seed: this.baseline ? this.seed : null, baseline: this.baseline && view(this.baseline), alternatives: this.alternatives.map(view) };
   }
@@ -64,6 +64,23 @@ class Workspace {
       const status = this.failNext;
       this.failNext = null;
       return { status, json: { error: { message: "conflitto" } } };
+    }
+    if (path.endsWith("/outcome")) {
+      // SIM-28: il server misura il prima e il dopo; qui un esito fisso, con la previsione ricevuta.
+      const scenario = this.alternatives.find((s) => s.id === Number(path.split("/").at(-2)))!;
+      const predicted = (body?.predicted ?? {}) as Record<string, { as_is: number; alternative: number; half?: number }>;
+      scenario.outcome = method === "DELETE" ? null : {
+        implemented_on: body!.implemented_on, recorded_at: "2026-02-01T00:00:00Z", as_is_run_id: body!.as_is_run_id, alternative_run_id: body!.alternative_run_id,
+        before: { event_log_id: body!.before_event_log_id, name: "erp.csv", cases: 40 }, after: { event_log_id: body!.after_event_log_id, name: "erp.csv", cases: 38 },
+        kpis: Object.entries(predicted).map(([kpi, p]) => {
+          const change = (p.alternative - p.as_is) / p.as_is;
+          const half = p.half === undefined ? null : p.half / p.as_is;
+          return { kpi, predicted_change: change, predicted_low: half === null ? null : change - half, predicted_high: half === null ? null : change + half,
+            // L'osservato a meta' dell'intervallo previsto: dentro.
+            before: 3600, after: 3600 * (1 + change - (half ?? 0.02) / 2), observed_change: change - (half ?? 0.02) / 2, error: -(half ?? 0.02) / 2, within: half === null ? null : true };
+        }),
+      };
+      return { status: 200, json: this.json() };
     }
     const id = Number(path.split("/").pop());
     if (method === "PUT") {
@@ -140,6 +157,10 @@ async function fixture(page: Page, workspace: Workspace, runs: unknown[] = []) {
     else if (path.endsWith("/replay")) data = { run_id: 41, schema_version: 1, replay };
     else if (path.endsWith("/experiments")) data = { bottleneck_el: null, bottleneck_name: null, factors: {}, experiments: [] };
     else if (path.endsWith("/ws-model")) data = { id: "ws-model", process_id: "ws-process", name: "Ciclo passivo", xml };
+    else if (path.endsWith("/processes/ws-process/event-logs")) data = [{
+      id: "elog-1", process_id: "ws-process", name: "erp.csv", format: "csv", delimiter: ";", byte_size: 100, row_count: 80,
+      columns: ["Caso"], status: "mapped", mapping: null, template: null, created_at: "2026-02-01T00:00:00Z", mapped_at: "2026-02-01T00:00:00Z",
+    }];
     await route.fulfill({ json: data });
   });
 }
@@ -364,4 +385,40 @@ test("the process and the task inspector show what a scenario changes", async ({
   await inspector.getByRole("button", { name: "Modifica A · Approvazione veloce nel pannello Scenario", exact: true }).click();
   await expect(page).toHaveURL(/panel=scenario/);
   await expect(page).toHaveURL(/scenario=2/);
+});
+
+test("an implemented alternative records forecast against observed from the real log (SIM-28)", async ({ page }) => {
+  const workspace = new Workspace().seedWith(draft,
+    { name: "+1 approvatore", patch: [{ op: "set", path: ["resources", { id: "r1" }, "amount"], value: 3 }] });
+  await fixture(page, workspace, [...group(41, 1, "g-asis", [3600, 3720, 3660]), ...group(51, 2, "g-a", [3000, 3130, 3070])]);
+  await page.goto(`${studio}/workspace/41?panel=scenarios`);
+  const outcomes = page.locator("[data-sim-outcomes]");
+  await outcomes.scrollIntoViewIfNeeded();
+  const a = outcomes.locator('[data-sim-outcome="A"]');
+  await a.getByRole("button", { name: "Registra l'implementazione di A · +1 approvatore" }).click();
+  const form = a.getByRole("form", { name: "Implementazione di A · +1 approvatore" });
+  await expect(form.getByRole("button", { name: "Misura" })).toBeDisabled();
+  await form.getByLabel("Implementata il · A · +1 approvatore").fill("2026-01-10");
+  await expect(form.getByLabel("Log del prima · A · +1 approvatore")).toContainText("erp.csv");
+
+  const request = page.waitForRequest((req) => req.method() === "PUT" && req.url().endsWith("/outcome"));
+  await form.getByRole("button", { name: "Misura" }).click();
+  const body = (await request).postDataJSON();
+  expect(body).toMatchObject({ implemented_on: "2026-01-10", before_event_log_id: "elog-1", after_event_log_id: "elog-1", as_is_run_id: 43, alternative_run_id: 53 });
+  expect(body.predicted.cycle.as_is).toBeCloseTo(3660, 0);
+  expect(body.predicted.cycle.alternative).toBeCloseTo(3066.7, 0);
+  expect(body.predicted.cycle.half).toBeGreaterThan(0);
+
+  await expect(a).toContainText("A · +1 approvatore · implementata il 10/01/2026");
+  await expect(a).toContainText("Prima: erp.csv, 40 casi · Dopo: erp.csv, 38 casi");
+  const cycle = a.locator('[data-sim-outcome-kpi="cycle"]');
+  await expect(cycle).toContainText("-16,2%");
+  await expect(cycle).toContainText(/-\d+(,\d)? punti/);
+  await expect(cycle.locator("[data-sim-outcome-verdict]")).toHaveText("Dentro l'intervallo previsto");
+
+  const axe = await new AxeBuilder({ page }).include("[data-sim-outcomes]").withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+
+  await a.getByRole("button", { name: "Togli l'esito di A · +1 approvatore" }).click();
+  await expect(a.getByRole("button", { name: "Registra l'implementazione di A · +1 approvatore" })).toBeVisible();
 });

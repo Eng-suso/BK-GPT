@@ -9,10 +9,14 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from datetime import date
 
 from backend.eventlog import storage
 from backend.eventlog.analysis import Preview, analyze, preview
 from backend.eventlog.bpmn_match import ModelElement
+from backend.eventlog.kpi import summarize
+from backend.eventlog.mapping import apply_mapping as map_table
+from backend.eventlog.periods import cases_started
 from backend.eventlog.readers import EventLogFileError, Table, read_table
 from backend.schemas.eventlog import (
     ActivityMatchReportResponse,
@@ -180,6 +184,31 @@ def apply_mapping(event_log_id: str, request: ApplyEventLogMappingRequest) -> Ev
         # Cancellato fra la lettura e la scrittura.
         raise EventLogNotFound(event_log_id)
     return saved
+
+
+@dataclass(frozen=True, slots=True)
+class PeriodSummary:
+    """SIM-28: i KPI dei casi di un log iniziati in un periodo."""
+
+    event_log: EventLogResponse
+    cases: int
+    summary: dict | None
+
+
+def period_summary(event_log_id: str, *, since: date | None = None, before: date | None = None) -> PeriodSummary:
+    """I KPI dei soli casi iniziati in [``since``, ``before``), con il mapping salvato del log.
+
+    Raises:
+        EventLogNotFound: il log non esiste nel tenant.
+        ValueError: il log non e' ancora mappato.
+    """
+    log, table = _read(event_log_id, None)
+    if log.mapping is None:
+        raise ValueError(f"Il log «{log.name}» non è ancora mappato: completa il mapping nel wizard.")
+    canonical, _ = map_table(table, log.mapping, source_name=log.name)
+    period = cases_started(canonical, since=since, before=before)
+    cases = len({event.case_id for event in period.events})
+    return PeriodSummary(event_log=log, cases=cases, summary=summarize(period) if period.events else None)
 
 
 def _read(event_log_id: str, delimiter: str | None) -> tuple[EventLogResponse, Table]:
