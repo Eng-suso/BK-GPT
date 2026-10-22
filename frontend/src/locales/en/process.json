@@ -1503,6 +1503,28 @@
       "onlyCheaper": "Cheaper by {{cost}} per case, same time.",
       "onlyCostlier": "Costlier by {{cost}} per case, same time.",
       "title": "Reading"
+    },
+    "perspective": {
+      "label": "Perspective",
+      "hint": "Only changes what you see: the scenario stays as it is and no run starts.",
+      "consultant": "Consultant",
+      "operations": "Operations",
+      "consultantHint": "Assumptions, distributions, provenance, data quality, intervals and validation",
+      "operationsHint": "Process health, service targets, queues, cost and what to try, without parameters",
+      "configureAsConsultant": "Configure in the consultant view",
+      "ops": {
+        "queuesTitle": "Where work piles up",
+        "queuesHint": "Activities ranked by total waiting in the run: average wait per case and share of all process waiting.",
+        "noQueues": "No activity has waiting cases in this run.",
+        "queueRow": "{{wait}} waiting · {{share}} of total",
+        "queueShare": "Share of total waiting: {{name}}",
+        "whatToTry": "What to try",
+        "parametersElsewhere": "Durations, assigned resources and sources for this activity are in the consultant view.",
+        "showParameters": "Show parameters",
+        "prepareScenario": "Prepare the scenario with the consultant",
+        "queueLength_one": "On average {{value}} case queued",
+        "queueLength_other": "On average {{value}} cases queued"
+      }
     }
   },
   "side": {

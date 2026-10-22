@@ -1503,6 +1503,28 @@
       "onlyCheaper": "Meno caro di {{cost}} per caso, a tempi invariati.",
       "onlyCostlier": "Più caro di {{cost}} per caso, a tempi invariati.",
       "title": "Lettura"
+    },
+    "perspective": {
+      "label": "Prospettiva",
+      "hint": "Cambia solo cosa vedi: lo scenario resta com’è e non parte nessun run.",
+      "consultant": "Consulente",
+      "operations": "Operations",
+      "consultantHint": "Ipotesi, distribuzioni, provenienza, qualità dei dati, intervalli e validazione",
+      "operationsHint": "Salute del processo, obiettivi di servizio, code, costo e cosa provare, senza parametri",
+      "configureAsConsultant": "Configura nella vista consulente",
+      "ops": {
+        "queuesTitle": "Dove si accumula il lavoro",
+        "queuesHint": "Attività ordinate per attesa totale nel run: attesa media per caso e quota di tutta l’attesa del processo.",
+        "noQueues": "Nel run nessuna attività ha casi in attesa.",
+        "queueRow": "{{wait}} di attesa · {{share}} del totale",
+        "queueShare": "Quota dell’attesa totale: {{name}}",
+        "whatToTry": "Cosa provare",
+        "parametersElsewhere": "Durate, risorse assegnate e fonti di questa attività sono nella vista consulente.",
+        "showParameters": "Mostra i parametri",
+        "prepareScenario": "Prepara lo scenario con il consulente",
+        "queueLength_one": "In media {{value}} caso in coda",
+        "queueLength_other": "In media {{value}} casi in coda"
+      }
     }
   },
   "side": {

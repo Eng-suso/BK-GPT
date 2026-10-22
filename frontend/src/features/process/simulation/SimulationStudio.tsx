@@ -23,13 +23,15 @@ import { ScenarioWorkspacePanel } from "./ScenarioWorkspacePanel";
 import { ProcessSurface } from "./studio/ProcessSurface";
 import { ActivityDetails } from "./studio/ActivityDetails";
 import { SimulationCanvas, type NodeDecoration } from "./canvas/SimulationCanvas";
+import { isPanelVisible } from "./perspective";
 import "./studio/studio.css";
 
 const TOOLS = [["scenario", SlidersHorizontal], ["scenarios", Columns3], ["overview", ListChecks], ["heatmap", Layers], ["compare", GitCompareArrows], ["insights", Lightbulb], ["eventLog", FileSpreadsheet]] as const;
 
 export function SimulationStudio(): React.JSX.Element {
   const { t } = useTranslation("process");
-  const { runs, activeRunId, bpmnXml, panel, openPanel, selectedElementId, selectElement, inspectedWidgetId, analysisView, setAnalysisView } = useSimulationSection();
+  const { runs, activeRunId, bpmnXml, panel, openPanel, selectedElementId, selectElement, inspectedWidgetId, analysisView, setAnalysisView, perspective = "consultant", setPerspective } = useSimulationSection();
+  const tools = TOOLS.filter(([name]) => isPanelVisible(name, perspective));
   const { engine, isLoading, noArtifact, error } = useReplaySession();
   const run = resolveActiveRun(runs, activeRunId != null ? String(activeRunId) : undefined);
   const ready = engine && run?.status === "completed";
@@ -77,7 +79,7 @@ export function SimulationStudio(): React.JSX.Element {
   const title = panel === "widget" ? t("simulation.studio.inspector") : panel === "activity" ? t("simulation.replay.nodeInspector") : t(`simulation.unified.tool.${panel}`);
   return <CanvasWorkspaceShell label={t("simulation.unified.title")} className="sim-studio" resizeLabel={t("simulation.workspaceHierarchy.resizeCanvas")} resizeHint={t("simulation.scene.keyboardHint")} bodyClassName={`sim-studio-body ${dockOpen ? "has-dock" : ""}`} stageClassName="sim-studio-board"
     commands={<WorkspaceCommandBar className="sim-studio-tools" label={t("simulation.unified.tools")}>
-      <div className="sim-studio-tool-actions"><Button size="sm" variant={view === "replay" ? "secondary" : "ghost"} aria-pressed={view === "replay"} onClick={() => setAnalysisView?.("replay")}>{t("simulation.scene.replay")}</Button><Button size="sm" variant={aggregate ? "secondary" : "ghost"} aria-pressed={aggregate} onClick={() => setAnalysisView?.("final")}>{t("simulation.workspaceHierarchy.final")}</Button>{TOOLS.map(([name, Icon]) => <Button key={name} size="sm" variant={panel === name || view === name ? "secondary" : "ghost"} aria-pressed={panel === name || view === name} onClick={(event) => show(panel === name ? null : name, event.currentTarget)}><Icon aria-hidden className="size-4" />{t(`simulation.unified.tool.${name}`)}</Button>)}</div>
+      <div className="sim-studio-tool-actions"><Button size="sm" variant={view === "replay" ? "secondary" : "ghost"} aria-pressed={view === "replay"} onClick={() => setAnalysisView?.("replay")}>{t("simulation.scene.replay")}</Button><Button size="sm" variant={aggregate ? "secondary" : "ghost"} aria-pressed={aggregate} onClick={() => setAnalysisView?.("final")}>{t("simulation.workspaceHierarchy.final")}</Button>{tools.map(([name, Icon]) => <Button key={name} size="sm" variant={panel === name || view === name ? "secondary" : "ghost"} aria-pressed={panel === name || view === name} onClick={(event) => show(panel === name ? null : name, event.currentTarget)}><Icon aria-hidden className="size-4" />{t(`simulation.unified.tool.${name}`)}</Button>)}</div>
       <div className="sim-studio-dashboard-commands" ref={setCommandsHost} />
     </WorkspaceCommandBar>}
     inspector={<WorkspaceInspector resizeLabel={t("simulation.workspaceHierarchy.resizeInspector")} initialWidth={panel === "compare" || panel === "eventLog" || panel === "scenarios" ? 480 : 400} bodyClassName="sim-studio-dock-body" ref={dockRef} className={`sim-studio-dock ${panel === "compare" ? "is-comparison" : ""}`} hidden={!dockOpen} label={t("simulation.unified.details")} title={title} scope={t(aggregate || panel === "overview" || panel === "insights" || panel === "compare" || panel === "scenarios" ? "simulation.unified.aggregateScope" : "simulation.unified.context")} closeLabel={t("simulation.unified.closePanel")} onClose={close}>
@@ -99,7 +101,7 @@ export function SimulationStudio(): React.JSX.Element {
           processScope={scope} />
           : <div className="sim-studio-start"><div className="sim-studio-empty-process"><SimulationCanvas bpmnXml={bpmnXml} selectedElementId={selectedElementId} onSelectElement={selectElement} decorations={scenarioOverlay ?? undefined} /></div>
             <EmptyState title={!isLoading && !noArtifact && run?.status === "pending" ? runWaitTitle(run?.queue?.state, run?.queue?.position, t) : t(isLoading ? "simulation.loading" : noArtifact ? "simulation.replay.noArtifact" : run?.status === "failed" ? "simulation.status.failed" : "simulation.replay.noRun")} description={error ?? run?.error ?? (run?.status === "pending" ? runWaitHint(run?.queue?.state, t) : undefined) ?? t("simulation.unified.startHint")}
-              action={<Button onClick={() => show("scenario")}>{t("simulation.unified.tool.scenario")}</Button>} />
+              action={perspective === "operations" ? <Button variant="outline" onClick={() => setPerspective?.("consultant", "scenario")}>{t("simulation.perspective.configureAsConsultant")}</Button> : <Button onClick={() => show("scenario")}>{t("simulation.unified.tool.scenario")}</Button>} />
           </div>}
       </section>
   </CanvasWorkspaceShell>;

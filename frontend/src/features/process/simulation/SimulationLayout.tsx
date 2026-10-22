@@ -26,6 +26,8 @@ import { SimulationStudio } from "./SimulationStudio";
 import { ReplaySession } from "./replay/ReplaySession";
 import { listProsimosSimulationRuns } from "./simulationApi";
 import { formatRunOption, SimulationSectionContext, type SimulationPanel, type AnalysisView } from "./useSimulationSection";
+import { panelInPerspective, parsePerspective, PERSPECTIVE_PARAM, type Perspective } from "./perspective";
+import { PerspectiveSwitch } from "./PerspectiveSwitch";
 
 const PANELS = ["scenario", "scenarios", "overview", "compare", "heatmap", "insights", "eventLog", "widget", "activity"] as const;
 
@@ -65,7 +67,9 @@ export function SimulationLayout(): React.JSX.Element {
   const activeRunId = Number.isFinite(requestedId) && requestedId > 0
     ? requestedId : runs.find((run) => run.status === "completed")?.id ?? runs[0]?.id ?? null;
   const requestedPanel = params.get("panel") ?? (params.get("view") === "compare" ? "compare" : section === "workspace" || section === "replay" || section === "dashboard" ? null : section);
-  const panel = PANELS.includes(requestedPanel as SimulationPanel) ? requestedPanel as SimulationPanel : null;
+  // SIM-21: la prospettiva sceglie cosa mostrare, non cosa c'e' nell'URL.
+  const perspective = parsePerspective(params.get(PERSPECTIVE_PARAM));
+  const panel = panelInPerspective(PANELS.includes(requestedPanel as SimulationPanel) ? requestedPanel as SimulationPanel : null, perspective);
   const requestedView = params.get("view");
   const analysisView: AnalysisView = ["replay", "final", "compare", "heatmap"].includes(requestedView ?? "") ? requestedView as AnalysisView
     : panel === "compare" ? "compare" : panel === "heatmap" ? "heatmap" : panel === "overview" || panel === "insights" ? "final" : "replay";
@@ -101,6 +105,13 @@ export function SimulationLayout(): React.JSX.Element {
     navigate(ROUTES.projects.simulation(projectId, processId, `workspace${activeRunId != null ? `/${activeRunId}` : ""}`) + `?${query}`);
   };
   const switchRun = (value: string) => selectRun(Number(value));
+  // Cambiare prospettiva non tocca scenario, run ne' selezione: solo il parametro.
+  const setPerspective = (next: Perspective, nextPanel?: SimulationPanel | null) => {
+    const query = new URLSearchParams(location.search);
+    if (next === "operations") query.set(PERSPECTIVE_PARAM, next); else query.delete(PERSPECTIVE_PARAM);
+    if (nextPanel !== undefined) { query.set("panel", nextPanel ?? "none"); panelRef.current = nextPanel; }
+    navigate({ pathname: location.pathname, search: `?${query}` });
+  };
 
   if (projectQ.isLoading) {
     return (
@@ -145,6 +156,7 @@ export function SimulationLayout(): React.JSX.Element {
     runsLoading: runsQ.isLoading,
     refetchRuns: () => void runsQ.refetch(),
     activeRunId, selectRun, selectedElementId, selectElement, analysisView, setAnalysisView, panel, openPanel, inspectedWidgetId, inspectWidget,
+    perspective, setPerspective,
   };
 
   return (
@@ -154,6 +166,7 @@ export function SimulationLayout(): React.JSX.Element {
           navigation={<Popover><PopoverTrigger asChild><Button size="icon" variant="ghost" aria-label={t("simulation.workspaceHierarchy.path")}><FolderTree aria-hidden className="size-4" /></Button></PopoverTrigger><PopoverContent align="start"><nav aria-label="Breadcrumb"><ol className="space-y-2 text-sm"><li><Link to={ROUTES.projects.list}>{t("breadcrumb.projects")}</Link></li><li><Link to={ROUTES.projects.detail(project.id)}>{project.name}</Link></li><li><Link to={ROUTES.projects.process(project.id, process.id)}>{process.name}</Link></li><li aria-current="page" className="text-muted-foreground">{t("simulation.section.title")}</li></ol></nav></PopoverContent></Popover>}
           actions={
               <div className="sim-studio-run-actions flex max-w-full flex-wrap items-center gap-2">
+                <PerspectiveSwitch value={perspective} onChange={(next) => setPerspective(next)} />
                 {runs.length > 0 && (
                   <Select
                     value={activeRunId != null ? String(activeRunId) : undefined}
