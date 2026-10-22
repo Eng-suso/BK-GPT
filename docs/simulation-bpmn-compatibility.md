@@ -19,14 +19,14 @@ Il report (`backend/simulation/compatibility.py`) non duplica le regole del norm
 
 | Stato | Significato | Esempi |
 |---|---|---|
-| `preserved` | Il motore lo esegue così com'è. Un cambio di tipo innocuo ha una nota. | task, gateway esclusivi e paralleli, `userTask` simulato come task |
+| `preserved` | Il motore lo esegue così com'è. Un cambio di tipo innocuo ha una nota. | task, gateway esclusivi e paralleli, `userTask` simulato come task, timer intermedio con durata fissa (`PT48H`) simulato come attesa del caso (SIM-11c) |
 | `approximated` | Il motore lo esegue in una forma più semplice. | attività con ciclo o multi-istanza, `receiveTask`, `callActivity`, `complexGateway`, inizi e fini uniti, flussi ricollegati |
 | `flattened` | Ridotto a una scatola nera. | sottoprocesso; i suoi passi interni hanno `parent_id` |
-| `removed` | Non arriva al motore. | eventi di bordo e ramo d'eccezione, eventi intermedi, lane, annotazioni |
+| `removed` | Non arriva al motore. | eventi di bordo e ramo d'eccezione, eventi intermedi (salvo i timer con durata fissa fuori da un gateway a eventi), lane, annotazioni |
 
 ## Impatto sui KPI
 
-- `high`: sposta cycle time, attese, costi o percorsi in modo sistematico. Esempi: sottoprocesso appiattito, timer intermedio saltato, ramo d'eccezione mai percorso, ciclo eseguito una volta.
+- `high`: sposta cycle time, attese, costi o percorsi in modo sistematico. Esempi: sottoprocesso appiattito, timer intermedio con data o ciclo saltato, ramo d'eccezione mai percorso, ciclo eseguito una volta.
 - `medium`: cambia il comportamento di alcuni casi. Esempi: attesa di un messaggio, gateway complesso trattato come esclusivo.
 - `low`: effetto piccolo o indiretto. Esempi: più inizi uniti in uno, evento di bordo senza ramo.
 - `none`: nessun effetto sui KPI. Esempi: lane (restano risorse lette dal BPMN originale), annotazioni, flussi assorbiti.
