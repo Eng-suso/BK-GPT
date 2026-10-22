@@ -297,6 +297,8 @@ def _activity(task: BpmnTask, override, request, default_resource_id: str, resou
             assignments=(primary, *_other_assignments(task, override, resource_id, resource_ids)),
             duration_by=_duration_by(task, override),
             duration_windows=_duration_windows(override),
+            instances=task.instances,
+            sequential_instances=task.sequential_instances,
         )
     except ValidationError as exc:
         reason = exc.errors()[0]["msg"].removeprefix("Value error, ")

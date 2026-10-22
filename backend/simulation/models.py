@@ -9,6 +9,9 @@ class BpmnTask(BaseModel):
     id: str
     name: str
     type: str = "task"
+    # SIM-11f: una multi-istanza con un numero fisso di istanze.
+    instances: int = 1
+    sequential_instances: bool = True
 
 
 class BpmnWait(BaseModel):

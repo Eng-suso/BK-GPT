@@ -7,6 +7,9 @@ from backend.simulation.timers import (
     ESCALATION_AFTER,
     ESCALATION_NORMAL_FLOW,
     ESCALATION_OF,
+    INSTANCES,
+    INSTANCES_SEQUENTIAL,
+    MAX_INSTANCES,
     duration_seconds,
 )
 
@@ -323,9 +326,32 @@ def _downcast_activities(process: ElementTree.Element) -> bool:
         if _local(element.tag) in _ACTIVITY_TAGS or _local(element.tag) in _SUBPROCESS_TAGS
     ]
     for element in targets:
+        _mark_fixed_instances(element)
         element.tag = task_tag
         _keep_only_flow_refs(element)
     return bool(targets)
+
+
+def fixed_instances(element: ElementTree.Element) -> tuple[int, bool] | None:
+    """SIM-11f: (istanze, in sequenza) di una multi-istanza con un numero fisso, o ``None``.
+
+    Solo ``loopCardinality`` con un intero da 2 a ``MAX_INSTANCES``: una
+    collezione o un'espressione non dicono quante istanze avra' ogni caso.
+    """
+    loop = element.find(_q(BPMN_MODEL_NS, "multiInstanceLoopCharacteristics"))
+    if loop is None or loop.find(_q(BPMN_MODEL_NS, "completionCondition")) is not None:
+        return None
+    text = (loop.findtext(_q(BPMN_MODEL_NS, "loopCardinality")) or "").strip()
+    if not text.isdigit() or not 2 <= int(text) <= MAX_INSTANCES:
+        return None
+    return int(text), loop.get("isSequential") == "true"
+
+
+def _mark_fixed_instances(element: ElementTree.Element) -> None:
+    fixed = fixed_instances(element) if _local(element.tag) in _ACTIVITY_TAGS else None
+    if fixed is not None:
+        element.set(INSTANCES, str(fixed[0]))
+        element.set(INSTANCES_SEQUENTIAL, "true" if fixed[1] else "false")
 
 
 def _keep_only_flow_refs(element: ElementTree.Element) -> None:

@@ -329,6 +329,10 @@ class Activity(_Strict):
     skip: Skip | None = None
     rework: Rework | None = None
     duration_windows: tuple[DurationWindow, ...] = Field(default=(), max_length=21)
+    # SIM-11f: una multi-istanza con un numero fisso: ogni caso la esegue
+    # ``instances`` volte, una dopo l'altra o in parallelo (``ir/instances.py``).
+    instances: int = Field(default=1, ge=1, le=50)
+    sequential_instances: bool = True
 
     @model_validator(mode="after")
     def _windows_apart(self):

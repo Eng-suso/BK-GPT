@@ -18,6 +18,7 @@ from backend.simulation.bpmn_resources import describe_bpmn_resources
 from backend.simulation.ir import compile_for_prosimos, model_from_request
 from backend.simulation.ir.escalations import expand_escalations
 from backend.simulation.ir.flow_rules import expand_flow_rules
+from backend.simulation.ir.instances import expand_instances
 from backend.simulation.ir.from_request import with_band_attribute, with_flow_rules, with_request_waits
 from backend.simulation.ir.variants import expand_duration_variants
 from backend.simulation.ir.waits import with_bpmn_waits
@@ -27,7 +28,14 @@ from backend.simulation.ir.from_request import standard_calendar
 from backend.simulation.ir.model import SimulationModel, TimerEscalation
 from backend.simulation.ir.patch import apply_patch
 from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, BpmnWait, ProsimosScenario
-from backend.simulation.timers import ESCALATION_AFTER, ESCALATION_NORMAL_FLOW, ESCALATION_OF, duration_seconds
+from backend.simulation.timers import (
+    ESCALATION_AFTER,
+    ESCALATION_NORMAL_FLOW,
+    ESCALATION_OF,
+    INSTANCES,
+    INSTANCES_SEQUENTIAL,
+    duration_seconds,
+)
 from backend.simulation.validation import validate_simulation_bpmn
 
 
@@ -83,7 +91,8 @@ def _scenario(bpmn_xml: str, model: SimulationModel, tasks: list[BpmnTask], gate
     l'inspector mostra le durate per categoria sull'attivita' vera. I salti
     vengono prima: una variante di durata sta dentro il salto, non attorno.
     """
-    engine_bpmn, engine_model = expand_escalations(bpmn_xml, model)
+    engine_bpmn, engine_model = expand_instances(bpmn_xml, model)
+    engine_bpmn, engine_model = expand_escalations(engine_bpmn, engine_model)
     engine_bpmn, engine_model = expand_flow_rules(engine_bpmn, engine_model)
     engine_bpmn, engine_model = expand_duration_variants(engine_bpmn, engine_model)
     return ProsimosScenario(
@@ -214,7 +223,11 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
             names_by_id[element_id] = name
 
         if tag in TASK_TYPES:
-            tasks.append(BpmnTask(id=element_id, name=name or element_id, type=tag))
+            tasks.append(BpmnTask(
+                id=element_id, name=name or element_id, type=tag,
+                instances=int(element.attrib.get(INSTANCES, "1")),
+                sequential_instances=element.attrib.get(INSTANCES_SEQUENTIAL, "true") == "true",
+            ))
         elif tag in BRANCHING_GATEWAY_TYPES:
             gateway_types[element_id] = tag
             gateway_names[element_id] = name
