@@ -14,12 +14,14 @@ import {
   arrivalFromModel,
   elementFromModel,
   prioritiesFromModel,
+  waitFromModel,
   type ArrivalView,
   type AssignmentView,
   type BranchView,
   type CalendarView,
   type DurationByView,
   type DurationWindowView,
+  type WaitView,
   type FlowRulesView,
   type DurationView,
 } from "./modelParameters";
@@ -74,7 +76,10 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
   } else if (runModel.data) {
     const view = elementFromModel(runModel.data, elementId, element, template.data);
     const arrival = !view && isStart ? arrivalFromModel(runModel.data) : null;
-    body = arrival
+    const wait = !view ? waitFromModel(runModel.data, elementId) : null;
+    body = wait
+      ? <Wait wait={wait} lang={lang} t={t} />
+      : arrival
       ? <>
           <Arrival arrival={arrival} lang={lang} t={t} provenanceState={provenance} />
           <Priorities priorities={prioritiesFromModel(runModel.data)} t={t} />
@@ -231,6 +236,14 @@ function DurationBy({ durationBy, lang, t }: { durationBy: DurationByView; lang:
       </div>
     ))}
     <p className="sim-help">{t("simulation.activityInspector.durationByOthers")}</p>
+  </div>;
+}
+
+/** SIM-11c: l'attesa di un timer intermedio, come il run l'ha simulata. */
+function Wait({ wait, lang, t }: { wait: WaitView; lang: Lang; t: T }): React.JSX.Element {
+  return <div className="sim-param-group" data-wait-inspector>
+    <dl><DurationRows duration={wait.duration} lang={lang} t={t} meanLabel={t("simulation.activityInspector.wait")} /></dl>
+    <p className="sim-help">{t("simulation.activityInspector.waitNote")}</p>
   </div>;
 }
 

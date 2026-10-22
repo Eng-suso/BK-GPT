@@ -44,6 +44,8 @@ export const runModelSchema = z.object({
     bands: z.array(z.object({ from_day: z.string(), to_day: z.string(), begin: z.string(), end: z.string(), mean_seconds: z.number() })).default([]),
   }).optional(),
   priority_rules: z.array(z.object({ level: z.number(), condition: z.object({ any_of: z.array(z.array(ruleSchema)) }) })).optional(),
+  // SIM-11c: i timer intermedi del BPMN che il caso aspettava.
+  waits: z.array(z.object({ element_id: z.string(), name: z.string().default(""), duration: irDistributionSchema })).optional(),
   calendars: z.array(
     z.object({
       id: z.string(),

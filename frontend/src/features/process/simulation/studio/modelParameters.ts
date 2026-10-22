@@ -70,6 +70,14 @@ export type ElementView =
   | { kind: "activity"; assignments: AssignmentView[]; durationBy: DurationByView | null; flowRules: FlowRulesView; durationWindows: DurationWindowView[] }
   | { kind: "gateway"; branches: BranchView[]; provenance: FieldProvenance; escalation: EscalationView | null };
 
+/** SIM-11c: un timer intermedio che il caso aspettava, con la durata simulata. */
+export type WaitView = { name: string; duration: DurationView };
+
+export function waitFromModel(model: RunModel, elementId: string): WaitView | null {
+  const wait = (model.waits ?? []).find((w) => w.element_id === elementId);
+  return wait ? { name: wait.name || wait.element_id, duration: durationView(wait.duration) } : null;
+}
+
 /** SIM-35: un timer d'escalation; la quota dei rami veniva dalla durata dell'attivita'. */
 export type EscalationView = { afterSeconds: number; activityName: string };
 

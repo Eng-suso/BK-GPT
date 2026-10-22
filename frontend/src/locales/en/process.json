@@ -649,7 +649,9 @@
       "shiftValue_other": "{{count}} extra units · {{calendar}}",
       "arrivalBand": "one case every {{every}}",
       "arrivalBandsNote": "No case arrived outside these bands. The DeliR runner generated the arrivals, with the run seed.",
-      "escalation": "Timer escalation after {{after}} on «{{activity}}»: the share of cases whose work outlasted the timer took the escalation path, computed from the simulated duration. Queue waiting does not count."
+      "escalation": "Timer escalation after {{after}} on «{{activity}}»: the share of cases whose work outlasted the timer took the escalation path, computed from the simulated duration. Queue waiting does not count.",
+      "wait": "Timer wait",
+      "waitNote": "The case waited this long at any hour: the timer counts clock time, not the calendar. No resource was busy."
     },
     "provenance": {
       "label": "Source",
