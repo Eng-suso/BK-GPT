@@ -77,7 +77,10 @@ def test_a_subprocess_inside_a_subprocess_unrolls_too():
 
 @pytest.mark.parametrize(("bpmn", "why"), [
     (_bpmn(sub_extra="<bpmn:multiInstanceLoopCharacteristics />"), "multi-istanza"),
-    (_bpmn(process_extra='<bpmn:boundaryEvent id="BE" attachedToRef="SP"><bpmn:errorEventDefinition /></bpmn:boundaryEvent>'), "evento di bordo"),
+    (_bpmn(process_extra='<bpmn:boundaryEvent id="BE" attachedToRef="SP"><bpmn:timerEventDefinition>'
+           '<bpmn:timeDuration>PT48H</bpmn:timeDuration></bpmn:timerEventDefinition></bpmn:boundaryEvent>'
+           '<bpmn:task id="X" name="Sollecita" /><bpmn:sequenceFlow id="fx" sourceRef="BE" targetRef="X" />'
+           '<bpmn:sequenceFlow id="fx2" sourceRef="X" targetRef="E" />'), "timer di bordo"),
     (_bpmn(inner="""<bpmn:startEvent id="SP_s"><bpmn:messageEventDefinition /></bpmn:startEvent><bpmn:task id="SP_t" name="X" />
       <bpmn:endEvent id="SP_e" /><bpmn:sequenceFlow id="i1" sourceRef="SP_s" targetRef="SP_t" /><bpmn:sequenceFlow id="i2" sourceRef="SP_t" targetRef="SP_e" />"""), "inizio a messaggio"),
 ], ids=lambda value: value if isinstance(value, str) and len(value) < 30 else "")
@@ -106,3 +109,32 @@ def test_the_steps_belong_to_the_lane_of_their_subprocess():
 
     lanes = {r.name: sorted(r.task_ids) for r in template.resources}
     assert lanes == {"Back office": ["SP_check", "SP_ko", "SP_ok"], "Sportello": ["A", "B"]}
+
+
+def test_an_error_on_the_border_no_longer_keeps_the_subprocess_a_black_box():
+    # SIM-11i: l'errore sul bordo si toglie comunque con il suo ramo; srotolato,
+    # il sottoprocesso ha almeno i passi interni con le loro durate.
+    bpmn = _bpmn(process_extra=(
+        '<bpmn:boundaryEvent id="BE" attachedToRef="SP"><bpmn:errorEventDefinition /></bpmn:boundaryEvent>'
+        '<bpmn:task id="X" name="Gestisci errore" /><bpmn:endEvent id="E2" />'
+        '<bpmn:sequenceFlow id="fx" sourceRef="BE" targetRef="X" /><bpmn:sequenceFlow id="fx2" sourceRef="X" targetRef="E2" />'
+    ))
+    normalized = normalize_bpmn_for_prosimos(bpmn)
+    template = describe_scenario_template(normalized)
+    report = {e.element_id: e for e in bpmn_compatibility_report(bpmn).elements}
+
+    assert [t.element_id for t in template.tasks] == ["A", "SP_check", "SP_ok", "SP_ko", "B"]
+    assert 'id="BE"' not in normalized and 'id="X"' not in normalized
+    assert (report["SP"].status, report["SP"].simulated_as) == ("preserved", "expanded")
+    assert (report["BE"].status, report["BE"].impact) == ("removed", "high")
+    assert report["X"].status == "removed"
+
+
+def test_a_timer_on_the_border_of_the_black_box_is_still_an_escalation():
+    bpmn = _bpmn(process_extra='<bpmn:boundaryEvent id="BE" attachedToRef="SP"><bpmn:timerEventDefinition>'
+                 '<bpmn:timeDuration>PT48H</bpmn:timeDuration></bpmn:timerEventDefinition></bpmn:boundaryEvent>'
+                 '<bpmn:task id="X" name="Sollecita" /><bpmn:sequenceFlow id="fx" sourceRef="BE" targetRef="X" />'
+                 '<bpmn:sequenceFlow id="fx2" sourceRef="X" targetRef="E" />')
+    template = describe_scenario_template(normalize_bpmn_for_prosimos(bpmn))
+    late = next(g for g in template.gateways if g.element_id == "BE")
+    assert late.escalation is not None and late.escalation.activity_id == "SP"
