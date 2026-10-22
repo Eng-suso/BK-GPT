@@ -19,13 +19,14 @@ from backend.simulation.ir.escalations import expand_escalations
 from backend.simulation.ir.flow_rules import expand_flow_rules
 from backend.simulation.ir.from_request import with_band_attribute, with_flow_rules
 from backend.simulation.ir.variants import expand_duration_variants
+from backend.simulation.ir.waits import with_bpmn_waits
 from backend.simulation.ir.baseline import baseline_model
 from backend.simulation.ir.bpmn_check import check_model_against_bpmn
 from backend.simulation.ir.from_request import standard_calendar
 from backend.simulation.ir.model import SimulationModel, TimerEscalation
 from backend.simulation.ir.patch import apply_patch
-from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, ProsimosScenario
-from backend.simulation.timers import ESCALATION_AFTER, ESCALATION_NORMAL_FLOW, ESCALATION_OF
+from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, BpmnWait, ProsimosScenario
+from backend.simulation.timers import ESCALATION_AFTER, ESCALATION_NORMAL_FLOW, ESCALATION_OF, duration_seconds
 from backend.simulation.validation import validate_simulation_bpmn
 
 
@@ -69,6 +70,7 @@ def build_prosimos_scenario(
         check_model_against_bpmn(model, tasks, gateways)
     model = with_band_attribute(model, request)
     model = with_flow_rules(model, request)
+    model = with_bpmn_waits(model, parse_bpmn_waits(bpmn_xml))
     return _scenario(bpmn_xml, model, tasks, gateways)
 
 
@@ -100,7 +102,7 @@ def baseline_for_bpmn(bpmn_xml: str, *, source_bpmn_xml: str | None = None) -> S
     """
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     resources = describe_bpmn_resources(source_bpmn_xml or bpmn_xml, {task.id for task in tasks})
-    return baseline_model(tasks, gateways, resources)
+    return with_bpmn_waits(baseline_model(tasks, gateways, resources), parse_bpmn_waits(bpmn_xml))
 
 
 def build_prosimos_scenario_from_model(*, bpmn_xml: str, model: SimulationModel) -> ProsimosScenario:
@@ -108,6 +110,7 @@ def build_prosimos_scenario_from_model(*, bpmn_xml: str, model: SimulationModel)
     validate_simulation_bpmn(bpmn_xml)
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     check_model_against_bpmn(model, tasks, gateways)
+    model = with_bpmn_waits(model, parse_bpmn_waits(bpmn_xml))
     return _scenario(bpmn_xml, model, tasks, gateways)
 
 
@@ -155,6 +158,24 @@ def _standard_calendar_config() -> SimCalendarConfig:
 
 
 # --- BPMN parsing -----------------------------------------------------------
+
+
+def parse_bpmn_waits(bpmn_xml: str) -> list[BpmnWait]:
+    """SIM-11c: i timer intermedi con una durata fissa del BPMN normalizzato."""
+    try:
+        root = ElementTree.fromstring(bpmn_xml.encode("utf-8"))
+    except ElementTree.ParseError as exc:
+        raise ValueError("XML BPMN non valido.") from exc
+    waits = []
+    for element in root.iter():
+        if _local_name(element.tag) != "intermediateCatchEvent" or not element.attrib.get("id"):
+            continue
+        timer = next((child for child in element if _local_name(child.tag) == "timerEventDefinition"), None)
+        text = next((child.text for child in (timer if timer is not None else []) if _local_name(child.tag) == "timeDuration"), None)
+        seconds = duration_seconds(text)
+        if seconds is not None:
+            waits.append(BpmnWait(id=element.attrib["id"], name=element.attrib.get("name") or "", seconds=seconds))
+    return waits
 
 
 def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnGateway]]:
