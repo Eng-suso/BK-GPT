@@ -476,6 +476,15 @@
         "inspector": "By start time",
         "inspectorWindow": "{{days}} {{begin}}–{{end}}: {{change}}"
       },
+      "instances": {
+        "label": "Instances per case",
+        "hint": "Multi-instance over a collection: the BPMN does not say how many instances a case has. Set how many a typical case has; each instance has the duration and role above, {{mode}}. Without it the activity runs once.",
+        "fixed_one": "Multi-instance from the BPMN: {{count}} instance per case, {{mode}}.",
+        "fixed_other": "Multi-instance from the BPMN: {{count}} instances per case, {{mode}}.",
+        "sequential": "one after another",
+        "parallel": "in parallel",
+        "issue": "Instances per case are a whole number from 1 to {{max}}."
+      },
       "waits": {
         "title": "Waits",
         "hint": "The process events the case waits for. A wait counts clock time, not the calendar, and keeps nobody busy.",
@@ -493,6 +502,7 @@
         "removeShort": "Remove the wait"
       },
       "escalation": "Timer escalation after {{after}} on «{{activity}}». The share of cases taking it comes from the activity duration: the timer counts work, not waiting in the queue.",
+      "escalationParallel": "Non-interrupting timer after {{after}} on «{{activity}}»: the activity goes on and the timer path starts in parallel. The share of cases taking it comes from the activity duration; the path starts {{after}} after the case reaches the activity, queue included.",
       "skip": {
         "legend": "Skipping «{{task}}»",
         "toggle": "Some cases skip it",
@@ -666,6 +676,7 @@
       "arrivalBand": "one case every {{every}}",
       "arrivalBandsNote": "No case arrived outside these bands. The DeliR runner generated the arrivals, with the run seed.",
       "escalation": "Timer escalation after {{after}} on «{{activity}}»: the share of cases whose work outlasted the timer took the escalation path, computed from the simulated duration. Queue waiting does not count.",
+      "escalationParallel": "Non-interrupting timer after {{after}} on «{{activity}}»: the activity went on and the timer path started in parallel for the share of cases whose work outlasted the timer, computed from the simulated duration.",
       "wait": "Wait",
       "waitNote": "The case waited this long at any hour: the timer counts clock time, not the calendar. No resource was busy.",
       "waitUnset": "Wait not set in the panel: the case moved on at once.",

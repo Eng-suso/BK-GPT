@@ -85,7 +85,8 @@ export function waitFromModel(model: RunModel, elementId: string): WaitView | nu
 }
 
 /** SIM-35: un timer d'escalation; la quota dei rami veniva dalla durata dell'attivita'. */
-export type EscalationView = { afterSeconds: number; activityName: string };
+/** SIM-11g: ``interrupting`` falso per un timer che fa partire il ramo senza fermare l'attivita'. */
+export type EscalationView = { afterSeconds: number; activityName: string; interrupting: boolean };
 
 /** SIM-12: chi passava prima in coda nel run, dalla priorita' 1. */
 export function prioritiesFromModel(model: RunModel): { level: number; condition: IrRule[][] }[] {
@@ -213,6 +214,7 @@ export function elementFromModel(
     escalation: gateway.escalation
       ? {
         afterSeconds: gateway.escalation.after_seconds,
+        interrupting: gateway.escalation.interrupting ?? true,
         activityName: model.activities.find((a) => a.element_id === gateway.escalation?.activity_id)?.name || gateway.escalation.activity_id,
       }
       : null,

@@ -175,7 +175,12 @@ export const scenarioTemplateSchema = z.object({
   /** Il calendario di arrivi e risorse senza calendario proprio. */
   standard_calendar: simCalendarSchema.nullable().optional(),
   tasks: z.array(
-    z.object({ element_id: z.string(), name: z.string(), type: z.string() }),
+    z.object({
+      element_id: z.string(), name: z.string(), type: z.string(),
+      /** SIM-11f/h: multi-istanza; ``instances`` e' il numero fisso del BPMN, assente lo imposta il consulente. */
+      multi_instance: z.enum(["sequential", "parallel"]).nullable().optional(),
+      instances: z.number().nullable().optional(),
+    }),
   ),
   gateways: z.array(
     z.object({
@@ -194,6 +199,8 @@ export const scenarioTemplateSchema = z.object({
         activity_id: z.string(),
         after_seconds: z.number(),
         normal_flow_id: z.string(),
+        /** SIM-11g: false per un timer non interrompente, che non ferma l'attivita'. */
+        interrupting: z.boolean().optional(),
       }).nullable().optional(),
     }),
   ),
@@ -367,6 +374,8 @@ export type SimTaskInput = SimDurationInput & {
   rework?: ReworkInput;
   /** SIM-33b: la durata per fascia oraria d'inizio, come fattore. */
   durationWindows?: DurationWindowInput[];
+  /** SIM-11h: istanze per caso di una multi-istanza aperta. */
+  instances?: number;
 };
 
 /** SIM-11d: quanto il caso aspetta a un messaggio o a un segnale. */

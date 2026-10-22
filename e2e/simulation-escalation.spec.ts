@@ -65,7 +65,12 @@ const model = {
   case_attributes: [{ name: "importo", distribution: { kind: "uniform", minimum: 100, maximum: 12000 }, provenance: { origin: "manual" } }],
 };
 
-async function fixture(page: Page, runs: unknown[] = []) {
+// SIM-11g: lo stesso timer, non interrompente.
+const parallel = <T extends { gateways: { escalation?: object }[] }>(value: T): T => ({
+  ...value, gateways: value.gateways.map((g) => ({ ...g, escalation: { ...g.escalation, interrupting: false } })),
+});
+
+async function fixture(page: Page, runs: unknown[] = [], { nonInterrupting = false } = {}) {
   await page.addInitScript((stored) => {
     Object.assign(window, { DELIR_API_BASE: "http://127.0.0.1:8000" });
     localStorage.setItem("delir-language", "it");
@@ -83,12 +88,12 @@ async function fixture(page: Page, runs: unknown[] = []) {
       next_step: "Simulare la soglia", milestones: [], open_issues: [], deliverables: [],
       process_items: [{ id: "esc-process", project_id: "esc-project", bpmn_model_id: "esc-model", name: "Ciclo passivo", stage: "AS-IS", status: "Da validare", owner: "Acquisti", readiness: 80 }],
     };
-    else if (path.endsWith("/simulation-template")) data = template;
+    else if (path.endsWith("/simulation-template")) data = nonInterrupting ? parallel(template) : template;
     else if (path.endsWith("/simulation-provenance")) data = { has_discovery: false, elements: [] };
     else if (path.endsWith("/simulation-runs") && request.method() === "POST") data = { ...run, status: "pending", request: request.postDataJSON() };
     else if (path.endsWith("/simulation-runs")) data = runs;
     else if (path.endsWith("/replay")) data = { run_id: 42, schema_version: 1, replay };
-    else if (path.endsWith("/simulation-runs/42/model")) data = { run_id: 42, model };
+    else if (path.endsWith("/simulation-runs/42/model")) data = { run_id: 42, model: nonInterrupting ? parallel(model) : model };
     else if (path.endsWith("/experiments")) data = { bottleneck_el: null, bottleneck_name: null, factors: {}, experiments: [] };
     else if (path.endsWith("/esc-model")) data = { id: "esc-model", process_id: "esc-process", name: "Ciclo passivo", xml };
     await route.fulfill({ json: data });
@@ -112,4 +117,19 @@ test("the decision inspector explains how the escalation was simulated", async (
   const params = page.getByRole("region", { name: "Parametri simulati", exact: true });
   await expect(params).toContainText("Escalation a tempo dopo 48 ore su «Ricevi ordine»");
   await expect(params).toContainText("L'attesa in coda non conta.");
+});
+
+test("a non-interrupting timer says the activity goes on, in the panel and in the inspector", async ({ page }) => {
+  await fixture(page, [run], { nonInterrupting: true });
+  await page.goto(`${studio}/scenario`);
+  const note = page.locator('[data-escalation="G_split"]');
+  await expect(note).toContainText("Timer non interrompente dopo 48 ore su «Ricevi ordine»: l'attività continua");
+  await expect(page.getByLabel("Approva", { exact: true })).toHaveCount(0);
+  const axe = await new AxeBuilder({ page }).include('[data-escalation="G_split"]').withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+
+  await page.goto(`${studio}/workspace/42?panel=activity`);
+  await page.locator('.djs-element[data-element-id="G_split"]').first().click();
+  const params = page.getByRole("region", { name: "Parametri simulati", exact: true });
+  await expect(params).toContainText("l'attività è continuata e il ramo del timer è partito in parallelo");
 });

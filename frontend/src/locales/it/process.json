@@ -476,6 +476,15 @@
         "inspector": "Per ora d'inizio",
         "inspectorWindow": "{{days}} {{begin}}–{{end}}: {{change}}"
       },
+      "instances": {
+        "label": "Istanze per caso",
+        "hint": "Multi-istanza su una collezione: il BPMN non dice quante istanze ha un caso. Imposta quante ne ha un caso tipico; ogni istanza ha la durata e il ruolo qui sopra, {{mode}}. Senza, l'attività si esegue una volta.",
+        "fixed_one": "Multi-istanza dal BPMN: {{count}} istanza per caso, {{mode}}.",
+        "fixed_other": "Multi-istanza dal BPMN: {{count}} istanze per caso, {{mode}}.",
+        "sequential": "una dopo l'altra",
+        "parallel": "in parallelo",
+        "issue": "Le istanze per caso sono un numero intero da 1 a {{max}}."
+      },
       "waits": {
         "title": "Attese",
         "hint": "Gli eventi del processo che il caso aspetta. Un'attesa conta l'orologio, non il calendario, e non occupa nessuno.",
@@ -493,6 +502,7 @@
         "removeShort": "Togli l'attesa"
       },
       "escalation": "Escalation a tempo dopo {{after}} su «{{activity}}». La quota dei casi che la prendono viene dalla durata dell'attività: il timer conta la lavorazione, non l'attesa in coda.",
+      "escalationParallel": "Timer non interrompente dopo {{after}} su «{{activity}}»: l'attività continua e il ramo del timer parte in parallelo. La quota dei casi che lo prendono viene dalla durata dell'attività; il ramo parte {{after}} dopo l'arrivo del caso, coda compresa.",
       "skip": {
         "legend": "Salto di «{{task}}»",
         "toggle": "Alcuni casi la saltano",
@@ -666,6 +676,7 @@
       "arrivalBand": "un caso ogni {{every}}",
       "arrivalBandsNote": "Fuori da queste fasce non arrivava nessuno. Gli arrivi li ha generati il runner DeliR, con il seed del run.",
       "escalation": "Escalation a tempo dopo {{after}} su «{{activity}}»: è andata nel ramo d'escalation la quota dei casi la cui lavorazione superava il timer, calcolata dalla durata simulata. L'attesa in coda non conta.",
+      "escalationParallel": "Timer non interrompente dopo {{after}} su «{{activity}}»: l'attività è continuata e il ramo del timer è partito in parallelo per la quota dei casi la cui lavorazione superava il timer, calcolata dalla durata simulata.",
       "wait": "Attesa",
       "waitNote": "Il caso aspettava questa durata a qualsiasi ora: il timer conta l'orologio, non il calendario. Nessuna risorsa era occupata.",
       "waitUnset": "Attesa non impostata nel pannello: il caso proseguiva subito.",

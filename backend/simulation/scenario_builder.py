@@ -30,10 +30,13 @@ from backend.simulation.ir.patch import apply_patch
 from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, BpmnWait, ProsimosScenario
 from backend.simulation.timers import (
     ESCALATION_AFTER,
+    ESCALATION_INTERRUPTING,
     ESCALATION_NORMAL_FLOW,
     ESCALATION_OF,
     INSTANCES,
+    INSTANCES_OPEN,
     INSTANCES_SEQUENTIAL,
+    TIMER_OF,
     duration_seconds,
 )
 from backend.simulation.validation import validate_simulation_bpmn
@@ -130,10 +133,19 @@ def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = N
         waits=[
             ScenarioTemplateWait(element_id=wait.id, name=wait.name or wait.id, kind=wait.kind, seconds=wait.seconds)
             for wait in parse_bpmn_waits(bpmn_xml)
+            if not wait.internal
         ],
         resources=describe_bpmn_resources(source_bpmn_xml or bpmn_xml, {task.id for task in tasks}),
         tasks=[
-            ScenarioTemplateTask(element_id=task.id, name=task.name, type=task.type)
+            ScenarioTemplateTask(
+                element_id=task.id, name=task.name, type=task.type,
+                # SIM-11h: il pannello chiede le istanze solo dove il BPMN non le fissa.
+                multi_instance=(
+                    ("sequential" if task.sequential_instances else "parallel")
+                    if task.instances > 1 or task.open_instances else None
+                ),
+                instances=task.instances if task.instances > 1 else None,
+            )
             for task in tasks
         ],
         standard_calendar=_standard_calendar_config(),
@@ -196,7 +208,8 @@ def parse_bpmn_waits(bpmn_xml: str) -> list[BpmnWait]:
             seconds = duration_seconds(text)
             if seconds is None:
                 continue
-        waits.append(BpmnWait(id=element.attrib["id"], name=element.attrib.get("name") or "", kind=kind, seconds=seconds))
+        waits.append(BpmnWait(id=element.attrib["id"], name=element.attrib.get("name") or "", kind=kind, seconds=seconds,
+                              internal=bool(element.attrib.get(TIMER_OF))))
     return waits
 
 
@@ -227,6 +240,7 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
                 id=element_id, name=name or element_id, type=tag,
                 instances=int(element.attrib.get(INSTANCES, "1")),
                 sequential_instances=element.attrib.get(INSTANCES_SEQUENTIAL, "true") == "true",
+                open_instances=element.attrib.get(INSTANCES_OPEN) == "true",
             ))
         elif tag in BRANCHING_GATEWAY_TYPES:
             gateway_types[element_id] = tag
@@ -236,6 +250,7 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
                     activity_id=element.attrib[ESCALATION_OF],
                     after_seconds=float(element.attrib.get(ESCALATION_AFTER, "0")),
                     normal_flow_id=element.attrib.get(ESCALATION_NORMAL_FLOW, ""),
+                    interrupting=element.attrib.get(ESCALATION_INTERRUPTING) != "false",
                 )
         elif tag == "sequenceFlow":
             source = element.attrib.get("sourceRef") or ""

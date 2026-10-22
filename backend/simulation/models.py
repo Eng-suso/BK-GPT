@@ -12,6 +12,9 @@ class BpmnTask(BaseModel):
     # SIM-11f: una multi-istanza con un numero fisso di istanze.
     instances: int = 1
     sequential_instances: bool = True
+    # SIM-11h: una multi-istanza senza un numero fisso nel BPMN: le istanze le
+    # imposta il consulente, e senza resta eseguita una volta.
+    open_instances: bool = False
 
 
 class BpmnWait(BaseModel):
@@ -25,6 +28,9 @@ class BpmnWait(BaseModel):
     name: str = ""
     kind: Literal["timer", "message", "signal", "conditional"] = "timer"
     seconds: float | None = None
+    # SIM-11g: l'attesa che fa partire il ramo di un timer non interrompente; il
+    # caso non la aspetta, quindi il pannello non la mostra fra le Attese.
+    internal: bool = False
 
 
 class BpmnFlow(BaseModel):

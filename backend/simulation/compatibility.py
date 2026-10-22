@@ -29,6 +29,7 @@ from backend.schemas.simulation import (
 from backend.schemas.workspace import BpmnModelResponse
 from backend.simulation.bpmn_normalizer import (
     fixed_instances,
+    open_instances,
     _ACTIVITY_TAGS,
     _GATEWAY_REWRITE,
     _NOISE_TAGS,
@@ -260,6 +261,15 @@ class _ProcessReport:
                     "rilavorazioni sull'attività si simula una volta sola."
                 ),
             )
+        if open_instances(element) is not None:
+            return _entry(
+                element, local, "approximated", "high", simulated_as="task",
+                note=(
+                    "Multi-istanza su una collezione: il BPMN non dice quante istanze avrà ogni caso. "
+                    "Imposta nel pannello le istanze per caso; finché non le imposti è eseguita una volta, "
+                    "e durata, costo e carico della risorsa sono sottostimati."
+                ),
+            )
         if any(_local(child.tag) in _LOOP_TAGS for child in element):
             return _entry(
                 element, local, "approximated", "high", simulated_as="task",
@@ -291,6 +301,17 @@ class _ProcessReport:
             return _entry(
                 element, "boundaryEvent", "removed", "low",
                 note=f"Evento sul bordo di {attached} senza un ramo in uscita: non cambia il percorso.",
+            )
+        if self.after.tags.get(element_id) == "exclusiveGateway" and element.get("cancelActivity") == "false":
+            # SIM-11g: timer non interrompente diventato ramo parallelo (bpmn_normalizer._non_interrupting_timers).
+            return _entry(
+                element, "boundaryEvent", "approximated", "medium", simulated_as="parallel",
+                note=(
+                    f"Timer non interrompente su {attached}: {attached} continua, e il ramo del timer parte "
+                    "per la quota di casi la cui lavorazione supera il timer, calcolata dalla durata "
+                    "dell'attività. Il ramo parte quando è passato il timer dall'arrivo del caso "
+                    "all'attività, coda compresa; la quota invece conta solo la lavorazione."
+                ),
             )
         if self.after.tags.get(element_id) == "exclusiveGateway":
             # SIM-35: timer interrompente diventato decisione (bpmn_normalizer._timer_escalations).

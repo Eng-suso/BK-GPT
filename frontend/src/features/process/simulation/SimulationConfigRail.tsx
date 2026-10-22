@@ -41,6 +41,7 @@ import { ArrivalBands } from "./ArrivalBands";
 import { withBandAttribute } from "./arrivalBands";
 import { DurationByCategory } from "./DurationByCategory";
 import { DurationWindows } from "./DurationWindows";
+import { TaskInstances } from "./TaskInstances";
 import { WaitsSection } from "./WaitsSection";
 import { FlowRules } from "./FlowRules";
 import { ResourceShifts } from "./ResourceShifts";
@@ -494,6 +495,11 @@ export function SimulationConfigRail({
                       task={cfg}
                       onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
                     />
+                    <TaskInstances
+                      task={task}
+                      cfg={cfg}
+                      onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                    />
                     <FlowRules
                       elementId={task.element_id}
                       taskName={task.name}
@@ -613,7 +619,7 @@ export function SimulationConfigRail({
                     </div>
                     {gateway.escalation ? (
                       <p className="text-xs text-muted-foreground" data-escalation={gateway.element_id}>
-                        {t("simulation.config.escalation", {
+                        {t(gateway.escalation.interrupting === false ? "simulation.config.escalationParallel" : "simulation.config.escalation", {
                           after: formatAfter(gateway.escalation.after_seconds, t),
                           activity: template?.tasks.find((task) => task.element_id === gateway.escalation?.activity_id)?.name
                             ?? gateway.escalation.activity_id,

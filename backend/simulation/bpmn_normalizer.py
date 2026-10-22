@@ -5,12 +5,16 @@ import xml.etree.ElementTree as ElementTree
 from backend.simulation.timers import (
     DELIR_SIM_NS,
     ESCALATION_AFTER,
+    ESCALATION_INTERRUPTING,
     ESCALATION_NORMAL_FLOW,
     ESCALATION_OF,
     INSTANCES,
+    INSTANCES_OPEN,
     INSTANCES_SEQUENTIAL,
     MAX_INSTANCES,
+    TIMER_OF,
     duration_seconds,
+    timer_split_id,
 )
 
 BPMN_MODEL_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
@@ -102,7 +106,9 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
          activity kind to <task>; the other sub-processes become black boxes
       3. rewrite unsupported gateways to exclusiveGateway
       4. turn interrupting timers on an activity into a decision after it
-         (SIM-35); splice out the other boundary events and their exception flow
+         (SIM-35) and non-interrupting ones into a parallel branch that waits
+         and then decides (SIM-11g); splice out the other boundary events and
+         their exception flow
       5. splice out intermediate catch/throw events, except timers with a fixed
          duration and message, signal or conditional catches, which the engine
          runs as a wait (SIM-11c/d)
@@ -129,6 +135,7 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
         changed |= _rewrite_gateways(process)
         changed |= _start_instantiating_gateways(process)
         changed |= _timer_escalations(process)
+        changed |= _non_interrupting_timers(process)
         exception_nodes = _exception_branch_ids(process)
         changed |= _drop_boundary_events(process)
         changed |= _join_link_events(process)
@@ -239,13 +246,19 @@ def expandable_subprocess_ids(process: ElementTree.Element) -> set[str]:
     """SIM-11e: i sottoprocessi che si possono srotolare nel processo che li contiene.
 
     Uno solo inizio e una sola fine senza eventi, un flusso che entra e uno che
-    esce, nessun evento sul bordo, nessun ciclo o multi-istanza, nessun
-    sottoprocesso a evento dentro: allora i passi interni sono il percorso del
-    caso, uno dopo l'altro, e il motore li simula ciascuno con la sua durata, le
-    sue risorse e i suoi rami. Gli altri restano una scatola nera.
+    esce, nessun ciclo o multi-istanza, nessun sottoprocesso a evento dentro:
+    allora i passi interni sono il percorso del caso, uno dopo l'altro, e il
+    motore li simula ciascuno con la sua durata, le sue risorse e i suoi rami.
+    Gli altri restano una scatola nera.
+
+    Un evento sul bordo (SIM-11i) ferma lo srotolamento solo se e' un timer con
+    una durata: sulla scatola nera diventa un'escalation (SIM-35b) o un ramo
+    parallelo (SIM-11g), cioe' si simula. Un errore, un messaggio o un segnale
+    sul bordo si toglie comunque con il suo ramo, e srotolato il sottoprocesso
+    almeno i suoi passi si simulano uno per uno.
     """
     flows = _seq_flows(process)
-    attached = {e.get("attachedToRef") for e in process if _local(e.tag) == "boundaryEvent"}
+    attached = {e.get("attachedToRef") for e in process if _local(e.tag) == "boundaryEvent" and _timed(e)}
     result = set()
     for sub in process:
         sub_id = sub.get("id", "")
@@ -269,6 +282,12 @@ def expandable_subprocess_ids(process: ElementTree.Element) -> set[str]:
             continue
         result.add(sub_id)
     return result
+
+
+def _timed(event: ElementTree.Element) -> bool:
+    """Un evento con un timer a durata fissa, quello che escalation e rami paralleli sanno simulare."""
+    timer = event.find(_q(BPMN_MODEL_NS, "timerEventDefinition"))
+    return timer is not None and duration_seconds(timer.findtext(_q(BPMN_MODEL_NS, "timeDuration"))) is not None
 
 
 def _has_definition(event: ElementTree.Element) -> bool:
@@ -347,11 +366,26 @@ def fixed_instances(element: ElementTree.Element) -> tuple[int, bool] | None:
     return int(text), loop.get("isSequential") == "true"
 
 
+def open_instances(element: ElementTree.Element) -> bool | None:
+    """SIM-11h: una multi-istanza senza un numero fisso: ``True`` se in sequenza, ``None`` se non lo e'."""
+    loop = element.find(_q(BPMN_MODEL_NS, "multiInstanceLoopCharacteristics"))
+    if loop is None or fixed_instances(element) is not None:
+        return None
+    return loop.get("isSequential") == "true"
+
+
 def _mark_fixed_instances(element: ElementTree.Element) -> None:
-    fixed = fixed_instances(element) if _local(element.tag) in _ACTIVITY_TAGS else None
+    if _local(element.tag) not in _ACTIVITY_TAGS:
+        return
+    fixed = fixed_instances(element)
     if fixed is not None:
         element.set(INSTANCES, str(fixed[0]))
         element.set(INSTANCES_SEQUENTIAL, "true" if fixed[1] else "false")
+        return
+    sequential = open_instances(element)
+    if sequential is not None:
+        element.set(INSTANCES_OPEN, "true")
+        element.set(INSTANCES_SEQUENTIAL, "true" if sequential else "false")
 
 
 def _keep_only_flow_refs(element: ElementTree.Element) -> None:
@@ -453,6 +487,67 @@ def _timer_escalations(process: ElementTree.Element) -> bool:
         process.append(ElementTree.Element(_q(BPMN_MODEL_NS, "sequenceFlow"), {
             "id": f"{event_id}__from", "sourceRef": activity_id, "targetRef": event_id,
         }))
+        changed = True
+    return changed
+
+
+def _non_interrupting_timers(process: ElementTree.Element) -> bool:
+    """A non-interrupting timer on an activity becomes a parallel branch.
+
+    BPMN: while the activity runs, after T the exception flow starts too, and
+    the activity goes on. The engine runs no boundary events, so the case that
+    reaches the activity also takes a branch that waits T (an intermediate
+    timer, SIM-11c) and then decides: the cases whose activity outlasts T take
+    the exception flow, the others end that branch. The decision keeps the
+    boundary's id and name and is marked like an escalation, with the share
+    compiled by ``ir/escalations.py``. Only one such timer per activity, and not
+    next to an interrupting one: both would need the same entry.
+    """
+    flows = _seq_flows(process)
+    activities = {element.get("id") for element in process if _local(element.tag) == "task"}
+    escalated = {element.get(ESCALATION_OF) for element in process if element.get(ESCALATION_OF)}
+    taken = {element.get("id") for element in process.iter() if element.get("id")}
+    changed = False
+    for event in process.findall(_q(BPMN_MODEL_NS, "boundaryEvent")):
+        event_id, activity_id = event.get("id", ""), event.get("attachedToRef", "")
+        timer = event.find(_q(BPMN_MODEL_NS, "timerEventDefinition"))
+        after = duration_seconds(None if timer is None else timer.findtext(_q(BPMN_MODEL_NS, "timeDuration")))
+        exception = [flow for flow in flows if flow.get("sourceRef") == event_id]
+        ids = [timer_split_id(activity_id), f"{event_id}__timer", f"{event_id}__in_time", f"{event_id}__in_time_end",
+               f"{event_id}__activity", f"{event_id}__wait", f"{event_id}__decide"]
+        if (
+            after is None or event.get("cancelActivity") != "false" or activity_id not in activities
+            or activity_id in escalated or len(exception) != 1 or any(i in taken for i in ids)
+        ):
+            continue
+        split_id, wait_id, in_time_id, end_id = ids[:4]
+        escalated.add(activity_id)
+        taken.update(ids)
+        for flow in flows:
+            if flow.get("targetRef") == activity_id:
+                flow.set("targetRef", split_id)
+        position = list(process).index(event)
+        wait = ElementTree.Element(_q(BPMN_MODEL_NS, "intermediateCatchEvent"), {"id": wait_id, TIMER_OF: activity_id})
+        wait.append(timer)
+        decision = ElementTree.Element(_q(BPMN_MODEL_NS, "exclusiveGateway"), {
+            "id": event_id,
+            **({"name": event.get("name", "")} if event.get("name") else {}),
+            ESCALATION_OF: activity_id,
+            ESCALATION_AFTER: repr(after),
+            ESCALATION_NORMAL_FLOW: in_time_id,
+            ESCALATION_INTERRUPTING: "false",
+        })
+        for element in (ElementTree.Element(_q(BPMN_MODEL_NS, "parallelGateway"), {"id": split_id}), wait, decision):
+            process.insert(position, element)
+            position += 1
+        process.remove(event)
+        # In fondo: la fine che resta dopo la fusione delle fini e' quella del disegno.
+        process.append(ElementTree.Element(_q(BPMN_MODEL_NS, "endEvent"), {"id": end_id}))
+        for flow_id, source, target in ((ids[4], split_id, activity_id), (ids[5], split_id, wait_id),
+                                        (ids[6], wait_id, event_id), (in_time_id, event_id, end_id)):
+            process.append(ElementTree.Element(_q(BPMN_MODEL_NS, "sequenceFlow"), {
+                "id": flow_id, "sourceRef": source, "targetRef": target,
+            }))
         changed = True
     return changed
 

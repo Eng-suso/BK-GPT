@@ -18,6 +18,7 @@ import {
   type SlaSegmentDraft,
 } from "./slaSegments";
 import { BAND_ATTRIBUTE_NAME, arrivalBandIssues, arrivalBandsInput, sanitizeArrivalBands, type ArrivalBandDraft } from "./arrivalBands";
+import { instancesIssue } from "./instances";
 import { durationWindowIssues, durationWindowsInput, sanitizeDurationWindows, type DurationWindowDraft } from "./durationWindows";
 import {
   reworkInput,
@@ -95,7 +96,15 @@ export type TaskDraft = DurationDraft & {
   rework?: ReworkDraft;
   /** SIM-33b: la durata cambia con l'ora in cui l'attività inizia. */
   durationWindows?: DurationWindowDraft[];
+  /** SIM-11h: istanze per caso di una multi-istanza che il BPMN non fissa. Assente = una. */
+  instances?: number;
 };
+
+function withoutInstances(task: TaskDraft): TaskDraft {
+  const rest = { ...task };
+  delete rest.instances;
+  return rest;
+}
 
 /** La durata di base di un'attivita', senza ruolo ne' altro. */
 export function durationOf(task: DurationDraft): DurationDraft {
@@ -273,7 +282,8 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
       .some((duration) => taskDurationIssue(duration) !== null)
     // Una durata per categoria su un attributo tolto o non a categorie va rivista.
     || (task.durationBy !== undefined && durationVariants(task, attributes) === null)
-    || durationWindowIssues(task.durationWindows ?? []).some((issue) => issue !== null)).length
+    || durationWindowIssues(task.durationWindows ?? []).some((issue) => issue !== null)
+    || instancesIssue(task.instances) !== null).length
     + Object.values(draft.waits ?? {}).filter((wait) => taskDurationIssue(wait) !== null).length;
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
   const arrival = taskDurationIssue(arrivalDuration(draft)) !== null
@@ -461,6 +471,7 @@ export function scenarioToInput(
         ...(task.skip ? { skip: skipInput(task.skip, draft.caseAttributes ?? []) } : {}),
         ...(task.rework ? { rework: reworkInput(task.rework, draft.caseAttributes ?? []) } : {}),
         ...(task.durationWindows?.length ? { durationWindows: durationWindowsInput(task.durationWindows) } : {}),
+        ...(typeof task.instances === "number" && task.instances > 1 ? { instances: task.instances } : {}),
         ...(others.length ? { otherAssignments: others.map((a) => ({ resourceId: a.resourceId, ...durationInput(a) })) } : {}),
       };
     }),
@@ -514,7 +525,10 @@ export function seedDraftFromTemplate(
     } else if (cfg.resourceId && !resources.some((r) => r.id === cfg.resourceId)) {
       next = { ...cfg, resourceId: modelResourceId, assignmentSource: "bpmn" };
     }
-    tasks[task.element_id] = withValidOtherAssignments(next, resourceIds);
+    const seeded = withValidOtherAssignments(next, resourceIds);
+    // SIM-11h: le istanze per caso valgono solo dove il BPMN non le fissa.
+    const open = task.multi_instance != null && task.instances == null;
+    tasks[task.element_id] = seeded.instances !== undefined && !open ? withoutInstances(seeded) : seeded;
   }
 
   const gateways: Record<string, GatewayDraft> = {};

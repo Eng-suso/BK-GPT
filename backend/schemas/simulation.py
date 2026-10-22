@@ -199,6 +199,8 @@ class SimTaskConfig(BaseModel):
     rework: Rework | None = None
     # SIM-33b: la durata cambia con l'ora in cui l'attivita' inizia.
     duration_windows: list[SimDurationWindowConfig] = Field(default_factory=list, max_length=21)
+    # SIM-11h: quante istanze per caso di una multi-istanza che il BPMN non fissa.
+    instances: int | None = Field(default=None, ge=1, le=50)
 
 
 class SimGatewayBranchConfig(BaseModel):
@@ -339,6 +341,10 @@ class ScenarioTemplateTask(BaseModel):
     element_id: str
     name: str
     type: str
+    # SIM-11f/h: un'attivita' multi-istanza, in sequenza o in parallelo. ``instances``
+    # e' il numero fisso del BPMN; assente, lo imposta il consulente.
+    multi_instance: Literal["sequential", "parallel"] | None = None
+    instances: int | None = None
 
 
 class ScenarioTemplateBranch(BaseModel):
@@ -353,6 +359,8 @@ class ScenarioTemplateEscalation(BaseModel):
     activity_id: str
     after_seconds: float
     normal_flow_id: str
+    # SIM-11g: False per un timer non interrompente, che fa partire il ramo senza fermare l'attivita'.
+    interrupting: bool = True
 
 
 class ScenarioTemplateGateway(BaseModel):

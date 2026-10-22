@@ -16,11 +16,20 @@ DELIR_SIM_NS = "https://delir.ai/bpmn/simulation"
 ESCALATION_OF = f"{{{DELIR_SIM_NS}}}escalationOf"
 ESCALATION_AFTER = f"{{{DELIR_SIM_NS}}}escalationAfter"
 ESCALATION_NORMAL_FLOW = f"{{{DELIR_SIM_NS}}}escalationNormalFlow"
+# SIM-11g: la decisione viene da un timer non interrompente: l'attivita' continua
+# e il ramo del timer parte in parallelo (``bpmn_normalizer._non_interrupting_timers``).
+ESCALATION_INTERRUPTING = f"{{{DELIR_SIM_NS}}}escalationInterrupting"
+# SIM-11g: l'attesa che fa partire il ramo di un timer non interrompente; non e'
+# un'attesa del caso, quindi il pannello non la elenca fra le Attese.
+TIMER_OF = f"{{{DELIR_SIM_NS}}}timerOf"
 # SIM-11f: un'attivita' multi-istanza con un numero fisso di istanze; il
 # normalizer lo lascia qui prima di ridurla a un task.
 INSTANCES = f"{{{DELIR_SIM_NS}}}instances"
 INSTANCES_SEQUENTIAL = f"{{{DELIR_SIM_NS}}}instancesSequential"
 MAX_INSTANCES = 50
+# SIM-11h: una multi-istanza senza un numero fisso (una collezione, un'espressione):
+# quante istanze per caso lo dice il consulente nel pannello.
+INSTANCES_OPEN = f"{{{DELIR_SIM_NS}}}instancesOpen"
 
 # Solo durate fisse: anni e mesi non hanno una lunghezza in secondi.
 _DURATION = re.compile(
@@ -39,3 +48,12 @@ def duration_seconds(text: str | None) -> float | None:
         return None
     total = sum(float(value) * _SECONDS[unit] for unit, value in match.groupdict().items() if value)
     return total if total > 0 else None
+
+
+def timer_split_id(activity_id: str) -> str:
+    """La scelta del timer davanti all'attivita': da qui entra chi arriva all'attivita'.
+
+    Per un timer interrompente e' la decisione che ``ir/escalations.py`` mette
+    davanti; per uno non interrompente la divisione parallela del normalizer.
+    """
+    return f"{activity_id}__timer_split"

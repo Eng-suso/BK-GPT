@@ -42,4 +42,28 @@ describe("escalation a tempo (SIM-35)", () => {
     expect(note).toHaveTextContent("Escalation a tempo dopo 48 ore su «Approva».");
     expect(screen.queryByLabelText("Sollecita")).not.toBeInTheDocument();
   });
+
+  it("un timer non interrompente dice che l'attività continua (SIM-11g)", () => {
+    const template = {
+      resources: [],
+      standard_calendar: null,
+      tasks: [{ element_id: "T1", name: "Approva", type: "task" }],
+      gateways: [
+        { element_id: "B_late", name: "Sollecito", type: "exclusiveGateway",
+          branches: [{ flow_id: "B_late__in_time", flow_name: "", target_name: "" }, { flow_id: "F_late", flow_name: "", target_name: "Sollecita" }],
+          escalation: { activity_id: "T1", after_seconds: 86_400, normal_flow_id: "B_late__in_time", interrupting: false } },
+      ],
+    } as unknown as ScenarioTemplate;
+    const draft: ScenarioDraft = {
+      ...structuredClone(DEFAULT_SCENARIO),
+      tasks: { T1: { meanMinutes: 20, distribution: "norm", resourceId: "" } },
+      gateways: { B_late: { B_late__in_time: 50, F_late: 50 } },
+    };
+    render(<SimulationConfigRail template={template} templateLoading={false} draft={draft} onDraftChange={() => undefined}
+      isRunning={false} error={null} onRun={() => undefined} focusElementId={null} />);
+
+    const note = document.querySelector('[data-escalation="B_late"]');
+    expect(note).toHaveTextContent("Timer non interrompente dopo 24 ore su «Approva»: l'attività continua");
+    expect(screen.queryByLabelText("Sollecita")).not.toBeInTheDocument();
+  });
 });

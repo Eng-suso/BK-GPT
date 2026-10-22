@@ -13,6 +13,10 @@ massimo] e ricampiona, quindi la durata e' la distribuzione troncata. Per la
 stessa ragione la durata del ramo normale e' la stessa distribuzione con il
 massimo portato a T: e' esattamente la durata condizionata a non superarlo.
 
+Un timer non interrompente (SIM-11g) e' gia' un ramo parallelo nel BPMN
+normalizzato, che aspetta il timer e poi decide: qui riceve solo la quota, e
+l'attivita' non cambia.
+
 Approssimazioni dichiarate (``compatibility.py``):
 - il timer conta la lavorazione, non l'attesa in coda davanti all'attivita';
 - con piu' risorse sull'attivita' la quota e' la media fra le loro durate;
@@ -31,6 +35,7 @@ import xml.etree.ElementTree as ET
 
 from defusedxml.ElementTree import fromstring as safe_fromstring
 
+from backend.simulation.timers import timer_split_id
 from backend.simulation.ir.model import (
     Activity,
     Assignment,
@@ -70,6 +75,13 @@ def expand_escalations(bpmn_xml: str, model: SimulationModel) -> tuple[str, Simu
         assert escalation is not None
         activity = activities[escalation.activity_id]
         share = exceed_share(activity, escalation.after_seconds)
+        if not escalation.interrupting:
+            # SIM-11g: il ramo del timer ha gia' aspettato; l'attivita' resta com'e'.
+            gateways.append(gateway.model_copy(update={"branches": tuple(
+                branch.model_copy(update={"probability": 1 - share if branch.flow_id == escalation.normal_flow_id else share})
+                for branch in gateway.branches
+            )}))
+            continue
         normal, timed_out = _split(activity, escalation.after_seconds, share)
         split = _rewrite(root, gateway, taken)
         activities[activity.element_id] = normal
@@ -240,11 +252,6 @@ def _rewrite(root: ET.Element, gateway: Gateway, taken: set[str]) -> str:
             "id": _claim(taken, f"{split_id}__{target}"), "sourceRef": split_id, "targetRef": target,
         }))
     return split_id
-
-
-def timer_split_id(activity_id: str) -> str:
-    """La scelta del timer davanti all'attivita': da qui entra chi arriva all'attivita'."""
-    return f"{activity_id}__timer_split"
 
 
 def _claim(taken: set[str], element_id: str) -> str:
