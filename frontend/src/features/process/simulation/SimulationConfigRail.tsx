@@ -41,6 +41,7 @@ import { ArrivalBands } from "./ArrivalBands";
 import { withBandAttribute } from "./arrivalBands";
 import { DurationByCategory } from "./DurationByCategory";
 import { DurationWindows } from "./DurationWindows";
+import { TaskInstances } from "./TaskInstances";
 import { WaitsSection } from "./WaitsSection";
 import { FlowRules } from "./FlowRules";
 import { ResourceShifts } from "./ResourceShifts";
@@ -492,6 +493,11 @@ export function SimulationConfigRail({
                       elementId={task.element_id}
                       taskName={task.name}
                       task={cfg}
+                      onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                    />
+                    <TaskInstances
+                      task={task}
+                      cfg={cfg}
                       onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
                     />
                     <FlowRules

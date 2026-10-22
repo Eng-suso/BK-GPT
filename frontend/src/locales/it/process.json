@@ -476,6 +476,15 @@
         "inspector": "Per ora d'inizio",
         "inspectorWindow": "{{days}} {{begin}}–{{end}}: {{change}}"
       },
+      "instances": {
+        "label": "Istanze per caso",
+        "hint": "Multi-istanza su una collezione: il BPMN non dice quante istanze ha un caso. Imposta quante ne ha un caso tipico; ogni istanza ha la durata e il ruolo qui sopra, {{mode}}. Senza, l'attività si esegue una volta.",
+        "fixed_one": "Multi-istanza dal BPMN: {{count}} istanza per caso, {{mode}}.",
+        "fixed_other": "Multi-istanza dal BPMN: {{count}} istanze per caso, {{mode}}.",
+        "sequential": "una dopo l'altra",
+        "parallel": "in parallelo",
+        "issue": "Le istanze per caso sono un numero intero da 1 a {{max}}."
+      },
       "waits": {
         "title": "Attese",
         "hint": "Gli eventi del processo che il caso aspetta. Un'attesa conta l'orologio, non il calendario, e non occupa nessuno.",

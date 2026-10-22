@@ -18,6 +18,7 @@ import {
   type SlaSegmentDraft,
 } from "./slaSegments";
 import { BAND_ATTRIBUTE_NAME, arrivalBandIssues, arrivalBandsInput, sanitizeArrivalBands, type ArrivalBandDraft } from "./arrivalBands";
+import { instancesIssue } from "./instances";
 import { durationWindowIssues, durationWindowsInput, sanitizeDurationWindows, type DurationWindowDraft } from "./durationWindows";
 import {
   reworkInput,
@@ -100,7 +101,8 @@ export type TaskDraft = DurationDraft & {
 };
 
 function withoutInstances(task: TaskDraft): TaskDraft {
-  const { instances: _dropped, ...rest } = task;
+  const rest = { ...task };
+  delete rest.instances;
   return rest;
 }
 
@@ -280,7 +282,8 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
       .some((duration) => taskDurationIssue(duration) !== null)
     // Una durata per categoria su un attributo tolto o non a categorie va rivista.
     || (task.durationBy !== undefined && durationVariants(task, attributes) === null)
-    || durationWindowIssues(task.durationWindows ?? []).some((issue) => issue !== null)).length
+    || durationWindowIssues(task.durationWindows ?? []).some((issue) => issue !== null)
+    || instancesIssue(task.instances) !== null).length
     + Object.values(draft.waits ?? {}).filter((wait) => taskDurationIssue(wait) !== null).length;
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
   const arrival = taskDurationIssue(arrivalDuration(draft)) !== null
