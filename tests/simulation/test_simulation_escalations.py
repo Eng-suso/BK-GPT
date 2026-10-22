@@ -62,7 +62,9 @@ def test_the_normalizer_turns_the_timer_into_a_decision_after_the_activity():
     assert late.name == "Oltre 30 minuti"
     assert {f.id for f in late.outgoing_flows} == {"F_back", "F_late"}
     assert late.escalation is not None
-    assert late.escalation.model_dump() == {"activity_id": "T_approve", "after_seconds": 1800.0, "normal_flow_id": "F_back"}
+    assert late.escalation.model_dump() == {
+        "activity_id": "T_approve", "after_seconds": 1800.0, "normal_flow_id": "F_back", "interrupting": True,
+    }
     # Il ramo d'escalation resta: Sollecita e' un'attivita' da simulare.
     tasks, _ = parse_bpmn_for_simulation(bpmn)
     assert "T_remind" in {t.id for t in tasks}
@@ -70,10 +72,10 @@ def test_the_normalizer_turns_the_timer_into_a_decision_after_the_activity():
 
 
 @pytest.mark.parametrize("bpmn", [
-    escalation_bpmn(cancel=' cancelActivity="false"'),
     escalation_bpmn(timer="<timeCycle>R3/PT1H</timeCycle>"),
     escalation_bpmn(timer="<timeDate>2026-12-01T09:00:00Z</timeDate>"),
-], ids=["non-interrupting", "cycle", "date"])
+    escalation_bpmn(cancel=' cancelActivity="false"', timer="<timeCycle>R3/PT1H</timeCycle>"),
+], ids=["cycle", "date", "non-interrupting-cycle"])
 def test_other_timers_are_still_removed(bpmn):
     _, gateways = parse_bpmn_for_simulation(normalize_bpmn_for_prosimos(bpmn))
     assert all(g.id != "B_late" for g in gateways)
@@ -160,3 +162,92 @@ def test_the_template_tells_the_panel_which_decision_is_a_timer():
     assert late.name == "Oltre 30 minuti"
     assert late.escalation is not None and late.escalation.after_seconds == 1800.0
     assert all(g.escalation is None for g in template.gateways if g.element_id != "B_late")
+
+
+# --- SIM-11g: timer non interrompente -----------------------------------------
+
+
+def _reminder() -> str:
+    return escalation_bpmn(cancel=' cancelActivity="false"')
+
+
+def test_a_non_interrupting_timer_becomes_a_parallel_branch_that_waits_and_decides():
+    bpmn = normalize_bpmn_for_prosimos(_reminder())
+    tasks, gateways = parse_bpmn_for_simulation(bpmn)
+    late = next(g for g in gateways if g.id == "B_late")
+    assert late.name == "Oltre 30 minuti"
+    assert late.escalation is not None
+    assert late.escalation.model_dump() == {
+        "activity_id": "T_approve", "after_seconds": 1800.0, "normal_flow_id": "B_late__in_time", "interrupting": False,
+    }
+    assert {f.id for f in late.outgoing_flows} == {"B_late__in_time", "F_late"}
+    # Chi arriva ad Approva entra nella divisione: Approva e l'attesa del timer insieme.
+    assert 'parallelGateway id="T_approve__timer_split"' in bpmn
+    assert 'sourceRef="T_approve__timer_split" targetRef="T_approve"' in bpmn
+    assert 'sourceRef="T_approve__timer_split" targetRef="B_late__timer"' in bpmn
+    assert 'sourceRef="B_late__timer" targetRef="B_late"' in bpmn
+    # Approva esce ancora dal suo flusso: non e' interrotta.
+    assert 'id="F_back" sourceRef="T_approve"' in bpmn
+    assert "T_remind" in {t.id for t in tasks}
+    assert "boundaryEvent" not in bpmn
+
+
+def test_the_branch_wait_is_the_timer_and_the_share_comes_from_the_activity():
+    from backend.simulation.scenario_builder import parse_bpmn_waits
+
+    bpmn = normalize_bpmn_for_prosimos(_reminder())
+    wait = next(w for w in parse_bpmn_waits(bpmn) if w.id == "B_late__timer")
+    assert (wait.kind, wait.seconds, wait.internal) == ("timer", 1800.0, True)
+
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=_request())
+    late = next(g for g in scenario.payload["gateway_branching_probabilities"] if g["gateway_id"] == "B_late")
+    shares = {p["path_id"]: float(p["value"]) for p in late["probabilities"]}
+    assert shares["F_late"] == pytest.approx(1 / 3)
+    assert shares["B_late__in_time"] == pytest.approx(2 / 3)
+    # Il timer del ramo aspetta 30 minuti; Approva resta l'uniforme intera, senza copie.
+    events = {e["event_id"]: e for e in scenario.payload["event_distribution"]}
+    assert events["B_late__timer"]["distribution_params"] == [{"value": 1800.0}]
+    durations = {t["task_id"]: t["resources"][0] for t in scenario.payload["task_resource_distribution"]}
+    assert [p["value"] for p in durations["T_approve"]["distribution_params"]] == [600.0, 2400.0]
+    assert "T_approve__timeout" not in durations
+
+
+def test_the_panel_lists_no_wait_for_the_branch_of_a_non_interrupting_timer():
+    from backend.simulation.scenario_builder import describe_scenario_template
+
+    template = describe_scenario_template(normalize_bpmn_for_prosimos(_reminder()))
+    assert template.waits == []
+    late = next(g for g in template.gateways if g.element_id == "B_late")
+    assert late.escalation is not None and late.escalation.interrupting is False
+
+
+def test_a_skip_or_a_rework_enters_the_activity_through_the_timer_split():
+    scenario = build_prosimos_scenario(bpmn_xml=normalize_bpmn_for_prosimos(_reminder()), request=_request(
+        rework={"back_to": "T_approve", "probability": 0.2, "max_repeats": 1}))
+    assert 'targetRef="T_approve__timer_split"' in scenario.bpmn_xml.split('id="T_approve__rework_join"')[1]
+
+
+def test_an_activity_with_an_interrupting_timer_keeps_only_that_one():
+    source = _reminder().replace(
+        "<task id=\"T_remind\"",
+        '<boundaryEvent id="B_stop" attachedToRef="T_approve"><timerEventDefinition><timeDuration>PT1H</timeDuration>'
+        '</timerEventDefinition></boundaryEvent><task id="T_remind"',
+    ).replace(
+        '<sequenceFlow id="F_reminded"',
+        '<sequenceFlow id="F_stop" sourceRef="B_stop" targetRef="G_join"/><sequenceFlow id="F_reminded"',
+    )
+    _, gateways = parse_bpmn_for_simulation(normalize_bpmn_for_prosimos(source))
+    escalations = {g.id: g.escalation for g in gateways if g.escalation}
+    assert set(escalations) == {"B_stop"}
+    assert escalations["B_stop"].interrupting is True
+
+
+def test_the_compatibility_report_declares_the_non_interrupting_timer():
+    from backend.simulation.compatibility import bpmn_compatibility_report
+
+    report = bpmn_compatibility_report(_reminder())
+    late = next(e for e in report.elements if e.element_id == "B_late")
+    assert (late.status, late.impact, late.simulated_as) == ("approximated", "medium", "parallel")
+    assert "continua" in late.note
+    remind = next(e for e in report.elements if e.element_id == "T_remind")
+    assert remind.status == "preserved"

@@ -373,6 +373,52 @@ def test_a_timer_escalation_sends_the_cases_that_outlast_it_down_the_escalation_
     assert set(_executions(rows, "Paga").values()) == {1}
 
 
+def test_a_non_interrupting_timer_starts_its_branch_without_stopping_the_activity():
+    # SIM-11g: Approva dura fra 10 e 40 minuti; dopo 30 minuti, se e' ancora in
+    # corso, parte anche Sollecita. Approva non si ferma, e Sollecita parte 30
+    # minuti dopo che il caso e' arrivato ad Approva.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    source = contract_spike.BPMN_PATH.read_text(encoding="utf-8").replace(
+        '<exclusiveGateway id="G_join"/>',
+        '<boundaryEvent id="B_late" attachedToRef="T_approve" cancelActivity="false"><timerEventDefinition>'
+        '<timeDuration>PT30M</timeDuration></timerEventDefinition></boundaryEvent>'
+        '<task id="T_remind" name="Sollecita"/><endEvent id="E_reminded"/><exclusiveGateway id="G_join"/>',
+    ).replace(
+        '<sequenceFlow id="F_back" sourceRef="T_approve" targetRef="G_join"/>',
+        '<sequenceFlow id="F_back" sourceRef="T_approve" targetRef="G_join"/>'
+        '<sequenceFlow id="F_late" sourceRef="B_late" targetRef="T_remind"/>'
+        '<sequenceFlow id="F_reminded" sourceRef="T_remind" targetRef="E_reminded"/>',
+    )
+    request = CreateSimulationRunRequest(
+        tasks=[
+            {"element_id": "T_receive", "mean_seconds": 600, "distribution": "fixed", "resource_id": "r"},
+            {"element_id": "T_approve", "mean_seconds": 1500, "distribution": "uniform", "min_seconds": 600,
+             "max_seconds": 2400, "resource_id": "r"},
+            {"element_id": "T_remind", "mean_seconds": 60, "distribution": "fixed", "resource_id": "r"},
+            {"element_id": "T_pay", "mean_seconds": 600, "distribution": "fixed", "resource_id": "r"},
+        ],
+        resources=[{"id": "r", "name": "Ufficio", "amount": 20, "cost_per_hour": 30}],
+        gateways=[{"element_id": "G_split", "branches": [{"flow_id": "F_high", "probability": 1.0}, {"flow_id": "F_low", "probability": 0.0}]}],
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=normalize_bpmn_for_prosimos(source), request=request)
+    rows = _run(_model(), payload=scenario.payload, bpmn=scenario.bpmn_xml)
+
+    cases: dict[str, dict[str, dict]] = {}
+    for row in rows:
+        cases.setdefault(row["case_id"], {})[row["activity"]] = row
+    reminded = [case for case in cases.values() if "Sollecita" in case]
+    assert 0.2 < len(reminded) / len(cases) < 0.47, len(reminded) / len(cases)
+    for case in reminded:
+        assert case["Sollecita"]["enable"] - case["Approva"]["enable"] == 1800
+    # Approva non e' interrotta: dura fino a 40 minuti, e ogni caso paga una volta.
+    worked = [round(case["Approva"]["end"] - case["Approva"]["start"]) % (16 * 3600) for case in cases.values()]
+    assert max(worked) > 1800 and all(600 <= w <= 2400 for w in worked)
+    assert set(_executions(rows, "Paga").values()) == {1}
+
+
 def test_arrival_bands_from_the_panel_shape_the_arrivals_through_the_runner(tmp_path, monkeypatch):
     # SIM-08: picco la mattina (un caso ogni 5 minuti), calma il pomeriggio (ogni 30).
     # Prosimos 2.1 non lo sa fare: gli arrivi li genera il runner DeliR.
