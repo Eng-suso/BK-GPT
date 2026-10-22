@@ -1503,6 +1503,53 @@
       "onlyCheaper": "Meno caro di {{cost}} per caso, a tempi invariati.",
       "onlyCostlier": "Più caro di {{cost}} per caso, a tempi invariati.",
       "title": "Lettura"
+    },
+    "perspective": {
+      "label": "Prospettiva",
+      "hint": "Cambia solo cosa vedi: lo scenario resta com’è e non parte nessun run.",
+      "consultant": "Consulente",
+      "operations": "Operations",
+      "consultantHint": "Ipotesi, distribuzioni, provenienza, qualità dei dati, intervalli e validazione",
+      "operationsHint": "Salute del processo, obiettivi di servizio, code, costo e cosa provare, senza parametri",
+      "configureAsConsultant": "Configura nella vista consulente",
+      "ops": {
+        "queuesTitle": "Dove si accumula il lavoro",
+        "queuesHint": "Attività ordinate per attesa totale nel run: attesa media per caso e quota di tutta l’attesa del processo.",
+        "noQueues": "Nel run nessuna attività ha casi in attesa.",
+        "queueRow": "{{wait}} di attesa · {{share}} del totale",
+        "queueShare": "Quota dell’attesa totale: {{name}}",
+        "whatToTry": "Cosa provare",
+        "parametersElsewhere": "Durate, risorse assegnate e fonti di questa attività sono nella vista consulente.",
+        "showParameters": "Mostra i parametri",
+        "prepareScenario": "Prepara lo scenario con il consulente",
+        "queueLength_one": "In media {{value}} caso in coda",
+        "queueLength_other": "In media {{value}} casi in coda"
+      }
+    },
+    "trust": {
+      "lens": "Lente",
+      "lensResults": "Risultati",
+      "lensTrust": "Affidabilità",
+      "title": "Quanto fidarsi di ogni elemento",
+      "hint": "Per ogni attività e decisione del run: il parametro più debole, da dove viene e, se c’è un log reale mappato, quanto si discosta la lavorazione. Prima ciò che chiede un intervento.",
+      "countsLabel": "Elementi per stato",
+      "count": "{{count}} {{status}}",
+      "status": {
+        "calibrate": "da calibrare",
+        "weak": "ipotesi debole",
+        "toConfirm": "da confermare",
+        "solid": "solido",
+        "validated": "validato sul log"
+      },
+      "sources_one": "{{count}} fonte",
+      "sources_other": "{{count}} fonti",
+      "gap": "scarto dal log {{gap}}",
+      "logUsed": "Validazione sul log «{{name}}»: ±10% validato, oltre da calibrare.",
+      "noLog": "Nessun log reale mappato: nessun elemento è ancora validato.",
+      "logLoading": "Carico il log reale…",
+      "noModel": "Questo run è anteriore al modello IR salvato: l’affidabilità per elemento non è disponibile. Rifai il run.",
+      "listLabel": "Elementi per affidabilità",
+      "legend": "Affidabilità dei parametri"
     }
   },
   "side": {

@@ -13,7 +13,9 @@ import { ScenarioActivityChanges } from "./ScenarioActivityChanges";
 
 export function ActivityDetails({ engine, run, unavailable = false }: { engine: ReplayEngine; run: SimulationRun; unavailable?: boolean }): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
-  const { selectedElementId, openPanel } = useSimulationSection();
+  const { selectedElementId, openPanel, perspective, setPerspective } = useSimulationSection();
+  // SIM-21: in Operations l'inspector mostra cio' che il run ha misurato, non come e' configurato.
+  const operations = perspective === "operations";
   const frame = useReplayFrame(engine);
   const id = selectedElementId;
   const state = !unavailable && id ? frame?.elements[id] : null;
@@ -26,9 +28,14 @@ export function ActivityDetails({ engine, run, unavailable = false }: { engine: 
     <dl>{[["active", state?.active], ["queued", state?.queued], ["completed", state?.done]].map(([key, value]) => <div key={key}><dt>{t(`simulation.replay.${key}`)}</dt><dd>{value ?? "—"}</dd></div>)}</dl>
     {pool && <div className="sim-activity-resource"><span>{pool}</span>{busy !== undefined && <Meter label={pool} value={Math.round(busy * 100)} tone={busy >= .95 ? "danger" : busy >= .8 ? "warning" : "ok"} />}</div>}
     {activity && <p className="sim-help">{t("simulation.studio.finalWaiting")}: {typeof (activity.wait as { avg?: number })?.avg === "number" ? formatDuration((activity.wait as { avg: number }).avg, i18n.language.startsWith("it") ? "it" : "en") : "—"}</p>}
-    {id && <SimulatedParameters run={run} elementId={id} inSummary={Boolean(activity)} />}
-    {id && <RealLogActivity run={run} elementId={id} />}
-    {id && <ScenarioActivityChanges elementId={id} />}
-    <Button size="sm" variant="outline" onClick={() => openPanel?.("scenario")}>{t("simulation.unified.editActivity")}</Button>
+    {operations ? id && <>
+      <p className="sim-help">{t("simulation.perspective.ops.parametersElsewhere")}</p>
+      <Button size="sm" variant="outline" onClick={() => setPerspective?.("consultant", "activity")}>{t("simulation.perspective.ops.showParameters")}</Button>
+    </> : <>
+      {id && <SimulatedParameters run={run} elementId={id} inSummary={Boolean(activity)} />}
+      {id && <RealLogActivity run={run} elementId={id} />}
+      {id && <ScenarioActivityChanges elementId={id} />}
+      <Button size="sm" variant="outline" onClick={() => openPanel?.("scenario")}>{t("simulation.unified.editActivity")}</Button>
+    </>}
   </div>;
 }

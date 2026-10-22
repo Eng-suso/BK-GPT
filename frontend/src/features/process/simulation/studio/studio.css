@@ -155,6 +155,10 @@
 .sim-process-legend > span { display:flex; align-items:center; gap:4px; }
 .sim-process-legend i { display:inline-block; width:10px; height:10px; border:1px solid var(--border); border-radius:2px; }
 
+/* SIM-21: prospettiva Consulente | Operations, segmentata come le tab degli scenari. */
+/* Senza bordo ne' padding propri: alto quanto la select del run, la barra non cresce. */
+.sim-perspective-switch { display:flex; gap:2px; flex-shrink:0; }
+
 /* Compact operational controls reserve usable process space on small screens. */
 @media(max-width:800px) {
  .sim-studio { gap:6px; }
@@ -164,6 +168,8 @@
  .sim-studio-run-actions > [role="combobox"] { flex:1; min-width:0; width:auto; }
  .sim-studio-return { width:36px; padding:0; flex-shrink:0; }
  .sim-studio-return > span { display:none; }
+ .sim-perspective-switch > button { min-width:36px; padding-inline:8px; }
+ .sim-perspective-switch > button > span { display:none; }
  .sim-studio-tools { padding-bottom:4px; }
  .is-integrated .sim-dashboard-header { overflow-x:auto; min-height:38px; }
  .is-integrated .sim-dashboard-actions { flex-wrap:nowrap; gap:4px; margin-left:auto; }

@@ -1503,6 +1503,53 @@
       "onlyCheaper": "Cheaper by {{cost}} per case, same time.",
       "onlyCostlier": "Costlier by {{cost}} per case, same time.",
       "title": "Reading"
+    },
+    "perspective": {
+      "label": "Perspective",
+      "hint": "Only changes what you see: the scenario stays as it is and no run starts.",
+      "consultant": "Consultant",
+      "operations": "Operations",
+      "consultantHint": "Assumptions, distributions, provenance, data quality, intervals and validation",
+      "operationsHint": "Process health, service targets, queues, cost and what to try, without parameters",
+      "configureAsConsultant": "Configure in the consultant view",
+      "ops": {
+        "queuesTitle": "Where work piles up",
+        "queuesHint": "Activities ranked by total waiting in the run: average wait per case and share of all process waiting.",
+        "noQueues": "No activity has waiting cases in this run.",
+        "queueRow": "{{wait}} waiting · {{share}} of total",
+        "queueShare": "Share of total waiting: {{name}}",
+        "whatToTry": "What to try",
+        "parametersElsewhere": "Durations, assigned resources and sources for this activity are in the consultant view.",
+        "showParameters": "Show parameters",
+        "prepareScenario": "Prepare the scenario with the consultant",
+        "queueLength_one": "On average {{value}} case queued",
+        "queueLength_other": "On average {{value}} cases queued"
+      }
+    },
+    "trust": {
+      "lens": "Lens",
+      "lensResults": "Results",
+      "lensTrust": "Reliability",
+      "title": "How far to trust each element",
+      "hint": "For each activity and decision of the run: the weakest parameter, where it comes from and, when a real log is mapped, how far processing deviates. What needs action comes first.",
+      "countsLabel": "Elements by status",
+      "count": "{{count}} {{status}}",
+      "status": {
+        "calibrate": "to calibrate",
+        "weak": "weak assumption",
+        "toConfirm": "to confirm",
+        "solid": "solid",
+        "validated": "validated on the log"
+      },
+      "sources_one": "{{count}} source",
+      "sources_other": "{{count}} sources",
+      "gap": "gap from the log {{gap}}",
+      "logUsed": "Validated on the log “{{name}}”: within ±10% validated, beyond to calibrate.",
+      "noLog": "No real log mapped: no element is validated yet.",
+      "logLoading": "Loading the real log…",
+      "noModel": "This run predates the saved IR model: per-element reliability is not available. Run it again.",
+      "listLabel": "Elements by reliability",
+      "legend": "Parameter reliability"
     }
   },
   "side": {

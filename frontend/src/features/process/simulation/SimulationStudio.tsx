@@ -1,7 +1,6 @@
 import React from "react";
 import { useSearchParams } from "react-router-dom";
 import { runWaitHint, runWaitTitle } from "./runQueue";
-import type { HeatMetric } from "./simulationResults";
 import { useReplayEngine } from "./replay/useReplay";
 import { useTranslation } from "react-i18next";
 import { SlidersHorizontal, ListChecks, GitCompareArrows, Layers, Lightbulb, FileSpreadsheet, Columns3 } from "lucide-react";
@@ -16,24 +15,26 @@ import { useSimulationSection, resolveActiveRun, type SimulationPanel } from "./
 import { ScenarioBuilderPage } from "./pages/ScenarioBuilderPage";
 import { SimulationWorkspace } from "./SimulationWorkspace";
 import { ComparePage } from "./pages/ComparePage";
-import { HeatmapPage } from "./pages/HeatmapPage";
+import { HeatmapPage, type HeatLens } from "./pages/HeatmapPage";
 import { InsightsPage } from "./pages/InsightsPage";
 import { EventLogPanel } from "./eventlog/EventLogPanel";
 import { ScenarioWorkspacePanel } from "./ScenarioWorkspacePanel";
 import { ProcessSurface } from "./studio/ProcessSurface";
 import { ActivityDetails } from "./studio/ActivityDetails";
 import { SimulationCanvas, type NodeDecoration } from "./canvas/SimulationCanvas";
+import { isPanelVisible } from "./perspective";
 import "./studio/studio.css";
 
 const TOOLS = [["scenario", SlidersHorizontal], ["scenarios", Columns3], ["overview", ListChecks], ["heatmap", Layers], ["compare", GitCompareArrows], ["insights", Lightbulb], ["eventLog", FileSpreadsheet]] as const;
 
 export function SimulationStudio(): React.JSX.Element {
   const { t } = useTranslation("process");
-  const { runs, activeRunId, bpmnXml, panel, openPanel, selectedElementId, selectElement, inspectedWidgetId, analysisView, setAnalysisView } = useSimulationSection();
+  const { runs, activeRunId, bpmnXml, panel, openPanel, selectedElementId, selectElement, inspectedWidgetId, analysisView, setAnalysisView, perspective = "consultant", setPerspective } = useSimulationSection();
+  const tools = TOOLS.filter(([name]) => isPanelVisible(name, perspective));
   const { engine, isLoading, noArtifact, error } = useReplaySession();
   const run = resolveActiveRun(runs, activeRunId != null ? String(activeRunId) : undefined);
   const ready = engine && run?.status === "completed";
-  const [heatMetric, setHeatMetric] = React.useState<HeatMetric>("wait");
+  const [heatMetric, setHeatMetric] = React.useState<HeatLens>("wait");
   const [decorations, setDecorations] = React.useState<NodeDecoration[]>([]);
   // Scarti reale contro simulato dal pannello del log: valgono solo con il pannello aperto.
   const [logDecorations, setLogDecorations] = React.useState<NodeDecoration[] | null>(null);
@@ -77,7 +78,7 @@ export function SimulationStudio(): React.JSX.Element {
   const title = panel === "widget" ? t("simulation.studio.inspector") : panel === "activity" ? t("simulation.replay.nodeInspector") : t(`simulation.unified.tool.${panel}`);
   return <CanvasWorkspaceShell label={t("simulation.unified.title")} className="sim-studio" resizeLabel={t("simulation.workspaceHierarchy.resizeCanvas")} resizeHint={t("simulation.scene.keyboardHint")} bodyClassName={`sim-studio-body ${dockOpen ? "has-dock" : ""}`} stageClassName="sim-studio-board"
     commands={<WorkspaceCommandBar className="sim-studio-tools" label={t("simulation.unified.tools")}>
-      <div className="sim-studio-tool-actions"><Button size="sm" variant={view === "replay" ? "secondary" : "ghost"} aria-pressed={view === "replay"} onClick={() => setAnalysisView?.("replay")}>{t("simulation.scene.replay")}</Button><Button size="sm" variant={aggregate ? "secondary" : "ghost"} aria-pressed={aggregate} onClick={() => setAnalysisView?.("final")}>{t("simulation.workspaceHierarchy.final")}</Button>{TOOLS.map(([name, Icon]) => <Button key={name} size="sm" variant={panel === name || view === name ? "secondary" : "ghost"} aria-pressed={panel === name || view === name} onClick={(event) => show(panel === name ? null : name, event.currentTarget)}><Icon aria-hidden className="size-4" />{t(`simulation.unified.tool.${name}`)}</Button>)}</div>
+      <div className="sim-studio-tool-actions"><Button size="sm" variant={view === "replay" ? "secondary" : "ghost"} aria-pressed={view === "replay"} onClick={() => setAnalysisView?.("replay")}>{t("simulation.scene.replay")}</Button><Button size="sm" variant={aggregate ? "secondary" : "ghost"} aria-pressed={aggregate} onClick={() => setAnalysisView?.("final")}>{t("simulation.workspaceHierarchy.final")}</Button>{tools.map(([name, Icon]) => <Button key={name} size="sm" variant={panel === name || view === name ? "secondary" : "ghost"} aria-pressed={panel === name || view === name} onClick={(event) => show(panel === name ? null : name, event.currentTarget)}><Icon aria-hidden className="size-4" />{t(`simulation.unified.tool.${name}`)}</Button>)}</div>
       <div className="sim-studio-dashboard-commands" ref={setCommandsHost} />
     </WorkspaceCommandBar>}
     inspector={<WorkspaceInspector resizeLabel={t("simulation.workspaceHierarchy.resizeInspector")} initialWidth={panel === "compare" || panel === "eventLog" || panel === "scenarios" ? 480 : 400} bodyClassName="sim-studio-dock-body" ref={dockRef} className={`sim-studio-dock ${panel === "compare" ? "is-comparison" : ""}`} hidden={!dockOpen} label={t("simulation.unified.details")} title={title} scope={t(aggregate || panel === "overview" || panel === "insights" || panel === "compare" || panel === "scenarios" ? "simulation.unified.aggregateScope" : "simulation.unified.context")} closeLabel={t("simulation.unified.closePanel")} onClose={close}>
@@ -95,11 +96,11 @@ export function SimulationStudio(): React.JSX.Element {
   >
       <section className="contents" aria-label={t("simulation.unified.canvas")}>
         {ready && displayedEngine && analysisRun ? <DashboardWorkspace engine={displayedEngine} run={analysisRun} final={aggregate} unavailable={unavailable} artifactLoading={finalReplay.isLoading} integrated commandsHost={commandsHost} inspectorHost={host} onProcessActionsHost={setActionsHost}
-          process={<ProcessSurface engine={displayedEngine} aggregate={aggregate} unavailable={unavailable} summary={aggregate ? analysisRun.summary : undefined} legend={scenarioOverlay ? { label: t("simulation.scenarios.legend", { label: scenarioOverlay[0]?.badge ?? "" }), scenario: true } : panel === "eventLog" && logDecorations ? { label: t("simulation.eventLog.compare.legend"), fidelity: true } : view === "compare" ? { label: t("simulation.diagram.legendWait"), delta: !["a", "b"].includes(query.get("compareMode") ?? "") } : (view === "heatmap" || (aggregate && panel === "heatmap")) ? { label: t(`simulation.heatmap.metric.${heatMetric}`) } : undefined} inspectorHost={host} actionsHost={actionsHost} decorations={scenarioOverlay ?? (panel === "eventLog" && logDecorations ? logDecorations : view === "compare" || view === "heatmap" || (aggregate && panel === "heatmap") ? decorations : aggregate ? [] : undefined)} />}
+          process={<ProcessSurface engine={displayedEngine} aggregate={aggregate} unavailable={unavailable} summary={aggregate ? analysisRun.summary : undefined} legend={scenarioOverlay ? { label: t("simulation.scenarios.legend", { label: scenarioOverlay[0]?.badge ?? "" }), scenario: true } : panel === "eventLog" && logDecorations ? { label: t("simulation.eventLog.compare.legend"), fidelity: true } : view === "compare" ? { label: t("simulation.diagram.legendWait"), delta: !["a", "b"].includes(query.get("compareMode") ?? "") } : (view === "heatmap" || (aggregate && panel === "heatmap")) ? heatMetric === "trust" ? { label: t("simulation.trust.legend"), trust: true } : { label: t(`simulation.heatmap.metric.${heatMetric}`) } : undefined} inspectorHost={host} actionsHost={actionsHost} decorations={scenarioOverlay ?? (panel === "eventLog" && logDecorations ? logDecorations : view === "compare" || view === "heatmap" || (aggregate && panel === "heatmap") ? decorations : aggregate ? [] : undefined)} />}
           processScope={scope} />
           : <div className="sim-studio-start"><div className="sim-studio-empty-process"><SimulationCanvas bpmnXml={bpmnXml} selectedElementId={selectedElementId} onSelectElement={selectElement} decorations={scenarioOverlay ?? undefined} /></div>
             <EmptyState title={!isLoading && !noArtifact && run?.status === "pending" ? runWaitTitle(run?.queue?.state, run?.queue?.position, t) : t(isLoading ? "simulation.loading" : noArtifact ? "simulation.replay.noArtifact" : run?.status === "failed" ? "simulation.status.failed" : "simulation.replay.noRun")} description={error ?? run?.error ?? (run?.status === "pending" ? runWaitHint(run?.queue?.state, t) : undefined) ?? t("simulation.unified.startHint")}
-              action={<Button onClick={() => show("scenario")}>{t("simulation.unified.tool.scenario")}</Button>} />
+              action={perspective === "operations" ? <Button variant="outline" onClick={() => setPerspective?.("consultant", "scenario")}>{t("simulation.perspective.configureAsConsultant")}</Button> : <Button onClick={() => show("scenario")}>{t("simulation.unified.tool.scenario")}</Button>} />
           </div>}
       </section>
   </CanvasWorkspaceShell>;
