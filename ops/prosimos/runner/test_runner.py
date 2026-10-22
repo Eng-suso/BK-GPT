@@ -280,3 +280,102 @@ def test_the_plan_names_the_band_of_every_arrival():
     offsets, indices = arrival_bands.arrival_plan([MORNING, AFTERNOON], start, 300)
     for offset, index in zip(offsets, indices, strict=True):
         assert ((start + timedelta(seconds=offset)).hour < 12) == (index == 0)
+
+
+# --- SIM-33b: durate per fascia oraria in cui l'attivita' inizia -----------------
+
+import duration_windows  # noqa: E402
+
+AFTERNOON_SLOWER = {"from": "MONDAY", "to": "FRIDAY", "beginTime": "13:00:00", "endTime": "17:00:00", "factor": 2}
+
+
+def _windows_scenario(**windows) -> dict:
+    scenario = contract_spike.base_scenario()
+    # Una durata fissa: lo scarto viene solo dalla fascia, non dal campione.
+    scenario["task_resource_distribution"][0]["resources"][0].update(contract_spike._dist("fix", 600))
+    return {**scenario, **({duration_windows.SECTION: windows} if windows else {})}
+
+
+def _receive_durations(client, scenario: dict, seed: str = "3") -> list[tuple[int, float]]:
+    from datetime import UTC, datetime
+
+    body = _post(client, scenario, cases=80, seed=seed).get_json()
+    rows = [row for row in contract_spike.parse_log(_log(client, body)) if row["activity"] == "Ricevi"]
+    # Solo le attivita' finite nello stesso giorno lavorativo: il resto lo allunga il calendario.
+    return [
+        (datetime.fromtimestamp(row["start"], UTC).hour, row["end"] - row["start"])
+        for row in rows
+        if datetime.fromtimestamp(row["end"], UTC).hour < 17 and datetime.fromtimestamp(row["end"], UTC).date()
+        == datetime.fromtimestamp(row["start"], UTC).date()
+    ]
+
+
+def test_an_activity_that_starts_in_a_window_takes_the_factor_longer(client):
+    durations = _receive_durations(client, _windows_scenario(T_receive=[AFTERNOON_SLOWER]))
+
+    morning = [d for hour, d in durations if hour < 13]
+    afternoon = [d for hour, d in durations if 13 <= hour < 17]
+    assert morning and afternoon
+    assert set(morning) == {600}
+    assert set(afternoon) == {1200}
+
+
+def test_the_runner_says_how_many_activities_it_changed_and_forgets_them_after_the_run(client):
+    applied = _post(client, _windows_scenario(T_receive=[AFTERNOON_SLOWER]), cases=10).get_json()
+    plain = _post(client, _windows_scenario(), cases=10).get_json()
+
+    assert applied["DurationWindows"] == 1
+    assert plain["DurationWindows"] == 0
+    # Il run dopo, senza sezione, ha di nuovo la durata del motore anche il pomeriggio.
+    assert {d for _, d in _receive_durations(client, _windows_scenario())} == {600}
+
+
+def test_other_activities_keep_their_duration(client):
+    from datetime import UTC, datetime
+
+    scenario = _windows_scenario(T_receive=[AFTERNOON_SLOWER])
+    with_windows = contract_spike.parse_log(_log(client, _post(client, scenario, cases=40, seed="4").get_json()))
+    approvals = [row for row in with_windows if row["activity"] == "Approva"]
+    assert approvals
+    for row in approvals:
+        start = datetime.fromtimestamp(row["start"], UTC)
+        end = datetime.fromtimestamp(row["end"], UTC)
+        # Normale 1800 +-300, limiti 600-3600: mai il doppio, se non lo allunga la notte.
+        if end.date() == start.date() and end.hour < 17:
+            assert row["end"] - row["start"] <= 3600
+
+
+@pytest.mark.parametrize("windows", [
+    {"T_receive": [{**AFTERNOON_SLOWER, "factor": 0}]},
+    {"T_receive": [{**AFTERNOON_SLOWER, "factor": 11}]},
+    {"T_receive": [AFTERNOON_SLOWER, {**AFTERNOON_SLOWER, "beginTime": "16:00:00", "endTime": "17:00:00"}]},
+    {"T_receive": []},
+    {"T_receive": [{**AFTERNOON_SLOWER, "from": "MOON"}]},
+])
+def test_windows_that_do_not_make_sense_are_a_bad_request(client, windows):
+    response = _post(client, {**contract_spike.base_scenario(), duration_windows.SECTION: windows}, cases=5)
+
+    assert response.status_code == 400
+    assert duration_windows.SECTION in response.get_json()["errorMessage"]
+
+
+def test_another_engine_version_refuses_the_windows(client, monkeypatch):
+    monkeypatch.setattr(duration_windows, "SUPPORTED", "9.9.9")
+
+    response = _post(client, _windows_scenario(T_receive=[AFTERNOON_SLOWER]), cases=5)
+
+    assert response.status_code == 400
+    assert "9.9.9" in response.get_json()["errorMessage"]
+
+
+def test_the_factor_is_the_one_of_the_window_the_moment_falls_in():
+    from datetime import UTC, datetime
+
+    intervals = duration_windows.parse_windows({"T": [
+        {"from": "FRIDAY", "to": "MONDAY", "beginTime": "08:00:00", "endTime": "10:00:00", "factor": 1.5},
+    ]})["T"]
+
+    assert duration_windows.factor_at(intervals, datetime(2026, 1, 9, 9, 30, tzinfo=UTC)) == 1.5  # venerdi'
+    assert duration_windows.factor_at(intervals, datetime(2026, 1, 11, 8, 0, tzinfo=UTC)) == 1.5  # domenica
+    assert duration_windows.factor_at(intervals, datetime(2026, 1, 13, 9, 0, tzinfo=UTC)) == 1.0  # martedi'
+    assert duration_windows.factor_at(intervals, datetime(2026, 1, 9, 10, 0, tzinfo=UTC)) == 1.0  # fine esclusa
