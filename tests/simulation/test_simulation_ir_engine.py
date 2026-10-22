@@ -588,6 +588,47 @@ def test_a_subprocess_runs_step_by_step_on_the_engine(tmp_path, monkeypatch):
     assert approved > rejected > 0
 
 
+@pytest.mark.parametrize("sequential", [True, False])
+def test_a_multi_instance_activity_runs_its_instances_on_the_engine(tmp_path, monkeypatch, sequential):
+    # SIM-11f: "firma ognuno dei 3 documenti". In sequenza le firme si
+    # susseguono; in parallelo partono insieme su tre persone diverse.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    sys.path.insert(0, str(ROOT / "ops" / "prosimos" / "runner"))
+    import runner
+
+    monkeypatch.setattr(runner, "DATA_DIR", tmp_path)
+    loop = f'<bpmn:multiInstanceLoopCharacteristics isSequential="{str(sequential).lower()}"><bpmn:loopCardinality>3</bpmn:loopCardinality></bpmn:multiInstanceLoopCharacteristics>'
+    bpmn = normalize_bpmn_for_prosimos(f"""<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D"><bpmn:process id="P" isExecutable="false">
+  <bpmn:startEvent id="S" /><bpmn:userTask id="SIGN" name="Firma">{loop}</bpmn:userTask><bpmn:endEvent id="E" />
+  <bpmn:sequenceFlow id="f1" sourceRef="S" targetRef="SIGN" /><bpmn:sequenceFlow id="f2" sourceRef="SIGN" targetRef="E" />
+</bpmn:process></bpmn:definitions>""")
+    # Arrivi ogni due ore esatte: i casi non si contendono le persone, conta solo il parallelismo.
+    request = CreateSimulationRunRequest(
+        arrival={"mean_seconds": 7200, "distribution": "fixed"},
+        resources=[{"id": "r", "name": "Ufficio", "amount": 5, "cost_per_hour": 30}],
+        tasks=[{"element_id": "SIGN", "mean_seconds": 600, "distribution": "fixed", "resource_id": "r"}],
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    body = runner.simulate(scenario.bpmn_xml.encode(), json.dumps(scenario.payload).encode(), 20, contract_spike.START, 5)
+
+    rows = contract_spike.parse_log((tmp_path / body["LogsFilename"]).read_text(encoding="utf-8"))
+    by_case: dict[str, list[dict]] = {}
+    for row in rows:
+        assert row["activity"] == "Firma"
+        by_case.setdefault(row["case_id"], []).append(row)
+    assert len(by_case) == 20 and all(len(signs) == 3 for signs in by_case.values())
+    for signs in by_case.values():
+        signs.sort(key=lambda r: r["start"])
+        if sequential:
+            assert all(b["start"] >= a["end"] for a, b in zip(signs, signs[1:], strict=False))
+        else:
+            assert signs[0]["start"] == signs[2]["start"] and len({r["resource"] for r in signs}) == 3
+
+
 def test_a_morning_shift_adds_staff_only_in_the_morning():
     # SIM-30: un operatore tutto il giorno, tre in piu' dalle 9 alle 12. Con
     # molti arrivi, il turno lavora solo la mattina e riduce l'attesa.

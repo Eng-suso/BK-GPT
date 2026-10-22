@@ -64,7 +64,7 @@ const model = {
   ],
   pools: [{ id: "p", name: "Ufficio", resources: [{ id: "r1", name: "Ufficio acquisti", cost_per_hour: 40, amount: 2, calendar_id: "delir-calendar-standard" }] }],
   activities: tasks.map((t) => ({ element_id: t.element_id, name: t.name, assignments: [{ resource_id: "r1", duration: { kind: "normal", mean: 1200, std: 120, minimum: 840, maximum: 1560 }, provenance: { origin: "manual" } }],
-    ...(t.element_id === "T_approve" ? { duration_windows: [
+    ...(t.element_id === "T_approve" ? { instances: 3, sequential_instances: true, duration_windows: [
       { from_day: "MONDAY", to_day: "FRIDAY", begin: "16:00:00.000", end: "18:00:00.000", factor: 1.3 },
       { from_day: "SATURDAY", to_day: "SATURDAY", begin: "09:00:00.000", end: "13:00:00.000", factor: 0.8 },
     ] } : {}) })),
@@ -142,4 +142,12 @@ test("the consultant sets how long the case waits for the customer's reply (SIM-
   await page.getByRole("button", { name: "Avvia simulazione", exact: true }).click();
   const body = (await request).postDataJSON();
   expect(body.waits).toEqual([{ element_id: "W_reply", mean_seconds: 172800, distribution: "expon" }]);
+});
+
+test("a multi-instance activity says how many times it ran (SIM-11f)", async ({ page }) => {
+  await fixture(page, [run]);
+  await page.goto(`${studio}/workspace/42?panel=activity`);
+  await page.locator('.djs-element[data-element-id="T_approve"]').first().click();
+  const params = page.getByRole("region", { name: "Parametri simulati", exact: true });
+  await expect(params.locator("[data-instances]")).toHaveText("Eseguita 3 volte per caso, una dopo l'altra: ogni istanza ha la sua durata.");
 });
