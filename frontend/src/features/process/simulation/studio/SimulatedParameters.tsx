@@ -19,6 +19,7 @@ import {
   type BranchView,
   type CalendarView,
   type DurationByView,
+  type DurationWindowView,
   type FlowRulesView,
   type DurationView,
 } from "./modelParameters";
@@ -85,6 +86,7 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
             {view.assignments.length > 1 && <p className="sim-help">{t("simulation.activityInspector.sharedActivity")}</p>}
             <FixedCost run={run} elementId={elementId} lang={lang} t={t} />
             {view.durationBy && <DurationBy durationBy={view.durationBy} lang={lang} t={t} />}
+            {view.durationWindows.length > 0 && <DurationWindows windows={view.durationWindows} lang={lang} t={t} />}
             <FlowRules rules={view.flowRules} self={elementId} lang={lang} t={t} />
             {view.assignments.map((assignment, index) => (
               <Assignment key={index} assignment={assignment} index={index} total={view.assignments.length} lang={lang} t={t} provenanceState={provenance} />
@@ -229,6 +231,22 @@ function DurationBy({ durationBy, lang, t }: { durationBy: DurationByView; lang:
       </div>
     ))}
     <p className="sim-help">{t("simulation.activityInspector.durationByOthers")}</p>
+  </div>;
+}
+
+/** SIM-33b: le fasce orarie d'inizio in cui la durata cambia, come il run le ha simulate. */
+function DurationWindows({ windows, lang, t }: { windows: DurationWindowView[]; lang: Lang; t: T }): React.JSX.Element {
+  const percent = new Intl.NumberFormat(lang === "it" ? "it-IT" : "en-US", { style: "percent", signDisplay: "exceptZero", maximumFractionDigits: 1 });
+  return <div className="sim-param-group" data-duration-windows-inspector>
+    <h5>{t("simulation.config.durationWindows.inspector")}</h5>
+    <dl>
+      {windows.map((w, index) => (
+        <div key={index}>
+          <dt>{w.fromDay === w.toDay ? weekday(w.fromDay, lang) : `${weekday(w.fromDay, lang)}–${weekday(w.toDay, lang)}`} {w.begin}–{w.end}</dt>
+          <dd>{percent.format(w.factor - 1)}</dd>
+        </div>
+      ))}
+    </dl>
   </div>;
 }
 
