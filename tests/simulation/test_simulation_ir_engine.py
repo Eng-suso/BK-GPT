@@ -460,6 +460,53 @@ def test_a_duration_by_arrival_band_follows_the_band_each_case_arrived_in(tmp_pa
     assert seen["morning"] > 10 and seen["afternoon"] > 10, seen
 
 
+def test_a_duration_window_slows_the_activities_that_start_in_it(tmp_path, monkeypatch):
+    # SIM-33b: un'approvazione iniziata dalle 13 alle 17 dura il doppio, anche
+    # nella copia per categoria (premium 5 minuti, gli altri 10). Prosimos 2.1
+    # non lo sa fare: lo applica il runner DeliR.
+    from datetime import UTC, datetime
+
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    sys.path.insert(0, str(ROOT / "ops" / "prosimos" / "runner"))
+    import runner
+
+    monkeypatch.setattr(runner, "DATA_DIR", tmp_path)
+    afternoon = {"from_day": "MONDAY", "to_day": "FRIDAY", "begin": "13:00", "end": "17:00", "factor": 2}
+    request = CreateSimulationRunRequest(
+        arrival_interval_seconds=900,
+        tasks=[
+            {"element_id": "T_receive", "mean_seconds": 60, "distribution": "fixed"},
+            {"element_id": "T_approve", "mean_seconds": 600, "distribution": "fixed", "duration_windows": [afternoon],
+             "duration_by": {"attribute": "tipo", "variants": [{"value": "premium", "mean_seconds": 300, "distribution": "fixed"}]}},
+            {"element_id": "T_pay", "mean_seconds": 60, "distribution": "fixed"},
+        ],
+        model_patch={"case_attributes": [{"name": "tipo", "options": [
+            {"value": "premium", "probability": 0.5}, {"value": "standard", "probability": 0.5}]}]},
+    )
+    bpmn = normalize_bpmn_for_prosimos(contract_spike.BPMN_PATH.read_text(encoding="utf-8"))
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    body = runner.simulate((scenario.bpmn_xml or bpmn).encode(), json.dumps(scenario.payload).encode(), 150,
+                           contract_spike.START, 17)
+
+    assert body["DurationWindows"] == 2  # l'attivita' e la sua copia per "premium"
+    rows = contract_spike.parse_log((tmp_path / body["LogsFilename"]).read_text(encoding="utf-8"))
+    night = 16 * 3600
+    seen = {"morning": 0, "afternoon": 0}
+    for row in rows:
+        if "Approva" not in row["activity"]:
+            continue
+        start = datetime.fromtimestamp(row["start"], UTC)
+        late = 13 <= start.hour < 17
+        expected = (300 if row["tipo"] == "premium" else 600) * (2 if late else 1)
+        # Un'approvazione a cavallo della sera riprende il mattino dopo: si toglie la notte.
+        assert round(row["end"] - row["start"] - expected) % night == 0, (start, row["tipo"], row["end"] - row["start"])
+        seen["afternoon" if late else "morning"] += 1
+    assert seen["morning"] > 10 and seen["afternoon"] > 10, seen
+
+
 def test_a_morning_shift_adds_staff_only_in_the_morning():
     # SIM-30: un operatore tutto il giorno, tre in piu' dalle 9 alle 12. Con
     # molti arrivi, il turno lavora solo la mattina e riduce l'attesa.
