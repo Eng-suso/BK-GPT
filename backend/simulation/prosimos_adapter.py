@@ -81,6 +81,12 @@ async def run_prosimos_simulation(
         raise ProsimosError(
             "Il motore non applica le fasce degli arrivi: serve il runner DeliR (ops/prosimos/runner)."
         )
+    # SIM-33b: lo stesso per le durate che cambiano con l'ora d'inizio.
+    windows = request.scenario.payload.get("delir_duration_windows") or {}
+    if windows and payload.get("DurationWindows") != len(windows):
+        raise ProsimosError(
+            "Il motore non applica le durate per fascia oraria: serve il runner DeliR (ops/prosimos/runner)."
+        )
 
     # Seed e data di inizio insieme rifanno lo stesso log: senza una data nella
     # richiesta si usa "adesso", quindi va conservata quella effettivamente usata.
