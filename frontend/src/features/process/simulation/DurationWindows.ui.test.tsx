@@ -46,7 +46,7 @@ describe("fasce orarie della durata nel pannello (SIM-33b)", () => {
     await user.clear(saturday);
     await user.type(saturday, "-20");
 
-    expect(scenarioToInput(current(), null).tasks.find((t) => t.elementId === "T1")?.durationWindows).toEqual([
+    expect((scenarioToInput(current(), null).tasks ?? []).find((t) => t.elementId === "T1")?.durationWindows).toEqual([
       { fromDay: "MONDAY", toDay: "FRIDAY", begin: "16:00", end: "18:00", factor: 1.3 },
       { fromDay: "SATURDAY", toDay: "SATURDAY", begin: "09:00", end: "13:00", factor: 0.8 },
     ]);
