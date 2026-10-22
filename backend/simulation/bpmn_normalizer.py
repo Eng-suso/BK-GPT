@@ -95,7 +95,8 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
 
     Per process, in order:
       1. strip decorative elements (lanes, data objects, annotations)
-      2. down-cast every activity kind to <task>; black-box sub-processes
+      2. inline simple embedded sub-processes (SIM-11e); down-cast every
+         activity kind to <task>; the other sub-processes become black boxes
       3. rewrite unsupported gateways to exclusiveGateway
       4. turn interrupting timers on an activity into a decision after it
          (SIM-35); splice out the other boundary events and their exception flow
@@ -120,6 +121,7 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
     for process in root.iter(_q(BPMN_MODEL_NS, "process")):
         changed |= _strip_noise(process)
         changed |= _drop_event_started_activities(process)
+        changed |= _expand_subprocesses(process)
         changed |= _downcast_activities(process)
         changed |= _rewrite_gateways(process)
         changed |= _start_instantiating_gateways(process)
@@ -228,6 +230,89 @@ def _strip_noise(process: ElementTree.Element) -> bool:
             process.remove(element)
             changed = True
     return changed
+
+
+def expandable_subprocess_ids(process: ElementTree.Element) -> set[str]:
+    """SIM-11e: i sottoprocessi che si possono srotolare nel processo che li contiene.
+
+    Uno solo inizio e una sola fine senza eventi, un flusso che entra e uno che
+    esce, nessun evento sul bordo, nessun ciclo o multi-istanza, nessun
+    sottoprocesso a evento dentro: allora i passi interni sono il percorso del
+    caso, uno dopo l'altro, e il motore li simula ciascuno con la sua durata, le
+    sue risorse e i suoi rami. Gli altri restano una scatola nera.
+    """
+    flows = _seq_flows(process)
+    attached = {e.get("attachedToRef") for e in process if _local(e.tag) == "boundaryEvent"}
+    result = set()
+    for sub in process:
+        sub_id = sub.get("id", "")
+        if _local(sub.tag) != "subProcess" or not sub_id or sub_id in attached:
+            continue
+        children = list(sub)
+        if any(_local(c.tag) in {"standardLoopCharacteristics", "multiInstanceLoopCharacteristics"} for c in children):
+            continue
+        if any(c.get("triggeredByEvent") == "true" or c.get("isForCompensation") == "true" for c in children):
+            continue
+        starts = [c for c in children if _local(c.tag) == "startEvent"]
+        ends = [c for c in children if _local(c.tag) == "endEvent"]
+        if len(starts) != 1 or len(ends) != 1 or any(_has_definition(e) for e in (*starts, *ends)):
+            continue
+        inner = [c for c in children if _local(c.tag) == "sequenceFlow"]
+        out_of_start = [f for f in inner if f.get("sourceRef") == starts[0].get("id")]
+        into_end = [f for f in inner if f.get("targetRef") == ends[0].get("id")]
+        if len(out_of_start) != 1 or len(into_end) != 1 or out_of_start[0].get("targetRef") == ends[0].get("id"):
+            continue
+        if sum(f.get("targetRef") == sub_id for f in flows) != 1 or sum(f.get("sourceRef") == sub_id for f in flows) != 1:
+            continue
+        result.add(sub_id)
+    return result
+
+
+def _has_definition(event: ElementTree.Element) -> bool:
+    return any(_local(child.tag).endswith("EventDefinition") for child in event)
+
+
+def _expand_subprocesses(process: ElementTree.Element) -> bool:
+    """Inline the expandable sub-processes, outermost first, until none is left."""
+    changed = False
+    while True:
+        expandable = expandable_subprocess_ids(process)
+        sub = next((e for e in process if e.get("id") in expandable), None)
+        if sub is None:
+            return changed
+        _inline_subprocess(process, sub)
+        changed = True
+
+
+def _inline_subprocess(process: ElementTree.Element, sub: ElementTree.Element) -> None:
+    sub_id = sub.get("id", "")
+    flows = _seq_flows(process)
+    entering = next(f for f in flows if f.get("targetRef") == sub_id)
+    leaving = next(f for f in flows if f.get("sourceRef") == sub_id)
+    start = next(c for c in sub if _local(c.tag) == "startEvent")
+    end = next(c for c in sub if _local(c.tag) == "endEvent")
+    inner = [c for c in sub if _local(c.tag) == "sequenceFlow"]
+    first = next(f for f in inner if f.get("sourceRef") == start.get("id"))
+    last = next(f for f in inner if f.get("targetRef") == end.get("id"))
+    # The flow into the sub-process now reaches its first step; its last step
+    # leaves on the flow that left the sub-process.
+    entering.set("targetRef", first.get("targetRef", ""))
+    leaving.set("sourceRef", last.get("sourceRef", ""))
+    renamed = {first.get("id"): entering.get("id"), last.get("id"): leaving.get("id")}
+    position = list(process).index(sub)
+    moved = [c for c in sub if c not in (start, end, first, last) and _local(c.tag) not in _SUBPROCESS_ONLY_TAGS]
+    for child in moved:
+        for ref in child:
+            if _local(ref.tag) in {"incoming", "outgoing"} and ref.text in renamed:
+                ref.text = renamed[ref.text]
+        process.insert(position, child)
+        position += 1
+    process.remove(sub)
+
+
+# Children that describe the sub-process itself, not a step of it.
+_SUBPROCESS_ONLY_TAGS = frozenset({"incoming", "outgoing", "documentation", "extensionElements", "ioSpecification",
+                                   "property", "dataInputAssociation", "dataOutputAssociation"})
 
 
 def _downcast_activities(process: ElementTree.Element) -> bool:
