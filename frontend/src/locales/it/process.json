@@ -476,6 +476,22 @@
         "inspector": "Per ora d'inizio",
         "inspectorWindow": "{{days}} {{begin}}–{{end}}: {{change}}"
       },
+      "waits": {
+        "title": "Attese",
+        "hint": "Gli eventi del processo che il caso aspetta. Un'attesa conta l'orologio, non il calendario, e non occupa nessuno.",
+        "kind": {
+          "timer": "Timer",
+          "message": "Messaggio",
+          "signal": "Segnale",
+          "conditional": "Condizione"
+        },
+        "timer": "Dal BPMN: {{duration}}, a qualsiasi ora.",
+        "unset": "Attesa non impostata: il caso prosegue subito.",
+        "set": "Imposta l'attesa di {{name}}",
+        "setShort": "Imposta l'attesa",
+        "remove": "Togli l'attesa di {{name}}",
+        "removeShort": "Togli l'attesa"
+      },
       "escalation": "Escalation a tempo dopo {{after}} su «{{activity}}». La quota dei casi che la prendono viene dalla durata dell'attività: il timer conta la lavorazione, non l'attesa in coda.",
       "skip": {
         "legend": "Salto di «{{task}}»",
@@ -650,8 +666,10 @@
       "arrivalBand": "un caso ogni {{every}}",
       "arrivalBandsNote": "Fuori da queste fasce non arrivava nessuno. Gli arrivi li ha generati il runner DeliR, con il seed del run.",
       "escalation": "Escalation a tempo dopo {{after}} su «{{activity}}»: è andata nel ramo d'escalation la quota dei casi la cui lavorazione superava il timer, calcolata dalla durata simulata. L'attesa in coda non conta.",
-      "wait": "Attesa del timer",
-      "waitNote": "Il caso aspettava questa durata a qualsiasi ora: il timer conta l'orologio, non il calendario. Nessuna risorsa era occupata."
+      "wait": "Attesa",
+      "waitNote": "Il caso aspettava questa durata a qualsiasi ora: il timer conta l'orologio, non il calendario. Nessuna risorsa era occupata.",
+      "waitUnset": "Attesa non impostata nel pannello: il caso proseguiva subito.",
+      "waitNoteManual": "Il caso aspettava questa durata, impostata nel pannello, a qualsiasi ora. Nessuna risorsa era occupata."
     },
     "provenance": {
       "label": "Origine",

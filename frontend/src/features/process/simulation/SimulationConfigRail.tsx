@@ -41,6 +41,7 @@ import { ArrivalBands } from "./ArrivalBands";
 import { withBandAttribute } from "./arrivalBands";
 import { DurationByCategory } from "./DurationByCategory";
 import { DurationWindows } from "./DurationWindows";
+import { WaitsSection } from "./WaitsSection";
 import { FlowRules } from "./FlowRules";
 import { ResourceShifts } from "./ResourceShifts";
 import { formatAfter } from "./escalation";
@@ -165,7 +166,7 @@ export function SimulationConfigRail({
         <div className="min-w-0">
           {!workspace && <p className="eyebrow">{t("simulation.scenario.eyebrow")}</p>}
           {workspace ? <nav aria-label={t("simulation.workspace.sections")} className="flex flex-wrap gap-1">
-            {["globals", "resources", "calendars", "activities", "attributes", "priorities", ...(template?.gateways.length ? ["gateways"] : [])].map((key) => <button type="button" key={key} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" onClick={() => {
+            {["globals", "resources", "calendars", "activities", "attributes", "priorities", ...(template?.waits?.length ? ["waits.title"] : []), ...(template?.gateways.length ? ["gateways"] : [])].map((key) => <button type="button" key={key} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" onClick={() => {
               const sections = scrollRef.current?.querySelectorAll("section");
               const target = Array.from(sections ?? []).find((section) => section.querySelector("h4")?.textContent?.startsWith(t(`simulation.config.${key}`)));
               target?.scrollIntoView({ block: "start" });
@@ -541,6 +542,12 @@ export function SimulationConfigRail({
         <DetailPanelSection title={t("simulation.config.priorities")}>
           <CasePrioritiesSection priorities={priorities} attributes={attributes} onChange={(next) => patch({ casePriorities: next })} />
         </DetailPanelSection>
+
+        {template?.waits && template.waits.length > 0 && (
+          <DetailPanelSection title={t("simulation.config.waits.title")}>
+            <WaitsSection waits={template.waits} values={draft.waits ?? {}} onChange={(next) => patch({ waits: next })} />
+          </DetailPanelSection>
+        )}
 
         {template && template.gateways.length > 0 && (
           <DetailPanelSection title={t("simulation.config.gateways")}>

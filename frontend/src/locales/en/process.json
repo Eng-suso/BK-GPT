@@ -476,6 +476,22 @@
         "inspector": "By start time",
         "inspectorWindow": "{{days}} {{begin}}–{{end}}: {{change}}"
       },
+      "waits": {
+        "title": "Waits",
+        "hint": "The process events the case waits for. A wait counts clock time, not the calendar, and keeps nobody busy.",
+        "kind": {
+          "timer": "Timer",
+          "message": "Message",
+          "signal": "Signal",
+          "conditional": "Condition"
+        },
+        "timer": "From the BPMN: {{duration}}, at any hour.",
+        "unset": "Wait not set: the case moves on at once.",
+        "set": "Set the wait of {{name}}",
+        "setShort": "Set the wait",
+        "remove": "Remove the wait of {{name}}",
+        "removeShort": "Remove the wait"
+      },
       "escalation": "Timer escalation after {{after}} on «{{activity}}». The share of cases taking it comes from the activity duration: the timer counts work, not waiting in the queue.",
       "skip": {
         "legend": "Skipping «{{task}}»",
@@ -650,8 +666,10 @@
       "arrivalBand": "one case every {{every}}",
       "arrivalBandsNote": "No case arrived outside these bands. The DeliR runner generated the arrivals, with the run seed.",
       "escalation": "Timer escalation after {{after}} on «{{activity}}»: the share of cases whose work outlasted the timer took the escalation path, computed from the simulated duration. Queue waiting does not count.",
-      "wait": "Timer wait",
-      "waitNote": "The case waited this long at any hour: the timer counts clock time, not the calendar. No resource was busy."
+      "wait": "Wait",
+      "waitNote": "The case waited this long at any hour: the timer counts clock time, not the calendar. No resource was busy.",
+      "waitUnset": "Wait not set in the panel: the case moved on at once.",
+      "waitNoteManual": "The case waited this long, as set in the panel, at any hour. No resource was busy."
     },
     "provenance": {
       "label": "Source",
