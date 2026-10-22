@@ -97,6 +97,15 @@ def compile_for_prosimos(model: SimulationModel) -> dict:
         if model.arrival.band_attribute:
             payload["delir_arrival_band_attribute"] = model.arrival.band_attribute
 
+    windows = {
+        activity.element_id: [{**_period(window), "factor": window.factor} for window in activity.duration_windows]
+        for activity in model.activities
+        if activity.duration_windows
+    }
+    if windows:
+        # Sezione DeliR, ignorata da Prosimos: il runner applica le fasce (SIM-33b).
+        payload["delir_duration_windows"] = windows
+
     branch_rules = [
         {"id": _rule_id(gateway.element_id, branch.flow_id), "rules": _rules(branch.condition)}
         for gateway in model.gateways

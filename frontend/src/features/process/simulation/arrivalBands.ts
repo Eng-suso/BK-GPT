@@ -9,6 +9,8 @@
 import type { CaseAttributeDraft } from "./caseRules";
 import { WEEKDAYS, type Weekday } from "./simulationTypes";
 
+/** Una fascia della settimana: da un giorno a un altro, fra due orari ``HH:MM``. */
+export type WeeklyBand = { fromDay: Weekday; toDay: Weekday; begin: string; end: string };
 export type ArrivalBandDraft = { fromDay: Weekday; toDay: Weekday; begin: string; end: string; meanMinutes: number };
 export type ArrivalBandInput = { fromDay: Weekday; toDay: Weekday; begin: string; end: string; meanSeconds: number };
 export type ArrivalBandIssue = "order" | "mean" | "overlap";
@@ -28,11 +30,16 @@ export function arrivalBandIssues(bands: ArrivalBandDraft[]): (ArrivalBandIssue 
   return bands.map((band) => {
     if (!band.begin || !band.end || band.begin >= band.end) return "order";
     if (!(Number.isFinite(band.meanMinutes) && band.meanMinutes > 0)) return "mean";
-    const spans = days(band).map((day): [number, number] => [day * 1440 + minutes(band.begin), day * 1440 + minutes(band.end)]);
-    const overlaps = spans.some(([a, b]) => taken.some(([c, d]) => a < d && c < b));
-    taken.push(...spans);
-    return overlaps ? "overlap" : null;
+    return overlapsTaken(band, taken) ? "overlap" : null;
   });
+}
+
+/** Una fascia della settimana che si sovrappone a una gia' presa; la aggiunge a quelle prese. */
+export function overlapsTaken(band: WeeklyBand, taken: [number, number][]): boolean {
+  const spans = days(band).map((day): [number, number] => [day * 1440 + minutes(band.begin), day * 1440 + minutes(band.end)]);
+  const overlaps = spans.some(([a, b]) => taken.some(([c, d]) => a < d && c < b));
+  taken.push(...spans);
+  return overlaps;
 }
 
 export function arrivalBandsInput(bands: ArrivalBandDraft[]): ArrivalBandInput[] {
@@ -49,7 +56,7 @@ export function sanitizeArrivalBands(raw: unknown): ArrivalBandDraft[] | undefin
   return kept.length ? kept.slice(0, MAX_BANDS) : undefined;
 }
 
-function days(band: ArrivalBandDraft): number[] {
+function days(band: WeeklyBand): number[] {
   const first = WEEKDAYS.indexOf(band.fromDay);
   const last = WEEKDAYS.indexOf(band.toDay);
   const all = [0, 1, 2, 3, 4, 5, 6];

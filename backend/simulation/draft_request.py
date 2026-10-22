@@ -48,6 +48,7 @@ DEFAULT_SCENARIO: dict[str, Any] = {
 RULE_OPERATORS = (">", ">=", "<", "<=", "=", "!=")
 MAX_SLA_SEGMENTS = 20
 MAX_BANDS = 21
+MAX_WINDOWS = 21
 BAND_ATTRIBUTE_NAME = "fascia_arrivo"
 PROVENANCE = {"origin": "manual"}
 
@@ -169,15 +170,31 @@ def _sanitize_rework(raw: Any) -> Any:
     }
 
 
+def _sanitize_duration_windows(raw: Any) -> Any:
+    if not isinstance(raw, list):
+        return ...
+    kept = [
+        w for w in raw
+        if _obj(w) and w.get("fromDay") in WEEKDAYS and w.get("toDay") in WEEKDAYS
+        and isinstance(w.get("begin"), str) and isinstance(w.get("end"), str) and _is_number(w.get("percent"))
+    ]
+    return kept[:MAX_WINDOWS] if kept else ...
+
+
 def _sanitize_tasks(raw: Any) -> dict[str, Any]:
     if not _obj(raw):
         return {}
     out: dict[str, Any] = {}
     for element_id, task in raw.items():
-        if not _obj(task) or ("skip" not in task and "rework" not in task):
+        if not _obj(task):
             out[element_id] = task
             continue
-        out[element_id] = _compact({**task, "skip": _sanitize_skip(task.get("skip")), "rework": _sanitize_rework(task.get("rework"))})
+        clean = task
+        if "skip" in task or "rework" in task:
+            clean = _compact({**task, "skip": _sanitize_skip(task.get("skip")), "rework": _sanitize_rework(task.get("rework"))})
+        if "durationWindows" in task:
+            clean = _compact({**clean, "durationWindows": _sanitize_duration_windows(task.get("durationWindows"))})
+        out[element_id] = clean
     return out
 
 
@@ -537,6 +554,7 @@ def _task(element_id: str, task: dict[str, Any], attributes: list[dict[str, Any]
     skip: Any = task.get("skip")
     rework: Any = task.get("rework")
     claims = task.get("claims")
+    windows = task.get("durationWindows") or []
     duration = _duration(task)
     return _compact({
         "element_id": element_id,
@@ -557,6 +575,10 @@ def _task(element_id: str, task: dict[str, Any], attributes: list[dict[str, Any]
             "max_repeats": rework["maxRepeats"],
             "condition": _ir_condition(rework["rule"], attributes) if _truthy(rework.get("rule")) else ...,
         }) if _truthy(rework) else ...,
+        "duration_windows": [
+            {"from_day": w["fromDay"], "to_day": w["toDay"], "begin": w["begin"], "end": w["end"], "factor": 1 + w["percent"] / 100}
+            for w in windows
+        ] if windows else ...,
     })
 
 

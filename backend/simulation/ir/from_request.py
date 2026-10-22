@@ -26,6 +26,7 @@ from backend.simulation.ir.model import (
     Distribution,
     DurationByAttribute,
     DurationVariant,
+    DurationWindow,
     Exponential,
     Fixed,
     Gamma,
@@ -288,11 +289,27 @@ def _activity(task: BpmnTask, override, request, default_resource_id: str, resou
         duration=duration_,
         provenance=_declared(override) or (_MANUAL if _duration_set(override, request) else None),
     )
-    return Activity(
-        element_id=task.id,
-        name=task.name,
-        assignments=(primary, *_other_assignments(task, override, resource_id, resource_ids)),
-        duration_by=_duration_by(task, override),
+    try:
+        return Activity(
+            element_id=task.id,
+            name=task.name,
+            assignments=(primary, *_other_assignments(task, override, resource_id, resource_ids)),
+            duration_by=_duration_by(task, override),
+            duration_windows=_duration_windows(override),
+        )
+    except ValidationError as exc:
+        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+        raise ValueError(f"«{task.name or task.id}», fasce orarie della durata: {reason}.") from exc
+
+
+def _duration_windows(override) -> tuple[DurationWindow, ...]:
+    """SIM-33b: le fasce orarie in cui l'attivita' dura di piu' (o di meno)."""
+    if not override:
+        return ()
+    return tuple(
+        DurationWindow(from_day=window.from_day, to_day=window.to_day, begin=_clock(window.begin), end=_clock(window.end),
+                       factor=float(window.factor), provenance=_MANUAL)
+        for window in override.duration_windows
     )
 
 

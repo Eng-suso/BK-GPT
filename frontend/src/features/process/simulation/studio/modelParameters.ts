@@ -64,8 +64,10 @@ export type FlowRulesView = {
   rework: { backTo: string; backToName: string; probability: number; maxRepeats: number; condition: IrRule[][] | null } | null;
 };
 
+/** SIM-33b: una fascia oraria d'inizio e il fattore sulla durata. */
+export type DurationWindowView = { fromDay: string; toDay: string; begin: string; end: string; factor: number };
 export type ElementView =
-  | { kind: "activity"; assignments: AssignmentView[]; durationBy: DurationByView | null; flowRules: FlowRulesView }
+  | { kind: "activity"; assignments: AssignmentView[]; durationBy: DurationByView | null; flowRules: FlowRulesView; durationWindows: DurationWindowView[] }
   | { kind: "gateway"; branches: BranchView[]; provenance: FieldProvenance; escalation: EscalationView | null };
 
 /** SIM-35: un timer d'escalation; la quota dei rami veniva dalla durata dell'attivita'. */
@@ -161,6 +163,9 @@ export function elementFromModel(
           }
           : null,
       },
+      durationWindows: (activity.duration_windows ?? []).map((w) => ({
+        fromDay: w.from_day, toDay: w.to_day, begin: w.begin.slice(0, 5), end: w.end.slice(0, 5), factor: w.factor,
+      })),
       durationBy: activity.duration_by
         ? { attribute: activity.duration_by.attribute, variants: activity.duration_by.variants.map((v) => ({ value: v.value ?? null, upTo: v.up_to ?? null, duration: durationView(v.duration) })) }
         : null,

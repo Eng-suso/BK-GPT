@@ -18,6 +18,7 @@ import {
   type SlaSegmentDraft,
 } from "./slaSegments";
 import { BAND_ATTRIBUTE_NAME, arrivalBandIssues, arrivalBandsInput, sanitizeArrivalBands, type ArrivalBandDraft } from "./arrivalBands";
+import { durationWindowIssues, durationWindowsInput, sanitizeDurationWindows, type DurationWindowDraft } from "./durationWindows";
 import {
   reworkInput,
   reworkIssue,
@@ -92,6 +93,8 @@ export type TaskDraft = DurationDraft & {
   skip?: SkipDraft;
   /** SIM-35: finita l'attività, una quota torna indietro a rifare il lavoro. */
   rework?: ReworkDraft;
+  /** SIM-33b: la durata cambia con l'ora in cui l'attività inizia. */
+  durationWindows?: DurationWindowDraft[];
 };
 
 /** La durata di base di un'attivita', senza ruolo ne' altro. */
@@ -267,7 +270,8 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
     [task, ...(task.otherAssignments ?? []), ...(durationVariants(task, attributes)?.variants.map((v) => v.duration) ?? [])]
       .some((duration) => taskDurationIssue(duration) !== null)
     // Una durata per categoria su un attributo tolto o non a categorie va rivista.
-    || (task.durationBy !== undefined && durationVariants(task, attributes) === null)).length;
+    || (task.durationBy !== undefined && durationVariants(task, attributes) === null)
+    || durationWindowIssues(task.durationWindows ?? []).some((issue) => issue !== null)).length;
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
   const arrival = taskDurationIssue(arrivalDuration(draft)) !== null
     || arrivalBandIssues(draft.arrival?.bands ?? []).some((issue) => issue !== null);
@@ -453,6 +457,7 @@ export function scenarioToInput(
         ...(byCategory(task, draft.caseAttributes ?? [])),
         ...(task.skip ? { skip: skipInput(task.skip, draft.caseAttributes ?? []) } : {}),
         ...(task.rework ? { rework: reworkInput(task.rework, draft.caseAttributes ?? []) } : {}),
+        ...(task.durationWindows?.length ? { durationWindows: durationWindowsInput(task.durationWindows) } : {}),
         ...(others.length ? { otherAssignments: others.map((a) => ({ resourceId: a.resourceId, ...durationInput(a) })) } : {}),
       };
     }),
@@ -586,8 +591,10 @@ export function parseScenarioDraft(value: unknown): ScenarioDraft {
 function sanitizeTasks(raw: unknown): Record<string, TaskDraft> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   return Object.fromEntries(Object.entries(raw as Record<string, TaskDraft>).map(([id, task]) => {
-    if (!task || typeof task !== "object" || (task.skip === undefined && task.rework === undefined)) return [id, task];
-    return [id, { ...task, skip: sanitizeSkip(task.skip), rework: sanitizeRework(task.rework) }];
+    if (!task || typeof task !== "object") return [id, task];
+    const clean = task.skip === undefined && task.rework === undefined ? task
+      : { ...task, skip: sanitizeSkip(task.skip), rework: sanitizeRework(task.rework) };
+    return [id, task.durationWindows === undefined ? clean : { ...clean, durationWindows: sanitizeDurationWindows(task.durationWindows) }];
   }));
 }
 

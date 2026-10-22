@@ -110,7 +110,7 @@ export function ArrivalBands({ bands, onChange, asAttribute = false, onAsAttribu
   );
 }
 
-function Day({ label, text, value, onChange }: { label: string; text: string; value: Weekday; onChange: (day: Weekday) => void }) {
+export function Day({ label, text, value, onChange }: { label: string; text: string; value: Weekday; onChange: (day: Weekday) => void }) {
   const { t } = useTranslation("process");
   return (
     <label className="grid gap-1">
@@ -122,7 +122,7 @@ function Day({ label, text, value, onChange }: { label: string; text: string; va
   );
 }
 
-function Clock({ label, text, value, invalid, describedBy, onChange }: {
+export function Clock({ label, text, value, invalid, describedBy, onChange }: {
   label: string;
   text: string;
   value: string;

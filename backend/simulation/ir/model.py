@@ -306,6 +306,21 @@ class Rework(_Strict):
     provenance: Provenance | None = None
 
 
+class DurationWindow(CalendarPeriod):
+    """SIM-33b: un'attivita' che inizia in questa fascia dura ``factor`` volte tanto.
+
+    "Dopo le 16 una pratica richiede il 30% in piu'" e' ``factor`` 1,3 dalle
+    16 alle 17:59:59. Conta l'ora d'inizio; fuori da ogni fascia la durata e'
+    quella delle assegnazioni. Prosimos 2.1 non lo sa fare: lo applica il
+    runner DeliR (``ops/prosimos/runner/duration_windows.py``). Un'escalation a
+    tempo (SIM-35b) resta calcolata sulla durata senza fasce: il timer conta
+    l'orologio, non il ritmo di lavoro.
+    """
+
+    factor: float = Field(gt=0, le=10)
+    provenance: Provenance | None = None
+
+
 class Activity(_Strict):
     element_id: str = Field(min_length=1)
     name: str = ""
@@ -313,6 +328,12 @@ class Activity(_Strict):
     duration_by: DurationByAttribute | None = None
     skip: Skip | None = None
     rework: Rework | None = None
+    duration_windows: tuple[DurationWindow, ...] = Field(default=(), max_length=21)
+
+    @model_validator(mode="after")
+    def _windows_apart(self):
+        _check_apart(self.duration_windows, f"attivita' {self.element_id}: due fasce della durata si sovrappongono")
+        return self
 
 
 # --------------------------------------------------------------------------- #
@@ -432,14 +453,7 @@ class Arrival(_Strict):
     def _bands_apart(self):
         if self.band_attribute and not self.bands:
             raise ValueError("la fascia di arrivo come attributo richiede delle fasce degli arrivi")
-        intervals = sorted(
-            (day * 86_400 + _clock(band.begin), day * 86_400 + _clock(band.end))
-            for band in self.bands
-            for day in _days(band.from_day, band.to_day)
-        )
-        for (_, end), (begin, _) in zip(intervals, intervals[1:], strict=False):
-            if begin < end:
-                raise ValueError("due fasce degli arrivi si sovrappongono")
+        _check_apart(self.bands, "due fasce degli arrivi si sovrappongono")
         return self
 
 
@@ -460,6 +474,18 @@ def _check_band_attribute(arrival: "Arrival", case_attributes: "tuple[CaseAttrib
 
 
 _WEEKDAYS = ("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY")
+
+
+def _check_apart(periods: "tuple[CalendarPeriod, ...]", message: str) -> None:
+    """Fasce della settimana che non si toccano: un istante sta al piu' in una."""
+    intervals = sorted(
+        (day * 86_400 + _clock(period.begin), day * 86_400 + _clock(period.end))
+        for period in periods
+        for day in _days(period.from_day, period.to_day)
+    )
+    for (_, end), (begin, _) in zip(intervals, intervals[1:], strict=False):
+        if begin < end:
+            raise ValueError(message)
 
 
 def _days(first: str, last: str) -> list[int]:
