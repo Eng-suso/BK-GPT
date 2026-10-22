@@ -197,6 +197,13 @@ export const scenarioTemplateSchema = z.object({
       }).nullable().optional(),
     }),
   ),
+  /** SIM-11c/d: gli eventi intermedi che il caso aspetta; un timer porta la sua durata. */
+  waits: z.array(z.object({
+    element_id: z.string(),
+    name: z.string(),
+    kind: z.enum(["timer", "message", "signal", "conditional"]),
+    seconds: z.number().nullable().optional(),
+  })).optional(),
 });
 
 export type ScenarioTemplate = z.infer<typeof scenarioTemplateSchema>;
@@ -362,6 +369,9 @@ export type SimTaskInput = SimDurationInput & {
   durationWindows?: DurationWindowInput[];
 };
 
+/** SIM-11d: quanto il caso aspetta a un messaggio o a un segnale. */
+export type SimWaitInput = SimDurationInput & { elementId: string };
+
 export type SimGatewayInput = {
   elementId: string;
   branches: { flowId: string; probability: number }[];
@@ -390,6 +400,8 @@ export type CreateSimulationRunInput = {
   resources?: SimResourceInput[];
   tasks?: SimTaskInput[];
   gateways?: SimGatewayInput[];
+  /** SIM-11d: le attese impostate dal consulente. */
+  waits?: SimWaitInput[];
   calendars?: SimCalendar[];
   /** Cio' che i campi v1 non esprimono (attributi del caso, rami per regola), come patch dell'IR. */
   modelPatch?: ModelPatchInput;

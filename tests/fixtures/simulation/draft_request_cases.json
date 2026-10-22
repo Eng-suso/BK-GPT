@@ -188,6 +188,19 @@
             }
           ]
         }
+      ],
+      "waits": [
+        {
+          "element_id": "W_reply",
+          "name": "Risposta del cliente",
+          "kind": "message"
+        },
+        {
+          "element_id": "W_timer",
+          "name": "Attendi 2 giorni",
+          "kind": "timer",
+          "seconds": 172800
+        }
       ]
     },
     "draft": {
@@ -565,7 +578,22 @@
           ]
         ],
         "non e' una regola"
-      ]
+      ],
+      "waits": {
+        "W_reply": {
+          "meanMinutes": 1440,
+          "distribution": "expon",
+          "maxMinutes": 10080
+        },
+        "W_timer": {
+          "meanMinutes": 5,
+          "distribution": "fixed"
+        },
+        "W_gone": {
+          "meanMinutes": 5,
+          "distribution": "fixed"
+        }
+      }
     },
     "expected": {
       "scenario_name": "A · Un approvatore in piu'",
@@ -822,6 +850,14 @@
               "end": "13:00"
             }
           ]
+        }
+      ],
+      "waits": [
+        {
+          "element_id": "W_reply",
+          "mean_seconds": 86400,
+          "distribution": "expon",
+          "max_seconds": 604800
         }
       ],
       "model_patch": {
@@ -1112,7 +1148,13 @@
       },
       "horizonDays": "10",
       "replications": 1,
-      "caseFixedCost": 0
+      "caseFixedCost": 0,
+      "waits": {
+        "W_gone": {
+          "meanMinutes": 5,
+          "distribution": "fixed"
+        }
+      }
     },
     "expected": {
       "scenario_name": "AS-IS",

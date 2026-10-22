@@ -394,7 +394,11 @@ def seed_draft_from_template(draft: dict[str, Any], template: ScenarioTemplateRe
         if rules and len(flows) == len(rules) and all(flow in rules for flow in flows):
             gateway_rules[gateway.element_id] = rules
 
-    return {**draft, "resources": resources, "tasks": tasks, "gateways": gateways, "gatewayRules": gateway_rules}
+    # SIM-11d: restano le attese dei messaggi e segnali ancora nel BPMN.
+    settable = {wait.element_id for wait in template.waits if wait.kind != "timer"}
+    waits = {"waits": {k: v for k, v in draft["waits"].items() if k in settable}} if _truthy(draft.get("waits")) else {}
+
+    return {**draft, "resources": resources, "tasks": tasks, "gateways": gateways, "gatewayRules": gateway_rules, **waits}
 
 
 # --- scenarioToInput + runRequestBody ------------------------------------------
@@ -594,6 +598,7 @@ def draft_to_request_body(draft: dict[str, Any], scenario_name: str) -> dict[str
     arrival_calendar = arrival.get("calendarId")
     bands = arrival.get("bands") or []
     sla: Any = draft.get("sla")
+    waits: Any = draft.get("waits") or {}
     replications = draft.get("replications")
 
     arrival_duration = _compact({
@@ -654,6 +659,7 @@ def draft_to_request_body(draft: dict[str, Any], scenario_name: str) -> dict[str
             for element_id, branches in (draft.get("gateways") or {}).items()
         ],
         "calendars": calendars if calendars else ...,
+        "waits": [{"element_id": element_id, **_duration(wait)} for element_id, wait in waits.items()] if waits else ...,
         "model_patch": _model_patch(draft),
     }
     return _compact(body)
