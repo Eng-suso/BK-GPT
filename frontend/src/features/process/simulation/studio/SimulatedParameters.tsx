@@ -241,9 +241,14 @@ function DurationBy({ durationBy, lang, t }: { durationBy: DurationByView; lang:
 
 /** SIM-11c: l'attesa di un timer intermedio, come il run l'ha simulata. */
 function Wait({ wait, lang, t }: { wait: WaitView; lang: Lang; t: T }): React.JSX.Element {
+  if (!wait.duration) {
+    return <div className="sim-param-group" data-wait-inspector>
+      <p className="sim-help">{t("simulation.activityInspector.waitUnset")}</p>
+    </div>;
+  }
   return <div className="sim-param-group" data-wait-inspector>
     <dl><DurationRows duration={wait.duration} lang={lang} t={t} meanLabel={t("simulation.activityInspector.wait")} /></dl>
-    <p className="sim-help">{t("simulation.activityInspector.waitNote")}</p>
+    <p className="sim-help">{t(wait.manual ? "simulation.activityInspector.waitNoteManual" : "simulation.activityInspector.waitNote")}</p>
   </div>;
 }
 

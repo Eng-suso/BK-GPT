@@ -71,11 +71,17 @@ export type ElementView =
   | { kind: "gateway"; branches: BranchView[]; provenance: FieldProvenance; escalation: EscalationView | null };
 
 /** SIM-11c: un timer intermedio che il caso aspettava, con la durata simulata. */
-export type WaitView = { name: string; duration: DurationView };
+export type WaitView = { name: string; kind: "timer" | "message" | "signal" | "conditional"; duration: DurationView | null; manual: boolean };
 
 export function waitFromModel(model: RunModel, elementId: string): WaitView | null {
   const wait = (model.waits ?? []).find((w) => w.element_id === elementId);
-  return wait ? { name: wait.name || wait.element_id, duration: durationView(wait.duration) } : null;
+  if (!wait) return null;
+  return {
+    name: wait.name || wait.element_id,
+    kind: wait.kind,
+    duration: wait.duration ? durationView(wait.duration) : null,
+    manual: wait.provenance?.origin === "manual",
+  };
 }
 
 /** SIM-35: un timer d'escalation; la quota dei rami veniva dalla durata dell'attivita'. */

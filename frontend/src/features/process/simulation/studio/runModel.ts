@@ -45,7 +45,13 @@ export const runModelSchema = z.object({
   }).optional(),
   priority_rules: z.array(z.object({ level: z.number(), condition: z.object({ any_of: z.array(z.array(ruleSchema)) }) })).optional(),
   // SIM-11c: i timer intermedi del BPMN che il caso aspettava.
-  waits: z.array(z.object({ element_id: z.string(), name: z.string().default(""), duration: irDistributionSchema })).optional(),
+  waits: z.array(z.object({
+    element_id: z.string(),
+    name: z.string().default(""),
+    kind: z.enum(["timer", "message", "signal", "conditional"]).default("timer"),
+    duration: irDistributionSchema.nullable().optional(),
+    provenance,
+  })).optional(),
   calendars: z.array(
     z.object({
       id: z.string(),
