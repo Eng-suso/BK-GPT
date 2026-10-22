@@ -371,7 +371,12 @@ def seed_draft_from_template(draft: dict[str, Any], template: ScenarioTemplateRe
             following = {**cfg, "resourceId": model_resource_id}
         elif _truthy(cfg.get("resourceId")) and not any(r.get("id") == cfg.get("resourceId") for r in resources):
             following = {**cfg, "resourceId": model_resource_id, "assignmentSource": "bpmn"}
-        tasks[task.element_id] = _with_valid_other_assignments(following, resource_ids)
+        seeded = _with_valid_other_assignments(following, resource_ids)
+        # SIM-11h: le istanze per caso valgono solo dove il BPMN non le fissa.
+        open_instances = task.multi_instance is not None and task.instances is None
+        if "instances" in seeded and not open_instances:
+            seeded = {key: value for key, value in seeded.items() if key != "instances"}
+        tasks[task.element_id] = seeded
 
     gateways: dict[str, Any] = {}
     stored_gateways = draft.get("gateways") or {}
@@ -583,6 +588,7 @@ def _task(element_id: str, task: dict[str, Any], attributes: list[dict[str, Any]
             {"from_day": w["fromDay"], "to_day": w["toDay"], "begin": w["begin"], "end": w["end"], "factor": 1 + w["percent"] / 100}
             for w in windows
         ] if windows else ...,
+        "instances": task["instances"] if _is_number(task.get("instances")) and task["instances"] > 1 else ...,
     })
 
 

@@ -132,6 +132,7 @@ export function runRequestBody(input: CreateSimulationRunInput) {
       duration_windows: task.durationWindows?.map((w) => ({
         from_day: w.fromDay, to_day: w.toDay, begin: w.begin, end: w.end, factor: w.factor,
       })),
+      instances: task.instances,
     })),
     gateways: input.gateways?.map((g) => ({
       element_id: g.elementId,
