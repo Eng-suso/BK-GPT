@@ -35,8 +35,8 @@ describe("previsto contro osservato (SIM-28)", () => {
       alternatives={[{ scenario: scenario(OUTCOME), results, comparison: null }]} />);
 
     expect(screen.getByText(/A · \+1 approvatore · implementata il 10\/0?1\/2026/)).toBeInTheDocument();
-    const table = screen.getByRole("region", { name: "Previsto contro osservato · A · +1 approvatore" });
-    const cycle = within(table).getByRole("row", { name: /Durata|Cycle|tempo/i });
+    const table = screen.getByRole("list", { name: "Previsto contro osservato · A · +1 approvatore" });
+    const cycle = within(table).getAllByRole("listitem")[0]!;
     expect(cycle).toHaveTextContent("-40% (da -50% a -30%)");
     expect(cycle).toHaveTextContent("-50%");
     expect(cycle).toHaveTextContent("-10 punti");

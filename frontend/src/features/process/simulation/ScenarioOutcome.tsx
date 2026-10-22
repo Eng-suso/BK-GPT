@@ -165,38 +165,31 @@ function OutcomeView({ scenario, outcome, lang, onClear }: {
           {t("simulation.outcome.clear")}
         </Button>
       </div>
-      <div className="sim-workspace-table" role="region" tabIndex={0} aria-label={t("simulation.outcome.tableFor", { name })}>
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">{t("simulation.outcome.kpi")}</th>
-              <th scope="col">{t("simulation.outcome.predicted")}</th>
-              <th scope="col">{t("simulation.outcome.observed")}</th>
-              <th scope="col">{t("simulation.outcome.error")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {outcome.kpis.map((kpi) => (
-              <tr key={kpi.kpi} data-sim-outcome-kpi={kpi.kpi}>
-                <th scope="row">{t(`simulation.results.replicationKpi.${kpi.kpi}`)}</th>
-                <td className="tabular-nums">{predicted(kpi)}</td>
-                <td className="tabular-nums">{kpi.observed_change != null ? percent.format(kpi.observed_change) : t("simulation.outcome.notMeasured")}</td>
-                <td>
-                  <span className="block tabular-nums">{kpi.error != null ? points(kpi.error) : "—"}</span>
-                  {kpi.observed_change != null && (
-                    <span className={cn("block text-xs",
-                      kpi.within === true && "text-[var(--state-success-text)]",
-                      kpi.within === false && "text-[var(--state-warning-text)]",
-                      kpi.within == null && "text-muted-foreground")} data-sim-outcome-verdict>
-                      {t(kpi.within === true ? "simulation.outcome.within" : kpi.within === false ? "simulation.outcome.outside" : "simulation.outcome.noInterval")}
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ul className="grid gap-1.5" aria-label={t("simulation.outcome.tableFor", { name })}>
+        {outcome.kpis.map((kpi) => (
+          <li key={kpi.kpi} className="grid gap-1 rounded-md border border-border bg-card p-2" data-sim-outcome-kpi={kpi.kpi}>
+            <p className="text-xs font-medium text-foreground">{t(`simulation.results.replicationKpi.${kpi.kpi}`)}</p>
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-xs">
+              <dt className="text-muted-foreground">{t("simulation.outcome.predicted")}</dt>
+              <dd className="tabular-nums text-foreground">{predicted(kpi)}</dd>
+              <dt className="text-muted-foreground">{t("simulation.outcome.observed")}</dt>
+              <dd className="tabular-nums text-foreground">{kpi.observed_change != null ? percent.format(kpi.observed_change) : t("simulation.outcome.notMeasured")}</dd>
+              {kpi.error != null && <>
+                <dt className="text-muted-foreground">{t("simulation.outcome.error")}</dt>
+                <dd className="tabular-nums text-foreground">{points(kpi.error)}</dd>
+              </>}
+            </dl>
+            {kpi.observed_change != null && (
+              <p className={cn("text-xs",
+                kpi.within === true && "text-[var(--state-success-text)]",
+                kpi.within === false && "text-[var(--state-warning-text)]",
+                kpi.within == null && "text-muted-foreground")} data-sim-outcome-verdict>
+                {t(kpi.within === true ? "simulation.outcome.within" : kpi.within === false ? "simulation.outcome.outside" : "simulation.outcome.noInterval")}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
     </>
   );
 }
