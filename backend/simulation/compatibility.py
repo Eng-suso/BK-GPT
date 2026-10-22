@@ -292,6 +292,17 @@ class _ProcessReport:
                 element, "boundaryEvent", "removed", "low",
                 note=f"Evento sul bordo di {attached} senza un ramo in uscita: non cambia il percorso.",
             )
+        if self.after.tags.get(element_id) == "exclusiveGateway" and element.get("cancelActivity") == "false":
+            # SIM-11g: timer non interrompente diventato ramo parallelo (bpmn_normalizer._non_interrupting_timers).
+            return _entry(
+                element, "boundaryEvent", "approximated", "medium", simulated_as="parallel",
+                note=(
+                    f"Timer non interrompente su {attached}: {attached} continua, e il ramo del timer parte "
+                    "per la quota di casi la cui lavorazione supera il timer, calcolata dalla durata "
+                    "dell'attività. Il ramo parte quando è passato il timer dall'arrivo del caso "
+                    "all'attività, coda compresa; la quota invece conta solo la lavorazione."
+                ),
+            )
         if self.after.tags.get(element_id) == "exclusiveGateway":
             # SIM-35: timer interrompente diventato decisione (bpmn_normalizer._timer_escalations).
             return _entry(
