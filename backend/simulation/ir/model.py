@@ -337,16 +337,19 @@ class Activity(_Strict):
 
 
 class Wait(_Strict):
-    """SIM-11c: un timer intermedio con una durata (``PT48H``): il caso aspetta.
+    """SIM-11c/d: un evento intermedio che il caso aspetta.
 
     L'attesa conta l'orologio, non il calendario: un timer di 48 ore scade dopo
-    48 ore anche nel fine settimana. Nessuna risorsa la svolge. La durata viene
-    dal BPMN; il motore la riceve in ``event_distribution``.
+    48 ore anche nel fine settimana. Nessuna risorsa la svolge. Un timer porta
+    la durata dal BPMN; per un messaggio o un segnale la imposta il consulente,
+    e senza (``duration`` assente) il caso prosegue subito. Il motore la riceve
+    in ``event_distribution``.
     """
 
     element_id: str = Field(min_length=1)
     name: str = ""
-    duration: Distribution
+    kind: Literal["timer", "message", "signal", "conditional"] = "timer"
+    duration: Distribution | None = None
     provenance: Provenance | None = None
 
 

@@ -29,6 +29,10 @@ from backend.simulation.ir.model import (
 )
 
 
+# Un'attesa non impostata: il caso prosegue subito, come prima di SIM-11d.
+_NO_WAIT = {"distribution_name": "fix", "distribution_params": [{"value": 0}]}
+
+
 def compile_for_prosimos(model: SimulationModel) -> dict:
     """Lo scenario Prosimos che esegue ``model``."""
     model = expand_shifts(model)
@@ -100,7 +104,8 @@ def compile_for_prosimos(model: SimulationModel) -> dict:
     if model.waits:
         # SIM-11c: un evento intermedio rimasto nel BPMN aspetta questa durata.
         payload["event_distribution"] = [
-            {"event_id": wait.element_id, **distribution_params(wait.duration)} for wait in model.waits
+            {"event_id": wait.element_id, **(distribution_params(wait.duration) if wait.duration else _NO_WAIT)}
+            for wait in model.waits
         ]
 
     windows = {

@@ -66,6 +66,20 @@ class SimArrivalBandConfig(SimCalendarPeriodConfig):
     mean_seconds: float = Field(gt=0)
 
 
+class SimWaitConfig(BaseModel):
+    """SIM-11d: quanto il caso aspetta a un evento intermedio (un messaggio, un segnale).
+
+    I parametri della durata seguono le stesse regole di ``SimTaskConfig``.
+    """
+
+    element_id: str = Field(min_length=1, max_length=128)
+    mean_seconds: float = Field(gt=0)
+    distribution: DistributionName = "norm"
+    std_seconds: float | None = Field(default=None, gt=0)
+    min_seconds: float | None = Field(default=None, ge=0)
+    max_seconds: float | None = Field(default=None, gt=0)
+
+
 class SimDurationWindowConfig(SimCalendarPeriodConfig):
     """SIM-33b: un'attivita' che inizia in questa fascia dura ``factor`` volte tanto."""
 
@@ -273,6 +287,8 @@ class CreateSimulationRunRequest(BaseModel):
     calendars: list[SimCalendarConfig] | None = Field(default=None, max_length=50)
     tasks: list[SimTaskConfig] | None = None
     gateways: list[SimGatewayConfig] | None = None
+    # SIM-11d: quanto il caso aspetta ai messaggi e segnali del BPMN.
+    waits: list[SimWaitConfig] = Field(default_factory=list, max_length=100)
     # Cio' che i campi qui sopra non sanno dire (attributi del caso, rami per
     # regola, priorita'): una ``ModelPatch`` dell'IR applicata dopo la
     # traduzione della richiesta e verificata di nuovo sul BPMN.
@@ -347,6 +363,15 @@ class ScenarioTemplateGateway(BaseModel):
     escalation: ScenarioTemplateEscalation | None = None
 
 
+class ScenarioTemplateWait(BaseModel):
+    """SIM-11c/d: un evento intermedio che il caso aspetta; un timer porta la sua durata."""
+
+    element_id: str
+    name: str
+    kind: Literal["timer", "message", "signal", "conditional"]
+    seconds: float | None = None
+
+
 class ScenarioTemplateResource(BaseModel):
     id: str
     name: str
@@ -361,6 +386,7 @@ class ScenarioTemplateResponse(BaseModel):
     resources: list[ScenarioTemplateResource] = Field(default_factory=list)
     tasks: list[ScenarioTemplateTask] = Field(default_factory=list)
     gateways: list[ScenarioTemplateGateway] = Field(default_factory=list)
+    waits: list[ScenarioTemplateWait] = Field(default_factory=list)
     # Il calendario che usano gli arrivi e le risorse senza calendario proprio.
     standard_calendar: SimCalendarConfig | None = None
 

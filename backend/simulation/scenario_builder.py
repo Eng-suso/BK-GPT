@@ -10,6 +10,7 @@ from backend.schemas.simulation import (
     ScenarioTemplateGateway,
     ScenarioTemplateResponse,
     ScenarioTemplateTask,
+    ScenarioTemplateWait,
     SimCalendarConfig,
     SimCalendarPeriodConfig,
 )
@@ -17,7 +18,7 @@ from backend.simulation.bpmn_resources import describe_bpmn_resources
 from backend.simulation.ir import compile_for_prosimos, model_from_request
 from backend.simulation.ir.escalations import expand_escalations
 from backend.simulation.ir.flow_rules import expand_flow_rules
-from backend.simulation.ir.from_request import with_band_attribute, with_flow_rules
+from backend.simulation.ir.from_request import with_band_attribute, with_flow_rules, with_request_waits
 from backend.simulation.ir.variants import expand_duration_variants
 from backend.simulation.ir.waits import with_bpmn_waits
 from backend.simulation.ir.baseline import baseline_model
@@ -70,7 +71,7 @@ def build_prosimos_scenario(
         check_model_against_bpmn(model, tasks, gateways)
     model = with_band_attribute(model, request)
     model = with_flow_rules(model, request)
-    model = with_bpmn_waits(model, parse_bpmn_waits(bpmn_xml))
+    model = with_bpmn_waits(with_request_waits(model, request), parse_bpmn_waits(bpmn_xml))
     return _scenario(bpmn_xml, model, tasks, gateways)
 
 
@@ -117,6 +118,10 @@ def build_prosimos_scenario_from_model(*, bpmn_xml: str, model: SimulationModel)
 def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = None) -> ScenarioTemplateResponse:
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     return ScenarioTemplateResponse(
+        waits=[
+            ScenarioTemplateWait(element_id=wait.id, name=wait.name or wait.id, kind=wait.kind, seconds=wait.seconds)
+            for wait in parse_bpmn_waits(bpmn_xml)
+        ],
         resources=describe_bpmn_resources(source_bpmn_xml or bpmn_xml, {task.id for task in tasks}),
         tasks=[
             ScenarioTemplateTask(element_id=task.id, name=task.name, type=task.type)
@@ -161,20 +166,28 @@ def _standard_calendar_config() -> SimCalendarConfig:
 
 
 def parse_bpmn_waits(bpmn_xml: str) -> list[BpmnWait]:
-    """SIM-11c: i timer intermedi con una durata fissa del BPMN normalizzato."""
+    """SIM-11c/d: gli eventi intermedi rimasti nel BPMN normalizzato, che il caso aspetta."""
     try:
         root = ElementTree.fromstring(bpmn_xml.encode("utf-8"))
     except ElementTree.ParseError as exc:
         raise ValueError("XML BPMN non valido.") from exc
+    kinds = {"timerEventDefinition": "timer", "messageEventDefinition": "message",
+             "signalEventDefinition": "signal", "conditionalEventDefinition": "conditional"}
     waits = []
     for element in root.iter():
         if _local_name(element.tag) != "intermediateCatchEvent" or not element.attrib.get("id"):
             continue
-        timer = next((child for child in element if _local_name(child.tag) == "timerEventDefinition"), None)
-        text = next((child.text for child in (timer if timer is not None else []) if _local_name(child.tag) == "timeDuration"), None)
-        seconds = duration_seconds(text)
-        if seconds is not None:
-            waits.append(BpmnWait(id=element.attrib["id"], name=element.attrib.get("name") or "", seconds=seconds))
+        definitions = [child for child in element if _local_name(child.tag) in kinds]
+        if len(definitions) != 1:
+            continue
+        kind = kinds[_local_name(definitions[0].tag)]
+        seconds = None
+        if kind == "timer":
+            text = next((c.text for c in definitions[0] if _local_name(c.tag) == "timeDuration"), None)
+            seconds = duration_seconds(text)
+            if seconds is None:
+                continue
+        waits.append(BpmnWait(id=element.attrib["id"], name=element.attrib.get("name") or "", kind=kind, seconds=seconds))
     return waits
 
 

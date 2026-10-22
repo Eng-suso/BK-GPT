@@ -274,6 +274,15 @@ class _ProcessReport:
                 element, local, "preserved", "none", simulated_as="timer",
                 note="Il caso aspetta la durata del timer, a qualsiasi ora: il timer conta l'orologio, non il calendario.",
             )
+        if element.get("id") in self.after.tags and definitions & _WAITING_DEFINITIONS:
+            # SIM-11d: l'evento resta; quanto si aspetta lo dice il consulente.
+            return _entry(
+                element, local, "approximated", "medium", simulated_as="wait",
+                note=(
+                    "Il caso aspetta il tempo impostato nel pannello, in Attese; "
+                    "finché non lo imposti, prosegue subito."
+                ),
+            )
         if "timerEventDefinition" in definitions and local == "intermediateCatchEvent":
             impact: KpiImpact = "high"
             note = (

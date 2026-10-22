@@ -1,4 +1,4 @@
-"""SIM-11c: un timer intermedio con una durata fissa diventa un'attesa del caso.
+"""SIM-11c/d: gli eventi intermedi diventano attese del caso.
 
 Prima il normalizer lo toglieva e il report lo dichiarava: cycle time
 sottostimato. Ora resta nel BPMN, il modello IR ha un'attesa con la durata
@@ -95,9 +95,68 @@ def test_the_baseline_and_a_v2_model_carry_the_wait_and_can_change_it():
     assert plain.payload["event_distribution"][0]["event_id"] == "W"
 
 
-def test_a_wait_on_an_element_that_is_not_a_timer_is_refused():
+def test_a_wait_set_on_an_element_that_is_not_a_timer_is_refused():
     bpmn = normalize_bpmn_for_prosimos(_bpmn())
     model = baseline_for_bpmn(bpmn).model_copy(update={"waits": (Wait(element_id="A", duration=Fixed(value=60)),)})
 
     with pytest.raises(ValueError, match="Attesa su un elemento che il BPMN non ha"):
         build_prosimos_scenario_from_model(bpmn_xml=bpmn, model=model)
+
+
+# --- SIM-11d: messaggi e segnali con l'attesa impostata dal consulente ----------
+
+MESSAGE = '<bpmn:messageEventDefinition />'
+
+
+def test_a_message_stays_in_the_process_and_waits_nothing_until_the_consultant_says():
+    bpmn = normalize_bpmn_for_prosimos(_bpmn().replace(
+        "<bpmn:timerEventDefinition><bpmn:timeDuration>PT2H</bpmn:timeDuration></bpmn:timerEventDefinition>", MESSAGE))
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=_request())
+
+    [wait] = scenario.model["waits"]
+    assert (wait["element_id"], wait["kind"], wait["duration"], wait["provenance"]) == ("W", "message", None, None)
+    assert scenario.payload["event_distribution"] == [
+        {"event_id": "W", "distribution_name": "fix", "distribution_params": [{"value": 0}]},
+    ]
+    report = {e.element_id: e for e in bpmn_compatibility_report(_bpmn().replace(
+        "<bpmn:timerEventDefinition><bpmn:timeDuration>PT2H</bpmn:timeDuration></bpmn:timerEventDefinition>", MESSAGE)).elements}["W"]
+    assert (report.status, report.impact, report.simulated_as) == ("approximated", "medium", "wait")
+
+
+def test_the_wait_set_in_the_panel_reaches_the_model_and_the_engine():
+    bpmn = normalize_bpmn_for_prosimos(_bpmn().replace(
+        "<bpmn:timerEventDefinition><bpmn:timeDuration>PT2H</bpmn:timeDuration></bpmn:timerEventDefinition>", MESSAGE))
+    request = CreateSimulationRunRequest.model_validate({**_request().model_dump(), "waits": [
+        {"element_id": "W", "mean_seconds": 86_400, "distribution": "expon"},
+    ]})
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+
+    [wait] = scenario.model["waits"]
+    assert wait["kind"] == "message" and wait["name"] == "Attendi 2 ore"
+    assert wait["duration"]["kind"] == "exponential" and wait["duration"]["mean"] == 86_400
+    assert wait["provenance"]["origin"] == "manual"
+    assert scenario.payload["event_distribution"][0]["distribution_name"] == "expon"
+
+
+def test_the_template_lists_the_waits_the_panel_can_set():
+    from backend.simulation.scenario_builder import describe_scenario_template
+
+    timer = describe_scenario_template(normalize_bpmn_for_prosimos(_bpmn()))
+    message = describe_scenario_template(normalize_bpmn_for_prosimos(_bpmn().replace(
+        "<bpmn:timerEventDefinition><bpmn:timeDuration>PT2H</bpmn:timeDuration></bpmn:timerEventDefinition>", MESSAGE)))
+
+    assert [(w.element_id, w.kind, w.seconds) for w in timer.waits] == [("W", "timer", 7200.0)]
+    assert [(w.element_id, w.kind, w.seconds) for w in message.waits] == [("W", "message", None)]
+
+
+def test_a_wait_on_an_element_that_is_not_an_event_of_the_process_is_refused():
+    request = CreateSimulationRunRequest.model_validate({**_request().model_dump(), "waits": [{"element_id": "A", "mean_seconds": 60}]})
+
+    with pytest.raises(ValueError, match="Attesa su un elemento che il BPMN non ha"):
+        build_prosimos_scenario(bpmn_xml=normalize_bpmn_for_prosimos(_bpmn()), request=request)
+
+
+def test_a_message_after_an_event_gateway_is_still_left_out():
+    normalized = normalize_bpmn_for_prosimos(_bpmn(after_event_gateway=True))
+
+    assert 'id="M"' not in normalized
