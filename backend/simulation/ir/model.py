@@ -380,6 +380,10 @@ class TimerEscalation(_Strict):
     activity_id: str = Field(min_length=1)
     after_seconds: float = Field(gt=0)
     normal_flow_id: str = Field(min_length=1)
+    # SIM-11g: un timer non interrompente. L'attivita' continua; la decisione sta
+    # su un ramo parallelo che aspetta ``after_seconds``, e il ramo normale
+    # chiude quel ramo senza fare nulla.
+    interrupting: bool = True
 
 
 class Gateway(_Strict):

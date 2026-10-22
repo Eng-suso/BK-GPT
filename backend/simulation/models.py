@@ -25,6 +25,9 @@ class BpmnWait(BaseModel):
     name: str = ""
     kind: Literal["timer", "message", "signal", "conditional"] = "timer"
     seconds: float | None = None
+    # SIM-11g: l'attesa che fa partire il ramo di un timer non interrompente; il
+    # caso non la aspetta, quindi il pannello non la mostra fra le Attese.
+    internal: bool = False
 
 
 class BpmnFlow(BaseModel):

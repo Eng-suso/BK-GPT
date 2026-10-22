@@ -353,6 +353,8 @@ class ScenarioTemplateEscalation(BaseModel):
     activity_id: str
     after_seconds: float
     normal_flow_id: str
+    # SIM-11g: False per un timer non interrompente, che fa partire il ramo senza fermare l'attivita'.
+    interrupting: bool = True
 
 
 class ScenarioTemplateGateway(BaseModel):

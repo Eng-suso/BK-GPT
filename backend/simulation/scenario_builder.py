@@ -30,10 +30,12 @@ from backend.simulation.ir.patch import apply_patch
 from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, BpmnWait, ProsimosScenario
 from backend.simulation.timers import (
     ESCALATION_AFTER,
+    ESCALATION_INTERRUPTING,
     ESCALATION_NORMAL_FLOW,
     ESCALATION_OF,
     INSTANCES,
     INSTANCES_SEQUENTIAL,
+    TIMER_OF,
     duration_seconds,
 )
 from backend.simulation.validation import validate_simulation_bpmn
@@ -130,6 +132,7 @@ def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = N
         waits=[
             ScenarioTemplateWait(element_id=wait.id, name=wait.name or wait.id, kind=wait.kind, seconds=wait.seconds)
             for wait in parse_bpmn_waits(bpmn_xml)
+            if not wait.internal
         ],
         resources=describe_bpmn_resources(source_bpmn_xml or bpmn_xml, {task.id for task in tasks}),
         tasks=[
@@ -196,7 +199,8 @@ def parse_bpmn_waits(bpmn_xml: str) -> list[BpmnWait]:
             seconds = duration_seconds(text)
             if seconds is None:
                 continue
-        waits.append(BpmnWait(id=element.attrib["id"], name=element.attrib.get("name") or "", kind=kind, seconds=seconds))
+        waits.append(BpmnWait(id=element.attrib["id"], name=element.attrib.get("name") or "", kind=kind, seconds=seconds,
+                              internal=bool(element.attrib.get(TIMER_OF))))
     return waits
 
 
@@ -236,6 +240,7 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
                     activity_id=element.attrib[ESCALATION_OF],
                     after_seconds=float(element.attrib.get(ESCALATION_AFTER, "0")),
                     normal_flow_id=element.attrib.get(ESCALATION_NORMAL_FLOW, ""),
+                    interrupting=element.attrib.get(ESCALATION_INTERRUPTING) != "false",
                 )
         elif tag == "sequenceFlow":
             source = element.attrib.get("sourceRef") or ""
