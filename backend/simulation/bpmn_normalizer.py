@@ -245,13 +245,19 @@ def expandable_subprocess_ids(process: ElementTree.Element) -> set[str]:
     """SIM-11e: i sottoprocessi che si possono srotolare nel processo che li contiene.
 
     Uno solo inizio e una sola fine senza eventi, un flusso che entra e uno che
-    esce, nessun evento sul bordo, nessun ciclo o multi-istanza, nessun
-    sottoprocesso a evento dentro: allora i passi interni sono il percorso del
-    caso, uno dopo l'altro, e il motore li simula ciascuno con la sua durata, le
-    sue risorse e i suoi rami. Gli altri restano una scatola nera.
+    esce, nessun ciclo o multi-istanza, nessun sottoprocesso a evento dentro:
+    allora i passi interni sono il percorso del caso, uno dopo l'altro, e il
+    motore li simula ciascuno con la sua durata, le sue risorse e i suoi rami.
+    Gli altri restano una scatola nera.
+
+    Un evento sul bordo (SIM-11i) ferma lo srotolamento solo se e' un timer con
+    una durata: sulla scatola nera diventa un'escalation (SIM-35b) o un ramo
+    parallelo (SIM-11g), cioe' si simula. Un errore, un messaggio o un segnale
+    sul bordo si toglie comunque con il suo ramo, e srotolato il sottoprocesso
+    almeno i suoi passi si simulano uno per uno.
     """
     flows = _seq_flows(process)
-    attached = {e.get("attachedToRef") for e in process if _local(e.tag) == "boundaryEvent"}
+    attached = {e.get("attachedToRef") for e in process if _local(e.tag) == "boundaryEvent" and _timed(e)}
     result = set()
     for sub in process:
         sub_id = sub.get("id", "")
@@ -275,6 +281,12 @@ def expandable_subprocess_ids(process: ElementTree.Element) -> set[str]:
             continue
         result.add(sub_id)
     return result
+
+
+def _timed(event: ElementTree.Element) -> bool:
+    """Un evento con un timer a durata fissa, quello che escalation e rami paralleli sanno simulare."""
+    timer = event.find(_q(BPMN_MODEL_NS, "timerEventDefinition"))
+    return timer is not None and duration_seconds(timer.findtext(_q(BPMN_MODEL_NS, "timeDuration"))) is not None
 
 
 def _has_definition(event: ElementTree.Element) -> bool:
