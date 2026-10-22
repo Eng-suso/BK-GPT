@@ -28,6 +28,11 @@ import {
   readActivityStats,
   type HeatMetric,
 } from "../simulationResults";
+import { Button } from "@/ui/button";
+import { TrustLens } from "./TrustLens";
+
+/** SIM-20: la heatmap dei risultati o la lente dell'affidabilita' dei parametri. */
+export type HeatLens = HeatMetric | "trust";
 
 const HEAT_SWATCH = [
   "var(--sim-heat-0)",
@@ -51,14 +56,20 @@ const FACTOR_ORDER = [
  *
  * @returns The heatmap page element.
  */
-export function HeatmapPage({ embedded = false, onDecorations, onMetric }: { embedded?: boolean; onDecorations?: (items: NodeDecoration[]) => void; onMetric?: (metric: HeatMetric) => void } = {}): React.JSX.Element {
+export function HeatmapPage({ embedded = false, onDecorations, onMetric }: { embedded?: boolean; onDecorations?: (items: NodeDecoration[]) => void; onMetric?: (metric: HeatLens) => void } = {}): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
-  const { runs, bpmnXml, activeRunId, selectedElementId, selectElement } = useSimulationSection();
+  const { runs, bpmnXml, activeRunId, selectedElementId, selectElement, perspective } = useSimulationSection();
   const { runId } = useParams();
   const activeRun = resolveActiveRun(runs, activeRunId != null ? String(activeRunId) : runId);
 
   const [metric, setMetric] = React.useState<HeatMetric>("wait");
+  const [trustLens, setTrust] = React.useState(false);
+  // SIM-21: origine e confidenza dei parametri sono materia della vista consulente.
+  const canTrust = perspective !== "operations";
+  const trust = trustLens && canTrust;
+  const [trustDecorations, setTrustDecorations] = React.useState<NodeDecoration[]>([]);
+  const showTrust = React.useCallback((items: NodeDecoration[]) => { setTrustDecorations(items); onDecorations?.(items); }, [onDecorations]);
   const [localSelectedEl, setLocalSelectedEl] = React.useState<string | null>(null);
 
   const selectedEl = selectedElementId !== undefined ? selectedElementId : localSelectedEl;
@@ -75,7 +86,7 @@ export function HeatmapPage({ embedded = false, onDecorations, onMetric }: { emb
     (summary?.bottleneck as { factors?: Record<string, number> } | null | undefined)
       ?.factors ?? null;
 
-  React.useEffect(() => { onMetric?.(metric); }, [metric, onMetric]);
+  React.useEffect(() => { onMetric?.(trust ? "trust" : metric); }, [metric, trust, onMetric]);
   const cfg = HEAT_METRICS[metric];
   const ranked = React.useMemo(
     () =>
@@ -107,7 +118,8 @@ export function HeatmapPage({ embedded = false, onDecorations, onMetric }: { emb
     [ranked, cfg, maxValue, bottleneckEl, lang],
   );
 
-  React.useEffect(() => { onDecorations?.(decorations); }, [decorations, onDecorations]);
+  // Con la lente Affidabilita' le decorazioni le scrive TrustLens.
+  React.useEffect(() => { if (!trust) onDecorations?.(decorations); }, [decorations, onDecorations, trust]);
 
   const selected =
     stats.find((s) => s.el === selectedEl) ??
@@ -137,11 +149,36 @@ export function HeatmapPage({ embedded = false, onDecorations, onMetric }: { emb
   }
 
   const metricName = t(`simulation.heatmap.metric.${metric}`);
+  const lensSwitch = canTrust && (
+    <div role="group" aria-label={t("simulation.trust.lens")} className="sim-heat-lens flex gap-0.5">
+      {([false, true] as const).map((value) => (
+        <Button key={String(value)} type="button" size="sm" variant={trust === value ? "secondary" : "ghost"} aria-pressed={trust === value} onClick={() => setTrust(value)}>
+          {t(value ? "simulation.trust.lensTrust" : "simulation.trust.lensResults")}
+        </Button>
+      ))}
+    </div>
+  );
+
+  if (trust) {
+    return (
+      <div className={embedded ? "sim-embedded-heatmap flex min-h-0 flex-col gap-3" : "flex h-full min-h-0 flex-col gap-3 overflow-y-auto lg:flex-row"}>
+        {!embedded && <section className="flex min-h-[440px] shrink-0 flex-1 flex-col overflow-hidden ui-surface ui-surface-panel">
+          <header className="flex items-center gap-3 border-b border-border px-4 py-2.5">{lensSwitch}</header>
+          <SimulationCanvas className="min-h-0 flex-1" bpmnXml={bpmnXml} decorations={trustDecorations} selectedElementId={selectedEl} onSelectElement={setSelectedEl} />
+        </section>}
+        <aside className="flex min-h-0 w-full shrink-0 flex-col gap-2 overflow-auto ui-surface ui-surface-panel px-2 py-2 lg:w-[336px]">
+          {embedded && <div className="px-2">{lensSwitch}</div>}
+          <TrustLens run={activeRun} selectedEl={selectedEl} onSelect={setSelectedEl} onDecorations={showTrust} />
+        </aside>
+      </div>
+    );
+  }
 
   return (
     <div className={embedded ? "sim-embedded-heatmap flex min-h-0 flex-col gap-3" : "flex h-full min-h-0 flex-col gap-3 overflow-y-auto lg:flex-row"}>
       <section className={embedded ? "shrink-0" : "flex min-h-[440px] shrink-0 flex-1 flex-col overflow-hidden ui-surface ui-surface-panel"}>
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+          {lensSwitch}
           <label className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {t("simulation.heatmap.metricLabel")}
             <Select value={metric} onValueChange={(v) => setMetric(v as HeatMetric)}>

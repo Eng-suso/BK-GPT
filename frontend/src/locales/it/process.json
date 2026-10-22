@@ -1525,6 +1525,31 @@
         "queueLength_one": "In media {{value}} caso in coda",
         "queueLength_other": "In media {{value}} casi in coda"
       }
+    },
+    "trust": {
+      "lens": "Lente",
+      "lensResults": "Risultati",
+      "lensTrust": "Affidabilità",
+      "title": "Quanto fidarsi di ogni elemento",
+      "hint": "Per ogni attività e decisione del run: il parametro più debole, da dove viene e, se c’è un log reale mappato, quanto si discosta la lavorazione. Prima ciò che chiede un intervento.",
+      "countsLabel": "Elementi per stato",
+      "count": "{{count}} {{status}}",
+      "status": {
+        "calibrate": "da calibrare",
+        "weak": "ipotesi debole",
+        "toConfirm": "da confermare",
+        "solid": "solido",
+        "validated": "validato sul log"
+      },
+      "sources_one": "{{count}} fonte",
+      "sources_other": "{{count}} fonti",
+      "gap": "scarto dal log {{gap}}",
+      "logUsed": "Validazione sul log «{{name}}»: ±10% validato, oltre da calibrare.",
+      "noLog": "Nessun log reale mappato: nessun elemento è ancora validato.",
+      "logLoading": "Carico il log reale…",
+      "noModel": "Questo run è anteriore al modello IR salvato: l’affidabilità per elemento non è disponibile. Rifai il run.",
+      "listLabel": "Elementi per affidabilità",
+      "legend": "Affidabilità dei parametri"
     }
   },
   "side": {
