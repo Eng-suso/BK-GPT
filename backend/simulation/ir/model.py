@@ -336,6 +336,20 @@ class Activity(_Strict):
         return self
 
 
+class Wait(_Strict):
+    """SIM-11c: un timer intermedio con una durata (``PT48H``): il caso aspetta.
+
+    L'attesa conta l'orologio, non il calendario: un timer di 48 ore scade dopo
+    48 ore anche nel fine settimana. Nessuna risorsa la svolge. La durata viene
+    dal BPMN; il motore la riceve in ``event_distribution``.
+    """
+
+    element_id: str = Field(min_length=1)
+    name: str = ""
+    duration: Distribution
+    provenance: Provenance | None = None
+
+
 # --------------------------------------------------------------------------- #
 # Regole, rami, attributi
 # --------------------------------------------------------------------------- #
@@ -513,6 +527,8 @@ class SimulationModel(_Strict):
     case_attributes: tuple[CaseAttribute, ...] = ()
     attribute_updates: tuple[AttributeUpdate, ...] = ()
     priority_rules: tuple[PriorityRule, ...] = ()
+    # SIM-11c: i timer intermedi del BPMN che il caso aspetta.
+    waits: tuple[Wait, ...] = ()
 
     def resources(self) -> dict[str, Resource]:
         return {resource.id: resource for pool in self.pools for resource in pool.resources}
@@ -526,6 +542,7 @@ class SimulationModel(_Strict):
         _unique("risorsa", resource_ids)
         _unique("attivita'", [activity.element_id for activity in self.activities])
         _unique("gateway", [gateway.element_id for gateway in self.gateways])
+        _unique("attesa", [wait.element_id for wait in self.waits])
         _unique("attributo", [attribute.name for attribute in self.case_attributes])
 
         known_calendars = set(calendars)

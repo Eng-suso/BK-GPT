@@ -11,6 +11,14 @@ class BpmnTask(BaseModel):
     type: str = "task"
 
 
+class BpmnWait(BaseModel):
+    """SIM-11c: un timer intermedio con una durata fissa, rimasto nel BPMN normalizzato."""
+
+    id: str
+    name: str = ""
+    seconds: float
+
+
 class BpmnFlow(BaseModel):
     id: str
     name: str = ""

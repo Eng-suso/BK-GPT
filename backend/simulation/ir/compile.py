@@ -97,6 +97,12 @@ def compile_for_prosimos(model: SimulationModel) -> dict:
         if model.arrival.band_attribute:
             payload["delir_arrival_band_attribute"] = model.arrival.band_attribute
 
+    if model.waits:
+        # SIM-11c: un evento intermedio rimasto nel BPMN aspetta questa durata.
+        payload["event_distribution"] = [
+            {"event_id": wait.element_id, **distribution_params(wait.duration)} for wait in model.waits
+        ]
+
     windows = {
         activity.element_id: [{**_period(window), "factor": window.factor} for window in activity.duration_windows]
         for activity in model.activities
