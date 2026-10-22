@@ -18,6 +18,30 @@ const patchOpSchema = z.object({
   ids: z.array(z.string()).optional(),
 });
 
+const outcomeKpiSchema = z.enum(["cycle", "waiting", "costPerCase", "throughput"]);
+
+/** SIM-28: l'alternativa implementata, con quanto aveva ragione la previsione. Variazioni relative. */
+export const scenarioOutcomeSchema = z.object({
+  implemented_on: z.string(),
+  recorded_at: z.string(),
+  as_is_run_id: z.number().nullable().optional(),
+  alternative_run_id: z.number().nullable().optional(),
+  before: z.object({ event_log_id: z.string(), name: z.string(), cases: z.number() }),
+  after: z.object({ event_log_id: z.string(), name: z.string(), cases: z.number() }),
+  kpis: z.array(z.object({
+    kpi: outcomeKpiSchema,
+    predicted_change: z.number(),
+    predicted_low: z.number().nullable().optional(),
+    predicted_high: z.number().nullable().optional(),
+    before: z.number().nullable().optional(),
+    after: z.number().nullable().optional(),
+    observed_change: z.number().nullable().optional(),
+    error: z.number().nullable().optional(),
+    within: z.boolean().nullable().optional(),
+  })),
+});
+export type ScenarioOutcome = z.infer<typeof scenarioOutcomeSchema>;
+
 export const workspaceScenarioSchema = z.object({
   id: z.number(),
   kind: z.enum(["baseline", "alternative"]),
@@ -29,6 +53,7 @@ export const workspaceScenarioSchema = z.object({
   conflicts: z.array(z.number()),
   created_at: z.string(),
   updated_at: z.string(),
+  outcome: scenarioOutcomeSchema.nullable().optional(),
 });
 
 export const scenarioWorkspaceSchema = z.object({
@@ -77,6 +102,42 @@ export async function updateWorkspaceScenario(
 
 export async function deleteWorkspaceScenario(bpmnModelId: string, scenarioId: number): Promise<ScenarioWorkspace> {
   return parse(await http<unknown>(`${base(bpmnModelId)}/${scenarioId}`, { method: "DELETE" }));
+}
+
+export type PredictedKpi = { as_is: number; alternative: number; half?: number };
+export type ScenarioOutcomeInput = {
+  implemented_on: string;
+  before_event_log_id: string;
+  after_event_log_id: string;
+  as_is_run_id: number | null;
+  alternative_run_id: number | null;
+  predicted: Partial<Record<ReplicationKpi, PredictedKpi>>;
+};
+
+/** SIM-28: registra l'alternativa come implementata; il server misura il prima e il dopo dal log reale. */
+export async function putScenarioOutcome(bpmnModelId: string, scenarioId: number, body: ScenarioOutcomeInput): Promise<ScenarioWorkspace> {
+  return parse(await http<unknown>(`${base(bpmnModelId)}/${scenarioId}/outcome`, { method: "PUT", body }));
+}
+
+export async function deleteScenarioOutcome(bpmnModelId: string, scenarioId: number): Promise<ScenarioWorkspace> {
+  return parse(await http<unknown>(`${base(bpmnModelId)}/${scenarioId}/outcome`, { method: "DELETE" }));
+}
+
+/**
+ * SIM-28: la previsione con cui l'alternativa e' stata scelta, come la mostra il
+ * workspace: media dell'AS-IS e dell'alternativa e, con le ripetizioni, la mezza
+ * ampiezza della differenza. Solo i KPI che entrambi gli scenari hanno.
+ */
+export function predictedSnapshot(asIs: ScenarioRuns, alternative: ScenarioRuns, deltas: ReturnType<typeof scenarioDeltas>): Partial<Record<ReplicationKpi, PredictedKpi>> {
+  const out: Partial<Record<ReplicationKpi, PredictedKpi>> = {};
+  for (const kpi of WORKSPACE_KPIS) {
+    const a = scenarioValue(asIs, kpi);
+    const b = scenarioValue(alternative, kpi);
+    if (!a || !b || !(a.mean > 0)) continue;
+    const delta = deltas.kpis[kpi];
+    out[kpi] = { as_is: a.mean, alternative: b.mean, ...(delta?.kind === "interval" ? { half: delta.value.half } : {}) };
+  }
+  return out;
 }
 
 export function workspaceScenarios(workspace: ScenarioWorkspace | null | undefined): WorkspaceScenario[] {
