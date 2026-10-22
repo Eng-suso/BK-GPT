@@ -121,7 +121,10 @@ class _ProcessReport:
                     "quindi i casi che nella realta' lo attivano non ne pagano tempo e costo."
                 ),
             )
-        if local in _SUBPROCESS_TAGS:
+        if local in _SUBPROCESS_TAGS and flattened_into is None and self._expanded(element):
+            # SIM-11e: srotolato nel processo, i passi interni si leggono come gli altri.
+            entries.extend(self._expanded_children(element))
+        elif local in _SUBPROCESS_TAGS:
             # I passi interni spariscono dentro la scatola nera del sottoprocesso.
             parent = flattened_into or element_id
             for child in element:
@@ -129,6 +132,31 @@ class _ProcessReport:
         elif local == "laneSet":
             for child in element:
                 entries.extend(self._visit_lanes(child))
+        return entries
+
+    def _expanded(self, sub: ElementTree.Element) -> bool:
+        """Un sottoprocesso che il normalizer ha srotolato: sparito lui, restano i suoi passi."""
+        steps = [c.get("id") for c in sub if _local(c.tag) in _ACTIVITY_TAGS | _SUBPROCESS_TAGS | {"task"}]
+        return sub.get("id") not in self.after.tags and any(step in self.after.tags for step in steps)
+
+    def _expanded_children(self, sub: ElementTree.Element) -> list[BpmnElementCompatibility]:
+        entries: list[BpmnElementCompatibility] = []
+        bounds = {c.get("id") for c in sub if _local(c.tag) in {"startEvent", "endEvent"}}
+        for child in sub:
+            local = _local(child.tag)
+            joined = local in {"startEvent", "endEvent"} or (
+                local == "sequenceFlow" and (child.get("sourceRef") in bounds or child.get("targetRef") in bounds)
+            )
+            if joined and child.get("id"):
+                entries.append(_entry(
+                    child, local, "approximated", "none", parent_id=sub.get("id"),
+                    note="Assorbito: il flusso del processo entra nel primo passo del sottoprocesso ed esce dall'ultimo.",
+                ))
+            else:
+                entries.extend(
+                    entry if entry.parent_id else entry.model_copy(update={"parent_id": sub.get("id")})
+                    for entry in self._visit(child, flattened_into=None)
+                )
         return entries
 
     def _visit_lanes(self, element: ElementTree.Element) -> list[BpmnElementCompatibility]:
@@ -171,6 +199,11 @@ class _ProcessReport:
                     "Parte da un evento, non dal flusso: il motore non lo esegue, "
                     "quindi i casi che nella realta' lo attivano non ne pagano tempo e costo."
                 ),
+            )
+        if local in _SUBPROCESS_TAGS and element_id not in self.after.tags and self._expanded(element):
+            return _entry(
+                element, local, "preserved", "none", simulated_as="expanded",
+                note="Simulato passo per passo: ogni attività interna ha la sua durata, le sue risorse e i suoi rami.",
             )
         if local in _SUBPROCESS_TAGS:
             return _entry(
