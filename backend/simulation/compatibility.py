@@ -28,6 +28,7 @@ from backend.schemas.simulation import (
 )
 from backend.schemas.workspace import BpmnModelResponse
 from backend.simulation.bpmn_normalizer import (
+    fixed_instances,
     _ACTIVITY_TAGS,
     _GATEWAY_REWRITE,
     _NOISE_TAGS,
@@ -248,6 +249,17 @@ class _ProcessReport:
         element_id = element.get("id", "")
         if element_id not in self.after.tags:
             return _exception_entry(element, local)
+        fixed = fixed_instances(element)
+        if fixed is not None:
+            count, sequential = fixed
+            return _entry(
+                element, local, "preserved", "none", simulated_as=f"task × {count}",
+                note=(
+                    f"Eseguita {count} volte per caso, {'una dopo l’altra' if sequential else 'in parallelo'}, "
+                    "ogni istanza con la sua durata e la sua risorsa. Con durate per categoria, salti o "
+                    "rilavorazioni sull'attività si simula una volta sola."
+                ),
+            )
         if any(_local(child.tag) in _LOOP_TAGS for child in element):
             return _entry(
                 element, local, "approximated", "high", simulated_as="task",

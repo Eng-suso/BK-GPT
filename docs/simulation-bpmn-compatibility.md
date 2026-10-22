@@ -20,7 +20,7 @@ Il report (`backend/simulation/compatibility.py`) non duplica le regole del norm
 | Stato | Significato | Esempi |
 |---|---|---|
 | `preserved` | Il motore lo esegue così com'è. Un cambio di tipo innocuo ha una nota. | task, gateway esclusivi e paralleli, `userTask` simulato come task, timer intermedio con durata fissa (`PT48H`) simulato come attesa del caso (SIM-11c) |
-| `approximated` | Il motore lo esegue in una forma più semplice. | attività con ciclo o multi-istanza, `receiveTask`, `callActivity`, `complexGateway`, inizi e fini uniti, flussi ricollegati |
+| `approximated` | Il motore lo esegue in una forma più semplice. | attività con ciclo o multi-istanza senza un numero fisso (con `loopCardinality` intero da 2 a 50 è `preserved`: copie in sequenza o in parallelo, SIM-11f), `receiveTask`, `callActivity`, `complexGateway`, inizi e fini uniti, flussi ricollegati |
 | `flattened` | Ridotto a una scatola nera. | sottoprocesso con eventi di bordo, ciclo, multi-istanza o inizio/fine a evento; i suoi passi interni hanno `parent_id`. Un sottoprocesso semplice invece si srotola nel processo (SIM-11e): è `preserved` con `simulated_as: expanded` e i passi interni sono simulati uno per uno |
 | `removed` | Non arriva al motore. | eventi di bordo e ramo d'eccezione, eventi intermedi (salvo i timer con durata fissa fuori da un gateway a eventi), lane, annotazioni |
 
