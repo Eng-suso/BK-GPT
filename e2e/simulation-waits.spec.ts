@@ -151,3 +151,29 @@ test("a multi-instance activity says how many times it ran (SIM-11f)", async ({ 
   const params = page.getByRole("region", { name: "Parametri simulati", exact: true });
   await expect(params.locator("[data-instances]")).toHaveText("Eseguita 3 volte per caso, una dopo l'altra: ogni istanza ha la sua durata.");
 });
+
+test("the consultant sets the instances of a multi-instance over a collection (SIM-11h)", async ({ page }) => {
+  await fixture(page);
+  await page.route("http://127.0.0.1:8000/**/simulation-template", (route) => route.fulfill({ json: { ...template, tasks: tasks.map((t) =>
+    t.element_id === "T_approve" ? { ...t, multi_instance: "parallel", instances: null }
+      : t.element_id === "T_pay" ? { ...t, multi_instance: "sequential", instances: 2 } : t) } }));
+  await page.goto(`${studio}/scenario`);
+
+  await expect(page.locator('[data-instances="T_pay"]')).toHaveText("Multi-istanza dal BPMN: 2 istanze per caso, una dopo l'altra.");
+  const field = page.locator('[data-instances="T_approve"]');
+  await field.scrollIntoViewIfNeeded();
+  const input = field.getByLabel("Istanze per caso · Approva");
+  await input.fill("80");
+  await expect(field.getByRole("alert")).toContainText("da 1 a 50");
+  await input.fill("4");
+  await expect(field.getByRole("alert")).toHaveCount(0);
+
+  const axe = await new AxeBuilder({ page }).include('[data-instances="T_approve"]').withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+
+  const request = page.waitForRequest((req) => req.method() === "POST" && req.url().endsWith("/simulation-runs"));
+  await page.getByRole("button", { name: "Avvia simulazione", exact: true }).click();
+  const body = (await request).postDataJSON();
+  expect(body.tasks.find((t: { element_id: string }) => t.element_id === "T_approve").instances).toBe(4);
+  expect(body.tasks.find((t: { element_id: string }) => t.element_id === "T_pay").instances).toBeUndefined();
+});
