@@ -268,9 +268,18 @@ class _ProcessReport:
 
     def _intermediate(self, element: ElementTree.Element, local: str) -> BpmnElementCompatibility:
         definitions = {_local(child.tag) for child in element}
+        if element.get("id") in self.after.tags and "timerEventDefinition" in definitions:
+            # SIM-11c: un timer con durata fissa resta nel BPMN e il caso aspetta.
+            return _entry(
+                element, local, "preserved", "none", simulated_as="timer",
+                note="Il caso aspetta la durata del timer, a qualsiasi ora: il timer conta l'orologio, non il calendario.",
+            )
         if "timerEventDefinition" in definitions and local == "intermediateCatchEvent":
             impact: KpiImpact = "high"
-            note = "L'attesa del timer non è simulata: il cycle time e il tempo di attesa sono sottostimati."
+            note = (
+                "L'attesa del timer non è simulata (una data, un ciclo o un timer dopo un gateway a eventi): "
+                "il cycle time e il tempo di attesa sono sottostimati."
+            )
         elif definitions & _WAITING_DEFINITIONS and local == "intermediateCatchEvent":
             impact = "medium"
             note = "L'attesa dell'evento non è simulata: il caso prosegue subito."
