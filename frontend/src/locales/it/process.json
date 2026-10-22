@@ -493,6 +493,7 @@
         "removeShort": "Togli l'attesa"
       },
       "escalation": "Escalation a tempo dopo {{after}} su «{{activity}}». La quota dei casi che la prendono viene dalla durata dell'attività: il timer conta la lavorazione, non l'attesa in coda.",
+      "escalationParallel": "Timer non interrompente dopo {{after}} su «{{activity}}»: l'attività continua e il ramo del timer parte in parallelo. La quota dei casi che lo prendono viene dalla durata dell'attività; il ramo parte {{after}} dopo l'arrivo del caso, coda compresa.",
       "skip": {
         "legend": "Salto di «{{task}}»",
         "toggle": "Alcuni casi la saltano",
@@ -666,6 +667,7 @@
       "arrivalBand": "un caso ogni {{every}}",
       "arrivalBandsNote": "Fuori da queste fasce non arrivava nessuno. Gli arrivi li ha generati il runner DeliR, con il seed del run.",
       "escalation": "Escalation a tempo dopo {{after}} su «{{activity}}»: è andata nel ramo d'escalation la quota dei casi la cui lavorazione superava il timer, calcolata dalla durata simulata. L'attesa in coda non conta.",
+      "escalationParallel": "Timer non interrompente dopo {{after}} su «{{activity}}»: l'attività è continuata e il ramo del timer è partito in parallelo per la quota dei casi la cui lavorazione superava il timer, calcolata dalla durata simulata.",
       "wait": "Attesa",
       "waitNote": "Il caso aspettava questa durata a qualsiasi ora: il timer conta l'orologio, non il calendario. Nessuna risorsa era occupata.",
       "waitUnset": "Attesa non impostata nel pannello: il caso proseguiva subito.",

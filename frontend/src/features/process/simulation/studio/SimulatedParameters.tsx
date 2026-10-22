@@ -100,7 +100,7 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
           </>
         : view.escalation
           ? <p className="sim-param-note" data-escalation={elementId}>
-              {t("simulation.activityInspector.escalation", { after: formatAfter(view.escalation.afterSeconds, t), activity: view.escalation.activityName })}
+              {t(view.escalation.interrupting ? "simulation.activityInspector.escalation" : "simulation.activityInspector.escalationParallel", { after: formatAfter(view.escalation.afterSeconds, t), activity: view.escalation.activityName })}
             </p>
           : <Branches branches={view.branches} provenance={view.provenance} lang={lang} t={t} provenanceState={provenance} />;
   } else {

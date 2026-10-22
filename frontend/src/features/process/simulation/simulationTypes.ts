@@ -194,6 +194,8 @@ export const scenarioTemplateSchema = z.object({
         activity_id: z.string(),
         after_seconds: z.number(),
         normal_flow_id: z.string(),
+        /** SIM-11g: false per un timer non interrompente, che non ferma l'attivita'. */
+        interrupting: z.boolean().optional(),
       }).nullable().optional(),
     }),
   ),

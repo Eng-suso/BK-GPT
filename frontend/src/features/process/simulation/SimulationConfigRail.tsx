@@ -613,7 +613,7 @@ export function SimulationConfigRail({
                     </div>
                     {gateway.escalation ? (
                       <p className="text-xs text-muted-foreground" data-escalation={gateway.element_id}>
-                        {t("simulation.config.escalation", {
+                        {t(gateway.escalation.interrupting === false ? "simulation.config.escalationParallel" : "simulation.config.escalation", {
                           after: formatAfter(gateway.escalation.after_seconds, t),
                           activity: template?.tasks.find((task) => task.element_id === gateway.escalation?.activity_id)?.name
                             ?? gateway.escalation.activity_id,
