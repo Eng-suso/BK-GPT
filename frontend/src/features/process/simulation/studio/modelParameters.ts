@@ -54,7 +54,11 @@ export type BranchView = {
 };
 
 export type ArrivalBandView = { fromDay: string; toDay: string; begin: string; end: string; meanSeconds: number };
-export type ArrivalView = { duration: DurationView; calendar: CalendarView; provenance: FieldProvenance; bands: ArrivalBandView[] };
+export type ArrivalView = {
+  duration: DurationView; calendar: CalendarView; provenance: FieldProvenance; bands: ArrivalBandView[];
+  /** SIM-08b: i mesi con un ritmo proprio, nell'ordine dell'anno. */
+  months: { month: number; factor: number }[];
+};
 
 export type DurationByView = { attribute: string; variants: { value: string | null; upTo: number | null; duration: DurationView }[] };
 
@@ -105,6 +109,7 @@ export function arrivalFromModel(model: RunModel): ArrivalView | null {
     bands: (model.arrival.bands ?? []).map((band) => ({
       fromDay: band.from_day, toDay: band.to_day, begin: band.begin.slice(0, 5), end: band.end.slice(0, 5), meanSeconds: band.mean_seconds,
     })),
+    months: [...(model.arrival.months ?? [])].sort((a, b) => a.month - b.month),
   };
 }
 

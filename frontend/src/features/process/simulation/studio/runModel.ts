@@ -42,6 +42,8 @@ export const runModelSchema = z.object({
     provenance,
     // SIM-08: con le fasce gli arrivi seguono loro, non interarrival e calendario.
     bands: z.array(z.object({ from_day: z.string(), to_day: z.string(), begin: z.string(), end: z.string(), mean_seconds: z.number() })).default([]),
+    // SIM-08b: il fattore sul ritmo per mese.
+    months: z.array(z.object({ month: z.number(), factor: z.number() })).optional(),
   }).optional(),
   priority_rules: z.array(z.object({ level: z.number(), condition: z.object({ any_of: z.array(z.array(ruleSchema)) }) })).optional(),
   // SIM-11c: i timer intermedi del BPMN che il caso aspettava.

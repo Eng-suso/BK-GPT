@@ -210,7 +210,23 @@ function Arrival({ arrival, lang, t, provenanceState }: { arrival: ArrivalView; 
       <OriginRow field={arrival.provenance} t={t} provenanceState={provenanceState} />
     </dl>
     {arrival.bands.length > 0 && <p className="sim-help">{t("simulation.activityInspector.arrivalBandsNote")}</p>}
+    {arrival.months.length > 0 && <ArrivalMonthRows months={arrival.months} lang={lang} t={t} />}
     <ProvenanceFoot field={arrival.provenance} t={t} provenanceState={provenanceState} />
+  </div>;
+}
+
+/** SIM-08b: la variazione degli arrivi per mese che il run ha simulato. */
+function ArrivalMonthRows({ months, lang, t }: { months: { month: number; factor: number }[]; lang: Lang; t: T }): React.JSX.Element {
+  const locale = lang === "it" ? "it-IT" : "en-US";
+  const month = new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" });
+  const change = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 1, signDisplay: "exceptZero" });
+  return <div data-arrival-months-view>
+    <p className="sim-param-note">{t("simulation.activityInspector.arrivalMonths")}</p>
+    <dl>
+      {months.map((m) => (
+        <div key={m.month}><dt>{month.format(new Date(Date.UTC(2026, m.month - 1, 1)))}</dt><dd>{change.format(m.factor - 1)}</dd></div>
+      ))}
+    </dl>
   </div>;
 }
 
