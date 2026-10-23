@@ -479,6 +479,14 @@ class ArrivalBand(CalendarPeriod):
     mean_seconds: float = Field(gt=0)
 
 
+class MonthFactor(_Strict):
+    """SIM-08b: nel mese ``month`` (1 = gennaio) i casi arrivano ``factor`` volte
+    piu' spesso ("dicembre +40%" = 1,4; "agosto -50%" = 0,5)."""
+
+    month: int = Field(ge=1, le=12)
+    factor: float = Field(gt=0, le=10)
+
+
 class Arrival(_Strict):
     interarrival: Distribution
     calendar_id: str
@@ -488,12 +496,19 @@ class Arrival(_Strict):
     # SIM-33: l'attributo del caso che riceve la fascia di arrivo ("Fascia 1", ...).
     # Lo riempie il runner; durate per categoria e regole lo leggono come gli altri.
     band_attribute: str | None = Field(default=None, min_length=1, max_length=64)
+    # SIM-08b: il ritmo cambia con il mese. Lo applica il runner sugli arrivi per
+    # fascia; senza fasce gli arrivi devono essere esponenziali, e le fasce sono
+    # i periodi del calendario degli arrivi (``SimulationModel.arrival_bands``).
+    months: tuple[MonthFactor, ...] = Field(default=(), max_length=12)
 
     @model_validator(mode="after")
     def _bands_apart(self):
         if self.band_attribute and not self.bands:
             raise ValueError("la fascia di arrivo come attributo richiede delle fasce degli arrivi")
         _check_apart(self.bands, "due fasce degli arrivi si sovrappongono")
+        _unique("mese degli arrivi", [str(m.month) for m in self.months])
+        if self.months and not self.bands and not isinstance(self.interarrival, Exponential):
+            raise ValueError("il ritmo per mese vale con le fasce degli arrivi o con arrivi esponenziali")
         return self
 
 
@@ -558,6 +573,20 @@ class SimulationModel(_Strict):
 
     def resources(self) -> dict[str, Resource]:
         return {resource.id: resource for pool in self.pools for resource in pool.resources}
+
+    def arrival_bands(self) -> tuple[ArrivalBand, ...]:
+        """Le fasce da cui il runner genera gli arrivi, o nessuna se li genera il motore.
+
+        SIM-08b: un ritmo per mese senza fasce trasforma i periodi del calendario
+        degli arrivi in fasce con la media degli arrivi esponenziali: lo stesso
+        processo di Poisson, che il runner sa scalare mese per mese.
+        """
+        if self.arrival.bands or not self.arrival.months:
+            return self.arrival.bands
+        assert isinstance(self.arrival.interarrival, Exponential)
+        calendar = next(c for c in self.calendars if c.id == self.arrival.calendar_id)
+        return tuple(ArrivalBand(**period.model_dump(), mean_seconds=self.arrival.interarrival.mean)
+                     for period in calendar.periods)
 
     @model_validator(mode="after")
     def _references(self):
