@@ -44,6 +44,8 @@ class SimResourceConfig(BaseModel):
     calendar_id: str | None = Field(default=None, max_length=64)
     # SIM-30: unita' in piu' presenti solo in un altro calendario (un turno di rinforzo).
     shifts: list[SimResourceShiftConfig] = Field(default_factory=list, max_length=10)
+    # SIM-09b: un sistema o una macchina; senza calendario lavora sempre.
+    kind: Literal["person", "system"] = "person"
 
 
 class SimTaskAssignmentConfig(BaseModel):
