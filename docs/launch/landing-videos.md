@@ -12,6 +12,9 @@ capitoli, tagli): `e2e/launch-media/landing-videos.json`. Montaggio:
 `scripts/landing_videos_edit.py`. Uscita in `artifacts/landing-videos/`
 (non versionato): `video/` master, `web/` MP4 + WebM + poster + VTT IT/EN.
 
+I tagli sul caso semplice end-to-end (richiesta di acquisto, `cuts.simple-*`)
+hanno un documento a parte: [landing-videos-simple-case.md](landing-videos-simple-case.md).
+
 ## Regole di regia
 
 | Regola | Come è applicata |

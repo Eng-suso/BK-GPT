@@ -457,6 +457,484 @@
         "webm_crf": 38,
         "mp4_crf": 26
       }
+    },
+    "simple-hero-it": {
+      "hold": 0,
+      "chips": false,
+      "stages": false,
+      "disclaimer": "disclaimer-simple-it",
+      "crossfade": 0.5,
+      "loop": 0.6,
+      "scenes": [
+        {
+          "id": "s-it-fonti",
+          "from": 0.6,
+          "keep": 4.0,
+          "speed": 1.6
+        },
+        {
+          "id": "s-it-evidenze",
+          "from": 0.6,
+          "keep": 3.2,
+          "speed": 1.0
+        },
+        {
+          "id": "s-it-evidenze",
+          "from": 6.6,
+          "keep": 5.0,
+          "speed": 1.0
+        },
+        {
+          "id": "s-it-replay-as-is",
+          "from": 1.0,
+          "keep": 7.6,
+          "speed": 1.5
+        },
+        {
+          "id": "s-it-workspace",
+          "from": 2.4,
+          "keep": 6.4,
+          "speed": 1.25
+        },
+        {
+          "id": "s-it-consegna",
+          "from": 10.6,
+          "keep": 9.4,
+          "speed": 1.8
+        }
+      ],
+      "web": {
+        "path": "artifacts/launch-media/landing-v3/hero.it",
+        "size": [
+          1600,
+          900
+        ],
+        "poster": 12.5,
+        "webm_crf": 36,
+        "mp4_crf": 25
+      }
+    },
+    "simple-evidenze-it": {
+      "hold": 0,
+      "chips": false,
+      "stages": false,
+      "disclaimer": "disclaimer-simple-it",
+      "crossfade": 0.5,
+      "loop": 0.6,
+      "scenes": [
+        {
+          "id": "s-it-fonti",
+          "from": 0.6,
+          "speed": 1.25
+        },
+        {
+          "id": "s-it-evidenze",
+          "from": 0.4,
+          "speed": 1.15
+        }
+      ],
+      "web": {
+        "path": "artifacts/launch-media/landing-v3/evidenze.it",
+        "size": [
+          1600,
+          900
+        ],
+        "poster": 17.0,
+        "webm_crf": 36,
+        "mp4_crf": 25
+      }
+    },
+    "simple-lacune-it": {
+      "hold": 0,
+      "chips": false,
+      "stages": false,
+      "disclaimer": "disclaimer-simple-it",
+      "crossfade": 0.5,
+      "loop": 0.6,
+      "scenes": [
+        {
+          "id": "s-it-divergenze",
+          "from": 0.4,
+          "speed": 1.2
+        },
+        {
+          "id": "s-it-lacuna",
+          "from": 0.4,
+          "speed": 1.2
+        }
+      ],
+      "web": {
+        "path": "artifacts/launch-media/landing-v3/lacune.it",
+        "size": [
+          1600,
+          900
+        ],
+        "poster": 8.6,
+        "webm_crf": 36,
+        "mp4_crf": 25
+      }
+    },
+    "simple-contesto-it": {
+      "hold": 0,
+      "chips": false,
+      "stages": false,
+      "disclaimer": "disclaimer-simple-it",
+      "crossfade": 0.5,
+      "loop": 0.6,
+      "scenes": [
+        {
+          "id": "s-it-discovery",
+          "from": 0.6,
+          "segments": [
+            {
+              "to": "sent",
+              "speed": 3.0
+            },
+            {
+              "to": "answered",
+              "speed": 1.25
+            },
+            {
+              "to": "end",
+              "speed": 1.3
+            }
+          ]
+        },
+        {
+          "id": "s-it-contesto",
+          "from": 0.6,
+          "keep": 8.5,
+          "speed": 1.25
+        }
+      ],
+      "web": {
+        "path": "artifacts/launch-media/landing-v3/contesto.it",
+        "size": [
+          1600,
+          900
+        ],
+        "poster": 9.5,
+        "webm_crf": 36,
+        "mp4_crf": 25
+      }
+    },
+    "simple-decisioni-it": {
+      "hold": 0,
+      "chips": false,
+      "stages": false,
+      "disclaimer": "disclaimer-simple-it",
+      "crossfade": 0.5,
+      "loop": 0.6,
+      "scenes": [
+        {
+          "id": "s-it-review",
+          "from": 0.6,
+          "segments": [
+            {
+              "to": "sent",
+              "speed": 2.6
+            },
+            {
+              "to": "answered",
+              "speed": 1.2
+            },
+            {
+              "to": "end",
+              "speed": 2.0
+            }
+          ]
+        },
+        {
+          "id": "s-it-consegna",
+          "from": 0.6,
+          "speed": 1.5
+        }
+      ],
+      "web": {
+        "path": "artifacts/launch-media/landing-v3/decisioni.it",
+        "size": [
+          1600,
+          900
+        ],
+        "poster": 11.5,
+        "webm_crf": 36,
+        "mp4_crf": 25
+      }
+    },
+    "simple-scenari-it": {
+      "hold": 0,
+      "chips": false,
+      "stages": false,
+      "disclaimer": "disclaimer-simple-it",
+      "crossfade": 0.5,
+      "loop": 0.6,
+      "scenes": [
+        {
+          "id": "s-it-replay-as-is",
+          "from": 0.6,
+          "keep": 10.0,
+          "speed": 1.15
+        },
+        {
+          "id": "s-it-heatmap",
+          "from": 1.6,
+          "speed": 1.15
+        },
+        {
+          "id": "s-it-workspace",
+          "from": 1.0,
+          "speed": 1.55
+        }
+      ],
+      "web": {
+        "path": "artifacts/launch-media/landing-v3/scenari.it",
+        "size": [
+          1600,
+          900
+        ],
+        "poster": 9.5,
+        "webm_crf": 36,
+        "mp4_crf": 25
+      }
+    },
+    "simple-hero-en": {
+      "hold": 0,
+      "chips": false,
+      "stages": false,
+      "disclaimer": "disclaimer-simple-en",
+      "crossfade": 0.5,
+      "loop": 0.6,
+      "scenes": [
+        {
+          "id": "s-en-fonti",
+          "from": 0.6,
+          "keep": 4.0,
+          "speed": 1.6
+        },
+        {
+          "id": "s-en-evidenze",
+          "from": 0.6,
+          "keep": 3.2,
+          "speed": 1.0
+        },
+        {
+          "id": "s-en-evidenze",
+          "from": 6.6,
+          "keep": 5.0,
+          "speed": 1.0
+        },
+        {
+          "id": "s-en-replay-as-is",
+          "from": 1.0,
+          "keep": 7.6,
+          "speed": 1.5
+        },
+        {
+          "id": "s-en-workspace",
+          "from": 2.4,
+          "keep": 6.4,
+          "speed": 1.25
+        },
+        {
+          "id": "s-en-consegna",
+          "from": 10.6,
+          "keep": 9.4,
+          "speed": 1.8
+        }
+      ],
+      "web": {
+        "path": "artifacts/launch-media/landing-v3/hero.en",
+        "size": [
+          1600,
+          900
+        ],
+        "poster": 12.5,
+        "webm_crf": 36,
+        "mp4_crf": 25
+      }
+    },
+    "simple-evidenze-en": {
+      "hold": 0,
+      "chips": false,
+      "stages": false,
+      "disclaimer": "disclaimer-simple-en",
+      "crossfade": 0.5,
+      "loop": 0.6,
+      "scenes": [
+        {
+          "id": "s-en-fonti",
+          "from": 0.6,
+          "speed": 1.25
+        },
+        {
+          "id": "s-en-evidenze",
+          "from": 0.4,
+          "speed": 1.15
+        }
+      ],
+      "web": {
+        "path": "artifacts/launch-media/landing-v3/evidenze.en",
+        "size": [
+          1600,
+          900
+        ],
+        "poster": 17.0,
+        "webm_crf": 36,
+        "mp4_crf": 25
+      }
+    },
+    "simple-lacune-en": {
+      "hold": 0,
+      "chips": false,
+      "stages": false,
+      "disclaimer": "disclaimer-simple-en",
+      "crossfade": 0.5,
+      "loop": 0.6,
+      "scenes": [
+        {
+          "id": "s-en-divergenze",
+          "from": 0.4,
+          "speed": 1.2
+        },
+        {
+          "id": "s-en-lacuna",
+          "from": 0.4,
+          "speed": 1.2
+        }
+      ],
+      "web": {
+        "path": "artifacts/launch-media/landing-v3/lacune.en",
+        "size": [
+          1600,
+          900
+        ],
+        "poster": 8.6,
+        "webm_crf": 36,
+        "mp4_crf": 25
+      }
+    },
+    "simple-contesto-en": {
+      "hold": 0,
+      "chips": false,
+      "stages": false,
+      "disclaimer": "disclaimer-simple-en",
+      "crossfade": 0.5,
+      "loop": 0.6,
+      "scenes": [
+        {
+          "id": "s-en-discovery",
+          "from": 0.6,
+          "segments": [
+            {
+              "to": "sent",
+              "speed": 3.0
+            },
+            {
+              "to": "answered",
+              "speed": 1.25
+            },
+            {
+              "to": "end",
+              "speed": 1.3
+            }
+          ]
+        },
+        {
+          "id": "s-en-contesto",
+          "from": 0.6,
+          "keep": 8.5,
+          "speed": 1.25
+        }
+      ],
+      "web": {
+        "path": "artifacts/launch-media/landing-v3/contesto.en",
+        "size": [
+          1600,
+          900
+        ],
+        "poster": 9.5,
+        "webm_crf": 36,
+        "mp4_crf": 25
+      }
+    },
+    "simple-decisioni-en": {
+      "hold": 0,
+      "chips": false,
+      "stages": false,
+      "disclaimer": "disclaimer-simple-en",
+      "crossfade": 0.5,
+      "loop": 0.6,
+      "scenes": [
+        {
+          "id": "s-en-review",
+          "from": 0.6,
+          "segments": [
+            {
+              "to": "sent",
+              "speed": 2.6
+            },
+            {
+              "to": "answered",
+              "speed": 1.2
+            },
+            {
+              "to": "end",
+              "speed": 2.0
+            }
+          ]
+        },
+        {
+          "id": "s-en-consegna",
+          "from": 0.6,
+          "speed": 1.5
+        }
+      ],
+      "web": {
+        "path": "artifacts/launch-media/landing-v3/decisioni.en",
+        "size": [
+          1600,
+          900
+        ],
+        "poster": 11.5,
+        "webm_crf": 36,
+        "mp4_crf": 25
+      }
+    },
+    "simple-scenari-en": {
+      "hold": 0,
+      "chips": false,
+      "stages": false,
+      "disclaimer": "disclaimer-simple-en",
+      "crossfade": 0.5,
+      "loop": 0.6,
+      "scenes": [
+        {
+          "id": "s-en-replay-as-is",
+          "from": 0.6,
+          "keep": 10.0,
+          "speed": 1.15
+        },
+        {
+          "id": "s-en-heatmap",
+          "from": 1.6,
+          "speed": 1.15
+        },
+        {
+          "id": "s-en-workspace",
+          "from": 1.0,
+          "speed": 1.55
+        }
+      ],
+      "web": {
+        "path": "artifacts/launch-media/landing-v3/scenari.en",
+        "size": [
+          1600,
+          900
+        ],
+        "poster": 9.5,
+        "webm_crf": 36,
+        "mp4_crf": 25
+      }
     }
   },
   "hero": [
@@ -469,6 +947,104 @@
       "scene": "09-simula-as-is",
       "from": 2.6,
       "duration": 9
+    }
+  ],
+  "simpleScenes": [
+    {
+      "id": "s-it-fonti",
+      "hero": true
+    },
+    {
+      "id": "s-it-discovery",
+      "hero": true
+    },
+    {
+      "id": "s-it-evidenze",
+      "hero": true
+    },
+    {
+      "id": "s-it-divergenze",
+      "hero": true
+    },
+    {
+      "id": "s-it-lacuna",
+      "hero": true
+    },
+    {
+      "id": "s-it-review",
+      "hero": true
+    },
+    {
+      "id": "s-it-replay-as-is",
+      "hero": true
+    },
+    {
+      "id": "s-it-replay-to-be",
+      "hero": true
+    },
+    {
+      "id": "s-it-heatmap",
+      "hero": true
+    },
+    {
+      "id": "s-it-workspace",
+      "hero": true
+    },
+    {
+      "id": "s-it-consegna",
+      "hero": true
+    },
+    {
+      "id": "s-it-contesto",
+      "hero": true
+    },
+    {
+      "id": "s-en-fonti",
+      "hero": true
+    },
+    {
+      "id": "s-en-discovery",
+      "hero": true
+    },
+    {
+      "id": "s-en-evidenze",
+      "hero": true
+    },
+    {
+      "id": "s-en-divergenze",
+      "hero": true
+    },
+    {
+      "id": "s-en-lacuna",
+      "hero": true
+    },
+    {
+      "id": "s-en-review",
+      "hero": true
+    },
+    {
+      "id": "s-en-replay-as-is",
+      "hero": true
+    },
+    {
+      "id": "s-en-replay-to-be",
+      "hero": true
+    },
+    {
+      "id": "s-en-heatmap",
+      "hero": true
+    },
+    {
+      "id": "s-en-workspace",
+      "hero": true
+    },
+    {
+      "id": "s-en-consegna",
+      "hero": true
+    },
+    {
+      "id": "s-en-contesto",
+      "hero": true
     }
   ]
 }
