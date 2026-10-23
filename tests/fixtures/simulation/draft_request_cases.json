@@ -1229,5 +1229,518 @@
         }
       ]
     }
+  },
+  {
+    "name": "esiti delle attivita' letti dalle regole, senza attributi del caso; un esito rotto si scarta",
+    "scenarioName": "Esiti",
+    "template": {
+      "resources": [
+        {
+          "id": "clerk",
+          "name": "Impiegato",
+          "kind": "lane",
+          "bpmn_id": "Lane_1",
+          "pool_name": "Banca",
+          "task_ids": [
+            "T1"
+          ]
+        },
+        {
+          "id": "approver",
+          "name": "Approvatore",
+          "kind": "lane",
+          "bpmn_id": "Lane_2",
+          "pool_name": "Banca",
+          "task_ids": [
+            "T2",
+            "T3"
+          ]
+        }
+      ],
+      "tasks": [
+        {
+          "element_id": "T1",
+          "name": "Verifica",
+          "type": "task"
+        },
+        {
+          "element_id": "T2",
+          "name": "Approva",
+          "type": "userTask"
+        },
+        {
+          "element_id": "T3",
+          "name": "Seconda approvazione",
+          "type": "userTask",
+          "multi_instance": "parallel",
+          "instances": null
+        }
+      ],
+      "gateways": [
+        {
+          "element_id": "G1",
+          "name": "Importo",
+          "type": "exclusiveGateway",
+          "branches": [
+            {
+              "flow_id": "F_hi",
+              "flow_name": "alto",
+              "target_name": "Seconda approvazione"
+            },
+            {
+              "flow_id": "F_lo",
+              "flow_name": "basso",
+              "target_name": "Fine"
+            }
+          ]
+        },
+        {
+          "element_id": "G2",
+          "name": "Esito",
+          "type": "exclusiveGateway",
+          "branches": [
+            {
+              "flow_id": "F_ok",
+              "flow_name": "ok",
+              "target_name": "Fine"
+            },
+            {
+              "flow_id": "F_ko",
+              "flow_name": "ko",
+              "target_name": "Rifiuto"
+            }
+          ]
+        }
+      ],
+      "waits": [
+        {
+          "element_id": "W_reply",
+          "name": "Risposta del cliente",
+          "kind": "message"
+        },
+        {
+          "element_id": "W_timer",
+          "name": "Attendi 2 giorni",
+          "kind": "timer",
+          "seconds": 172800
+        }
+      ]
+    },
+    "draft": {
+      "scenarioName": "Esiti",
+      "totalCases": 50,
+      "arrivalIntervalMinutes": 20,
+      "defaultTaskMinutes": 10,
+      "resources": [
+        {
+          "id": "clerk",
+          "name": "Impiegato",
+          "amount": 3,
+          "costPerHour": 28,
+          "calendarId": "cal-1",
+          "parametersConfirmed": true,
+          "source": {
+            "id": "clerk",
+            "name": "Impiegato",
+            "kind": "lane",
+            "bpmn_id": "Lane_1",
+            "task_ids": [
+              "T1"
+            ]
+          }
+        },
+        {
+          "id": "approver",
+          "name": "Approvatore",
+          "amount": 2,
+          "costPerHour": 45.5,
+          "calendarId": "cal-bad",
+          "shifts": [
+            {
+              "amount": 1,
+              "calendarId": "cal-2"
+            }
+          ],
+          "source": {
+            "id": "approver",
+            "name": "Approvatore",
+            "kind": "lane",
+            "bpmn_id": "Lane_2",
+            "task_ids": [
+              "T2",
+              "T3"
+            ]
+          }
+        },
+        {
+          "id": "res-3",
+          "name": "Back office",
+          "amount": 1,
+          "costPerHour": 30
+        }
+      ],
+      "calendars": [
+        {
+          "id": "cal-1",
+          "name": "Ufficio",
+          "periods": [
+            {
+              "from_day": "MONDAY",
+              "to_day": "FRIDAY",
+              "begin": "09:00",
+              "end": "18:00"
+            }
+          ]
+        },
+        {
+          "id": "cal-2",
+          "name": "Rinforzo",
+          "periods": [
+            {
+              "from_day": "MONDAY",
+              "to_day": "WEDNESDAY",
+              "begin": "09:00",
+              "end": "13:00"
+            }
+          ]
+        },
+        {
+          "id": "cal-bad",
+          "name": "Rotto",
+          "periods": [
+            {
+              "from_day": "MOON",
+              "to_day": "FRIDAY",
+              "begin": "09:00",
+              "end": "18:00"
+            }
+          ]
+        }
+      ],
+      "tasks": {
+        "T1": {
+          "meanMinutes": 15,
+          "distribution": "lognorm",
+          "stdMinutes": 4.25,
+          "minMinutes": 2,
+          "maxMinutes": 60.3,
+          "resourceId": "res-3",
+          "assignmentSource": "manual",
+          "claims": [
+            {
+              "claimId": 7,
+              "label": "Manuale procedure, p. 4"
+            }
+          ],
+          "fixedCost": 1.2,
+          "otherAssignments": [
+            {
+              "resourceId": "clerk",
+              "meanMinutes": 18,
+              "distribution": "norm",
+              "stdMinutes": 3
+            },
+            {
+              "resourceId": "res-3",
+              "meanMinutes": 10,
+              "distribution": "fixed"
+            },
+            {
+              "resourceId": "nobody",
+              "meanMinutes": 10,
+              "distribution": "fixed"
+            }
+          ],
+          "outcome": {
+            "name": " esito ",
+            "categories": [
+              {
+                "value": "OK",
+                "percent": 66.6
+              },
+              {
+                "value": " KO",
+                "percent": 33.4
+              }
+            ]
+          }
+        },
+        "T2": {
+          "meanMinutes": 40,
+          "distribution": "norm",
+          "stdMinutes": 10,
+          "resourceId": "approver",
+          "assignmentSource": "bpmn",
+          "outcome": "rotto",
+          "rework": {
+            "backTo": "T1",
+            "percent": 25,
+            "maxRepeats": 2,
+            "rule": [
+              [
+                {
+                  "attributeId": "outcome:T1",
+                  "operator": "=",
+                  "value": "KO"
+                }
+              ]
+            ]
+          }
+        },
+        "T3": {
+          "meanMinutes": 30,
+          "distribution": "uniform",
+          "minMinutes": 25,
+          "maxMinutes": 36,
+          "resourceId": "approver",
+          "assignmentSource": "bpmn",
+          "outcome": {
+            "name": "controllo",
+            "categories": [
+              {
+                "value": "superato",
+                "percent": 90
+              },
+              {
+                "value": "respinto",
+                "percent": "tanto"
+              }
+            ]
+          }
+        }
+      },
+      "gateways": {},
+      "gatewayRules": {
+        "G2": {
+          "F_ok": [
+            [
+              {
+                "attributeId": "outcome:T1",
+                "operator": "=",
+                "value": "OK"
+              }
+            ]
+          ],
+          "F_ko": [
+            [
+              {
+                "attributeId": "outcome:T1",
+                "operator": "=",
+                "value": "KO"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "expected": {
+      "scenario_name": "Esiti",
+      "total_cases": 50,
+      "arrival_interval_seconds": 1200,
+      "default_task_duration_seconds": 600,
+      "default_cost_per_hour": 28,
+      "resource_amount": 3,
+      "resource_name": "Impiegato",
+      "arrival": {
+        "mean_seconds": 1200,
+        "distribution": "expon"
+      },
+      "resources": [
+        {
+          "id": "clerk",
+          "name": "Impiegato",
+          "cost_per_hour": 28,
+          "amount": 3,
+          "calendar_id": "cal-1"
+        },
+        {
+          "id": "approver",
+          "name": "Approvatore",
+          "cost_per_hour": 45.5,
+          "amount": 2,
+          "shifts": [
+            {
+              "amount": 1,
+              "calendar_id": "cal-2"
+            }
+          ]
+        },
+        {
+          "id": "res-3",
+          "name": "Back office",
+          "cost_per_hour": 30,
+          "amount": 1
+        }
+      ],
+      "tasks": [
+        {
+          "element_id": "T1",
+          "mean_seconds": 900,
+          "distribution": "lognorm",
+          "resource_id": "res-3",
+          "std_seconds": 255,
+          "min_seconds": 120,
+          "max_seconds": 3618,
+          "claims": [
+            {
+              "claim_id": 7,
+              "label": "Manuale procedure, p. 4"
+            }
+          ],
+          "fixed_cost": 1.2,
+          "other_assignments": [
+            {
+              "resource_id": "clerk",
+              "mean_seconds": 1080,
+              "distribution": "norm",
+              "std_seconds": 180
+            }
+          ],
+          "outcome": {
+            "attribute": "esito",
+            "options": [
+              {
+                "value": "OK",
+                "probability": 0.6659999999999999
+              },
+              {
+                "value": "KO",
+                "probability": 0.33399999999999996
+              }
+            ]
+          }
+        },
+        {
+          "element_id": "T2",
+          "mean_seconds": 2400,
+          "distribution": "norm",
+          "resource_id": "approver",
+          "std_seconds": 600,
+          "rework": {
+            "back_to": "T1",
+            "probability": 0.25,
+            "max_repeats": 2,
+            "condition": {
+              "any_of": [
+                [
+                  {
+                    "attribute": "esito",
+                    "operator": "=",
+                    "value": "KO"
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "element_id": "T3",
+          "mean_seconds": 1830,
+          "distribution": "uniform",
+          "resource_id": "approver",
+          "min_seconds": 1500,
+          "max_seconds": 2160
+        }
+      ],
+      "gateways": [
+        {
+          "element_id": "G1",
+          "branches": [
+            {
+              "flow_id": "F_hi",
+              "probability": 0.5
+            },
+            {
+              "flow_id": "F_lo",
+              "probability": 0.5
+            }
+          ]
+        },
+        {
+          "element_id": "G2",
+          "branches": [
+            {
+              "flow_id": "F_ok",
+              "probability": 0.5
+            },
+            {
+              "flow_id": "F_ko",
+              "probability": 0.5
+            }
+          ]
+        }
+      ],
+      "calendars": [
+        {
+          "id": "cal-1",
+          "name": "Ufficio",
+          "periods": [
+            {
+              "from_day": "MONDAY",
+              "to_day": "FRIDAY",
+              "begin": "09:00",
+              "end": "18:00"
+            }
+          ]
+        },
+        {
+          "id": "cal-2",
+          "name": "Rinforzo",
+          "periods": [
+            {
+              "from_day": "MONDAY",
+              "to_day": "WEDNESDAY",
+              "begin": "09:00",
+              "end": "13:00"
+            }
+          ]
+        }
+      ],
+      "model_patch": {
+        "gateways": [
+          {
+            "element_id": "G2",
+            "branches": [
+              {
+                "flow_id": "F_ok",
+                "probability": 0.5,
+                "condition": {
+                  "any_of": [
+                    [
+                      {
+                        "attribute": "esito",
+                        "operator": "=",
+                        "value": "OK"
+                      }
+                    ]
+                  ]
+                },
+                "provenance": {
+                  "origin": "manual"
+                }
+              },
+              {
+                "flow_id": "F_ko",
+                "probability": 0.5,
+                "condition": {
+                  "any_of": [
+                    [
+                      {
+                        "attribute": "esito",
+                        "operator": "=",
+                        "value": "KO"
+                      }
+                    ]
+                  ]
+                },
+                "provenance": {
+                  "origin": "manual"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
   }
 ]
