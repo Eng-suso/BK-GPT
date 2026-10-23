@@ -696,6 +696,7 @@ def draft_to_request_body(draft: dict[str, Any], scenario_name: str) -> dict[str
                 "amount": r.get("amount", ...),
                 "calendar_id": r["calendarId"] if (r.get("calendarId") or "") in calendar_ids else ...,
                 "shifts": [{"amount": s.get("amount"), "calendar_id": s.get("calendarId")} for s in r["shifts"]] if r.get("shifts") else ...,
+                "kind": "system" if r.get("kind") == "system" else ...,
             })
             for r in resources
         ],
