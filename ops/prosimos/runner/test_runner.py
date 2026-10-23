@@ -213,6 +213,41 @@ def test_bands_that_do_not_make_sense_are_refused(bands):
         arrival_bands.weekly_intervals(bands)
 
 
+def test_a_month_factor_scales_the_rate_of_every_band_in_that_month():
+    # SIM-08b: dicembre al triplo di novembre, stesse fasce.
+    from datetime import UTC, datetime, timedelta
+
+    numpy.random.seed(5)
+    start = datetime(2026, 11, 1, 0, 0, tzinfo=UTC)
+    offsets = arrival_bands.arrival_offsets([MORNING], start, 3500, {12: 3.0})
+    moments = [start + timedelta(seconds=s) for s in offsets]
+    november = sum(1 for m in moments if m.month == 11)
+    december = sum(1 for m in moments if m.month == 12 and m.day <= 30)
+    # Novembre 2026 e i primi 30 giorni di dicembre hanno 21 e 22 giorni feriali.
+    assert 2.6 < (december / 22) / (november / 21) < 3.4, (november, december)
+    assert all(9 <= m.hour < 12 for m in moments)
+
+
+@pytest.mark.parametrize("raw", [{"13": 1.2}, {"0": 1.0}, {"5": 0}, {"5": -1}, {"maggio": 1.1}])
+def test_months_that_do_not_make_sense_are_refused(raw):
+    with pytest.raises(ValueError):
+        arrival_bands.parse_months(raw)
+
+
+def test_the_runner_applies_the_months_and_says_so(client):
+    scenario = {**contract_spike.base_scenario(), arrival_bands.SECTION: [MORNING],
+                arrival_bands.MONTHS_SECTION: {"12": 1.4, "8": 0.5}}
+    body = _post(client, scenario, cases=20, seed="11").get_json()
+    assert body["ArrivalBands"] == 1 and body["ArrivalMonths"] == 2
+
+
+def test_months_without_bands_are_a_bad_request(client):
+    scenario = {**contract_spike.base_scenario(), arrival_bands.MONTHS_SECTION: {"12": 1.4}}
+    response = _post(client, scenario, cases=10)
+    assert response.status_code == 400
+    assert arrival_bands.MONTHS_SECTION in response.get_data(as_text=True)
+
+
 def test_the_runner_applies_the_bands_and_says_so(client):
     scenario = {**contract_spike.base_scenario(), arrival_bands.SECTION: [MORNING]}
     response = _post(client, scenario, cases=40, seed="11")
