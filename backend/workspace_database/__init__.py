@@ -1,68 +1,27 @@
-import hashlib
-import json
-import logging
-import re
-from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any, Literal
+"""Lo stato operativo del workspace, un modulo per aggregato.
 
-from pydantic import BaseModel, ConfigDict, ValidationError
-from sqlalchemy import and_, delete, func, or_, select
+Il pacchetto e' la facciata: chi legge e scrive importa da qui
+(`from backend import workspace_database as wd`) e non da un modulo interno.
+Dentro, un modulo per aggregato:
 
-from backend.agents.chat_mode import assert_write_allowed
-from backend.agents.run_context import BpmnVersionConflict, active_turn_writes
-from backend.process_understanding import (
-    ProcessUnderstanding,
-    ProcessUnknown,
-    quality_report_from_understanding,
-    unknown_question_id,
-)
-from backend.security import get_current_tenant_id
-from backend.workspace_defaults import (
-    UNKNOWN_NEXT_STEP,
-    UNKNOWN_OWNER,
-    UNKNOWN_SECTOR,
-    is_unknown_client_status,
-    normalize_client_status,
-    resolve_client_status,
-    resolve_process_stage,
-    resolve_process_status,
-    resolve_project_phase,
-    resolve_project_status,
-)
-from backend.workspace_milestones import merge_milestones, normalise_milestones
-from backend.workspace_services.bpmn_review import build_bpmn_review_draft, bpmn_xml_from_review
-from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
-from backend.workspace_storage import (
-    WorkspaceBpmnModel,
-    WorkspaceBpmnReview,
-    WorkspaceBpmnReviewVersion,
-    WorkspaceBpmnVersion,
-    WorkspaceClaimRelation,
-    WorkspaceClient,
-    WorkspaceDecision,
-    WorkspaceEventLog,
-    WorkspaceEventLogPayload,
-    WorkspacePlanExtraction,
-    WorkspacePlanMaterialization,
-    WorkspaceProcess,
-    WorkspaceProject,
-    WorkspaceSimulationRun,
-    WorkspaceSimulationRunArtifact,
-    WorkspaceSimulationRunLog,
-    WorkspaceSimulationScenario,
-    WorkspaceEvidenceSegment,
-    WorkspaceSource,
-    WorkspaceSourceAudit,
-    WorkspaceSourceClaim,
-    WorkspaceSourceEvidence,
-    workspace_connection,
-)
+- `_common`: serializzazione di liste e milestone, ora, tenant, id e slug;
+- `registry`: clienti, incarichi e processi, con i limiti sulle liste;
+- `bpmn`: modelli BPMN e versioni, con il controllo sulle scritture concorrenti;
+- `reviews`: la review del BPMN, dalle domande all'approvazione;
+- `conformance`: decisioni per elemento e confronto con le fonti, con la coda;
+- `sources`: fonti di progetto e cliente, acquisizione, verifica e scarto;
+- `evidence`: affermazioni, riconciliazione, divergenze e proiezione nel grafo;
+- `plans`: estrazioni del piano, audit delle fonti e coda di ricostruzione;
+- `decisions`: le decisioni registrate su un incarico;
+- `lifecycle`: impatto, archivio, ripristino, cancellazione, azzeramento.
 
+Una funzione sostituita sulla facciata (`monkeypatch.setattr(wd, ...)`) cambia
+cio' che vede chi chiama da fuori, non le chiamate fra moduli interni: un test
+che vuole raggiungere quelle sostituisce la funzione nel modulo che la
+definisce, come fa `test_a_source_that_fails_to_save_leaves_no_queued_work`
+con `wd.plans`.
+"""
 
-if TYPE_CHECKING:
-    from backend.workspace_services.evidence.claims import ClaimsResult
-    from backend.workspace_services.evidence.reconcile import ReconcileResult
-    from backend.workspace_services.source_ingestion import ParsedSource
 from backend.workspace_database._common import (
     decode_list,
     decode_milestones,
@@ -79,7 +38,6 @@ from backend.workspace_database._common import (
 from backend.workspace_database.registry import (
     DEFAULT_LIST_LIMIT,
     MAX_LIST_LIMIT,
-    _clean_list,
     capped_limit,
     client_to_dict,
     clients_statement,
@@ -101,33 +59,8 @@ from backend.workspace_database.registry import (
     update_process,
     update_project,
 )
-from backend.workspace_database.conformance import (
-    CONFORMANCE_FAILED,
-    CONFORMANCE_LEASE_SECONDS,
-    CONFORMANCE_MAX_ATTEMPTS,
-    CONFORMANCE_UNAVAILABLE,
-    ELEMENT_DECISIONS,
-    _ElementDecisionRecord,
-    _queue_conformance,
-    conformance_queue_stats,
-    conformance_state,
-    decode_conformance_report,
-    decode_element_decisions,
-    due_conformance_checks,
-    enqueue_unchecked_conformance,
-    record_conformance_report,
-    record_element_decision,
-    release_conformance_check,
-    request_conformance_check,
-)
 from backend.workspace_database.bpmn import (
     NO_PRECONDITION,
-    _NoPrecondition,
-    _assert_bpmn_not_changed_underneath,
-    _canvas_xml_for_write,
-    _latest_bpmn_version,
-    _latest_bpmn_version_id,
-    _remember_turn_write,
     bpmn_version_to_dict,
     create_bpmn_version,
     get_bpmn_model,
@@ -137,15 +70,6 @@ from backend.workspace_database.bpmn import (
 )
 from backend.workspace_database.reviews import (
     UnreadableReviewError,
-    _KEEP_EVIDENCE_SOURCE_SET,
-    _KeepExistingValue,
-    _RECOMMENDATION_WAITING_ON_THE_USER,
-    _assert_review_ready_for_approval,
-    _is_canonical_semantic_model_payload,
-    _mark_review_version_approved,
-    _open_missing_information,
-    _record_review_version,
-    _review_artifacts,
     answer_bpmn_review_question,
     answered_unknowns,
     approve_bpmn_review,
@@ -162,24 +86,22 @@ from backend.workspace_database.reviews import (
     unanswered_questions,
     update_bpmn_review_brief,
 )
-from backend.workspace_database.plans import (
-    MATERIALIZATION_BACKOFF_SECONDS,
-    MATERIALIZATION_LEASE_SECONDS,
-    MATERIALIZATION_MAX_ATTEMPTS,
-    _materialization_to_dict,
-    _owned_materialization,
-    _plan_extraction_to_dict,
-    complete_plan_materialization,
-    due_plan_materializations,
-    enqueue_plan_materialization,
-    enqueue_stale_plan_materializations,
-    fail_plan_materialization,
-    plan_extractions_by_key,
-    plan_materialization_for,
-    plan_materialization_stats,
-    save_plan_extraction,
-    save_source_audit,
-    source_audits_by_key,
+from backend.workspace_database.conformance import (
+    CONFORMANCE_FAILED,
+    CONFORMANCE_LEASE_SECONDS,
+    CONFORMANCE_MAX_ATTEMPTS,
+    CONFORMANCE_UNAVAILABLE,
+    ELEMENT_DECISIONS,
+    conformance_queue_stats,
+    conformance_state,
+    decode_conformance_report,
+    decode_element_decisions,
+    due_conformance_checks,
+    enqueue_unchecked_conformance,
+    record_conformance_report,
+    record_element_decision,
+    release_conformance_check,
+    request_conformance_check,
 )
 from backend.workspace_database.sources import (
     ACQUISITION_BACKOFF_SECONDS,
@@ -187,9 +109,6 @@ from backend.workspace_database.sources import (
     ACQUISITION_MAX_ATTEMPTS,
     SourceNotDiscardable,
     SourceNotVerifiable,
-    _approve_source,
-    _assert_source_scope,
-    _enqueue_plans_touched_by_source,
     complete_source_acquisition,
     confirm_sources_sent_in_chat,
     create_ingested_source,
@@ -219,10 +138,6 @@ from backend.workspace_database.evidence import (
     RECONCILE_BACKOFF_SECONDS,
     RECONCILE_LEASE_SECONDS,
     RECONCILE_MAX_ATTEMPTS,
-    _claims_as_input,
-    _queue_graph,
-    _relations_touching,
-    _sides,
     complete_source_claims,
     complete_source_graph,
     complete_source_reconcile,
@@ -240,19 +155,28 @@ from backend.workspace_database.evidence import (
     reconcile_inputs,
     record_graph_ids,
 )
+from backend.workspace_database.plans import (
+    MATERIALIZATION_BACKOFF_SECONDS,
+    MATERIALIZATION_LEASE_SECONDS,
+    MATERIALIZATION_MAX_ATTEMPTS,
+    complete_plan_materialization,
+    due_plan_materializations,
+    enqueue_plan_materialization,
+    enqueue_stale_plan_materializations,
+    fail_plan_materialization,
+    plan_extractions_by_key,
+    plan_materialization_for,
+    plan_materialization_stats,
+    save_plan_extraction,
+    save_source_audit,
+    source_audits_by_key,
+)
 from backend.workspace_database.decisions import (
     create_project_decision,
     decision_to_dict,
     list_project_decisions,
 )
 from backend.workspace_database.lifecycle import (
-    _client_or_raise,
-    _process_or_raise,
-    _project_or_raise,
-    _purge_process,
-    _purge_project,
-    _record_counts,
-    _remove_unreferenced_originals,
     archive_client,
     archive_process,
     archive_project,
@@ -270,5 +194,171 @@ from backend.workspace_database.lifecycle import (
     restore_project,
 )
 
+# Nomi di altri moduli che i chiamanti leggevano come `wd.<nome>` quando questo
+# era un file solo: restano raggiungibili da qui.
+from backend.agents.run_context import BpmnVersionConflict
+from backend.workspace_storage import (
+    WorkspaceBpmnReview,
+    WorkspaceProcess,
+    WorkspaceSource,
+    workspace_connection,
+)
 
-logger = logging.getLogger(__name__)
+__all__ = [
+    "ACQUISITION_BACKOFF_SECONDS",
+    "ACQUISITION_LEASE_SECONDS",
+    "ACQUISITION_MAX_ATTEMPTS",
+    "BpmnVersionConflict",
+    "CLAIMS_BACKOFF_SECONDS",
+    "CLAIMS_LEASE_SECONDS",
+    "CLAIMS_MAX_ATTEMPTS",
+    "CONFORMANCE_FAILED",
+    "CONFORMANCE_LEASE_SECONDS",
+    "CONFORMANCE_MAX_ATTEMPTS",
+    "CONFORMANCE_UNAVAILABLE",
+    "DEFAULT_LIST_LIMIT",
+    "ELEMENT_DECISIONS",
+    "GRAPH_BACKOFF_SECONDS",
+    "GRAPH_LEASE_SECONDS",
+    "GRAPH_MAX_ATTEMPTS",
+    "MATERIALIZATION_BACKOFF_SECONDS",
+    "MATERIALIZATION_LEASE_SECONDS",
+    "MATERIALIZATION_MAX_ATTEMPTS",
+    "MAX_LIST_LIMIT",
+    "MAX_RECONCILE_CANDIDATES",
+    "NO_PRECONDITION",
+    "RECONCILE_BACKOFF_SECONDS",
+    "RECONCILE_LEASE_SECONDS",
+    "RECONCILE_MAX_ATTEMPTS",
+    "SourceNotDiscardable",
+    "SourceNotVerifiable",
+    "UnreadableReviewError",
+    "WorkspaceBpmnReview",
+    "WorkspaceProcess",
+    "WorkspaceSource",
+    "answer_bpmn_review_question",
+    "answered_unknowns",
+    "approve_bpmn_review",
+    "archive_client",
+    "archive_process",
+    "archive_project",
+    "bpmn_version_to_dict",
+    "capped_limit",
+    "client_impact",
+    "client_to_dict",
+    "clients_statement",
+    "complete_plan_materialization",
+    "complete_source_acquisition",
+    "complete_source_claims",
+    "complete_source_graph",
+    "complete_source_reconcile",
+    "confirm_sources_sent_in_chat",
+    "conformance_queue_stats",
+    "conformance_state",
+    "count_clients",
+    "count_projects",
+    "create_bpmn_version",
+    "create_client",
+    "create_ingested_source",
+    "create_process",
+    "create_project",
+    "create_project_decision",
+    "create_project_source",
+    "decision_to_dict",
+    "decode_answers",
+    "decode_conformance_report",
+    "decode_element_decisions",
+    "decode_list",
+    "decode_milestones",
+    "delete_client",
+    "delete_process",
+    "delete_project",
+    "discard_uploaded_source",
+    "due_conformance_checks",
+    "due_plan_materializations",
+    "due_source_acquisitions",
+    "due_source_claims",
+    "due_source_graph",
+    "due_source_reconcile",
+    "encode_list",
+    "encode_milestones",
+    "enqueue_plan_materialization",
+    "enqueue_stale_plan_materializations",
+    "enqueue_unchecked_conformance",
+    "ensure_project_source",
+    "fail_plan_materialization",
+    "fail_source_acquisition",
+    "fail_source_claims",
+    "fail_source_graph",
+    "fail_source_reconcile",
+    "fill_client_placeholders",
+    "get_bpmn_model",
+    "get_bpmn_review",
+    "get_bpmn_review_version",
+    "get_client_name",
+    "get_process",
+    "get_project",
+    "get_project_source",
+    "get_project_source_record",
+    "graph_divergences",
+    "list_archive",
+    "list_bpmn_review_versions",
+    "list_bpmn_versions",
+    "list_claim_relations",
+    "list_claims_for_sources",
+    "list_client_sources",
+    "list_clients",
+    "list_evidence_segments",
+    "list_project_decisions",
+    "list_project_processes",
+    "list_project_sources",
+    "list_projects",
+    "list_source_claims",
+    "normalize_name",
+    "now_iso",
+    "open_questions_with_answers",
+    "plan_extractions_by_key",
+    "plan_materialization_for",
+    "plan_materialization_stats",
+    "prepare_bpmn_review",
+    "process_id_for_identity",
+    "process_impact",
+    "process_to_dict",
+    "project_impact",
+    "project_to_dict",
+    "projects_statement",
+    "reconcile_inputs",
+    "record_conformance_report",
+    "record_element_decision",
+    "record_graph_ids",
+    "release_conformance_check",
+    "request_conformance_check",
+    "reset_workspace",
+    "restore_bpmn_version",
+    "restore_client",
+    "restore_process",
+    "restore_project",
+    "review_approval_blockers",
+    "review_to_dict",
+    "review_version_to_dict",
+    "revise_bpmn_review",
+    "save_plan_extraction",
+    "save_source_audit",
+    "slugify",
+    "source_acquisition_stats",
+    "source_audits_by_key",
+    "source_to_dict",
+    "tenant_id",
+    "tenant_row",
+    "unanswered_questions",
+    "unique_id",
+    "update_bpmn_model",
+    "update_bpmn_review_brief",
+    "update_client",
+    "update_process",
+    "update_project",
+    "update_source_roles",
+    "validate_source_scopes",
+    "verify_project_source",
+    "workspace_connection",
+]
