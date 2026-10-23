@@ -1,10 +1,12 @@
+import type { BackendModule } from "i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { i18n, loadProcessTranslations } from "@/lib/i18n";
 
 describe("loadProcessTranslations", () => {
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks();
+    await i18n.changeLanguage("it");
   });
 
   it("dice quando process.json non arriva, invece di risolvere comunque", async () => {
@@ -20,5 +22,25 @@ describe("loadProcessTranslations", () => {
 
   it("risolve quando le traduzioni ci sono", async () => {
     await expect(loadProcessTranslations()).resolves.toBeUndefined();
+  });
+
+  it("dopo un fallimento, la volta dopo ci riprova davvero", async () => {
+    // i18next segna come fallito (-1) un namespace che il backend non ha
+    // portato, e da li' in poi lo salta: senza rimedio, "Riprova" risolveva
+    // subito e la pagina partiva senza parole. Qui il backend e' quello vero,
+    // e fallisce solo la prima lettura.
+    const backend = i18n.services.backendConnector.backend as BackendModule;
+    const read = vi.spyOn(backend, "read").mockImplementationOnce((_language, _namespace, callback) => {
+      callback(new Error("rete giu'"), false);
+    });
+    await i18n.changeLanguage("it");
+    i18n.removeResourceBundle("it", "process");
+
+    await expect(loadProcessTranslations()).rejects.toThrow("process translations not loaded");
+    expect(i18n.hasResourceBundle("it", "process")).toBe(false);
+
+    await expect(loadProcessTranslations()).resolves.toBeUndefined();
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(i18n.hasResourceBundle("it", "process")).toBe(true);
   });
 });

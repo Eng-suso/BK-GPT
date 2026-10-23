@@ -91,17 +91,33 @@ const initialized = i18n.use(lazyNamespaces).use(initReactI18next).init({
  * comunque (l'errore va solo alla callback), e chi la aspettava apriva la
  * schermata con le chiavi al posto delle parole invece di dire che non e'
  * riuscito a caricarla.
+ *
+ * Dopo un fallimento i18next segna `process` come fallito e alle richieste
+ * successive lo salta, risolvendo senza leggere: un "Riprova" non avrebbe
+ * riprovato niente. Lo stato fallito si dimentica qui, cosi' la volta dopo il
+ * file si chiede di nuovo.
  */
 export function loadProcessTranslations(): Promise<void> {
   return initialized.then(
     () =>
       new Promise<void>((resolve, reject) => {
         void i18n.loadNamespaces("process", (error) => {
-          if (error) reject(new Error("process translations not loaded", { cause: error }));
-          else resolve();
+          if (!error) {
+            resolve();
+            return;
+          }
+          forgetFailedProcessLoads();
+          reject(new Error("process translations not loaded", { cause: error }));
         });
       }),
   );
+}
+
+function forgetFailedProcessLoads(): void {
+  const state = (i18n.services.backendConnector as { state?: Record<string, number> }).state ?? {};
+  for (const name of Object.keys(state)) {
+    if (name.endsWith("|process") && state[name] < 0) delete state[name];
+  }
 }
 
 i18n.on("languageChanged", (lng) => {
