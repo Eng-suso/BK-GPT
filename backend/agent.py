@@ -213,6 +213,18 @@ def recent_context_messages(messages: list, limit: int = RECENT_MESSAGE_LIMIT) -
     for group in reversed(selected_groups):
         selected.extend(group)
 
+    # La richiesta del turno resta sempre nel prompt. Dentro il loop dei tool
+    # ogni giro aggiunge una chiamata e i suoi risultati: dopo pochi giri la
+    # finestra ne e' piena e l'agente proseguirebbe senza sapere cosa gli e'
+    # stato chiesto. Se non e' gia' dentro, tutto il selezionato e' successivo
+    # a lei, quindi in testa e' al suo posto nell'ordine della conversazione.
+    latest_request = next(
+        (message for message in reversed(messages) if message_role(message) in {"human", "user"}),
+        None,
+    )
+    if latest_request is not None and not any(message is latest_request for message in selected):
+        selected.insert(0, latest_request)
+
     return selected
 
 
@@ -531,8 +543,11 @@ def build_agent(
                 existing = result.get("active_skill_context") or ""
                 joiner = "\n\n---\n\n" if existing else ""
                 result["active_skill_context"] = existing + joiner + playbook_context
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            # Best-effort, ma non muto: senza traccia un playbook rotto
+            # sparirebbe dai turni senza che nessuno se ne accorga.
+            logger.error("contesto dei playbook non disponibile in questo turno", exc_info=True)
+            degradation_counters.bump("playbook_context", "error", detail=type(exc).__name__)
         return result
 
     def route_scope(state: ConsultantState):
