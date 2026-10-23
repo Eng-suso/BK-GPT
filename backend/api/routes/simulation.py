@@ -271,9 +271,13 @@ def export_workspace_simulation_event_log(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     headers = {
-        "Content-Disposition": f'attachment; filename="simulation-run-{run_id}.{export.file.extension}"',
+        "Content-Disposition": f'attachment; filename="{export.filename}"',
         "X-Content-SHA256": export.file.sha256,
     }
+    if export.scenario:
+        headers["X-Simulation-Scenario-Id"] = str(export.scenario["id"])
+        headers["X-Simulation-Scenario-Revision"] = str(export.scenario["revision"])
+        headers["X-Simulation-Baseline-Revision"] = str(export.scenario["baseline_revision"])
     if export.seed is not None:
         headers["X-Simulation-Seed"] = str(export.seed)
     if export.engine_version:
