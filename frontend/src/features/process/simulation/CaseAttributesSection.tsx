@@ -137,7 +137,7 @@ export function CaseAttributesSection({ attributes, usedBy, onChange }: {
   );
 }
 
-function CategoryFields({ attribute, invalid, describedBy, onChange }: {
+export function CategoryFields({ attribute, invalid, describedBy, onChange }: {
   attribute: Category;
   invalid: string | null;
   describedBy?: string;

@@ -550,7 +550,22 @@
       "replications": "Replications",
       "replicationsHint": "The scenario runs several times, each with different cases: results get an interval and do not hinge on a lucky draw. From 1 to 20.",
       "invalidReplications": "Replications go from 1 to 20.",
-      "bandAttributeNote": "Filled from the arrival bands with the band each case arrives in: {{values}}. Change it from the bands."
+      "bandAttributeNote": "Filled from the arrival bands with the band each case arrives in: {{values}}. Change it from the bands.",
+      "invalidOutcomes": "Outcomes to complete: {{count}}.",
+      "outcome": {
+        "legend": "Outcome of {{task}}",
+        "toggle": "Gives an outcome",
+        "name": "Outcome name",
+        "hint": "Each time the activity ends, the case gets one of these categories. Decisions, skips and rework after the activity can use it in their rules; a case that did not pass here follows the decision's percentages.",
+        "issue": {
+          "name": "Name the outcome.",
+          "duplicateName": "This name already belongs to a case attribute or another outcome.",
+          "reservedName": "Names starting with delir_ are reserved.",
+          "categories": "Add at least one category.",
+          "categoryValue": "Each category needs a name, different from the others.",
+          "categorySum": "Shares must be above 0 and add up to 100%."
+        }
+      }
     },
     "diagram": {
       "title": "Process model",
@@ -682,7 +697,9 @@
       "waitUnset": "Wait not set in the panel: the case moved on at once.",
       "waitNoteManual": "The case waited this long, as set in the panel, at any hour. No resource was busy.",
       "instancesSequential": "Run {{count}} times per case, one after the other: each instance has its own duration.",
-      "instancesParallel": "Run {{count}} times per case, in parallel: each instance takes its own resource."
+      "instancesParallel": "Run {{count}} times per case, in parallel: each instance takes its own resource.",
+      "outcome": "Outcome «{{name}}»",
+      "outcomeNote": "Share of each category at each completion. Rules after the activity read it."
     },
     "provenance": {
       "label": "Source",
