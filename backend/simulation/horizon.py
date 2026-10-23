@@ -64,9 +64,14 @@ def horizon_cases(model: SimulationModel, start_date: str, days: int) -> int:
     start = _parse(start_date)
     end = start + timedelta(days=days)
     arrival = model.arrival
-    if arrival.bands:
+    bands = model.arrival_bands()
+    if bands:
+        # SIM-08b: una fascia sta in un giorno, quindi ogni apertura e' in un solo mese.
+        factors = {m.month: m.factor for m in arrival.months}
         expected = sum(
-            _open_seconds(start, end, [band]) / band.mean_seconds for band in arrival.bands
+            (high - low) / band.mean_seconds * factors.get((start + timedelta(seconds=low)).month, 1.0)
+            for band in bands
+            for low, high in _occurrences(start, end, [band])
         )
     else:
         calendar = next(c for c in model.calendars if c.id == arrival.calendar_id)
