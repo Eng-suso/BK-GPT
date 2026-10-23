@@ -30,7 +30,7 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 | P1.2a | Coda dei confronti: tetto di 5 tentativi, stato `failed` contato | 1 | **fatto** — #55 |
 | P1.2b | Quarantena per fonte | 1 | **fatto** (già su main: tentativi per fase, `failed`, errore leggibile, le altre fonti proseguono) |
 | — | I `ValueError` dei tool tornano al modello invece di far cadere il turno; argomenti fuori schema gestiti; confini (`RuntimeError`) invariati | 1 | **fatto** — #62 |
-| P1.4 | Agent Outcome Harness (stato prima/dopo, tool chiesti ed eseguiti, scenari stale / tenant / injection / crash); lo stato derivato della proiezione negli scenari resta da aggiungere | 1 | **fatto** — #84 |
+| P1.4 | Agent Outcome Harness (stato prima/dopo, tool chiesti ed eseguiti, scenari stale / tenant / injection / crash, proiezione `CORRUPT`/`STALE` servita da Postgres) | 1 | **fatto** — #84, PR in revisione per lo stato derivato |
 | P0.1 | Identità per persona (JWT), membership, tenant risolto dal server, fine di `default_consultant_id` | 2 | **bloccato** — D1 |
 | P0.2 | RLS sul workspace DB | 2 | **bloccato** — dopo D1 |
 | P0.3 | Lock dei turni su Postgres per `thread_id`; simulazioni in coda Postgres | 3 | **bloccato** — D2 |
@@ -53,7 +53,6 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 
 In quest'ordine, senza decisioni da aspettare:
 
-1. **P1.4**, seguito: uno scenario dell'harness sullo stato derivato (grafo `STALE`/`CORRUPT` servito da Postgres);
 2. **P2.1b** spezzare `workspace_database.py` per aggregato dietro la stessa facciata.
 
 ---
@@ -96,6 +95,7 @@ In quest'ordine, senza decisioni da aspettare:
 
 | Data | ID | Cosa | Verifica |
 | --- | --- | --- | --- |
+| 2026-10-23 | P1.4 | `tests/evals/l0_deterministic/test_agent_outcome_projection.py`: un turno vero con `retrieve_process_graph_context` su un cliente la cui proiezione e' `CORRUPT` (`mark_corrupt`, come la riconciliazione) o `STALE` (grafo di un projector vecchio), scritta davvero in `graph_projection_state`. Neo4j non si legge, la risposta arriva da Postgres e il modello vede `served_from`, motivo e copertura; un controllo `FRESH` legge Neo4j | 3 verdi; togliendo il ripiego da `gateway/graph.py` i due scenari non affidabili vanno rossi, il controllo resta verde |
 | 2026-10-07 | P2.1a | #85: `backend/memory/gateway/` con `__init__` come facciata (`__all__` invariato per i chiamanti); la riga di #72 su `list_project_sources` portata in `gateway/workspace.py` | stessi nomi importabili da `backend.memory.gateway`; equivalenza AST delle funzioni spostate; suite backend verde |
 | 2026-10-07 | P1.4 | #84: `tests/evals/outcome_harness.py` (turno vero con `build_tool_chat_subgraph`, tool veri, modello a copione) e 4 scenari L0 + un controllo | `tests/evals/l0_deterministic/test_agent_outcomes.py`: 6 verdi; mutazione del confine di scope presa |
 | 2026-10-07 | P1.1b | #83: `graph_projection_state` (watermark avanzato dal worker nella stessa transazione, `PROJECTOR_VERSION` conservata finche' non si ricostruisce, `corrupt_since`/`corrupt_reason`); `ProjectionHealth.CORRUPT`; `kg_reproject` scrive l'esito | `tests/memory/test_projection_state.py` (11, su Postgres canonical), `tests/memory/test_projection_health.py`; migrazione 0019 su e giu' |
