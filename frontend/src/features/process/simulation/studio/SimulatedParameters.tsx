@@ -143,6 +143,7 @@ function ProvenanceFoot({ field, t, provenanceState }: { field: FieldProvenance;
 
 function calendarText(calendar: CalendarView, lang: Lang, t: T): string {
   if (calendar.standard) return t("simulation.activityInspector.standardCalendar");
+  if ("always" in calendar) return t("simulation.activityInspector.alwaysCalendar");
   const periods = calendar.periods.map((p) => {
     const days = p.fromDay === p.toDay ? weekday(p.fromDay, lang) : `${weekday(p.fromDay, lang)}–${weekday(p.toDay, lang)}`;
     return `${days} ${p.begin}–${p.end}`;
@@ -178,7 +179,7 @@ function Assignment({ assignment, index, total, lang, t, provenanceState }: { as
   return <div className="sim-param-group">
     {total > 1 && <h5>{t("simulation.activityInspector.assignment", { n: index + 1, total })}</h5>}
     <dl>
-      {assignment.resource && <div><dt>{t("simulation.activityInspector.resource")}</dt><dd>{t("simulation.activityInspector.resourceValue", { name: assignment.resource.name, amount: assignment.resource.amount, cost: formatCurrency(assignment.resource.costPerHour, lang) })}</dd></div>}
+      {assignment.resource && <div><dt>{t("simulation.activityInspector.resource")}</dt><dd>{t(assignment.resource.system ? "simulation.activityInspector.systemValue" : "simulation.activityInspector.resourceValue", { name: assignment.resource.name, amount: assignment.resource.amount, cost: formatCurrency(assignment.resource.costPerHour, lang) })}</dd></div>}
       {assignment.resource && <div><dt>{t("simulation.activityInspector.calendar")}</dt><dd>{calendarText(assignment.resource.calendar, lang, t)}</dd></div>}
       {assignment.resource?.shifts.map((shift, index) => (
         <div key={index}>
