@@ -551,7 +551,7 @@
       "replicationsHint": "The scenario runs several times, each with different cases: results get an interval and do not hinge on a lucky draw. From 1 to 20.",
       "invalidReplications": "Replications go from 1 to 20.",
       "bandAttributeNote": "Filled from the arrival bands with the band each case arrives in: {{values}}. Change it from the bands.",
-      "invalidOutcomes": "Outcomes to complete: {{count}}.",
+      "invalidOutcomes": "Outcomes to complete: {{count}}",
       "outcome": {
         "legend": "Outcome of {{task}}",
         "toggle": "Gives an outcome",

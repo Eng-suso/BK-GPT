@@ -146,6 +146,19 @@ describe("elementFromModel", () => {
     expect(resource?.shifts).toEqual([{ amount: 2, calendar: { standard: false, name: "Notte", periods: [{ fromDay: "MONDAY", toDay: "FRIDAY", begin: "22:00", end: "23:59" }] } }]);
   });
 
+  it("reads the outcome the activity gave, leaving internal counters out", () => {
+    const model: RunModel = { ...MODEL, attribute_updates: [
+      { element_id: "Task_A", name: "esito", options: [{ value: "OK", probability: 0.8 }, { value: "KO", probability: 0.2 }] },
+      { element_id: "Task_A", name: "rischio", options: null },
+    ] };
+    const view = elementFromModel(model, "Task_A");
+    expect(view?.kind === "activity" && view.outcomes).toEqual([
+      { name: "esito", options: [{ value: "OK", probability: 0.8 }, { value: "KO", probability: 0.2 }] },
+    ]);
+    const other = elementFromModel(model, "Task_B");
+    expect(other?.kind === "activity" && other.outcomes).toEqual([]);
+  });
+
   it("returns null for an element the model does not simulate", () => {
     expect(elementFromModel(MODEL, "StartEvent_1")).toBeNull();
   });

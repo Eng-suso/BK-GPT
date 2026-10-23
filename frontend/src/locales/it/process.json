@@ -551,7 +551,7 @@
       "replicationsHint": "Lo scenario gira più volte, ogni volta con casi diversi: i risultati avranno un intervallo e non dipenderanno da un'estrazione fortunata. Da 1 a 20.",
       "invalidReplications": "Le ripetizioni vanno da 1 a 20.",
       "bandAttributeNote": "Riempito dalle fasce degli arrivi con la fascia in cui arriva ogni caso: {{values}}. Si cambia dalle fasce.",
-      "invalidOutcomes": "Esiti da completare: {{count}}.",
+      "invalidOutcomes": "Esiti da completare: {{count}}",
       "outcome": {
         "legend": "Esito di {{task}}",
         "toggle": "Dà un esito",
