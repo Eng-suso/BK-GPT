@@ -121,7 +121,9 @@ def test_a_source_that_fails_to_save_leaves_no_queued_work(empty_process, monkey
         original(process_id, reason=reason, session=session)
         raise RuntimeError("guasto dopo l'inserimento in coda")
 
-    monkeypatch.setattr(wd, "enqueue_plan_materialization", _boom)
+    # Le fonti mettono in coda passando dal modulo `plans`: e' li' che il
+    # guasto va simulato, la facciata lo vedrebbe solo chi chiama da fuori.
+    monkeypatch.setattr(wd.plans, "enqueue_plan_materialization", _boom)
 
     with pytest.raises(RuntimeError):
         wd.create_project_source(
