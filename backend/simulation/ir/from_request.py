@@ -20,9 +20,11 @@ from backend.simulation.ir.model import (
     Arrival,
     ArrivalBand,
     Assignment,
+    AttributeUpdate,
     Branch,
     Calendar,
     CalendarPeriod,
+    DiscreteOption,
     Distribution,
     DurationByAttribute,
     DurationVariant,
@@ -389,6 +391,39 @@ def with_flow_rules(model: SimulationModel, request: CreateSimulationRunRequest)
     except ValidationError as exc:
         reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
         raise ValueError(f"Salti e rilavorazioni: {reason}.") from exc
+
+
+def with_outcomes(model: SimulationModel, request: CreateSimulationRunRequest) -> SimulationModel:
+    """L'esito delle attivita' del pannello (SIM-31b): a ogni completamento un
+    attributo dell'attivita' prende una categoria, con la sua probabilita'.
+
+    Prosimos non lascia un evento cambiare un attributo del caso: l'esito ha un
+    nome suo, che le regole a valle leggono come un attributo. Va applicato
+    prima della ``model_patch``, le cui regole possono leggerlo; il modello
+    rifiuta poi un esito con il nome di un attributo del caso.
+    """
+    configs = [(cfg.element_id, cfg.outcome) for cfg in request.tasks or [] if cfg.outcome]
+    if not configs:
+        return model
+    activity_ids = {activity.element_id for activity in model.activities}
+    updates = list(model.attribute_updates)
+    for element_id, outcome in configs:
+        where = f"Esito di {element_id}"
+        if element_id not in activity_ids:
+            raise ValueError(f"{where}: non e' un'attivita' del processo.")
+        if outcome.attribute.startswith("delir_"):
+            raise ValueError(f"{where}: i nomi che iniziano con delir_ sono riservati.")
+        options = tuple(DiscreteOption(value=o.value, probability=o.probability) for o in outcome.options)
+        try:
+            updates.append(AttributeUpdate(element_id=element_id, name=outcome.attribute, options=options, provenance=_MANUAL))
+        except ValidationError as exc:
+            reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+            raise ValueError(f"{where}: {reason}.") from exc
+    try:
+        return SimulationModel.model_validate(model.model_copy(update={"attribute_updates": tuple(updates)}).model_dump())
+    except ValidationError as exc:
+        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+        raise ValueError(f"Esiti delle attivita': {reason}.") from exc
 
 
 def _manual(rule: _FlowRule | None) -> _FlowRule | None:

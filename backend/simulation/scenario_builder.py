@@ -19,7 +19,7 @@ from backend.simulation.ir import compile_for_prosimos, model_from_request
 from backend.simulation.ir.escalations import expand_escalations
 from backend.simulation.ir.flow_rules import expand_flow_rules
 from backend.simulation.ir.instances import expand_instances
-from backend.simulation.ir.from_request import with_band_attribute, with_flow_rules, with_request_waits
+from backend.simulation.ir.from_request import with_band_attribute, with_flow_rules, with_outcomes, with_request_waits
 from backend.simulation.ir.variants import expand_duration_variants
 from backend.simulation.ir.waits import with_bpmn_waits
 from backend.simulation.ir.baseline import baseline_model
@@ -76,7 +76,8 @@ def build_prosimos_scenario(
     """
     validate_simulation_bpmn(bpmn_xml)
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
-    model = model_from_request(request, tasks, gateways)
+    # Gli esiti delle attivita' prima della patch: le sue regole possono leggerli.
+    model = with_outcomes(model_from_request(request, tasks, gateways), request)
     if request.model_patch:
         model = apply_patch(model, request.model_patch)
         check_model_against_bpmn(model, tasks, gateways)
