@@ -1677,6 +1677,11 @@
       "within": "Dentro l'intervallo previsto",
       "outside": "Fuori dall'intervallo previsto",
       "noInterval": "Previsione senza intervallo: con le ripetizioni sarebbe difendibile"
+    },
+    "runLog": {
+      "label": "Log {{format}}",
+      "downloadAs": "Scarica il log simulato in {{format}}",
+      "error": "Il log di questo run non si può scaricare: i run più vecchi non lo conservano. Rilancia la simulazione."
     }
   },
   "side": {

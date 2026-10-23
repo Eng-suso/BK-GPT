@@ -20,6 +20,7 @@ import { CostBreakdown, HorizonNote, WarmupNote } from "./CostBreakdown";
 import { ReplicationSummary } from "./ReplicationSummary";
 import { SensitivityTornado } from "./SensitivityTornado";
 import { OperationsBrief } from "./OperationsBrief";
+import { RunLogDownload } from "./RunLogDownload";
 import {
   formatCurrency,
   formatDuration,
@@ -190,6 +191,7 @@ function RunSnapshot({
                 <LineChart aria-hidden className="size-3.5" />
                 {t("simulation.section.nav.dashboard")}
               </Button>}
+              <RunLogDownload run={run} />
             </>
           )}
         </div>

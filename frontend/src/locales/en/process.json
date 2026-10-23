@@ -1677,6 +1677,11 @@
       "within": "Inside the forecast interval",
       "outside": "Outside the forecast interval",
       "noInterval": "Forecast without an interval: replications would make it defensible"
+    },
+    "runLog": {
+      "label": "{{format}} log",
+      "downloadAs": "Download the simulated log as {{format}}",
+      "error": "This run's log cannot be downloaded: older runs do not keep it. Run the simulation again."
     }
   },
   "side": {
