@@ -20,7 +20,12 @@ come stringhe JSON doppiamente codificate, `StatsFilename`, `LogsFilename`) più
   uno nuovo e lo restituisce: ogni run si può rifare identico.
 - `EngineVersion`: la versione di Prosimos.
 - `ArrivalBands`: quante fasce degli arrivi (`delir_arrival_bands`) il runner ha
-  applicato.
+  applicato. Gli istanti si contano dall'inizio chiesto, anche fuori dalle
+  fasce: il runner non lascia che Prosimos lo sposti alla prima apertura.
+- `ArrivalMonths`: quanti mesi con un ritmo proprio (`delir_arrival_months`,
+  SIM-08b, mese → fattore) il runner ha applicato sopra le fasce. Senza fasce
+  la sezione si rifiuta con un `400`: il backend le ricava dal calendario degli
+  arrivi quando gli arrivi sono esponenziali.
 - `DurationWindows`: quante attività hanno durate per ora d'inizio
   (`delir_duration_windows`, SIM-33b). Prosimos non lo sa fare: il runner
   avvolge `TaskEvent.__init__` e riscala la durata campionata

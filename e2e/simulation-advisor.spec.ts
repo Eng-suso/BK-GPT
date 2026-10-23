@@ -69,6 +69,7 @@ const report = { bottleneck_el: "T_approve", bottleneck_name: "Approva", factors
   { kind: "add_resource", pool_id: "p", pool_name: "Ufficio acquisti", from_amount: 2, to_amount: 3, rationale: "Coda lunga.", estimate, target_el: "T_approve", target_name: "Approva" },
   { kind: "reallocate", pool_id: "p", pool_name: "Ufficio acquisti", from_amount: 2, to_amount: 3, rationale: "Sportello lavora al 30%.", estimate: { cycle_pct: -0.3, cost_pct: 0 }, target_el: "T_approve", target_name: "Approva", donor_pool_id: "d", donor_pool_name: "Sportello", donor_from_amount: 3 },
   { kind: "automate", pool_id: "p", pool_name: "Ufficio acquisti", from_amount: 2, to_amount: 2, rationale: "Meta' del lavoro.", estimate: { cycle_pct: -0.2, cost_pct: -0.1 }, target_el: "T_approve", target_name: "Approva", share: 0.5 },
+  { kind: "remove_step", pool_id: "p", pool_name: "Ufficio acquisti", from_amount: 2, to_amount: 2, rationale: "Ricevi ordine e' segnata come passo che non aggiunge valore.", estimate: { cycle_pct: -0.15, cost_pct: -0.2 }, target_el: "T_receive", target_name: "Ricevi ordine" },
 ] };
 const posted: { base: Record<string, unknown>; factors: { kind: string; element_id?: string; label: string }[] }[] = [];
 
@@ -124,4 +125,28 @@ test("the advisor proposes capacity, reallocation and automation, and automation
     const stored = JSON.parse(localStorage.getItem("delir-sim-scenario:advisor-model") ?? "{}");
     return [stored.scenarioName, stored.tasks?.T_approve?.meanMinutes, stored.tasks?.T_pay?.meanMinutes];
   })).toEqual(["Venti giorni · automazione Approva", 10, 20]);
+});
+
+test("a step marked as adding no value is proposed for removal and the scenario skips it (SIM-22b)", async ({ page }) => {
+  await fixture(page, [run]);
+  await page.goto(`${studio}/scenario`);
+  const marked = page.getByRole("checkbox", { name: "Non aggiunge valore · Ricevi ordine" });
+  // Da tastiera: la barra fissa con «Avvia simulazione» copre la casella appena scrollata.
+  await marked.focus();
+  await page.keyboard.press("Space");
+  await expect(marked).toBeChecked();
+  const request = page.waitForRequest((req) => req.method() === "POST" && req.url().endsWith("/simulation-runs"));
+  await page.getByRole("button", { name: "Avvia simulazione", exact: true }).click();
+  expect((await request).postDataJSON().tasks.find((t: { element_id: string }) => t.element_id === "T_receive").removable).toBe(true);
+
+  await page.goto(`${studio}/insights/42`);
+  const removal = page.locator('[data-sim-experiment="remove_step"]');
+  await expect(removal.getByRole("heading")).toHaveText("Togliere Ricevi ordine", { timeout: 30_000 });
+  await expect(removal).toContainText("Eliminare un passo");
+  await expect(removal).toContainText("15%");
+  await removal.getByRole("button", { name: "Crea scenario" }).click();
+  await expect.poll(() => page.evaluate(() => {
+    const stored = JSON.parse(localStorage.getItem("delir-sim-scenario:advisor-model") ?? "{}");
+    return [stored.scenarioName, stored.tasks?.T_receive?.skip];
+  })).toEqual(["Venti giorni · senza Ricevi ordine", { percent: 100 }]);
 });

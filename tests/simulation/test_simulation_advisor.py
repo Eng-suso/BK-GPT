@@ -171,3 +171,41 @@ def test_no_reallocation_when_the_donor_would_become_the_bottleneck():
 def test_no_reallocation_from_a_single_resource():
     report = suggest_experiments(_rich_summary(), _with_front_desk(_scenario(amount=1), amount=1))
     assert "reallocate" not in [e.kind for e in report.experiments]
+
+
+# --- SIM-22b: eliminare un passo che non aggiunge valore ----------------------------
+
+def _removal_summary():
+    # 10 casi, 6000 s di attraversamento: Verifica lavora 600 s e fa aspettare 1200 s a caso.
+    summary = _summary()
+    summary.update(casesCompleted=10, cost={"total": 1000.0})
+    summary["byActivity"] = [
+        {"el": "Task_Review", "name": "Verifica", "count": 10, "processing": {"avg": 600.0}, "wait": {"avg": 1200.0}, "avgCost": 25.0},
+        {"el": "Task_Approve", "name": "Approva", "count": 10, "processing": {"avg": 300.0}, "wait": {"avg": 200.0}, "avgCost": 10.0},
+    ]
+    return summary
+
+
+def test_a_step_marked_as_removable_is_proposed_with_what_it_saves():
+    request = {"tasks": [{"element_id": "Task_Review", "removable": True}, {"element_id": "Task_Approve"}]}
+
+    report = suggest_experiments(_removal_summary(), _scenario(), request)
+
+    (removal,) = [e for e in report.experiments if e.kind == "remove_step"]
+    assert removal.target_el == "Task_Review" and removal.target_name == "Verifica"
+    # (600 + 1200) / 6000 del tempo, 250 / 1000 del costo.
+    assert removal.estimate.cycle_pct == -0.3
+    assert removal.estimate.cost_pct == -0.25
+    assert "non aggiunge valore" in removal.rationale
+
+
+def test_without_marked_steps_nothing_is_proposed_for_removal():
+    report = suggest_experiments(_removal_summary(), _scenario(), {"tasks": [{"element_id": "Task_Review"}]})
+    assert all(e.kind != "remove_step" for e in report.experiments)
+    assert all(e.kind != "remove_step" for e in suggest_experiments(_removal_summary(), _scenario()).experiments)
+
+
+def test_a_removable_step_is_proposed_even_without_a_bottleneck():
+    summary = {**_removal_summary(), "bottleneck": None}
+    report = suggest_experiments(summary, _scenario(), {"tasks": [{"element_id": "Task_Review", "removable": True}]})
+    assert [e.kind for e in report.experiments] == ["remove_step"]

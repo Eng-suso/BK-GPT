@@ -44,6 +44,8 @@ class SimResourceConfig(BaseModel):
     calendar_id: str | None = Field(default=None, max_length=64)
     # SIM-30: unita' in piu' presenti solo in un altro calendario (un turno di rinforzo).
     shifts: list[SimResourceShiftConfig] = Field(default_factory=list, max_length=10)
+    # SIM-09b: un sistema o una macchina; senza calendario lavora sempre.
+    kind: Literal["person", "system"] = "person"
 
 
 class SimTaskAssignmentConfig(BaseModel):
@@ -86,6 +88,13 @@ class SimDurationWindowConfig(SimCalendarPeriodConfig):
     factor: float = Field(gt=0, le=10, allow_inf_nan=False)
 
 
+class SimArrivalMonthConfig(BaseModel):
+    """SIM-08b: nel mese ``month`` (1 = gennaio) i casi arrivano ``factor`` volte piu' spesso."""
+
+    month: int = Field(ge=1, le=12)
+    factor: float = Field(gt=0, le=10)
+
+
 class SimArrivalConfig(BaseModel):
     """Come arrivano i casi: la distribuzione del tempo fra un arrivo e il
     successivo e il calendario in cui arrivano.
@@ -106,6 +115,8 @@ class SimArrivalConfig(BaseModel):
     bands: list[SimArrivalBandConfig] = Field(default_factory=list, max_length=21)
     # SIM-33: un attributo del caso a categorie che riceve la fascia di arrivo.
     band_attribute: str | None = Field(default=None, min_length=1, max_length=64)
+    # SIM-08b: un ritmo diverso per mese, sopra le fasce o sugli arrivi esponenziali.
+    months: list[SimArrivalMonthConfig] = Field(default_factory=list, max_length=12)
 
 
 class SimSlaSegment(BaseModel):
@@ -221,6 +232,9 @@ class SimTaskConfig(BaseModel):
     instances: int | None = Field(default=None, ge=1, le=50)
     # SIM-31b: l'esito dell'attivita' cambia un attributo del caso.
     outcome: SimOutcomeConfig | None = None
+    # SIM-22b: il consulente la segna come passo che non aggiunge valore; il
+    # motore la esegue come le altre, l'advisor propone di toglierla.
+    removable: bool = False
 
 
 class SimGatewayBranchConfig(BaseModel):

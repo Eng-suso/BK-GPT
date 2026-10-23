@@ -697,6 +697,14 @@ class SimulationLogExport:
     seed: int | None
     engine_version: str | None
     file: Exported
+    # SIM-06b: lo scenario del workspace e le revisioni da cui viene il run, se ne viene da uno.
+    scenario: dict[str, int] | None = None
+
+    @property
+    def filename(self) -> str:
+        """``simulation-run-42-scenario-3-rev-5.csv``: lo scenario e la sua revisione nel nome."""
+        scenario = f"-scenario-{self.scenario['id']}-rev-{self.scenario['revision']}" if self.scenario else ""
+        return f"simulation-run-{self.run_id}{scenario}.{self.file.extension}"
 
 
 def export_simulation_event_log(run_id: int, fmt: Literal["csv", "xes"]) -> SimulationLogExport:
@@ -717,13 +725,25 @@ def export_simulation_event_log(run_id: int, fmt: Literal["csv", "xes"]) -> Simu
         log = from_log_events([ev for ev in arrived if ev.end <= end], source_name=f"simulation-run-{run_id}")
     else:
         log = from_prosimos_csv(csv_text, source_name=f"simulation-run-{run_id}")
+    ref = request.get("workspace_scenario")
+    scenario = (
+        {"id": int(ref["id"]), "revision": int(ref["revision"]), "baseline_revision": int(ref["baseline_revision"])}
+        if isinstance(ref, dict) else None
+    )
     if fmt == "xes":
         metadata: dict[str, str | int] = {"deliR:runId": run_id}
         if seed is not None:
             metadata["deliR:seed"] = seed
         if engine_version:
             metadata["deliR:engineVersion"] = str(engine_version)
+        if run.get("scenario_name"):
+            metadata["deliR:scenarioName"] = str(run["scenario_name"])
+        if scenario:
+            # SIM-06b: da quale revisione dello scenario e dell'AS-IS viene il log.
+            metadata["deliR:scenarioId"] = scenario["id"]
+            metadata["deliR:scenarioRevision"] = scenario["revision"]
+            metadata["deliR:baselineRevision"] = scenario["baseline_revision"]
         exported = to_xes(log, metadata=metadata)
     else:
         exported = to_csv(log)
-    return SimulationLogExport(run_id=run_id, seed=seed, engine_version=engine_version, file=exported)
+    return SimulationLogExport(run_id=run_id, seed=seed, engine_version=engine_version, file=exported, scenario=scenario)

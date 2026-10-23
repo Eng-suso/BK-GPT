@@ -143,6 +143,7 @@ function ProvenanceFoot({ field, t, provenanceState }: { field: FieldProvenance;
 
 function calendarText(calendar: CalendarView, lang: Lang, t: T): string {
   if (calendar.standard) return t("simulation.activityInspector.standardCalendar");
+  if ("always" in calendar) return t("simulation.activityInspector.alwaysCalendar");
   const periods = calendar.periods.map((p) => {
     const days = p.fromDay === p.toDay ? weekday(p.fromDay, lang) : `${weekday(p.fromDay, lang)}–${weekday(p.toDay, lang)}`;
     return `${days} ${p.begin}–${p.end}`;
@@ -178,7 +179,7 @@ function Assignment({ assignment, index, total, lang, t, provenanceState }: { as
   return <div className="sim-param-group">
     {total > 1 && <h5>{t("simulation.activityInspector.assignment", { n: index + 1, total })}</h5>}
     <dl>
-      {assignment.resource && <div><dt>{t("simulation.activityInspector.resource")}</dt><dd>{t("simulation.activityInspector.resourceValue", { name: assignment.resource.name, amount: assignment.resource.amount, cost: formatCurrency(assignment.resource.costPerHour, lang) })}</dd></div>}
+      {assignment.resource && <div><dt>{t("simulation.activityInspector.resource")}</dt><dd>{t(assignment.resource.system ? "simulation.activityInspector.systemValue" : "simulation.activityInspector.resourceValue", { name: assignment.resource.name, amount: assignment.resource.amount, cost: formatCurrency(assignment.resource.costPerHour, lang) })}</dd></div>}
       {assignment.resource && <div><dt>{t("simulation.activityInspector.calendar")}</dt><dd>{calendarText(assignment.resource.calendar, lang, t)}</dd></div>}
       {assignment.resource?.shifts.map((shift, index) => (
         <div key={index}>
@@ -210,7 +211,23 @@ function Arrival({ arrival, lang, t, provenanceState }: { arrival: ArrivalView; 
       <OriginRow field={arrival.provenance} t={t} provenanceState={provenanceState} />
     </dl>
     {arrival.bands.length > 0 && <p className="sim-help">{t("simulation.activityInspector.arrivalBandsNote")}</p>}
+    {arrival.months.length > 0 && <ArrivalMonthRows months={arrival.months} lang={lang} t={t} />}
     <ProvenanceFoot field={arrival.provenance} t={t} provenanceState={provenanceState} />
+  </div>;
+}
+
+/** SIM-08b: la variazione degli arrivi per mese che il run ha simulato. */
+function ArrivalMonthRows({ months, lang, t }: { months: { month: number; factor: number }[]; lang: Lang; t: T }): React.JSX.Element {
+  const locale = lang === "it" ? "it-IT" : "en-US";
+  const month = new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" });
+  const change = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 1, signDisplay: "exceptZero" });
+  return <div data-arrival-months-view>
+    <p className="sim-param-note">{t("simulation.activityInspector.arrivalMonths")}</p>
+    <dl>
+      {months.map((m) => (
+        <div key={m.month}><dt>{month.format(new Date(Date.UTC(2026, m.month - 1, 1)))}</dt><dd>{change.format(m.factor - 1)}</dd></div>
+      ))}
+    </dl>
   </div>;
 }
 

@@ -84,6 +84,7 @@ export function runRequestBody(input: CreateSimulationRunInput) {
         mean_seconds: band.meanSeconds,
       })),
       band_attribute: input.arrival.bandAttribute,
+      months: input.arrival.months,
     },
     resources: input.resources?.map((r) => ({
       id: r.id,
@@ -92,6 +93,7 @@ export function runRequestBody(input: CreateSimulationRunInput) {
       amount: r.amount,
       calendar_id: r.calendarId,
       shifts: r.shifts?.map((shift) => ({ amount: shift.amount, calendar_id: shift.calendarId })),
+      kind: r.kind,
     })),
     tasks: input.tasks?.map((task) => ({
       element_id: task.elementId,
@@ -134,6 +136,7 @@ export function runRequestBody(input: CreateSimulationRunInput) {
       })),
       instances: task.instances,
       outcome: task.outcome,
+      removable: task.removable,
     })),
     gateways: input.gateways?.map((g) => ({
       element_id: g.elementId,

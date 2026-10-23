@@ -19,6 +19,7 @@ import {
 } from "./slaSegments";
 import { BAND_ATTRIBUTE_NAME, arrivalBandIssues, arrivalBandsInput, sanitizeArrivalBands, type ArrivalBandDraft } from "./arrivalBands";
 import { instancesIssue } from "./instances";
+import { arrivalMonthIssues, arrivalMonthsInput, monthsNeedPoisson, sanitizeArrivalMonths, type ArrivalMonthDraft } from "./arrivalMonths";
 import { durationWindowIssues, durationWindowsInput, sanitizeDurationWindows, type DurationWindowDraft } from "./durationWindows";
 import {
   reworkInput,
@@ -51,6 +52,8 @@ export type ResourceDraft = {
   calendarId?: string;
   /** SIM-30: unità in più presenti solo nel calendario del turno. */
   shifts?: ShiftDraft[];
+  /** SIM-09b: un sistema o una macchina; senza calendario lavora sempre, niente turni. */
+  kind?: "system";
 };
 
 /** Un turno di rinforzo: `amount` unità in più nel calendario `calendarId`. */
@@ -101,6 +104,8 @@ export type TaskDraft = DurationDraft & {
   instances?: number;
   /** SIM-31b: finita l'attività, il caso riceve un esito che le regole a valle leggono. */
   outcome?: OutcomeDraft;
+  /** SIM-22b: il consulente la segna come passo che non aggiunge valore; l'advisor propone di toglierla. */
+  removable?: boolean;
 };
 
 function withoutInstances(task: TaskDraft): TaskDraft {
@@ -156,6 +161,8 @@ export type ArrivalDraft = Omit<DurationDraft, "meanMinutes"> & {
   bands?: ArrivalBandDraft[];
   /** SIM-33: la fascia di arrivo diventa l'attributo del caso `fascia_arrivo`. */
   bandAttribute?: boolean;
+  /** SIM-08b: un ritmo diverso per mese, sopra le fasce o sugli arrivi esponenziali. */
+  months?: ArrivalMonthDraft[];
 };
 
 /**
@@ -290,7 +297,9 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
     + Object.values(draft.waits ?? {}).filter((wait) => taskDurationIssue(wait) !== null).length;
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
   const arrival = taskDurationIssue(arrivalDuration(draft)) !== null
-    || arrivalBandIssues(draft.arrival?.bands ?? []).some((issue) => issue !== null);
+    || arrivalBandIssues(draft.arrival?.bands ?? []).some((issue) => issue !== null)
+    || arrivalMonthIssues(draft.arrival?.months ?? []).some((issue) => issue !== null)
+    || monthsNeedPoisson(draft.arrival?.months, Boolean(draft.arrival?.bands?.length), arrivalDuration(draft).distribution);
   const sla = draft.sla ? slaIssue(draft.sla, attributes) !== null : false;
   const badCost = (value: number | undefined) => value !== undefined && !(Number.isFinite(value) && value >= 0);
   const costs = badCost(draft.caseFixedCost) || Object.values(draft.tasks).some((task) => badCost(task.fixedCost));
@@ -460,6 +469,7 @@ export function scenarioToInput(
       calendarId: arrivalCalendar && calendarIds.has(arrivalCalendar) ? arrivalCalendar : undefined,
       ...(draft.arrival?.bands?.length ? { bands: arrivalBandsInput(draft.arrival.bands) } : {}),
       ...(draft.arrival?.bands?.length && draft.arrival.bandAttribute ? { bandAttribute: BAND_ATTRIBUTE_NAME } : {}),
+      ...(draft.arrival?.months?.length ? { months: arrivalMonthsInput(draft.arrival.months) } : {}),
     },
     resources: draft.resources.map((r) => ({
       id: r.id,
@@ -468,6 +478,7 @@ export function scenarioToInput(
       amount: r.amount,
       calendarId: calendarIds.has(r.calendarId ?? "") ? r.calendarId : undefined,
       ...(r.shifts?.length ? { shifts: r.shifts.map(({ amount, calendarId }) => ({ amount, calendarId })) } : {}),
+      ...(r.kind === "system" ? { kind: "system" as const } : {}),
     })),
     tasks: Object.entries(draft.tasks).map(([elementId, task]) => {
       const others = task.otherAssignments ?? [];
@@ -481,6 +492,7 @@ export function scenarioToInput(
         ...(task.skip ? { skip: skipInput(task.skip, ruleAttributes) } : {}),
         ...(task.rework ? { rework: reworkInput(task.rework, ruleAttributes) } : {}),
         ...(task.outcome ? { outcome: outcomeInput(task.outcome) } : {}),
+        ...(task.removable ? { removable: true } : {}),
         ...(task.durationWindows?.length ? { durationWindows: durationWindowsInput(task.durationWindows) } : {}),
         ...(typeof task.instances === "number" && task.instances > 1 ? { instances: task.instances } : {}),
         ...(others.length ? { otherAssignments: others.map((a) => ({ resourceId: a.resourceId, ...durationInput(a) })) } : {}),
@@ -656,6 +668,7 @@ function sanitizeArrival(raw: unknown): ArrivalDraft | undefined {
     calendarId: typeof value.calendarId === "string" ? value.calendarId : undefined,
     bands: sanitizeArrivalBands(value.bands),
     ...(value.bandAttribute === true ? { bandAttribute: true } : {}),
+    months: sanitizeArrivalMonths(value.months),
   };
 }
 

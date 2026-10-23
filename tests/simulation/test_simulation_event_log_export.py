@@ -131,3 +131,43 @@ def test_the_downloaded_log_is_reimported_by_the_wizard_with_the_same_kpis(clien
     for kpi in ("casesCompleted", "cycle", "waiting", "processing", "throughputPerHour"):
         assert kpi in simulated, kpi
         assert real[kpi] == simulated[kpi], kpi
+
+
+def _scenario_run(monkeypatch, run_id: int) -> None:
+    """Un run partito dalla revisione 5 dello scenario 3, sulla revisione 2 dell'AS-IS (SIM-06b)."""
+    run = {"id": run_id, "scenario_name": "B · due approvatori", "result": {**STATS, "Seed": 7},
+           "request": {"workspace_scenario": {"id": 3, "revision": 5, "baseline_revision": 2}}}
+    monkeypatch.setattr("backend.simulation.service.get_simulation_run", lambda rid: run if rid == run_id else None)
+    monkeypatch.setattr("backend.simulation.service.get_simulation_log_csv", lambda rid: LOG if rid == run_id else None)
+
+
+def test_the_export_of_a_scenario_run_names_the_scenario_and_its_revisions(client, monkeypatch):
+    _scenario_run(monkeypatch, 9001)
+
+    response = client.get("/v1/workspace/simulation-runs/9001/event-log")
+
+    assert response.status_code == 200
+    assert 'filename="simulation-run-9001-scenario-3-rev-5.csv"' in response.headers["content-disposition"]
+    assert response.headers["x-simulation-scenario-id"] == "3"
+    assert response.headers["x-simulation-scenario-revision"] == "5"
+    assert response.headers["x-simulation-baseline-revision"] == "2"
+
+
+def test_the_xes_of_a_scenario_run_carries_the_scenario_in_its_metadata(client, monkeypatch):
+    _scenario_run(monkeypatch, 9002)
+
+    body = client.get("/v1/workspace/simulation-runs/9002/event-log", params={"format": "xes"}).text
+
+    for key, value in (("deliR:scenarioId", "3"), ("deliR:scenarioRevision", "5"), ("deliR:baselineRevision", "2"),
+                       ("deliR:scenarioName", "B · due approvatori")):
+        assert f'key="{key}" value="{value}"' in body, key
+
+
+def test_a_run_outside_the_workspace_has_no_scenario_headers(client, monkeypatch):
+    _, model_id = _model(client, "ExpNoScen")
+    run_id = _run(client, monkeypatch, model_id, log=LOG)
+
+    response = client.get(f"/v1/workspace/simulation-runs/{run_id}/event-log")
+
+    assert "x-simulation-scenario-id" not in response.headers
+    assert f'filename="simulation-run-{run_id}.csv"' in response.headers["content-disposition"]

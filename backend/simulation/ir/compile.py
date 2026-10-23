@@ -93,14 +93,18 @@ def compile_for_prosimos(model: SimulationModel) -> dict:
         "case_attributes": [_case_attribute(attribute) for attribute in model.case_attributes],
     }
 
-    if model.arrival.bands:
+    bands = model.arrival_bands()
+    if bands:
         # Sezione DeliR, ignorata da Prosimos: il runner genera gli arrivi per fascia.
         payload["delir_arrival_bands"] = [
-            {**_period(band), "meanSeconds": float(band.mean_seconds)} for band in model.arrival.bands
+            {**_period(band), "meanSeconds": float(band.mean_seconds)} for band in bands
         ]
-        payload["arrival_time_calendar"] = [_period(band) for band in model.arrival.bands]
+        payload["arrival_time_calendar"] = [_period(band) for band in bands]
         if model.arrival.band_attribute:
             payload["delir_arrival_band_attribute"] = model.arrival.band_attribute
+        if model.arrival.months:
+            # SIM-08b: il runner moltiplica il ritmo di ogni fascia per il fattore del mese.
+            payload["delir_arrival_months"] = {str(m.month): m.factor for m in model.arrival.months}
 
     if model.waits:
         # SIM-11c: un evento intermedio rimasto nel BPMN aspetta questa durata.

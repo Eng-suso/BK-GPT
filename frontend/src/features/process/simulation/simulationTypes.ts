@@ -1,5 +1,6 @@
 import type { ModelPatchInput } from "./caseRules";
 import type { ArrivalBandInput } from "./arrivalBands";
+import type { ArrivalMonthInput } from "./arrivalMonths";
 import type { DurationWindowInput } from "./durationWindows";
 import type { ReworkInput, SkipInput } from "./flowRules";
 import type { OutcomeInput } from "./taskOutcome";
@@ -294,7 +295,7 @@ export const experimentReportSchema = z.object({
   factors: z.record(z.string(), z.number()).default({}),
   experiments: z.array(
     z.object({
-      kind: z.enum(["add_resource", "automate", "reallocate"]),
+      kind: z.enum(["add_resource", "automate", "reallocate", "remove_step"]),
       pool_id: z.string(),
       pool_name: z.string(),
       from_amount: z.number(),
@@ -324,6 +325,8 @@ export type SimResourceInput = {
   calendarId?: string;
   /** SIM-30: turni di rinforzo. */
   shifts?: { amount: number; calendarId: string }[];
+  /** SIM-09b: un sistema o una macchina. */
+  kind?: "system";
 };
 
 export type SimDurationInput = {
@@ -336,7 +339,11 @@ export type SimDurationInput = {
 };
 
 /** Gli arrivi (A2-3): il tempo fra due arrivi e il calendario in cui arrivano. */
-export type SimArrivalInput = SimDurationInput & { calendarId?: string; bands?: ArrivalBandInput[]; bandAttribute?: string };
+export type SimArrivalInput = SimDurationInput & {
+  calendarId?: string; bands?: ArrivalBandInput[]; bandAttribute?: string;
+  /** SIM-08b: fattore sul ritmo per mese (1 = gennaio). */
+  months?: ArrivalMonthInput[];
+};
 
 /** SIM-07: le affermazioni dei file proposte come fonte di ogni attivita'. */
 export const claimProposalSchema = z.object({
@@ -379,6 +386,8 @@ export type SimTaskInput = SimDurationInput & {
   instances?: number;
   /** SIM-31b: l'esito dell'attività, un attributo che le regole a valle leggono. */
   outcome?: OutcomeInput;
+  /** SIM-22b: un passo che non aggiunge valore, candidato a essere tolto. */
+  removable?: boolean;
 };
 
 /** SIM-11d: quanto il caso aspetta a un messaggio o a un segnale. */

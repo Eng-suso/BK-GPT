@@ -20,6 +20,8 @@ import type { IrDistribution, IrRule, RunModel } from "./runModel";
 
 /** The calendar `ir/from_request.py` gives every resource without one. */
 export const STANDARD_CALENDAR_ID = "delir-calendar-standard";
+/** SIM-09b: il calendario dei sistemi senza calendario, 24 ore su 24. */
+export const ALWAYS_CALENDAR_ID = "delir-calendar-always";
 
 export type DurationView =
   | { kind: "fixed"; valueSeconds: number }
@@ -35,10 +37,11 @@ export type DurationView =
 
 export type CalendarView =
   | { standard: true }
+  | { standard: false; always: true }
   | { standard: false; name: string; periods: { fromDay: string; toDay: string; begin: string; end: string }[] };
 
 export type AssignmentView = {
-  resource: { name: string; amount: number; costPerHour: number; calendar: CalendarView; shifts: { amount: number; calendar: CalendarView }[] } | null;
+  resource: { name: string; amount: number; costPerHour: number; calendar: CalendarView; shifts: { amount: number; calendar: CalendarView }[]; system: boolean } | null;
   duration: DurationView;
   provenance: FieldProvenance;
 };
@@ -54,7 +57,11 @@ export type BranchView = {
 };
 
 export type ArrivalBandView = { fromDay: string; toDay: string; begin: string; end: string; meanSeconds: number };
-export type ArrivalView = { duration: DurationView; calendar: CalendarView; provenance: FieldProvenance; bands: ArrivalBandView[] };
+export type ArrivalView = {
+  duration: DurationView; calendar: CalendarView; provenance: FieldProvenance; bands: ArrivalBandView[];
+  /** SIM-08b: i mesi con un ritmo proprio, nell'ordine dell'anno. */
+  months: { month: number; factor: number }[];
+};
 
 export type DurationByView = { attribute: string; variants: { value: string | null; upTo: number | null; duration: DurationView }[] };
 
@@ -105,6 +112,7 @@ export function arrivalFromModel(model: RunModel): ArrivalView | null {
     bands: (model.arrival.bands ?? []).map((band) => ({
       fromDay: band.from_day, toDay: band.to_day, begin: band.begin.slice(0, 5), end: band.end.slice(0, 5), meanSeconds: band.mean_seconds,
     })),
+    months: [...(model.arrival.months ?? [])].sort((a, b) => a.month - b.month),
   };
 }
 
@@ -147,6 +155,7 @@ function parameterProvenance(
 
 function calendarView(model: RunModel, calendarId: string): CalendarView {
   if (calendarId === STANDARD_CALENDAR_ID) return { standard: true };
+  if (calendarId === ALWAYS_CALENDAR_ID) return { standard: false, always: true };
   const calendar = model.calendars.find((c) => c.id === calendarId);
   if (!calendar) return { standard: false, name: calendarId, periods: [] };
   return {
@@ -196,6 +205,7 @@ export function elementFromModel(
             ? {
               name: resource.name, amount: resource.amount, costPerHour: resource.cost_per_hour, calendar: calendarView(model, resource.calendar_id),
               shifts: (resource.shifts ?? []).map((shift) => ({ amount: shift.amount, calendar: calendarView(model, shift.calendar_id) })),
+              system: resource.kind === "system",
             }
             : null,
           duration: durationView(assignment.duration),

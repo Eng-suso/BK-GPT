@@ -9,7 +9,7 @@ API, compatibile con ``backend/simulation/prosimos_adapter.py``:
   ``numProcesses``, ``startDate`` e, in piu', ``seed`` opzionale. Risponde con
   ``ResourceUtilization``, ``IndividualTaskStatistics``,
   ``OverallScenarioStatistics`` (stringhe JSON, come upstream), ``StatsFilename``,
-  ``LogsFilename``, e ``Seed`` / ``EngineVersion`` / ``ArrivalBands``. Se lo
+  ``LogsFilename``, e ``Seed`` / ``EngineVersion`` / ``ArrivalBands`` / ``ArrivalMonths``. Se lo
   scenario porta ``delir_arrival_bands``, gli arrivi li genera il runner per
   fascia oraria (``arrival_bands.py``).
 - ``GET /api/simulationFile?fileName=...``: il CSV prodotto da un run.
@@ -55,7 +55,7 @@ from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_setup import SimDiffSetup
 
 import duration_windows
-from arrival_bands import ATTRIBUTE_SECTION, SECTION, arrival_plan, band_label, weekly_intervals
+from arrival_bands import ATTRIBUTE_SECTION, MONTHS_SECTION, SECTION, arrival_plan, band_label, parse_months, weekly_intervals
 
 DATA_DIR = Path(os.environ.get("RUNNER_DATA_DIR", tempfile.gettempdir())) / "delir-prosimos"
 # I file restano quanto basta all'adapter per scaricarli subito dopo il run.
@@ -147,6 +147,7 @@ def simulate(model: bytes, scenario: bytes, cases: int, start_date: str | None, 
         os.close(logs_fd)
         _seed_everything(seed)
         bands = _arrival_bands(scenario)
+        months = _arrival_months(scenario, bands)
         windows = _duration_windows(scenario)
         with duration_windows.applied(windows):
             if bands is None:
@@ -161,7 +162,7 @@ def simulate(model: bytes, scenario: bytes, cases: int, start_date: str | None, 
                 )
             else:
                 _simulate_with_arrivals(model_path, scenario_path, cases, start_date, bands, _band_attribute(scenario),
-                                        stats_name, logs_name)
+                                        stats_name, logs_name, months)
     resources, tasks, overall = split_stats(Path(stats_name).read_text(encoding="utf-8"))
     return {
         # Doppia codifica come upstream: l'adapter la decodifica gia' cosi'.
@@ -175,6 +176,8 @@ def simulate(model: bytes, scenario: bytes, cases: int, start_date: str | None, 
         # Quante fasce degli arrivi il runner ha applicato: l'adapter rifiuta un
         # motore che le ignorerebbe in silenzio.
         "ArrivalBands": 0 if bands is None else len(bands),
+        # SIM-08b: i mesi con un ritmo proprio che il runner ha applicato.
+        "ArrivalMonths": len(months),
         # SIM-33b: le attivita' con durate per fascia oraria che il runner ha applicato.
         "DurationWindows": len(windows),
     }
@@ -196,7 +199,8 @@ def _duration_windows(scenario: bytes) -> dict[str, duration_windows.Intervals]:
 
 
 def _simulate_with_arrivals(model_path: Path, scenario_path: Path, cases: int, start_date: str | None,
-                            bands: list[dict], band_attribute: str | None, stats_name: str, logs_name: str) -> None:
+                            bands: list[dict], band_attribute: str | None, stats_name: str, logs_name: str,
+                            months: dict[int, float] | None = None) -> None:
     """``run_simulation`` con gli arrivi calcolati dal runner per fascia oraria.
 
     Con ``fixed_arrival_times`` Prosimos 2.1 esegue il processo ma torna prima
@@ -206,8 +210,12 @@ def _simulate_with_arrivals(model_path: Path, scenario_path: Path, cases: int, s
     """
     setup = SimDiffSetup(str(model_path), str(scenario_path), False, cases)
     start = parse_datetime(start_date, True) if start_date else pytz.utc.localize(datetime.now())
-    setup.set_starting_datetime(start)
-    arrivals, indices = arrival_plan(bands, start, cases)
+    # Non ``set_starting_datetime``: fuori dal calendario degli arrivi sposta
+    # l'inizio al primo arrivo che campiona, e gli istanti calcolati qui da
+    # ``start`` finirebbero sfasati di altrettanto (un run da mezzanotte vedeva
+    # arrivare i casi la sera). Gli arrivi li decide gia' il piano.
+    setup.start_datetime = start
+    arrivals, indices = arrival_plan(bands, start, cases, months)
     writer = {"delimiter": ",", "quotechar": '"', "quoting": csv.QUOTE_MINIMAL}
     with open(stats_name, "w", newline="", encoding="utf-8") as stats, \
             open(logs_name, "w", newline="", encoding="utf-8") as logs:
@@ -241,6 +249,22 @@ def _band_attribute(scenario: bytes) -> str | None:
     if value is not None and (not isinstance(value, str) or not value):
         raise BadRequest(f"{ATTRIBUTE_SECTION} non valido: serve il nome di un attributo del caso")
     return value
+
+
+def _arrival_months(scenario: bytes, bands: list[dict] | None) -> dict[int, float]:
+    try:
+        payload = json.loads(scenario)
+    except ValueError:
+        return {}
+    raw = payload.get(MONTHS_SECTION) if isinstance(payload, dict) else None
+    if raw is None:
+        return {}
+    if bands is None:
+        raise BadRequest(f"{MONTHS_SECTION}: il ritmo per mese vale solo con {SECTION}")
+    try:
+        return parse_months(raw)
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise BadRequest(f"{MONTHS_SECTION} non valido: {exc}") from exc
 
 
 def _arrival_bands(scenario: bytes) -> list[dict] | None:

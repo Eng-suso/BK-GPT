@@ -491,6 +491,67 @@ def test_arrival_bands_from_the_panel_shape_the_arrivals_through_the_runner(tmp_
     assert 4.5 < morning / afternoon < 8, (morning, afternoon)
 
 
+def test_a_month_factor_from_the_panel_shapes_the_arrivals_through_the_runner(tmp_path, monkeypatch):
+    # SIM-08b: arrivi esponenziali sul calendario standard, febbraio al triplo.
+    # Senza fasce il runner usa i periodi del calendario come fasce.
+    from datetime import UTC, datetime
+
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    sys.path.insert(0, str(ROOT / "ops" / "prosimos" / "runner"))
+    import runner
+
+    monkeypatch.setattr(runner, "DATA_DIR", tmp_path)
+    request = CreateSimulationRunRequest(
+        tasks=[{"element_id": t, "mean_seconds": 60, "distribution": "fixed", "resource_id": "r"} for t in ("T_receive", "T_approve", "T_pay")],
+        resources=[{"id": "r", "name": "Ufficio", "amount": 20, "cost_per_hour": 30}],
+        arrival={"mean_seconds": 1800, "months": [{"month": 2, "factor": 3}]},
+    )
+    bpmn = normalize_bpmn_for_prosimos(contract_spike.BPMN_PATH.read_text(encoding="utf-8"))
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    body = runner.simulate(bpmn.encode(), json.dumps(scenario.payload).encode(), 400, "2026-01-26T00:00:00+00:00", 13)
+
+    assert body["ArrivalMonths"] == 1
+    rows = contract_spike.parse_log((tmp_path / body["LogsFilename"]).read_text(encoding="utf-8"))
+    arrivals: dict[str, float] = {}
+    for row in rows:
+        arrivals[row["case_id"]] = min(arrivals.get(row["case_id"], row["enable"]), row["enable"])
+    days = [datetime.fromtimestamp(t, UTC) for t in arrivals.values()]
+    assert all(d.weekday() < 5 and 9 <= d.hour < 17 for d in days), "un caso e' arrivato fuori dal calendario"
+    # Lun 26 - ven 30 gennaio contro lun 2 - ven 6 febbraio: stessi giorni, ritmo triplo.
+    january = sum(1 for d in days if d.month == 1)
+    february = sum(1 for d in days if d.month == 2 and d.day <= 6)
+    assert 2.3 < february / january < 3.8, (january, february)
+
+
+@pytest.mark.parametrize("kind", ["system", "person"])
+def test_a_system_works_at_night_and_on_weekends_a_person_waits_for_monday(kind):
+    # SIM-09b: i casi arrivano sabato notte. Un sistema senza calendario li
+    # lavora subito; una persona sul calendario standard aspetta lunedi' alle 9.
+    from datetime import UTC, datetime
+
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    request = CreateSimulationRunRequest(
+        tasks=[{"element_id": t, "mean_seconds": 60, "distribution": "fixed", "resource_id": "erp"} for t in ("T_receive", "T_approve", "T_pay")],
+        resources=[{"id": "erp", "name": "Sistema ERP", "amount": 50, "cost_per_hour": 0, "kind": kind}],
+        calendars=[{"id": "night", "name": "Notte", "periods": [{"from_day": "SATURDAY", "to_day": "SATURDAY", "begin": "01:00", "end": "05:00"}]}],
+        arrival={"mean_seconds": 600, "calendar_id": "night"},
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=contract_spike.BPMN_PATH.read_text(encoding="utf-8"), request=request)
+    rows = _run(_model(), payload=scenario.payload, cases=20)
+
+    starts = [datetime.fromtimestamp(row["start"], UTC) for row in rows]
+    if kind == "system":
+        assert all(row["start"] == row["enable"] for row in rows), "un sistema libero non fa aspettare"
+        assert all(s.weekday() == 5 and s.hour < 6 for s in starts)
+    else:
+        assert all(s.weekday() < 5 and 9 <= s.hour < 17 for s in starts)
+
+
 def test_a_duration_by_arrival_band_follows_the_band_each_case_arrived_in(tmp_path, monkeypatch):
     # SIM-33: chi arriva la mattina viene approvato in 5 minuti, chi arriva il
     # pomeriggio in 25. La fascia la scrive il runner nell'attributo del caso.

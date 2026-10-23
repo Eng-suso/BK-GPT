@@ -61,7 +61,9 @@ export function InsightsPage({ embedded = false }: { embedded?: boolean } = {}):
   const applyExperiment = (exp: Experiment) => {
     const pool = exp.pool_name;
     const name = exp.target_name ?? exp.target_el ?? "";
-    const scenarioName = exp.kind === "automate"
+    const scenarioName = exp.kind === "remove_step"
+      ? t("simulation.insights.removeScenarioName", { base: draft.scenarioName, name })
+      : exp.kind === "automate"
       ? t("simulation.insights.automateScenarioName", { base: draft.scenarioName, name })
       : exp.kind === "reallocate"
         ? t("simulation.insights.reallocateScenarioName", { base: draft.scenarioName, donor: exp.donor_pool_name ?? "", pool })
@@ -167,7 +169,9 @@ function ExperimentCard({
     <section className="flex flex-col ui-surface ui-surface-panel p-4" data-sim-experiment={exp.kind}>
       <p className="eyebrow">{t(`simulation.insights.experimentKind.${exp.kind}`)}</p>
       <h3 className="mt-1 text-sm font-semibold text-foreground">
-        {exp.kind === "automate"
+        {exp.kind === "remove_step"
+          ? t("simulation.insights.removeTitle", { name: exp.target_name ?? exp.target_el ?? "" })
+          : exp.kind === "automate"
           ? t("simulation.insights.automateTitle", { name: exp.target_name ?? exp.target_el ?? "" })
           : exp.kind === "reallocate"
             ? t("simulation.insights.reallocateTitle", { donor: exp.donor_pool_name ?? "", pool: exp.pool_name })

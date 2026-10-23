@@ -267,7 +267,16 @@ def _sanitize_arrival(raw: Any) -> Any:
         "calendarId": raw["calendarId"] if isinstance(raw.get("calendarId"), str) else ...,
         "bands": _sanitize_arrival_bands(raw.get("bands")),
         **({"bandAttribute": True} if raw.get("bandAttribute") is True else {}),
+        "months": _sanitize_arrival_months(raw.get("months")),
     })
+
+
+def _sanitize_arrival_months(raw: Any) -> Any:
+    """``sanitizeArrivalMonths``: SIM-08b, i mesi con mese e variazione numerici."""
+    if not isinstance(raw, list):
+        return ...
+    kept = [m for m in raw if _obj(m) and _is_number(m.get("month")) and _is_number(m.get("percent"))]
+    return kept[:12] if kept else ...
 
 
 def _valid_calendar(calendar: Any) -> bool:
@@ -618,6 +627,7 @@ def _task(element_id: str, task: dict[str, Any], attributes: list[dict[str, Any]
         ] if windows else ...,
         "instances": task["instances"] if _is_number(task.get("instances")) and task["instances"] > 1 else ...,
         "outcome": _outcome(task["outcome"]) if _truthy(task.get("outcome")) else ...,
+        "removable": True if _truthy(task.get("removable")) else ...,
     })
 
 
@@ -676,6 +686,8 @@ def draft_to_request_body(draft: dict[str, Any], scenario_name: str) -> dict[str
                 for b in bands
             ] if bands else ...,
             "band_attribute": BAND_ATTRIBUTE_NAME if bands and _truthy(arrival.get("bandAttribute")) else ...,
+            "months": [{"month": m["month"], "factor": 1 + m["percent"] / 100} for m in arrival["months"]]
+            if arrival.get("months") else ...,
         }),
         "resources": [
             _compact({
@@ -685,6 +697,7 @@ def draft_to_request_body(draft: dict[str, Any], scenario_name: str) -> dict[str
                 "amount": r.get("amount", ...),
                 "calendar_id": r["calendarId"] if (r.get("calendarId") or "") in calendar_ids else ...,
                 "shifts": [{"amount": s.get("amount"), "calendar_id": s.get("calendarId")} for s in r["shifts"]] if r.get("shifts") else ...,
+                "kind": "system" if r.get("kind") == "system" else ...,
             })
             for r in resources
         ],

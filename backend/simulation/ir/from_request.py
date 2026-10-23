@@ -34,6 +34,7 @@ from backend.simulation.ir.model import (
     Gamma,
     Gateway,
     LogNormal,
+    MonthFactor,
     Normal,
     Provenance,
     Resource,
@@ -56,6 +57,8 @@ if TYPE_CHECKING:
 _FlowRule = TypeVar("_FlowRule", Skip, Rework)
 
 STANDARD_CALENDAR_ID = "delir-calendar-standard"
+# SIM-09b: il calendario dei sistemi che non ne hanno uno, 24 ore su 24 tutti i giorni.
+ALWAYS_CALENDAR_ID = "delir-calendar-always"
 DEFAULT_RESOURCE_ID = "delir-resource-operator"
 DEFAULT_POOL_ID = "delir-profile-operator"
 
@@ -71,6 +74,14 @@ def standard_calendar() -> Calendar:
     )
 
 
+def always_calendar() -> Calendar:
+    return Calendar(
+        id=ALWAYS_CALENDAR_ID,
+        name="Sempre",
+        periods=(CalendarPeriod(from_day="MONDAY", to_day="SUNDAY", begin="00:00:00.000", end="23:59:59.999"),),
+    )
+
+
 def model_from_request(
     request: CreateSimulationRunRequest,
     tasks: list[BpmnTask],
@@ -81,6 +92,8 @@ def model_from_request(
         raise ValueError("Il BPMN non contiene task simulabili.")
     task_overrides = {cfg.element_id: cfg for cfg in (request.tasks or [])}
     calendars = _calendars(request.calendars or [])
+    if any(cfg.kind == "system" and not cfg.calendar_id for cfg in request.resources or []):
+        calendars = (*calendars, always_calendar())
     pool = _pool(request, tasks, task_overrides, {calendar.id for calendar in calendars})
     resource_ids = [resource.id for resource in pool.resources]
     default_resource_id = resource_ids[0]
@@ -127,10 +140,11 @@ def _arrival(request: CreateSimulationRunRequest, calendar_ids: set[str]) -> Arr
                         mean_seconds=float(band.mean_seconds))
             for band in config.bands
         )
-        return Arrival(interarrival=interarrival, calendar_id=calendar_id, provenance=_MANUAL, bands=bands)
+        months = tuple(MonthFactor(month=m.month, factor=m.factor) for m in config.months)
+        return Arrival(interarrival=interarrival, calendar_id=calendar_id, provenance=_MANUAL, bands=bands, months=months)
     except ValidationError as exc:
         reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
-        raise ValueError(f"Fasce degli arrivi: {reason}.") from exc
+        raise ValueError(f"{'Ritmo per mese' if 'mese' in reason else 'Fasce degli arrivi'}: {reason}.") from exc
 
 
 def duration_from_mean(distribution: str, mean: float):
@@ -196,7 +210,7 @@ def _task_duration(override: SimTaskConfig) -> Distribution:
 def _calendars(configs: list[SimCalendarConfig]) -> tuple[Calendar, ...]:
     """Il calendario standard (arrivi e risorse senza calendario) piu' quelli del consulente."""
     ids = [config.id for config in configs]
-    if STANDARD_CALENDAR_ID in ids or len(set(ids)) != len(ids):
+    if STANDARD_CALENDAR_ID in ids or ALWAYS_CALENDAR_ID in ids or len(set(ids)) != len(ids):
         raise ValueError("I calendari devono avere identificativi distinti.")
     calendars = [standard_calendar()]
     for config in configs:
@@ -239,6 +253,9 @@ def _pool(
             raise ValueError("Le risorse devono avere identificativi distinti.")
         if any(not cfg.name.strip() for cfg in request.resources):
             raise ValueError("Assegna un nome alle risorse.")
+        systems = [cfg.name for cfg in request.resources if cfg.kind == "system" and cfg.shifts]
+        if systems:
+            raise ValueError(f"Un sistema non ha turni di rinforzo: {', '.join(systems)}.")
         if any(not task_overrides.get(t.id) or task_overrides[t.id].resource_id not in ids for t in tasks):
             raise ValueError("Assegna una risorsa valida a ogni attività prima di simulare.")
         used = {cfg.calendar_id for cfg in request.resources if cfg.calendar_id}
@@ -255,8 +272,9 @@ def _pool(
                     name=cfg.name,
                     cost_per_hour=float(cfg.cost_per_hour),
                     amount=int(cfg.amount),
-                    calendar_id=cfg.calendar_id or STANDARD_CALENDAR_ID,
+                    calendar_id=cfg.calendar_id or (ALWAYS_CALENDAR_ID if cfg.kind == "system" else STANDARD_CALENDAR_ID),
                     provenance=_MANUAL,
+                    kind=cfg.kind,
                     shifts=tuple(
                         ResourceShift(amount=int(shift.amount), calendar_id=shift.calendar_id, provenance=_MANUAL)
                         for shift in cfg.shifts

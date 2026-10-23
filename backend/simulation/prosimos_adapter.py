@@ -81,6 +81,11 @@ async def run_prosimos_simulation(
         raise ProsimosError(
             "Il motore non applica le fasce degli arrivi: serve il runner DeliR (ops/prosimos/runner)."
         )
+    months = request.scenario.payload.get("delir_arrival_months") or {}
+    if months and payload.get("ArrivalMonths") != len(months):
+        raise ProsimosError(
+            "Il motore non applica il ritmo degli arrivi per mese: serve il runner DeliR (ops/prosimos/runner)."
+        )
     # SIM-33b: lo stesso per le durate che cambiano con l'ora d'inizio.
     windows = request.scenario.payload.get("delir_duration_windows") or {}
     if windows and payload.get("DurationWindows") != len(windows):
