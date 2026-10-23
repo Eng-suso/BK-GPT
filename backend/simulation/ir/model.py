@@ -187,7 +187,13 @@ class ResourceShift(_Strict):
 
 
 class Resource(_Strict):
-    """Un tipo di risorsa con il suo organico: ``amount`` unita' identiche."""
+    """Un tipo di risorsa con il suo organico: ``amount`` unita' identiche.
+
+    SIM-09b: ``kind="system"`` e' un sistema o una macchina (un ERP, un robot
+    RPA): ``amount`` sono le esecuzioni contemporanee, niente turni. Per il
+    motore e' una risorsa come le altre; la differenza la dicono pannello,
+    inspector e risultati.
+    """
 
     id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=120)
@@ -196,6 +202,13 @@ class Resource(_Strict):
     calendar_id: str
     provenance: Provenance | None = None
     shifts: tuple[ResourceShift, ...] = Field(default=(), max_length=10)
+    kind: Literal["person", "system"] = "person"
+
+    @model_validator(mode="after")
+    def _system_without_shifts(self):
+        if self.kind == "system" and self.shifts:
+            raise ValueError(f"risorsa {self.id}: un sistema non ha turni di rinforzo, ha esecuzioni contemporanee")
+        return self
 
 
 class ResourcePool(_Strict):
