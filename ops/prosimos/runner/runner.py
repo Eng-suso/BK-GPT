@@ -210,7 +210,11 @@ def _simulate_with_arrivals(model_path: Path, scenario_path: Path, cases: int, s
     """
     setup = SimDiffSetup(str(model_path), str(scenario_path), False, cases)
     start = parse_datetime(start_date, True) if start_date else pytz.utc.localize(datetime.now())
-    setup.set_starting_datetime(start)
+    # Non ``set_starting_datetime``: fuori dal calendario degli arrivi sposta
+    # l'inizio al primo arrivo che campiona, e gli istanti calcolati qui da
+    # ``start`` finirebbero sfasati di altrettanto (un run da mezzanotte vedeva
+    # arrivare i casi la sera). Gli arrivi li decide gia' il piano.
+    setup.start_datetime = start
     arrivals, indices = arrival_plan(bands, start, cases, months)
     writer = {"delimiter": ",", "quotechar": '"', "quoting": csv.QUOTE_MINIMAL}
     with open(stats_name, "w", newline="", encoding="utf-8") as stats, \

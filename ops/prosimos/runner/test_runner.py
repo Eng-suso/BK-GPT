@@ -265,6 +265,23 @@ def test_the_runner_applies_the_bands_and_says_so(client):
     assert hours <= {9, 10, 11}, hours
 
 
+def test_a_run_that_starts_outside_the_bands_keeps_its_arrivals_inside(client):
+    # Prosimos spostava l'inizio alla prima apertura: gli arrivi calcolati da
+    # mezzanotte arrivavano 9 ore dopo, fuori dalle fasce.
+    scenario = {**contract_spike.base_scenario(), arrival_bands.SECTION: [MORNING]}
+    response = _post(client, scenario, cases=60, seed="4", startDate="2026-01-05T00:00:00.000000+00:00")
+
+    assert response.status_code == 200, response.data
+    rows = contract_spike.parse_log(_log(client, response.get_json()))
+    starts: dict[str, float] = {}
+    for row in rows:
+        starts[row["case_id"]] = min(starts.get(row["case_id"], row["enable"]), row["enable"])
+    from datetime import UTC, datetime
+
+    hours = {datetime.fromtimestamp(t, UTC).hour for t in starts.values()}
+    assert hours <= {9, 10, 11}, hours
+
+
 def test_a_scenario_without_bands_keeps_the_engine_arrivals(client):
     body = _post(client, contract_spike.base_scenario(), cases=10).get_json()
     assert body["ArrivalBands"] == 0
