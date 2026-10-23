@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Literal
 
+import openai
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from backend.llm.gateway import TRANSIENT_PROVIDER_ERRORS
 from backend.llm_streaming import stream_to_final
+from backend.services import degradation_counters
+
+logger = logging.getLogger(__name__)
 
 
 Owner = Literal["consultant", "project", "process", "canvas"]
@@ -781,6 +788,29 @@ def parse_routing_decision(
     return invalid_factory(reason), "invalid", reason
 
 
+# I guasti per cui il router ripiega su "direct": il provider (rete, quota,
+# richiesta rifiutata) o un'uscita che non diventa una decisione. Un difetto
+# nostro - `TypeError`, `KeyError`, `OperationNotOpen` - non e' fra questi e si
+# propaga: assorbito, diventava una risposta "direct" senza traccia.
+ROUTER_RECOVERABLE_ERRORS: tuple[type[BaseException], ...] = (
+    *TRANSIENT_PROVIDER_ERRORS,
+    openai.OpenAIError,
+    OutputParserException,
+    ValidationError,
+)
+
+
+def _router_recovery(
+    model: type[RoutingDecisionBase],
+    reason: str,
+    detail: str | None = None,
+) -> tuple[RoutingDecisionBase, str, str | None]:
+    owner = model.model_fields["owner"].default
+    logger.error("router %s: ripiego su direct (%s)", owner, reason)
+    degradation_counters.bump(f"{owner}_router", "router_recovery_direct", detail=detail)
+    return router_failure_direct_decision(model, reason), "router_recovery_direct", reason
+
+
 def invoke_structured_router(
     llm,
     model: type[RoutingDecisionBase],
@@ -795,18 +825,24 @@ def invoke_structured_router(
             json_response = _invoke_json_mode_router(llm, model, messages, config)
             if json_response is not None:
                 return parse_routing_decision(json_response, model, invalid_factory)
-            reason = "Structured router returned no tool call and JSON fallback returned no decision."
-            return router_failure_direct_decision(model, reason), "router_recovery_direct", reason
+            return _router_recovery(
+                model,
+                "Structured router returned no tool call and JSON fallback returned no decision.",
+                detail="no_decision",
+            )
         return parse_routing_decision(response, model, invalid_factory)
-    except Exception as exc:
+    except ROUTER_RECOVERABLE_ERRORS as exc:
         try:
             json_response = _invoke_json_mode_router(llm, model, messages, config)
             if json_response is not None:
                 return parse_routing_decision(json_response, model, invalid_factory)
-        except Exception:
-            pass
-        reason = f"Structured router failed: {type(exc).__name__}: {exc}"
-        return router_failure_direct_decision(model, reason), "router_recovery_direct", reason
+        except ROUTER_RECOVERABLE_ERRORS:
+            logger.warning("router JSON di ripiego fallito", exc_info=True)
+        return _router_recovery(
+            model,
+            f"Structured router failed: {type(exc).__name__}: {exc}",
+            detail=type(exc).__name__,
+        )
 
 
 def _invoke_json_mode_router(
