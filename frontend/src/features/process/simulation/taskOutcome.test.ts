@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CaseAttributeDraft } from "./caseRules";
 import { DEFAULT_SCENARIO, parseScenarioDraft, scenarioParameterIssues, scenarioToInput, type ScenarioDraft, type TaskDraft } from "./simulationScenario";
-import { outcomeAttributes, outcomeInput, outcomeIssue, sanitizeOutcome, type OutcomeDraft } from "./taskOutcome";
+import { defaultOutcome, outcomeAttributes, outcomeInput, outcomeIssue, sanitizeOutcome, type OutcomeDraft } from "./taskOutcome";
 
 const BASE: TaskDraft = { meanMinutes: 10, distribution: "norm", resourceId: "clerk" };
 const ESITO: OutcomeDraft = { name: "esito", categories: [{ value: "OK", percent: 80 }, { value: "KO", percent: 20 }] };
@@ -63,6 +63,12 @@ describe("esito dell'attività (SIM-31b)", () => {
   it("una regola di salto può leggere l'esito di un'attività prima", () => {
     const issues = scenarioParameterIssues(draft({ check: { outcome: ESITO }, approve: { skip: { percent: 100, rule: KO } } }));
     expect(issues.flowRules).toBe(0);
+  });
+
+  it("propone un nome dall'attività, con un numero se è già preso", () => {
+    expect(defaultOutcome("Verifica", []).name).toBe("esito Verifica");
+    const taken = outcomeAttributes({ a: { outcome: { ...ESITO, name: "esito Verifica" } } });
+    expect(defaultOutcome("Verifica", taken).name).toBe("esito Verifica 2");
   });
 
   it("scarta un esito salvato male senza rompere la bozza", () => {

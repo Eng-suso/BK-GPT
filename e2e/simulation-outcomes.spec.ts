@@ -128,6 +128,8 @@ test("a name already taken blocks the run with the reason on the field", async (
     await page.locator(`[data-outcome="${id}"]`).getByRole("checkbox", { name: `Dà un esito · ${name}` }).click();
   }
   const field = page.locator('[data-outcome="T_approve"]').getByRole("textbox", { name: "Nome dell'esito · Approva" });
+  await expect(field).toHaveValue("esito Approva");
+  await field.fill("esito Ricevi ordine");
   await expect(field).toHaveAttribute("aria-invalid", "true");
   await expect(page.locator('[data-outcome="T_approve"]').getByRole("alert")).toContainText("già di un attributo del caso o di un altro esito");
   await expect(page.getByRole("button", { name: "Avvia simulazione", exact: true })).toBeDisabled();

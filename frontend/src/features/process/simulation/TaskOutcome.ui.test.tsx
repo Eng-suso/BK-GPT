@@ -63,6 +63,10 @@ describe("esito dell'attività nel pannello (SIM-31b)", () => {
     render(<Harness initial={{ ...READY, tasks: { ...READY.tasks, T1: { ...READY.tasks.T1!, outcome: { name: "esito", categories: [{ value: "OK", percent: 100 }] } } } }} />);
 
     await user.click(within(block("T0")).getByRole("checkbox", { name: "Dà un esito · Verifica" }));
+    // Il nome proposto è già diverso dagli altri: lo si rende uguale a mano.
+    expect(within(block("T0")).getByRole("textbox", { name: "Nome dell'esito · Verifica" })).toHaveValue("esito Verifica");
+    await user.clear(within(block("T0")).getByRole("textbox", { name: "Nome dell'esito · Verifica" }));
+    await user.type(within(block("T0")).getByRole("textbox", { name: "Nome dell'esito · Verifica" }), "esito");
 
     expect(within(block("T0")).getByRole("alert")).toHaveTextContent("Questo nome è già di un attributo del caso o di un altro esito.");
     expect(within(block("T0")).getByRole("textbox", { name: "Nome dell'esito · Verifica" })).toHaveAttribute("aria-invalid", "true");

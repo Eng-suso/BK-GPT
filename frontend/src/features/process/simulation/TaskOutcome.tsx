@@ -36,7 +36,7 @@ export function TaskOutcome({ elementId, taskName, task, attributes, outcomes, o
           checked={outcome !== undefined}
           onCheckedChange={(checked) => {
             const next = { ...task };
-            if (checked === true) next.outcome = defaultOutcome();
+            if (checked === true) next.outcome = defaultOutcome(taskName, [...attributes, ...outcomes]);
             else delete next.outcome;
             onChange(next);
           }}

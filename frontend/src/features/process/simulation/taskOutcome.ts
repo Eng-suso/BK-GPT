@@ -30,9 +30,17 @@ export function isOutcomeAttributeId(id: string): boolean {
   return id.startsWith(OUTCOME_PREFIX);
 }
 
-/** L'esito appena acceso: due categorie, da rinominare. */
-export function defaultOutcome(): OutcomeDraft {
-  return { name: "esito", categories: [{ value: "OK", percent: 80 }, { value: "KO", percent: 20 }] };
+/**
+ * L'esito appena acceso: "esito <attività>", due categorie da rinominare. Il
+ * nome dell'attività lo rende diverso da quello delle altre; se è già preso,
+ * si aggiunge un numero.
+ */
+export function defaultOutcome(taskName: string, taken: CaseAttributeDraft[]): OutcomeDraft {
+  const names = new Set(taken.map((a) => a.name.trim()));
+  const base = `esito ${taskName}`.trim().slice(0, 60);
+  let name = base;
+  for (let n = 2; names.has(name); n += 1) name = `${base} ${n}`;
+  return { name, categories: [{ value: "OK", percent: 80 }, { value: "KO", percent: 20 }] };
 }
 
 /**
