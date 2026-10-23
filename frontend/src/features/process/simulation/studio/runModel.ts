@@ -127,6 +127,12 @@ export const runModelSchema = z.object({
       }),
     )
     .default([]),
+  // SIM-31b: l'esito delle attivita' (con ``options``); gli altri aggiornamenti sono interni.
+  attribute_updates: z.array(z.object({
+    element_id: z.string(),
+    name: z.string(),
+    options: z.array(z.object({ value: z.string(), probability: z.number() })).nullable().optional(),
+  })).optional(),
 });
 export type RunModel = z.infer<typeof runModelSchema>;
 
