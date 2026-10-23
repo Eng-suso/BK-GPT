@@ -297,6 +297,42 @@ def _flow_rule_rows(**approve) -> list[dict]:
     return _run(_model(), payload=scenario.payload, bpmn=scenario.bpmn_xml)
 
 
+def test_an_activity_outcome_sets_the_attribute_that_routes_the_case_downstream():
+    # SIM-31b: Ricevi da' l'esito KO al 30% dei casi; la decisione dopo manda i
+    # KO ad Approva. L'esito non c'e' all'arrivo: lo da' solo l'attivita'.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    def esito(value: str) -> dict:
+        return {"any_of": [[{"attribute": "esito", "operator": "=", "value": value}]]}
+
+    request = CreateSimulationRunRequest(
+        tasks=[
+            {"element_id": "T_receive", "mean_seconds": 600, "distribution": "fixed",
+             "outcome": {"attribute": "esito", "options": [{"value": "KO", "probability": 0.3},
+                                                           {"value": "OK", "probability": 0.7}]}},
+            {"element_id": "T_approve", "mean_seconds": 1200, "distribution": "fixed"},
+            {"element_id": "T_pay", "mean_seconds": 600, "distribution": "fixed"},
+        ],
+        model_patch={
+            "gateways": [{"element_id": "G_split", "branches": [
+                {"flow_id": "F_high", "probability": 0.5, "condition": esito("KO")},
+                {"flow_id": "F_low", "probability": 0.5, "condition": esito("OK")},
+            ]}],
+        },
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=contract_spike.BPMN_PATH.read_text(encoding="utf-8"), request=request)
+    rows = _run(_model(), payload=scenario.payload)
+
+    approvals = _executions(rows, "Approva")
+    final = {row["case_id"]: row["esito"] for row in rows}
+    assert set(final.values()) == {"KO", "OK"}
+    # Passa da Approva chi ha avuto KO, e solo lui.
+    assert all((approvals[case] == 1) == (final[case] == "KO") for case in approvals)
+    share = sum(approvals.values()) / len(approvals)
+    assert 0.2 < share < 0.4, share
+
+
 def _executions(rows: list[dict], activity: str) -> dict[str, int]:
     counts = {row["case_id"]: 0 for row in rows}
     for row in rows:
