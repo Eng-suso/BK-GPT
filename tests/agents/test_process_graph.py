@@ -1329,6 +1329,47 @@ def test_canvas_handoff_runs_the_canvas_agent_instead_of_redirecting_the_user():
     assert result["delegation_events"][0]["status"] == "completed"
 
 
+def test_canvas_handoff_spends_the_same_turn_budget():
+    """Il tetto del runtime vale sul turno, non per sottografo.
+
+    Senza i contatori nell'input, il Canvas ripartiva da zero: passi, tool e
+    scadenza tutti nuovi dopo che il processo li aveva gia' consumati.
+    """
+    captured = {}
+
+    class FakeCanvasGraph:
+        def invoke(self, state, config=None):
+            captured["state"] = state
+            return {
+                "messages": [AIMessage(content="Canvas aggiornato.")],
+                "canvas_loop_status": "completed",
+                "agent_decision_steps": 7,
+                "agent_tool_calls": 11,
+                "agent_run_started_at": state["agent_run_started_at"],
+                "agent_budget_exhausted": None,
+            }
+
+    node = build_canvas_delegation_node(FakeCanvasGraph())
+    result = node(
+        {
+            "messages": [HumanMessage(content="disegna il processo")],
+            "process_id": "proc-1",
+            "bpmn_model_id": "bpmn-1",
+            "delegation_payload": {"goal": "BUILD_CANVAS"},
+            "agent_decision_steps": 5,
+            "agent_tool_calls": 9,
+            "agent_run_started_at": 123.0,
+        },
+        config={},
+    )
+
+    assert captured["state"]["agent_decision_steps"] == 5
+    assert captured["state"]["agent_tool_calls"] == 9
+    assert captured["state"]["agent_run_started_at"] == 123.0
+    assert result["agent_decision_steps"] == 7
+    assert result["agent_tool_calls"] == 11
+
+
 def test_canvas_handoff_without_a_bpmn_model_reports_the_block():
     node = build_canvas_delegation_node(object())
     result = node({"messages": [], "process_id": "proc-1"}, config={})

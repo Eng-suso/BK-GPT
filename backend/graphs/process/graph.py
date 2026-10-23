@@ -4,6 +4,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 
+from backend.graphs.agent_budget import TURN_BUDGET_KEYS
 from backend.graphs.common import (
     artifact_field,
     artifact_for_prompt,
@@ -1141,6 +1142,9 @@ def build_canvas_delegation_node(canvas_subgraph):
                 "intent": payload.get("intent") or state.get("intent"),
                 "next_action": payload.get("next_action") or state.get("next_action"),
                 "workflow_scope": payload.get("workflow_scope") or state.get("workflow_scope"),
+                # Il tetto del runtime vale sul turno: il Canvas continua a
+                # spendere lo stesso budget, non ne riceve uno nuovo.
+                **{key: state[key] for key in TURN_BUDGET_KEYS if state.get(key) is not None},
             },
             config=config,
         )
@@ -1149,6 +1153,7 @@ def build_canvas_delegation_node(canvas_subgraph):
             "messages": result.get("messages") or [],
             "saved_bpmn_xml": result.get("saved_bpmn_xml") or state.get("saved_bpmn_xml"),
             "routing_trace": result.get("routing_trace") or [],
+            **{key: result[key] for key in TURN_BUDGET_KEYS if key in result},
             "canvas_handoff_payload": snapshot.as_handoff_payload() if snapshot else None,
             "delegation_events": [
                 {

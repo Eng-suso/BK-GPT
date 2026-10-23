@@ -64,6 +64,9 @@ STEPS_KEY = "agent_decision_steps"
 TOOL_CALLS_KEY = "agent_tool_calls"
 STARTED_AT_KEY = "agent_run_started_at"
 EXHAUSTED_KEY = "agent_budget_exhausted"
+# I canali che misurano il turno: chi invoca un sottografo a mano (non come
+# nodo) deve passarli, o il sottografo riparte con un budget nuovo.
+TURN_BUDGET_KEYS = (STEPS_KEY, TOOL_CALLS_KEY, STARTED_AT_KEY, EXHAUSTED_KEY)
 
 
 def run_started_at(state: dict) -> float:
