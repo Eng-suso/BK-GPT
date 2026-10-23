@@ -23,6 +23,7 @@ import {
   type DurationWindowView,
   type WaitView,
   type FlowRulesView,
+  type OutcomeView,
   type DurationView,
 } from "./modelParameters";
 import { formatAfter } from "../escalation";
@@ -94,6 +95,7 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
             {view.durationBy && <DurationBy durationBy={view.durationBy} lang={lang} t={t} />}
             {view.durationWindows.length > 0 && <DurationWindows windows={view.durationWindows} lang={lang} t={t} />}
             <FlowRules rules={view.flowRules} self={elementId} lang={lang} t={t} />
+            {view.outcomes.map((outcome) => <Outcome key={outcome.name} outcome={outcome} lang={lang} t={t} />)}
             {view.assignments.map((assignment, index) => (
               <Assignment key={index} assignment={assignment} index={index} total={view.assignments.length} lang={lang} t={t} provenanceState={provenance} />
             ))}
@@ -289,6 +291,20 @@ function FlowRules({ rules, self, lang, t }: { rules: FlowRulesView; self: strin
         rule: rework.condition ? conditionText(rework.condition, t) : "",
       })}
     </p>}
+  </div>;
+}
+
+/** SIM-31b: l'esito che l'attivita' dava al caso, letto dalle regole a valle. */
+function Outcome({ outcome, lang, t }: { outcome: OutcomeView; lang: Lang; t: T }): React.JSX.Element {
+  const percent = new Intl.NumberFormat(lang === "it" ? "it-IT" : "en-US", { style: "percent", maximumFractionDigits: 1 });
+  return <div className="sim-param-group" data-outcome-view={outcome.name}>
+    <h5>{t("simulation.activityInspector.outcome", { name: outcome.name })}</h5>
+    <dl>
+      {outcome.options.map((option) => (
+        <div key={option.value}><dt>{option.value}</dt><dd>{percent.format(option.probability)}</dd></div>
+      ))}
+    </dl>
+    <p className="sim-help">{t("simulation.activityInspector.outcomeNote")}</p>
   </div>;
 }
 

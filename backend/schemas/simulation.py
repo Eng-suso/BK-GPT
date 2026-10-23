@@ -166,6 +166,24 @@ class SimDurationByConfig(BaseModel):
     variants: list[SimDurationVariantConfig] = Field(min_length=1, max_length=20)
 
 
+class SimOutcomeOption(BaseModel):
+    value: str = Field(min_length=1, max_length=120)
+    probability: float = Field(gt=0, le=1)
+
+
+class SimOutcomeConfig(BaseModel):
+    """SIM-31b: l'esito dell'attivita'. A ogni completamento ``attribute``
+    prende una delle ``options``, con la sua probabilita'.
+
+    E' un attributo dell'attivita', non del caso: all'arrivo non c'e' (il
+    motore non lascia un evento cambiare un attributo del caso). Le regole a
+    valle lo leggono; per chi non e' passato dall'attivita' non sono mai vere.
+    """
+
+    attribute: str = Field(min_length=1, max_length=64)
+    options: list[SimOutcomeOption] = Field(min_length=1, max_length=20)
+
+
 class SimTaskConfig(BaseModel):
     """La durata di un'attivita'. Oltre alla media, i parametri facoltativi:
 
@@ -201,6 +219,8 @@ class SimTaskConfig(BaseModel):
     duration_windows: list[SimDurationWindowConfig] = Field(default_factory=list, max_length=21)
     # SIM-11h: quante istanze per caso di una multi-istanza che il BPMN non fissa.
     instances: int | None = Field(default=None, ge=1, le=50)
+    # SIM-31b: l'esito dell'attivita' cambia un attributo del caso.
+    outcome: SimOutcomeConfig | None = None
 
 
 class SimGatewayBranchConfig(BaseModel):

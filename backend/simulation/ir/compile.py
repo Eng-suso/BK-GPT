@@ -15,6 +15,7 @@ Formati del motore che qui si rispettano (pix-framework):
 from __future__ import annotations
 
 from backend.simulation.ir.model import (
+    AttributeUpdate,
     Calendar,
     CalendarPeriod,
     Condition,
@@ -129,9 +130,7 @@ def compile_for_prosimos(model: SimulationModel) -> dict:
     if model.attribute_updates:
         by_element: dict[str, list[dict]] = {}
         for update in model.attribute_updates:
-            by_element.setdefault(update.element_id, []).append(
-                {"name": update.name, "type": "expression", "values": update.expression}
-            )
+            by_element.setdefault(update.element_id, []).append(_event_attribute(update))
         payload["event_attributes"] = [
             {"event_id": element_id, "attributes": attributes}
             for element_id, attributes in by_element.items()
@@ -143,6 +142,14 @@ def compile_for_prosimos(model: SimulationModel) -> dict:
             for rule in sorted(model.priority_rules, key=lambda r: r.level)
         ]
     return payload
+
+
+def _event_attribute(update: AttributeUpdate) -> dict:
+    if update.options is not None:
+        # SIM-31b: l'esito dell'attivita', una categoria scelta a ogni completamento.
+        values = [{"key": option.value, "value": option.probability} for option in update.options]
+        return {"name": update.name, "type": "discrete", "values": values}
+    return {"name": update.name, "type": "expression", "values": update.expression}
 
 
 def shift_id(resource_id: str, index: int) -> str:

@@ -81,10 +81,12 @@ export function caseRuleIssues(
   attributes: CaseAttributeDraft[],
   gatewayRules: Record<string, GatewayRulesDraft>,
   priorities: BranchRuleDraft[] = [],
+  /** Le decisioni leggono anche gli esiti delle attività (SIM-31b); le priorità solo il caso all'arrivo. */
+  ruleAttributes: CaseAttributeDraft[] = attributes,
 ) {
   const badAttributes = attributes.filter((a) => attributeIssue(a, attributes) !== null).length;
   const badGateways = Object.values(gatewayRules).filter((branches) =>
-    Object.values(branches).some((groups) => ruleIssue(groups, attributes) !== null)).length;
+    Object.values(branches).some((groups) => ruleIssue(groups, ruleAttributes) !== null)).length;
   const badPriorities = priorities.filter((groups) => ruleIssue(groups, attributes) !== null).length;
   return {
     attributes: badAttributes,
@@ -167,9 +169,12 @@ export function toModelPatch(
   attributes: CaseAttributeDraft[],
   gatewayRules: Record<string, GatewayRulesDraft>,
   priorities: BranchRuleDraft[] = [],
+  /** Gli attributi che le regole delle decisioni leggono: quelli del caso e gli esiti delle attività (SIM-31b). */
+  ruleAttributes: CaseAttributeDraft[] = attributes,
 ): ModelPatchInput | undefined {
-  if (attributes.length === 0) return undefined;
-  const condition = (groups: BranchRuleDraft): IrCondition => irCondition(groups, attributes);
+  // Senza attributi del caso una decisione per regola può leggere solo un esito.
+  if (attributes.length === 0 && Object.keys(gatewayRules).length === 0) return undefined;
+  const condition = (groups: BranchRuleDraft): IrCondition => irCondition(groups, ruleAttributes);
   const caseAttributes: NonNullable<ModelPatchInput["case_attributes"]> = attributes.map((attribute) => {
     if (attribute.kind === "number") {
       return { name: attribute.name.trim(), distribution: { kind: "uniform", minimum: attribute.minimum, maximum: attribute.maximum }, provenance: PROVENANCE };
@@ -197,7 +202,7 @@ export function toModelPatch(
   });
   const priorityRules = priorities.map((groups, index) => ({ level: index + 1, condition: condition(groups) }));
   return {
-    case_attributes: caseAttributes,
+    ...(caseAttributes.length ? { case_attributes: caseAttributes } : {}),
     ...(gateways.length ? { gateways } : {}),
     ...(priorityRules.length ? { priority_rules: priorityRules } : {}),
   };

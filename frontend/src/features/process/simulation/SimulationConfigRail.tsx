@@ -44,6 +44,8 @@ import { DurationWindows } from "./DurationWindows";
 import { TaskInstances } from "./TaskInstances";
 import { WaitsSection } from "./WaitsSection";
 import { FlowRules } from "./FlowRules";
+import { TaskOutcome } from "./TaskOutcome";
+import { outcomeAttributes } from "./taskOutcome";
 import { ResourceShifts } from "./ResourceShifts";
 import { formatAfter } from "./escalation";
 import { flowRuleAttributeIds } from "./flowRules";
@@ -147,7 +149,10 @@ export function SimulationConfigRail({
   const attributes = draft.caseAttributes ?? [];
   const gatewayRules = draft.gatewayRules ?? {};
   const priorities = draft.casePriorities ?? [];
-  const ruleIssues = caseRuleIssues(attributes, gatewayRules, priorities);
+  // SIM-31b: decisioni, salti e rilavorazioni leggono anche gli esiti delle attività.
+  const outcomes = outcomeAttributes(draft.tasks);
+  const ruleAttributes = [...attributes, ...outcomes];
+  const ruleIssues = caseRuleIssues(attributes, gatewayRules, priorities, ruleAttributes);
   const attributeUse = attributeUsage(attributes, gatewayRules, priorities,
     [...Object.values(draft.tasks).flatMap((task) => (task.durationBy ? [task.durationBy.attributeId] : [])),
       ...flowRuleAttributeIds(Object.values(draft.tasks))]);
@@ -393,6 +398,7 @@ export function SimulationConfigRail({
             {parameterIssues.costs && <p>{t("simulation.config.invalidCosts")}</p>}
             {parameterIssues.shifts > 0 && <p>{t("simulation.config.invalidShifts", { count: parameterIssues.shifts })}</p>}
             {parameterIssues.flowRules > 0 && <p>{t("simulation.config.invalidFlowRules", { count: parameterIssues.flowRules })}</p>}
+            {parameterIssues.outcomes > 0 && <p>{t("simulation.config.invalidOutcomes", { count: parameterIssues.outcomes })}</p>}
             {parameterIssues.warmup && <p>{t("simulation.config.invalidWarmup")}</p>}
             {parameterIssues.replications && <p>{t("simulation.config.invalidReplications")}</p>}
             {parameterIssues.horizon && <p>{t("simulation.config.invalidHorizon")}</p>}
@@ -500,12 +506,20 @@ export function SimulationConfigRail({
                       cfg={cfg}
                       onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
                     />
+                    <TaskOutcome
+                      elementId={task.element_id}
+                      taskName={task.name}
+                      task={cfg}
+                      attributes={attributes}
+                      outcomes={outcomes}
+                      onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                    />
                     <FlowRules
                       elementId={task.element_id}
                       taskName={task.name}
                       task={cfg}
                       activities={template?.tasks ?? []}
-                      attributes={attributes}
+                      attributes={ruleAttributes}
                       onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
                     />
                     <label className="sim-task-cost mt-1.5 grid gap-1">
@@ -627,9 +641,9 @@ export function SimulationConfigRail({
                       </p>
                     ) : <>
                     <div className="mb-2">
-                      <GatewayModeToggle gateway={gateway} rules={rules} attributes={attributes} onChange={setRules} />
+                      <GatewayModeToggle gateway={gateway} rules={rules} attributes={ruleAttributes} onChange={setRules} />
                     </div>
-                    {rules ? <GatewayRulesEditor gateway={gateway} rules={rules} attributes={attributes} onChange={setRules} /> : <div className="grid gap-1">
+                    {rules ? <GatewayRulesEditor gateway={gateway} rules={rules} attributes={ruleAttributes} onChange={setRules} /> : <div className="grid gap-1">
                       {gateway.branches.map((branch) => (
                         <div
                           key={branch.flow_id}

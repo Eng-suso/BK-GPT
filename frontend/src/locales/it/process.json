@@ -550,7 +550,22 @@
       "replications": "Ripetizioni",
       "replicationsHint": "Lo scenario gira più volte, ogni volta con casi diversi: i risultati avranno un intervallo e non dipenderanno da un'estrazione fortunata. Da 1 a 20.",
       "invalidReplications": "Le ripetizioni vanno da 1 a 20.",
-      "bandAttributeNote": "Riempito dalle fasce degli arrivi con la fascia in cui arriva ogni caso: {{values}}. Si cambia dalle fasce."
+      "bandAttributeNote": "Riempito dalle fasce degli arrivi con la fascia in cui arriva ogni caso: {{values}}. Si cambia dalle fasce.",
+      "invalidOutcomes": "Esiti da completare: {{count}}",
+      "outcome": {
+        "legend": "Esito di {{task}}",
+        "toggle": "Dà un esito",
+        "name": "Nome dell'esito",
+        "hint": "Ogni volta che l'attività finisce, il caso riceve una di queste categorie. Le decisioni, i salti e le rilavorazioni dopo l'attività possono usarlo nelle regole. Per un caso che non è passato da qui, una regola sull'esito non è mai vera.",
+        "issue": {
+          "name": "Dai un nome all'esito.",
+          "duplicateName": "Questo nome è già di un attributo del caso o di un altro esito.",
+          "reservedName": "I nomi che iniziano con delir_ sono riservati.",
+          "categories": "Aggiungi almeno una categoria.",
+          "categoryValue": "Ogni categoria ha un nome, diverso dalle altre.",
+          "categorySum": "Le quote devono essere maggiori di 0 e sommare 100%."
+        }
+      }
     },
     "diagram": {
       "title": "Modello di processo",
@@ -682,7 +697,9 @@
       "waitUnset": "Attesa non impostata nel pannello: il caso proseguiva subito.",
       "waitNoteManual": "Il caso aspettava questa durata, impostata nel pannello, a qualsiasi ora. Nessuna risorsa era occupata.",
       "instancesSequential": "Eseguita {{count}} volte per caso, una dopo l'altra: ogni istanza ha la sua durata.",
-      "instancesParallel": "Eseguita {{count}} volte per caso, in parallelo: ogni istanza prende la sua risorsa."
+      "instancesParallel": "Eseguita {{count}} volte per caso, in parallelo: ogni istanza prende la sua risorsa.",
+      "outcome": "Esito «{{name}}»",
+      "outcomeNote": "Quota di ogni categoria a ogni completamento. Le regole dopo l'attività la leggono."
     },
     "provenance": {
       "label": "Origine",
@@ -1370,7 +1387,10 @@
         "periods": "Periodi",
         "categories": "Categorie",
         "parametersConfirmed": "Confermata",
-        "share": "Quota"
+        "share": "Quota",
+        "outcome": "Esito",
+        "durationWindows": "Durata per ora d'inizio",
+        "instances": "Istanze per caso"
       },
       "section": {
         "totalCases": "Casi simulati",

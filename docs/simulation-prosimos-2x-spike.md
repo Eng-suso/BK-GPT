@@ -64,7 +64,7 @@ non può girare né nel backend né nell'immagine attuale.
 | SIM-01 distribuzioni | Fissa, esponenziale, uniforme, normale, lognormale e gamma sono **solo lavoro di adapter e UI**. Triangolare, Weibull e beta vanno tolte dalla prima versione o approssimate lato DeliR con un fit dichiarato. |
 | SIM-02 calendari | Supportati già oggi: **adapter + IR + UI**. |
 | SIM-30 capacità nel tempo | Ottenibile con un calendario per singola risorsa; i calendari fuzzy coprono la disponibilità probabilistica. |
-| SIM-31 attributi e modifiche | Attributi del caso: già oggi. Modifiche durante il processo: **solo 2.x**. |
+| SIM-31 attributi e modifiche | Attributi del caso: già oggi. Modifiche durante il processo: **solo 2.x**. Fatto poi l'esito dell'attività dal pannello (SIM-31b): un attributo d'evento `discrete` con un nome proprio, perché Prosimos 2.1 rifiuta lo scenario se un evento cambia un attributo del caso (`AllAttributes`); per un caso che non è passato dall'attività la regola che lo legge è falsa. |
 | SIM-34 routing condizionale | **Solo 2.x**: la 1.2.6 accetta la sezione e la ignora in silenzio. |
 | SIM-12 code | Priorità sì; LIFO no. LIFO resta fuori dalla prima versione. |
 | SIM-32 durate condizionali | Non native. Compilazione lato IR: il task diventa varianti dietro un XOR con `branch_rules` (richiede 2.x). |

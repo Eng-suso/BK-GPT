@@ -170,6 +170,15 @@ def _sanitize_rework(raw: Any) -> Any:
     }
 
 
+def _sanitize_outcome(raw: Any) -> Any:
+    if not _obj(raw) or not isinstance(raw.get("name"), str) or not isinstance(raw.get("categories"), list):
+        return ...
+    categories = raw["categories"]
+    if not all(_obj(c) and isinstance(c.get("value"), str) and _is_number(c.get("percent")) for c in categories):
+        return ...
+    return {"name": raw["name"], "categories": categories}
+
+
 def _sanitize_duration_windows(raw: Any) -> Any:
     if not isinstance(raw, list):
         return ...
@@ -192,6 +201,8 @@ def _sanitize_tasks(raw: Any) -> dict[str, Any]:
         clean = task
         if "skip" in task or "rework" in task:
             clean = _compact({**task, "skip": _sanitize_skip(task.get("skip")), "rework": _sanitize_rework(task.get("rework"))})
+        if "outcome" in task:
+            clean = _compact({**clean, "outcome": _sanitize_outcome(task.get("outcome"))})
         if "durationWindows" in task:
             clean = _compact({**clean, "durationWindows": _sanitize_duration_windows(task.get("durationWindows"))})
         out[element_id] = clean
@@ -441,9 +452,26 @@ def _category_sum(attribute: dict[str, Any]) -> float:
     return total
 
 
-def _model_patch(draft: dict[str, Any]) -> Any:
+def _outcome_attributes(tasks: dict[str, Any]) -> list[dict[str, Any]]:
+    """``outcomeAttributes``: gli esiti delle attivita' (SIM-31b) come attributi delle regole."""
+    return [
+        {"id": f"outcome:{element_id}", "name": task["outcome"]["name"], "kind": "category", "categories": task["outcome"]["categories"]}
+        for element_id, task in tasks.items()
+        if _obj(task) and _truthy(task.get("outcome"))
+    ]
+
+
+def _outcome(outcome: dict[str, Any]) -> dict[str, Any]:
+    total = _category_sum(outcome) or 1
+    return {
+        "attribute": outcome["name"].strip(),
+        "options": [{"value": c["value"].strip(), "probability": c["percent"] / total} for c in outcome["categories"]],
+    }
+
+
+def _model_patch(draft: dict[str, Any], rule_attributes: list[dict[str, Any]]) -> Any:
     attributes = draft.get("caseAttributes") or []
-    if not attributes:
+    if not attributes and not (draft.get("gatewayRules") or {}):
         return ...
     case_attributes = []
     for attribute in attributes:
@@ -466,16 +494,16 @@ def _model_patch(draft: dict[str, Any]) -> Any:
         gateways.append({
             "element_id": element_id,
             "branches": [
-                {"flow_id": flow_id, "probability": 1 / len(flows), "condition": _ir_condition(groups, attributes), "provenance": PROVENANCE}
+                {"flow_id": flow_id, "probability": 1 / len(flows), "condition": _ir_condition(groups, rule_attributes), "provenance": PROVENANCE}
                 for flow_id, groups in flows
             ],
         })
     priorities = [
-        {"level": index + 1, "condition": _ir_condition(groups, attributes)}
+        {"level": index + 1, "condition": _ir_condition(groups, rule_attributes)}
         for index, groups in enumerate(draft.get("casePriorities") or [])
     ]
     return {
-        "case_attributes": case_attributes,
+        **({"case_attributes": case_attributes} if case_attributes else {}),
         **({"gateways": gateways} if gateways else {}),
         **({"priority_rules": priorities} if priorities else {}),
     }
@@ -556,7 +584,7 @@ def _condition_of(rule: Any, attributes: list[dict[str, Any]]) -> dict[str, Any]
     return {"condition": _ir_condition(rule, attributes)} if _truthy(rule) else {}
 
 
-def _task(element_id: str, task: dict[str, Any], attributes: list[dict[str, Any]]) -> dict[str, Any]:
+def _task(element_id: str, task: dict[str, Any], attributes: list[dict[str, Any]], rule_attributes: list[dict[str, Any]]) -> dict[str, Any]:
     if not _obj(task):
         raise DraftTranslationError("La bozza ha un'attivita' senza configurazione.")
     others = task.get("otherAssignments") or []
@@ -577,18 +605,19 @@ def _task(element_id: str, task: dict[str, Any], attributes: list[dict[str, Any]
         "fixed_cost": task["fixedCost"] if _truthy(task.get("fixedCost")) else ...,
         "duration_by": _duration_by(task, attributes),
         "other_assignments": [{"resource_id": a["resourceId"], **_duration(a)} for a in others] if others else ...,
-        "skip": {"probability": skip["percent"] / 100, **_condition_of(skip.get("rule"), attributes)} if _truthy(skip) else ...,
+        "skip": {"probability": skip["percent"] / 100, **_condition_of(skip.get("rule"), rule_attributes)} if _truthy(skip) else ...,
         "rework": _compact({
             "back_to": rework["backTo"],
             "probability": rework["percent"] / 100,
             "max_repeats": rework["maxRepeats"],
-            "condition": _ir_condition(rework["rule"], attributes) if _truthy(rework.get("rule")) else ...,
+            "condition": _ir_condition(rework["rule"], rule_attributes) if _truthy(rework.get("rule")) else ...,
         }) if _truthy(rework) else ...,
         "duration_windows": [
             {"from_day": w["fromDay"], "to_day": w["toDay"], "begin": w["begin"], "end": w["end"], "factor": 1 + w["percent"] / 100}
             for w in windows
         ] if windows else ...,
         "instances": task["instances"] if _is_number(task.get("instances")) and task["instances"] > 1 else ...,
+        "outcome": _outcome(task["outcome"]) if _truthy(task.get("outcome")) else ...,
     })
 
 
@@ -599,6 +628,8 @@ def draft_to_request_body(draft: dict[str, Any], scenario_name: str) -> dict[str
     calendars = draft.get("calendars") or []
     calendar_ids = {c["id"] for c in calendars}
     attributes = draft.get("caseAttributes") or []
+    # Decisioni, salti e rilavorazioni leggono anche gli esiti delle attivita' (SIM-31b).
+    rule_attributes = attributes + _outcome_attributes(draft.get("tasks") or {})
     arrival: Any = draft.get("arrival")
     arrival = arrival if _obj(arrival) else {}
     arrival_calendar = arrival.get("calendarId")
@@ -657,7 +688,7 @@ def draft_to_request_body(draft: dict[str, Any], scenario_name: str) -> dict[str
             })
             for r in resources
         ],
-        "tasks": [_task(element_id, task, attributes) for element_id, task in (draft.get("tasks") or {}).items()],
+        "tasks": [_task(element_id, task, attributes, rule_attributes) for element_id, task in (draft.get("tasks") or {}).items()],
         "gateways": [
             {"element_id": element_id, "branches": [
                 {"flow_id": flow_id, "probability": max(0, min(1, _num(probability) / 100))} for flow_id, probability in branches.items()
@@ -666,7 +697,7 @@ def draft_to_request_body(draft: dict[str, Any], scenario_name: str) -> dict[str
         ],
         "calendars": calendars if calendars else ...,
         "waits": [{"element_id": element_id, **_duration(wait)} for element_id, wait in waits.items()] if waits else ...,
-        "model_patch": _model_patch(draft),
+        "model_patch": _model_patch(draft, rule_attributes),
     }
     return _compact(body)
 

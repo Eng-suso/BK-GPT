@@ -2,6 +2,7 @@ import type { ModelPatchInput } from "./caseRules";
 import type { ArrivalBandInput } from "./arrivalBands";
 import type { DurationWindowInput } from "./durationWindows";
 import type { ReworkInput, SkipInput } from "./flowRules";
+import type { OutcomeInput } from "./taskOutcome";
 import { z } from "zod";
 
 /**
@@ -376,6 +377,8 @@ export type SimTaskInput = SimDurationInput & {
   durationWindows?: DurationWindowInput[];
   /** SIM-11h: istanze per caso di una multi-istanza aperta. */
   instances?: number;
+  /** SIM-31b: l'esito dell'attività, un attributo che le regole a valle leggono. */
+  outcome?: OutcomeInput;
 };
 
 /** SIM-11d: quanto il caso aspetta a un messaggio o a un segnale. */
