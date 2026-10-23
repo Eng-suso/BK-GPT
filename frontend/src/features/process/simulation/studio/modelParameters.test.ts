@@ -159,6 +159,13 @@ describe("elementFromModel", () => {
     expect(other?.kind === "activity" && other.outcomes).toEqual([]);
   });
 
+  it("reads the months of the arrivals in the order of the year", () => {
+    const arrival = { interarrival: { kind: "exponential" as const, mean: 900, minimum: 0, maximum: 9000 }, calendar_id: STANDARD_CALENDAR_ID, provenance: null, bands: [] };
+    const seasonal: RunModel = { ...MODEL, arrival: { ...arrival, months: [{ month: 12, factor: 1.4 }, { month: 8, factor: 0.5 }] } };
+    expect(arrivalFromModel(seasonal)?.months).toEqual([{ month: 8, factor: 0.5 }, { month: 12, factor: 1.4 }]);
+    expect(arrivalFromModel({ ...MODEL, arrival })?.months).toEqual([]);
+  });
+
   it("returns null for an element the model does not simulate", () => {
     expect(elementFromModel(MODEL, "StartEvent_1")).toBeNull();
   });
