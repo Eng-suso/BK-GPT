@@ -627,6 +627,7 @@ def _task(element_id: str, task: dict[str, Any], attributes: list[dict[str, Any]
         ] if windows else ...,
         "instances": task["instances"] if _is_number(task.get("instances")) and task["instances"] > 1 else ...,
         "outcome": _outcome(task["outcome"]) if _truthy(task.get("outcome")) else ...,
+        "removable": True if _truthy(task.get("removable")) else ...,
     })
 
 
