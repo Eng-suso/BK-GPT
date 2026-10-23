@@ -582,7 +582,15 @@
           "percent": "Una variazione maggiore di -100% e al più +900%.",
           "needsPoisson": "Il ritmo per mese vale con le fasce orarie o con arrivi esponenziali: cambia la distribuzione degli arrivi o aggiungi una fascia."
         }
-      }
+      },
+      "resourceKind": "Tipo di risorsa",
+      "resourceKindName": {
+        "person": "Persone",
+        "system": "Sistema"
+      },
+      "systemHint": "Un sistema o una macchina (un ERP, un robot software): lavora senza pause e senza turni. Senza un calendario è sempre disponibile.",
+      "systemCapacity": "Esecuzioni contemporanee",
+      "alwaysCalendar": "Sempre, 24 ore su 24"
     },
     "diagram": {
       "title": "Modello di processo",
@@ -717,7 +725,9 @@
       "instancesParallel": "Eseguita {{count}} volte per caso, in parallelo: ogni istanza prende la sua risorsa.",
       "outcome": "Esito «{{name}}»",
       "outcomeNote": "Quota di ogni categoria a ogni completamento. Le regole dopo l'attività la leggono.",
-      "arrivalMonths": "Ritmo degli arrivi per mese, rispetto al resto dell'anno:"
+      "arrivalMonths": "Ritmo degli arrivi per mese, rispetto al resto dell'anno:",
+      "alwaysCalendar": "sempre, 24 ore su 24",
+      "systemValue": "{{name}} (sistema) · {{amount}} esecuzioni contemporanee · {{cost}}/h"
     },
     "provenance": {
       "label": "Origine",

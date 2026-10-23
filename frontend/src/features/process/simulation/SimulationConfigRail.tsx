@@ -368,9 +368,24 @@ export function SimulationConfigRail({
                   <FieldLabel label={t("simulation.config.role")}>
                     <Input value={resource.name} onChange={(e) => updateResource(resource.id, { name: e.target.value, parametersConfirmed: false })} />
                   </FieldLabel>
+                  {/* SIM-09b: un sistema o una macchina lavora senza turni, sempre se non ha un calendario. */}
+                  <div role="group" aria-label={`${t("simulation.config.resourceKind")} · ${resource.name}`} className="mt-3 inline-flex rounded-lg border border-border p-0.5">
+                    {(["person", "system"] as const).map((kind) => {
+                      const active = (resource.kind ?? "person") === kind;
+                      return (
+                        <Button key={kind} type="button" size="sm" variant={active ? "secondary" : "ghost"} aria-pressed={active} className="h-7 px-2.5 text-xs"
+                          onClick={() => !active && updateResource(resource.id, kind === "system"
+                            ? { kind: "system", shifts: undefined, parametersConfirmed: false }
+                            : { kind: undefined, parametersConfirmed: false })}>
+                          {t(`simulation.config.resourceKindName.${kind}`)}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  {resource.kind === "system" && <p className="mt-2 text-xs text-muted-foreground">{t("simulation.config.systemHint")}</p>}
                   <div className="mt-3 grid grid-cols-2 gap-3">
                     <NumberField label={`${t("simulation.fields.costPerHour")} (€/h)`} value={resource.costPerHour} min={0} onChange={(value) => updateResource(resource.id, { costPerHour: value, parametersConfirmed: false })} />
-                    <NumberField label={t("simulation.config.capacity")} value={resource.amount} min={1} max={1000} onChange={(value) => updateResource(resource.id, { amount: value, parametersConfirmed: false })} />
+                    <NumberField label={t(resource.kind === "system" ? "simulation.config.systemCapacity" : "simulation.config.capacity")} value={resource.amount} min={1} max={1000} onChange={(value) => updateResource(resource.id, { amount: value, parametersConfirmed: false })} />
                   </div>
                   <label className="mt-3 grid gap-1">
                     <span className="text-xs font-medium text-muted-foreground">{t("simulation.config.resourceCalendar")}</span>
@@ -380,11 +395,11 @@ export function SimulationConfigRail({
                       value={calendars.some((c) => c.id === resource.calendarId) ? resource.calendarId : ""}
                       onChange={(e) => updateResource(resource.id, { calendarId: e.target.value || undefined })}
                     >
-                      <option value="">{t("simulation.config.standardCalendar")}</option>
+                      <option value="">{t(resource.kind === "system" ? "simulation.config.alwaysCalendar" : "simulation.config.standardCalendar")}</option>
                       {calendars.map((c) => <option key={c.id} value={c.id}>{c.name || c.id}</option>)}
                     </select>
                   </label>
-                  <ResourceShifts resource={resource} calendars={calendars} onChange={(shifts) => updateResource(resource.id, { shifts })} />
+                  {resource.kind !== "system" && <ResourceShifts resource={resource} calendars={calendars} onChange={(shifts) => updateResource(resource.id, { shifts })} />}
                   <p className="mt-3 text-xs text-muted-foreground">{t("simulation.config.assignedActivities", { count: assigned })}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {!confirmed && <Button type="button" size="sm" variant="outline" disabled={!resourceParametersValid(resource)} onClick={() => updateResource(resource.id, { parametersConfirmed: true })}>{t("simulation.config.confirmResource")}</Button>}

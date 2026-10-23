@@ -582,7 +582,15 @@
           "percent": "A change above -100% and at most +900%.",
           "needsPoisson": "The pace by month works with time bands or exponential arrivals: change the arrival distribution or add a band."
         }
-      }
+      },
+      "resourceKind": "Resource type",
+      "resourceKindName": {
+        "person": "People",
+        "system": "System"
+      },
+      "systemHint": "A system or a machine (an ERP, a software robot): it works without breaks or shifts. Without a calendar it is always available.",
+      "systemCapacity": "Concurrent runs",
+      "alwaysCalendar": "Always, 24 hours a day"
     },
     "diagram": {
       "title": "Process model",
@@ -717,7 +725,9 @@
       "instancesParallel": "Run {{count}} times per case, in parallel: each instance takes its own resource.",
       "outcome": "Outcome «{{name}}»",
       "outcomeNote": "Share of each category at each completion. Rules after the activity read it.",
-      "arrivalMonths": "Arrival pace by month, compared with the rest of the year:"
+      "arrivalMonths": "Arrival pace by month, compared with the rest of the year:",
+      "alwaysCalendar": "always, 24 hours a day",
+      "systemValue": "{{name}} (system) · {{amount}} concurrent runs · {{cost}}/h"
     },
     "provenance": {
       "label": "Source",
