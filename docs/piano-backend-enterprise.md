@@ -44,7 +44,7 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 | P0.6a | Le migrazioni allo startup spegnevano tutti i logger del backend | 6 | **fatto** — #64 |
 | P0.6b | Audit log append-only, OpenTelemetry, Sentry, backup con restore provato, cancellazione GDPR end-to-end | 6 | **bloccato** — D4 (infra) |
 | P2.1a | `backend/memory/gateway.py` diviso nel pacchetto `backend/memory/gateway/` (scope, ricerca testuale, grafo, ledger, memoria, procedurale, workspace) dietro la stessa facciata | 7 | **fatto** — #85 |
-| P2.1b | `backend/workspace_database.py` (4.860 righe) diviso nel pacchetto `backend/workspace_database/` (registry, bpmn, reviews, conformance, sources, evidence, plans, decisions, lifecycle) dietro la stessa facciata | 7 | **fatto** — PR in revisione |
+| P2.1b | `backend/workspace_database.py` (4.860 righe) diviso nel pacchetto `backend/workspace_database/` (registry, bpmn, reviews, conformance, sources, evidence, plans, decisions, lifecycle) dietro la stessa facciata | 7 | **in corso** — PR #153 in revisione |
 | P2.2 | `SourceBlobStore`: file originali dietro un'interfaccia, radice assoluta, download a pezzi | 7 | **fatto** — #68 |
 
 ---
