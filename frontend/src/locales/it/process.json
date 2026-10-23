@@ -556,7 +556,7 @@
         "legend": "Esito di {{task}}",
         "toggle": "Dà un esito",
         "name": "Nome dell'esito",
-        "hint": "Ogni volta che l'attività finisce, il caso riceve una di queste categorie. Le decisioni, i salti e le rilavorazioni dopo l'attività possono usarlo nelle regole; un caso che non è passato da qui segue le percentuali della decisione.",
+        "hint": "Ogni volta che l'attività finisce, il caso riceve una di queste categorie. Le decisioni, i salti e le rilavorazioni dopo l'attività possono usarlo nelle regole. Per un caso che non è passato da qui, una regola sull'esito non è mai vera.",
         "issue": {
           "name": "Dai un nome all'esito.",
           "duplicateName": "Questo nome è già di un attributo del caso o di un altro esito.",

@@ -556,7 +556,7 @@
         "legend": "Outcome of {{task}}",
         "toggle": "Gives an outcome",
         "name": "Outcome name",
-        "hint": "Each time the activity ends, the case gets one of these categories. Decisions, skips and rework after the activity can use it in their rules; a case that did not pass here follows the decision's percentages.",
+        "hint": "Each time the activity ends, the case gets one of these categories. Decisions, skips and rework after the activity can use it in their rules. For a case that did not pass here, a rule on the outcome is never true.",
         "issue": {
           "name": "Name the outcome.",
           "duplicateName": "This name already belongs to a case attribute or another outcome.",

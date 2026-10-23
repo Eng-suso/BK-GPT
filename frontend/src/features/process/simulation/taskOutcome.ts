@@ -5,8 +5,8 @@
  * percentuale ("Verifica: OK 80%, KO 20%"). È un attributo dell'attività, non
  * del caso: all'arrivo non c'è, perché il motore non lascia un'attività
  * cambiare un attributo del caso. Le decisioni, i salti e le rilavorazioni a
- * valle lo leggono nelle loro regole come un attributo a categorie; un caso
- * che non è passato dall'attività segue le percentuali della decisione.
+ * valle lo leggono nelle loro regole come un attributo a categorie; per un
+ * caso che non è passato dall'attività una regola sull'esito non è mai vera.
  *
  * Arriva al backend con la config del task (`outcome`), che lo scrive nell'IR
  * prima della `model_patch` (backend/simulation/ir/from_request.py).

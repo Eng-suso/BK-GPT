@@ -177,7 +177,7 @@ class SimOutcomeConfig(BaseModel):
 
     E' un attributo dell'attivita', non del caso: all'arrivo non c'e' (il
     motore non lascia un evento cambiare un attributo del caso). Le regole a
-    valle lo leggono; chi non e' passato dall'attivita' segue le percentuali.
+    valle lo leggono; per chi non e' passato dall'attivita' non sono mai vere.
     """
 
     attribute: str = Field(min_length=1, max_length=64)
