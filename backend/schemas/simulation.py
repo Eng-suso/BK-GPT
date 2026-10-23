@@ -86,6 +86,13 @@ class SimDurationWindowConfig(SimCalendarPeriodConfig):
     factor: float = Field(gt=0, le=10, allow_inf_nan=False)
 
 
+class SimArrivalMonthConfig(BaseModel):
+    """SIM-08b: nel mese ``month`` (1 = gennaio) i casi arrivano ``factor`` volte piu' spesso."""
+
+    month: int = Field(ge=1, le=12)
+    factor: float = Field(gt=0, le=10)
+
+
 class SimArrivalConfig(BaseModel):
     """Come arrivano i casi: la distribuzione del tempo fra un arrivo e il
     successivo e il calendario in cui arrivano.
@@ -106,6 +113,8 @@ class SimArrivalConfig(BaseModel):
     bands: list[SimArrivalBandConfig] = Field(default_factory=list, max_length=21)
     # SIM-33: un attributo del caso a categorie che riceve la fascia di arrivo.
     band_attribute: str | None = Field(default=None, min_length=1, max_length=64)
+    # SIM-08b: un ritmo diverso per mese, sopra le fasce o sugli arrivi esponenziali.
+    months: list[SimArrivalMonthConfig] = Field(default_factory=list, max_length=12)
 
 
 class SimSlaSegment(BaseModel):

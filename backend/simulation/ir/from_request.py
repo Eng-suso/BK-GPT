@@ -34,6 +34,7 @@ from backend.simulation.ir.model import (
     Gamma,
     Gateway,
     LogNormal,
+    MonthFactor,
     Normal,
     Provenance,
     Resource,
@@ -127,10 +128,11 @@ def _arrival(request: CreateSimulationRunRequest, calendar_ids: set[str]) -> Arr
                         mean_seconds=float(band.mean_seconds))
             for band in config.bands
         )
-        return Arrival(interarrival=interarrival, calendar_id=calendar_id, provenance=_MANUAL, bands=bands)
+        months = tuple(MonthFactor(month=m.month, factor=m.factor) for m in config.months)
+        return Arrival(interarrival=interarrival, calendar_id=calendar_id, provenance=_MANUAL, bands=bands, months=months)
     except ValidationError as exc:
         reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
-        raise ValueError(f"Fasce degli arrivi: {reason}.") from exc
+        raise ValueError(f"{'Ritmo per mese' if 'mese' in reason else 'Fasce degli arrivi'}: {reason}.") from exc
 
 
 def duration_from_mean(distribution: str, mean: float):
