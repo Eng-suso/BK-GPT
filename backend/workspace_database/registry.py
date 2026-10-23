@@ -2,7 +2,7 @@
 sulle liste.
 """
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 
 from backend.workspace_database._common import decode_list, decode_milestones, encode_list, encode_milestones, normalize_name, slugify, tenant_id, tenant_row, unique_id
 from backend.workspace_defaults import (
@@ -134,7 +134,7 @@ def capped_limit(limit: int | None) -> int:
     return max(1, min(int(limit), MAX_LIST_LIMIT))
 
 
-def clients_statement(include_archived: bool):
+def clients_statement(include_archived: bool) -> Select[tuple[WorkspaceClient]]:
     statement = select(WorkspaceClient).where(WorkspaceClient.tenant_id == tenant_id())
     if not include_archived:
         statement = statement.where(WorkspaceClient.archived_at.is_(None))
@@ -285,7 +285,7 @@ def create_client(
         return client_to_dict(client)
 
 
-def projects_statement(include_archived: bool):
+def projects_statement(include_archived: bool) -> Select[tuple[WorkspaceProject]]:
     statement = select(WorkspaceProject).where(WorkspaceProject.tenant_id == tenant_id())
     if not include_archived:
         statement = statement.where(WorkspaceProject.archived_at.is_(None))
