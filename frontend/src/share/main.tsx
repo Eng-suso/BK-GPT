@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense } from "react";
 import ReactDOM from "react-dom/client";
 
 // La pagina del cliente ha un suo ingresso: niente navigazione di DeliR e,
@@ -20,7 +20,11 @@ if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <I18nextProvider i18n={i18n}>
-        <SharedDashboardApp />
+        {/* `process.json` arriva a richiesta (`src/lib/i18n`): finche' non c'e'
+            la pagina resta vuota invece di mostrare le chiavi. */}
+        <Suspense fallback={null}>
+          <SharedDashboardApp />
+        </Suspense>
       </I18nextProvider>
     </React.StrictMode>,
   );

@@ -1,15 +1,13 @@
-import i18next from "i18next";
+import i18next, { type BackendModule } from "i18next";
 import { initReactI18next } from "react-i18next";
 
 import enChat from "@/locales/en/chat.json";
 import enClients from "@/locales/en/clients.json";
 import enCommon from "@/locales/en/common.json";
-import enProcess from "@/locales/en/process.json";
 import enProjects from "@/locales/en/projects.json";
 import itChat from "@/locales/it/chat.json";
 import itClients from "@/locales/it/clients.json";
 import itCommon from "@/locales/it/common.json";
-import itProcess from "@/locales/it/process.json";
 import itProjects from "@/locales/it/projects.json";
 
 export const SUPPORTED_LANGUAGES = ["it", "en"] as const;
@@ -27,31 +25,71 @@ function initialLanguage(): Language {
   return "it";
 }
 
+/**
+ * Le traduzioni del canvas e della Simulazione, caricate quando servono.
+ *
+ * `process.json` da solo e' quasi tre quarti di tutte le stringhe, e stava nel
+ * pacchetto d'ingresso in entrambe le lingue: chi apriva Clienti scaricava le
+ * etichette della Simulazione in italiano e in inglese prima di vedere la
+ * tabella. Le schermate che lo usano lo chiedono insieme al proprio codice
+ * (`src/app/screens.tsx`), quindi non aggiunge un'attesa alla loro apertura.
+ */
+const processBundles = import.meta.glob<{ default: Record<string, unknown> }>(
+  "../../locales/*/process.json",
+);
+
+const lazyNamespaces: BackendModule = {
+  type: "backend",
+  init() {},
+  read(language, namespace, callback) {
+    const load = namespace === "process" ? processBundles[`../../locales/${language}/process.json`] : undefined;
+    if (!load) {
+      callback(null, {});
+      return;
+    }
+    load().then(
+      (bundle) => callback(null, bundle.default),
+      (error: unknown) => callback(error instanceof Error ? error : new Error(String(error)), false),
+    );
+  },
+};
+
 export const i18n = i18next.createInstance();
 
-void i18n.use(initReactI18next).init({
+const initialized = i18n.use(lazyNamespaces).use(initReactI18next).init({
   resources: {
     it: {
       common: itCommon,
       projects: itProjects,
       clients: itClients,
-      process: itProcess,
       chat: itChat,
     },
     en: {
       common: enCommon,
       projects: enProjects,
       clients: enClients,
-      process: enProcess,
       chat: enChat,
     },
   },
-  ns: ["common", "projects", "clients", "process", "chat"],
+  // Le lingue qui sopra sono parziali: quello che manca (`process`) lo porta
+  // `lazyNamespaces` alla prima richiesta.
+  partialBundledLanguages: true,
+  ns: ["common", "projects", "clients", "chat"],
   lng: initialLanguage(),
   fallbackLng: "it",
   defaultNS: "common",
   interpolation: { escapeValue: false },
 });
+
+/**
+ * Porta giu' le traduzioni di canvas e Simulazione per la lingua corrente.
+ *
+ * Aspetta la fine di `init`: prima la lingua non e' ancora decisa e
+ * `loadNamespaces` risolverebbe senza aver caricato niente.
+ */
+export function loadProcessTranslations(): Promise<void> {
+  return initialized.then(() => i18n.loadNamespaces("process"));
+}
 
 i18n.on("languageChanged", (lng) => {
   try {

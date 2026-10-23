@@ -1,5 +1,7 @@
 import { lazy } from "react";
 
+import { loadProcessTranslations } from "@/lib/i18n";
+
 /**
  * Le schermate del prodotto, caricate quando servono.
  *
@@ -15,6 +17,18 @@ import { lazy } from "react";
  * Stanno in un file loro e non nel router perché un modulo che esporta
  * componenti e altro insieme rompe il fast refresh in sviluppo.
  */
+
+/**
+ * Canvas, consegna e Simulazione parlano con `process.json`, che non sta piu'
+ * nel pacchetto d'ingresso: lo si chiede insieme al codice della schermata,
+ * cosi' le due attese si sovrappongono invece di sommarsi.
+ */
+function withProcessTranslations<T>(load: () => Promise<T>): () => Promise<T> {
+  return () => Promise.all([load(), loadProcessTranslations()]).then(([module]) => module);
+}
+
+const processFeature = withProcessTranslations(() => import("@/features/process"));
+const handover = withProcessTranslations(() => import("@/features/process/handover"));
 
 export const HomePage = lazy(() =>
   import("@/features/home/HomePage").then((m) => ({ default: m.HomePage })),
@@ -43,7 +57,7 @@ export const ProjectDetailPage = lazy(() =>
 );
 
 export const ProcessStudioPage = lazy(() =>
-  import("@/features/process").then((m) => ({ default: m.ProcessStudioPage })),
+  processFeature().then((m) => ({ default: m.ProcessStudioPage })),
 );
 
 export const ModelsPage = lazy(() =>
@@ -61,13 +75,13 @@ export const SettingsPage = lazy(() =>
 );
 
 export const HandoverPage = lazy(() =>
-  import("@/features/process/handover").then((m) => ({
+  handover().then((m) => ({
     default: m.HandoverPage,
   })),
 );
 
 export const OwnerDashboardPage = lazy(() =>
-  import("@/features/process/handover").then((m) => ({
+  handover().then((m) => ({
     default: m.OwnerDashboardPage,
   })),
 );
@@ -75,7 +89,7 @@ export const OwnerDashboardPage = lazy(() =>
 // La sezione Simulazione è un blocco solo: si entra dalla Panoramica e si passa
 // da una schermata all'altra con la barra, quindi spezzarla per pagina
 // aggiungerebbe un'attesa a ogni passaggio senza risparmiare niente.
-const simulation = () => import("@/features/process/simulation");
+const simulation = withProcessTranslations(() => import("@/features/process/simulation"));
 
 export const SimulationLayout = lazy(() =>
   simulation().then((m) => ({ default: m.SimulationLayout })),
