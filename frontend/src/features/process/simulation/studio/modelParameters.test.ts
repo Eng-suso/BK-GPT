@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ScenarioElementProvenance, ScenarioTemplate } from "../simulationTypes";
-import { arrivalFromModel, durationView, elementFromModel, STANDARD_CALENDAR_ID } from "./modelParameters";
+import { ALWAYS_CALENDAR_ID, arrivalFromModel, durationView, elementFromModel, STANDARD_CALENDAR_ID } from "./modelParameters";
 import type { RunModel } from "./runModel";
 
 const MODEL: RunModel = {
@@ -164,6 +164,17 @@ describe("elementFromModel", () => {
     const seasonal: RunModel = { ...MODEL, arrival: { ...arrival, months: [{ month: 12, factor: 1.4 }, { month: 8, factor: 0.5 }] } };
     expect(arrivalFromModel(seasonal)?.months).toEqual([{ month: 8, factor: 0.5 }, { month: 12, factor: 1.4 }]);
     expect(arrivalFromModel({ ...MODEL, arrival })?.months).toEqual([]);
+  });
+
+  it("tells a system that always works apart from a person", () => {
+    const pools = MODEL.pools.map((pool) => ({ ...pool, resources: pool.resources.map((r) => (r.id === "ops"
+      ? { ...r, kind: "system" as const, calendar_id: ALWAYS_CALENDAR_ID, shifts: [] } : r)) }));
+    const view = elementFromModel({ ...MODEL, pools }, "Task_B");
+    const resource = view?.kind === "activity" ? view.assignments[0]?.resource : null;
+    expect(resource?.system).toBe(true);
+    expect(resource?.calendar).toEqual({ standard: false, always: true });
+    const before = elementFromModel(MODEL, "Task_B");
+    expect(before?.kind === "activity" && before.assignments[0]?.resource?.system).toBe(false);
   });
 
   it("returns null for an element the model does not simulate", () => {
