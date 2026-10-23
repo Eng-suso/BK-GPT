@@ -565,6 +565,23 @@
           "categoryValue": "Ogni categoria ha un nome, diverso dalle altre.",
           "categorySum": "Le quote devono essere maggiori di 0 e sommare 100%."
         }
+      },
+      "arrivalMonths": {
+        "toggle": "Ritmo diverso per mese",
+        "hint": "Variazione sul ritmo degli arrivi in quel mese: +40% vuol dire il 40% di casi in più. I mesi non elencati restano come sono. Vale su arrivi esponenziali.",
+        "hintBands": "Variazione sul ritmo di ogni fascia in quel mese: +40% vuol dire il 40% di casi in più. I mesi non elencati restano come sono.",
+        "month": "Mese",
+        "monthOf": "Mese {{n}}",
+        "change": "Variazione",
+        "changeOf": "Variazione degli arrivi a {{month}}, %",
+        "remove": "Togli {{month}}",
+        "add": "Aggiungi un mese",
+        "issue": {
+          "month": "Scegli un mese.",
+          "duplicate": "Questo mese c'è già.",
+          "percent": "Una variazione maggiore di -100% e al più +900%.",
+          "needsPoisson": "Il ritmo per mese vale con le fasce orarie o con arrivi esponenziali: cambia la distribuzione degli arrivi o aggiungi una fascia."
+        }
       }
     },
     "diagram": {
@@ -699,7 +716,8 @@
       "instancesSequential": "Eseguita {{count}} volte per caso, una dopo l'altra: ogni istanza ha la sua durata.",
       "instancesParallel": "Eseguita {{count}} volte per caso, in parallelo: ogni istanza prende la sua risorsa.",
       "outcome": "Esito «{{name}}»",
-      "outcomeNote": "Quota di ogni categoria a ogni completamento. Le regole dopo l'attività la leggono."
+      "outcomeNote": "Quota di ogni categoria a ogni completamento. Le regole dopo l'attività la leggono.",
+      "arrivalMonths": "Ritmo degli arrivi per mese, rispetto al resto dell'anno:"
     },
     "provenance": {
       "label": "Origine",
@@ -1390,7 +1408,9 @@
         "share": "Quota",
         "outcome": "Esito",
         "durationWindows": "Durata per ora d'inizio",
-        "instances": "Istanze per caso"
+        "instances": "Istanze per caso",
+        "months": "Ritmo per mese",
+        "bands": "Fasce degli arrivi"
       },
       "section": {
         "totalCases": "Casi simulati",

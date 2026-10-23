@@ -38,6 +38,7 @@ import { ActivitySources } from "./ActivitySources";
 import { ServiceLevelFields } from "./ServiceLevel";
 import { RunLength } from "./RunLength";
 import { ArrivalBands } from "./ArrivalBands";
+import { ArrivalMonths } from "./ArrivalMonths";
 import { withBandAttribute } from "./arrivalBands";
 import { DurationByCategory } from "./DurationByCategory";
 import { DurationWindows } from "./DurationWindows";
@@ -280,6 +281,12 @@ export function SimulationConfigRail({
                 asAttribute={draft.arrival?.bandAttribute === true}
                 onChange={(bands) => onDraftChange(withArrivalBands(draft, { bands }))}
                 onAsAttributeChange={(bandAttribute) => onDraftChange(withArrivalBands(draft, { bandAttribute }))}
+              />
+              <ArrivalMonths
+                months={draft.arrival?.months}
+                hasBands={Boolean(draft.arrival?.bands?.length)}
+                distribution={arrivalDuration(draft).distribution}
+                onChange={(months) => onDraftChange(withArrivalBands(draft, { months }))}
               />
             </fieldset>
             <ServiceLevelFields sla={draft.sla} attributes={draft.caseAttributes ?? []} onChange={(next) => patch({ sla: next })} />

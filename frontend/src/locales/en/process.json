@@ -565,6 +565,23 @@
           "categoryValue": "Each category needs a name, different from the others.",
           "categorySum": "Shares must be above 0 and add up to 100%."
         }
+      },
+      "arrivalMonths": {
+        "toggle": "Different pace by month",
+        "hint": "Change in the arrival pace in that month: +40% means 40% more cases. Months not listed stay as they are. Applies to exponential arrivals.",
+        "hintBands": "Change in the pace of every band in that month: +40% means 40% more cases. Months not listed stay as they are.",
+        "month": "Month",
+        "monthOf": "Month {{n}}",
+        "change": "Change",
+        "changeOf": "Change in arrivals in {{month}}, %",
+        "remove": "Remove {{month}}",
+        "add": "Add a month",
+        "issue": {
+          "month": "Choose a month.",
+          "duplicate": "This month is already there.",
+          "percent": "A change above -100% and at most +900%.",
+          "needsPoisson": "The pace by month works with time bands or exponential arrivals: change the arrival distribution or add a band."
+        }
       }
     },
     "diagram": {
@@ -699,7 +716,8 @@
       "instancesSequential": "Run {{count}} times per case, one after the other: each instance has its own duration.",
       "instancesParallel": "Run {{count}} times per case, in parallel: each instance takes its own resource.",
       "outcome": "Outcome «{{name}}»",
-      "outcomeNote": "Share of each category at each completion. Rules after the activity read it."
+      "outcomeNote": "Share of each category at each completion. Rules after the activity read it.",
+      "arrivalMonths": "Arrival pace by month, compared with the rest of the year:"
     },
     "provenance": {
       "label": "Source",
@@ -1390,7 +1408,9 @@
         "share": "Share",
         "outcome": "Outcome",
         "durationWindows": "Duration by start time",
-        "instances": "Instances per case"
+        "instances": "Instances per case",
+        "months": "Pace by month",
+        "bands": "Arrival bands"
       },
       "section": {
         "totalCases": "Simulated cases",
