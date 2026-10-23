@@ -325,6 +325,8 @@ export type SimResourceInput = {
   calendarId?: string;
   /** SIM-30: turni di rinforzo. */
   shifts?: { amount: number; calendarId: string }[];
+  /** SIM-09b: un sistema o una macchina. */
+  kind?: "system";
 };
 
 export type SimDurationInput = {

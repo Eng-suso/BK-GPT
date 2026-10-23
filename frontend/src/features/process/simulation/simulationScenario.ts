@@ -52,6 +52,8 @@ export type ResourceDraft = {
   calendarId?: string;
   /** SIM-30: unità in più presenti solo nel calendario del turno. */
   shifts?: ShiftDraft[];
+  /** SIM-09b: un sistema o una macchina; senza calendario lavora sempre, niente turni. */
+  kind?: "system";
 };
 
 /** Un turno di rinforzo: `amount` unità in più nel calendario `calendarId`. */
@@ -474,6 +476,7 @@ export function scenarioToInput(
       amount: r.amount,
       calendarId: calendarIds.has(r.calendarId ?? "") ? r.calendarId : undefined,
       ...(r.shifts?.length ? { shifts: r.shifts.map(({ amount, calendarId }) => ({ amount, calendarId })) } : {}),
+      ...(r.kind === "system" ? { kind: "system" as const } : {}),
     })),
     tasks: Object.entries(draft.tasks).map(([elementId, task]) => {
       const others = task.otherAssignments ?? [];

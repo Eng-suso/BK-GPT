@@ -93,6 +93,7 @@ export function runRequestBody(input: CreateSimulationRunInput) {
       amount: r.amount,
       calendar_id: r.calendarId,
       shifts: r.shifts?.map((shift) => ({ amount: shift.amount, calendar_id: shift.calendarId })),
+      kind: r.kind,
     })),
     tasks: input.tasks?.map((task) => ({
       element_id: task.elementId,

@@ -312,7 +312,8 @@ function calendarsConfidence(draft: ScenarioDraft): Confidence[] {
   const known = new Set((draft.calendars ?? []).map((c) => c.id));
   const chosen = (id: string | undefined): Confidence => (id && known.has(id) ? "high" : "medium");
   return [
-    ...draft.resources.map((r) => chosen(r.calendarId)),
+    // Un sistema senza calendario lavora sempre: non e' un'assunzione sull'orario.
+    ...draft.resources.map((r) => (r.kind === "system" && !r.calendarId ? "high" : chosen(r.calendarId))),
     draft.arrival?.bands?.length ? "high" : chosen(draft.arrival?.calendarId),
   ];
 }
