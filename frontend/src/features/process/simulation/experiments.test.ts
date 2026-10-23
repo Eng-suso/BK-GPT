@@ -25,6 +25,14 @@ const exp = (kind: Experiment["kind"], extra: Partial<Experiment> = {}): Experim
 });
 
 describe("experimentDraft (SIM-22)", () => {
+  it("removing a step skips it for every case and touches nothing else (SIM-22b)", () => {
+    const next = experimentDraft(draft, exp("remove_step", { target_el: "U" }), "Senza U");
+    expect(next.scenarioName).toBe("Senza U");
+    expect(next.tasks.U?.skip).toEqual({ percent: 100 });
+    expect(next.tasks.T).toBe(draft.tasks.T);
+    expect(next.resources).toBe(draft.resources);
+  });
+
   it("adds one unit to the bottleneck role", () => {
     const next = experimentDraft(draft, exp("add_resource"), "Base · +1");
     expect(next.resources.map((r) => [r.id, r.amount, r.parametersConfirmed])).toEqual([["r1", 2, false], ["r2", 3, true]]);
