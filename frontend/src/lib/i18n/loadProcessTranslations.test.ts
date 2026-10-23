@@ -43,4 +43,22 @@ describe("loadProcessTranslations", () => {
     expect(read).toHaveBeenCalledTimes(2);
     expect(i18n.hasResourceBundle("it", "process")).toBe(true);
   });
+
+  it("non si fida di un fallimento lasciato da qualcun altro", async () => {
+    // Un cambio di lingua su una schermata di processo carica `process` senza
+    // passare da qui: se fallisce, lo stato fallito resta, e la chiamata dopo
+    // risolveva senza leggere. Si risolve solo con il file davvero in memoria.
+    const backend = i18n.services.backendConnector.backend as BackendModule;
+    const read = vi.spyOn(backend, "read").mockImplementationOnce((_language, _namespace, callback) => {
+      callback(new Error("rete giu'"), false);
+    });
+    await i18n.changeLanguage("it");
+    i18n.removeResourceBundle("it", "process");
+    await i18n.loadNamespaces("process");
+    expect(i18n.hasResourceBundle("it", "process")).toBe(false);
+
+    await expect(loadProcessTranslations()).resolves.toBeUndefined();
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(i18n.hasResourceBundle("it", "process")).toBe(true);
+  });
 });

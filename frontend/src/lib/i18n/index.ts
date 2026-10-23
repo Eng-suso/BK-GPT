@@ -94,20 +94,22 @@ const initialized = i18n.use(lazyNamespaces).use(initReactI18next).init({
  *
  * Dopo un fallimento i18next segna `process` come fallito e alle richieste
  * successive lo salta, risolvendo senza leggere: un "Riprova" non avrebbe
- * riprovato niente. Lo stato fallito si dimentica qui, cosi' la volta dopo il
- * file si chiede di nuovo.
+ * riprovato niente. Lo stato fallito si dimentica prima di chiedere (puo'
+ * averlo lasciato un cambio di lingua, che carica senza passare da qui), e si
+ * risolve solo con il file della lingua corrente davvero in memoria.
  */
 export function loadProcessTranslations(): Promise<void> {
   return initialized.then(
     () =>
       new Promise<void>((resolve, reject) => {
+        forgetFailedProcessLoads();
         void i18n.loadNamespaces("process", (error) => {
-          if (!error) {
+          if (!error && i18n.hasResourceBundle(i18n.language, "process")) {
             resolve();
             return;
           }
           forgetFailedProcessLoads();
-          reject(new Error("process translations not loaded", { cause: error }));
+          reject(new Error("process translations not loaded", { cause: error ?? undefined }));
         });
       }),
   );
