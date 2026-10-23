@@ -86,9 +86,22 @@ const initialized = i18n.use(lazyNamespaces).use(initReactI18next).init({
  *
  * Aspetta la fine di `init`: prima la lingua non e' ancora decisa e
  * `loadNamespaces` risolverebbe senza aver caricato niente.
+ *
+ * Rifiuta se il file non arriva. La promessa di `loadNamespaces` si risolve
+ * comunque (l'errore va solo alla callback), e chi la aspettava apriva la
+ * schermata con le chiavi al posto delle parole invece di dire che non e'
+ * riuscito a caricarla.
  */
 export function loadProcessTranslations(): Promise<void> {
-  return initialized.then(() => i18n.loadNamespaces("process"));
+  return initialized.then(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        void i18n.loadNamespaces("process", (error) => {
+          if (error) reject(new Error("process translations not loaded", { cause: error }));
+          else resolve();
+        });
+      }),
+  );
 }
 
 i18n.on("languageChanged", (lng) => {
