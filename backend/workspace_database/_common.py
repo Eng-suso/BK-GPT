@@ -8,10 +8,13 @@ serializzate, ora, tenant, id e slug.
 import json
 import re
 from datetime import UTC, datetime
+from typing import TypeVar
+
+from sqlalchemy.orm import Session
 
 from backend.security import get_current_tenant_id
 from backend.workspace_milestones import normalise_milestones
-from backend.workspace_storage import WorkspaceSource
+from backend.workspace_storage import WorkspaceBase, WorkspaceSource
 
 
 def encode_list(values: list[str]) -> str:
@@ -47,7 +50,10 @@ def tenant_id() -> str:
     return get_current_tenant_id()
 
 
-def tenant_row(session, model, row_id: str):
+_Row = TypeVar("_Row", bound=WorkspaceBase)
+
+
+def tenant_row(session: Session, model: type[_Row], row_id: str) -> _Row | None:
     row = session.get(model, row_id)
     if row is None or getattr(row, "tenant_id", "local") != tenant_id():
         return None
@@ -63,7 +69,7 @@ def normalize_name(value: str) -> str:
     return " ".join(value.casefold().split())
 
 
-def unique_id(session, model, base_id: str) -> str:
+def unique_id(session: Session, model: type[WorkspaceBase], base_id: str) -> str:
     candidate = base_id
     suffix = 2
 
