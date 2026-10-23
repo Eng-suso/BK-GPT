@@ -84,6 +84,7 @@ export function runRequestBody(input: CreateSimulationRunInput) {
         mean_seconds: band.meanSeconds,
       })),
       band_attribute: input.arrival.bandAttribute,
+      months: input.arrival.months,
     },
     resources: input.resources?.map((r) => ({
       id: r.id,

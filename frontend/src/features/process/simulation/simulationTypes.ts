@@ -1,5 +1,6 @@
 import type { ModelPatchInput } from "./caseRules";
 import type { ArrivalBandInput } from "./arrivalBands";
+import type { ArrivalMonthInput } from "./arrivalMonths";
 import type { DurationWindowInput } from "./durationWindows";
 import type { ReworkInput, SkipInput } from "./flowRules";
 import type { OutcomeInput } from "./taskOutcome";
@@ -336,7 +337,11 @@ export type SimDurationInput = {
 };
 
 /** Gli arrivi (A2-3): il tempo fra due arrivi e il calendario in cui arrivano. */
-export type SimArrivalInput = SimDurationInput & { calendarId?: string; bands?: ArrivalBandInput[]; bandAttribute?: string };
+export type SimArrivalInput = SimDurationInput & {
+  calendarId?: string; bands?: ArrivalBandInput[]; bandAttribute?: string;
+  /** SIM-08b: fattore sul ritmo per mese (1 = gennaio). */
+  months?: ArrivalMonthInput[];
+};
 
 /** SIM-07: le affermazioni dei file proposte come fonte di ogni attivita'. */
 export const claimProposalSchema = z.object({

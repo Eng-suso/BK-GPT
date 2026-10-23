@@ -19,6 +19,7 @@ import {
 } from "./slaSegments";
 import { BAND_ATTRIBUTE_NAME, arrivalBandIssues, arrivalBandsInput, sanitizeArrivalBands, type ArrivalBandDraft } from "./arrivalBands";
 import { instancesIssue } from "./instances";
+import { arrivalMonthIssues, arrivalMonthsInput, monthsNeedPoisson, sanitizeArrivalMonths, type ArrivalMonthDraft } from "./arrivalMonths";
 import { durationWindowIssues, durationWindowsInput, sanitizeDurationWindows, type DurationWindowDraft } from "./durationWindows";
 import {
   reworkInput,
@@ -156,6 +157,8 @@ export type ArrivalDraft = Omit<DurationDraft, "meanMinutes"> & {
   bands?: ArrivalBandDraft[];
   /** SIM-33: la fascia di arrivo diventa l'attributo del caso `fascia_arrivo`. */
   bandAttribute?: boolean;
+  /** SIM-08b: un ritmo diverso per mese, sopra le fasce o sugli arrivi esponenziali. */
+  months?: ArrivalMonthDraft[];
 };
 
 /**
@@ -290,7 +293,9 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
     + Object.values(draft.waits ?? {}).filter((wait) => taskDurationIssue(wait) !== null).length;
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
   const arrival = taskDurationIssue(arrivalDuration(draft)) !== null
-    || arrivalBandIssues(draft.arrival?.bands ?? []).some((issue) => issue !== null);
+    || arrivalBandIssues(draft.arrival?.bands ?? []).some((issue) => issue !== null)
+    || arrivalMonthIssues(draft.arrival?.months ?? []).some((issue) => issue !== null)
+    || monthsNeedPoisson(draft.arrival?.months, Boolean(draft.arrival?.bands?.length), arrivalDuration(draft).distribution);
   const sla = draft.sla ? slaIssue(draft.sla, attributes) !== null : false;
   const badCost = (value: number | undefined) => value !== undefined && !(Number.isFinite(value) && value >= 0);
   const costs = badCost(draft.caseFixedCost) || Object.values(draft.tasks).some((task) => badCost(task.fixedCost));
@@ -460,6 +465,7 @@ export function scenarioToInput(
       calendarId: arrivalCalendar && calendarIds.has(arrivalCalendar) ? arrivalCalendar : undefined,
       ...(draft.arrival?.bands?.length ? { bands: arrivalBandsInput(draft.arrival.bands) } : {}),
       ...(draft.arrival?.bands?.length && draft.arrival.bandAttribute ? { bandAttribute: BAND_ATTRIBUTE_NAME } : {}),
+      ...(draft.arrival?.months?.length ? { months: arrivalMonthsInput(draft.arrival.months) } : {}),
     },
     resources: draft.resources.map((r) => ({
       id: r.id,
@@ -656,6 +662,7 @@ function sanitizeArrival(raw: unknown): ArrivalDraft | undefined {
     calendarId: typeof value.calendarId === "string" ? value.calendarId : undefined,
     bands: sanitizeArrivalBands(value.bands),
     ...(value.bandAttribute === true ? { bandAttribute: true } : {}),
+    months: sanitizeArrivalMonths(value.months),
   };
 }
 
