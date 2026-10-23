@@ -104,6 +104,8 @@ export type TaskDraft = DurationDraft & {
   instances?: number;
   /** SIM-31b: finita l'attività, il caso riceve un esito che le regole a valle leggono. */
   outcome?: OutcomeDraft;
+  /** SIM-22b: il consulente la segna come passo che non aggiunge valore; l'advisor propone di toglierla. */
+  removable?: boolean;
 };
 
 function withoutInstances(task: TaskDraft): TaskDraft {
@@ -490,6 +492,7 @@ export function scenarioToInput(
         ...(task.skip ? { skip: skipInput(task.skip, ruleAttributes) } : {}),
         ...(task.rework ? { rework: reworkInput(task.rework, ruleAttributes) } : {}),
         ...(task.outcome ? { outcome: outcomeInput(task.outcome) } : {}),
+        ...(task.removable ? { removable: true } : {}),
         ...(task.durationWindows?.length ? { durationWindows: durationWindowsInput(task.durationWindows) } : {}),
         ...(typeof task.instances === "number" && task.instances > 1 ? { instances: task.instances } : {}),
         ...(others.length ? { otherAssignments: others.map((a) => ({ resourceId: a.resourceId, ...durationInput(a) })) } : {}),

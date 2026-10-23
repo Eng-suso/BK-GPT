@@ -39,6 +39,12 @@ function automated(task: TaskDraft, factor: number): TaskDraft {
 
 export function experimentDraft(draft: ScenarioDraft, exp: Experiment, scenarioName: string): ScenarioDraft {
   const serving = exp.target_el ? draft.tasks[exp.target_el]?.resourceId : undefined;
+  if (exp.kind === "remove_step") {
+    // SIM-22b: tolta a tutti i casi, come un salto al 100%: il motore la scavalca davvero.
+    const task = exp.target_el ? draft.tasks[exp.target_el] : undefined;
+    if (!task || !exp.target_el) return draft;
+    return { ...draft, scenarioName, tasks: { ...draft.tasks, [exp.target_el]: { ...task, skip: { percent: 100 } } } };
+  }
   if (exp.kind === "automate") {
     const task = exp.target_el ? draft.tasks[exp.target_el] : undefined;
     if (!task || !exp.target_el) return draft;

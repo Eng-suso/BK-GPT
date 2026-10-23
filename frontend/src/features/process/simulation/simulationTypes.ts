@@ -295,7 +295,7 @@ export const experimentReportSchema = z.object({
   factors: z.record(z.string(), z.number()).default({}),
   experiments: z.array(
     z.object({
-      kind: z.enum(["add_resource", "automate", "reallocate"]),
+      kind: z.enum(["add_resource", "automate", "reallocate", "remove_step"]),
       pool_id: z.string(),
       pool_name: z.string(),
       from_amount: z.number(),
@@ -386,6 +386,8 @@ export type SimTaskInput = SimDurationInput & {
   instances?: number;
   /** SIM-31b: l'esito dell'attività, un attributo che le regole a valle leggono. */
   outcome?: OutcomeInput;
+  /** SIM-22b: un passo che non aggiunge valore, candidato a essere tolto. */
+  removable?: boolean;
 };
 
 /** SIM-11d: quanto il caso aspetta a un messaggio o a un segnale. */

@@ -136,6 +136,7 @@ export function runRequestBody(input: CreateSimulationRunInput) {
       })),
       instances: task.instances,
       outcome: task.outcome,
+      removable: task.removable,
     })),
     gateways: input.gateways?.map((g) => ({
       element_id: g.elementId,
