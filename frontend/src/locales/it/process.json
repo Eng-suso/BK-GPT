@@ -1387,7 +1387,10 @@
         "periods": "Periodi",
         "categories": "Categorie",
         "parametersConfirmed": "Confermata",
-        "share": "Quota"
+        "share": "Quota",
+        "outcome": "Esito",
+        "durationWindows": "Durata per ora d'inizio",
+        "instances": "Istanze per caso"
       },
       "section": {
         "totalCases": "Casi simulati",

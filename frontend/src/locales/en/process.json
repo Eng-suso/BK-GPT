@@ -1387,7 +1387,10 @@
         "periods": "Periods",
         "categories": "Categories",
         "parametersConfirmed": "Confirmed",
-        "share": "Share"
+        "share": "Share",
+        "outcome": "Outcome",
+        "durationWindows": "Duration by start time",
+        "instances": "Instances per case"
       },
       "section": {
         "totalCases": "Simulated cases",
