@@ -6,6 +6,7 @@ import { DetailPanelSection } from "@/components/panel";
 import { StatusIndicator, type StatusTone } from "@/components/status";
 import { EmptyState } from "@/components/feedback";
 import { Button } from "@/ui/button";
+import { Checkbox } from "@/ui/checkbox";
 import { Input } from "@/ui/input";
 import {
   Select,
@@ -528,6 +529,23 @@ export function SimulationConfigRail({
                       cfg={cfg}
                       onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
                     />
+                    <label className="sim-task-removable mt-3 flex items-start gap-2 border-t border-border pt-3 text-xs font-medium text-foreground">
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={cfg.removable === true}
+                        aria-label={`${t("simulation.config.removable")} · ${task.name}`}
+                        onCheckedChange={(checked) => {
+                          const next = { ...cfg };
+                          if (checked === true) next.removable = true;
+                          else delete next.removable;
+                          patch({ tasks: { ...draft.tasks, [task.element_id]: next } });
+                        }}
+                      />
+                      <span className="grid gap-0.5">
+                        {t("simulation.config.removable")}
+                        <span className="font-normal text-muted-foreground">{t("simulation.config.removableHint")}</span>
+                      </span>
+                    </label>
                     <TaskOutcome
                       elementId={task.element_id}
                       taskName={task.name}

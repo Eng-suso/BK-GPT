@@ -590,7 +590,9 @@
       },
       "systemHint": "Un sistema o una macchina (un ERP, un robot software): lavora senza pause e senza turni. Senza un calendario è sempre disponibile.",
       "systemCapacity": "Esecuzioni contemporanee",
-      "alwaysCalendar": "Sempre, 24 ore su 24"
+      "alwaysCalendar": "Sempre, 24 ore su 24",
+      "removable": "Non aggiunge valore",
+      "removableHint": "In «Cosa provare» l'advisor proporrà di toglierla, con quanto si risparmia. Il run di adesso la simula come sempre."
     },
     "diagram": {
       "title": "Modello di processo",
@@ -845,7 +847,8 @@
       "experimentKind": {
         "add_resource": "Capacità",
         "automate": "Automazione",
-        "reallocate": "Riallocazione"
+        "reallocate": "Riallocazione",
+        "remove_step": "Eliminare un passo"
       },
       "addResourceTitle": "Aggiungi 1 risorsa a {{pool}} ({{from}} → {{to}})",
       "estimateNote": "Stima — la risposta reale è simulare",
@@ -854,7 +857,9 @@
       "automateTitle": "Automatizza metà del lavoro di «{{name}}»",
       "reallocateTitle": "Sposta 1 risorsa da {{donor}} a {{pool}}",
       "automateScenarioName": "{{base}} · automazione {{name}}",
-      "reallocateScenarioName": "{{base}} · {{donor}} → {{pool}}"
+      "reallocateScenarioName": "{{base}} · {{donor}} → {{pool}}",
+      "removeTitle": "Togliere {{name}}",
+      "removeScenarioName": "{{base}} · senza {{name}}"
     },
     "workspace": {
       "overviewTitle": "Modello e risultati",
