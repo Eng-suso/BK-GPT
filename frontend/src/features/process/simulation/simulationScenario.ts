@@ -30,6 +30,7 @@ import {
   type ReworkDraft,
   type SkipDraft,
 } from "./flowRules";
+import { outcomeAttributes, outcomeInput, outcomeIssue, sanitizeOutcome, type OutcomeDraft } from "./taskOutcome";
 import {
   simCalendarSchema,
   type CreateSimulationRunInput,
@@ -98,6 +99,8 @@ export type TaskDraft = DurationDraft & {
   durationWindows?: DurationWindowDraft[];
   /** SIM-11h: istanze per caso di una multi-istanza che il BPMN non fissa. Assente = una. */
   instances?: number;
+  /** SIM-31b: finita l'attività, il caso riceve un esito che le regole a valle leggono. */
+  outcome?: OutcomeDraft;
 };
 
 function withoutInstances(task: TaskDraft): TaskDraft {
@@ -292,15 +295,21 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
   const badCost = (value: number | undefined) => value !== undefined && !(Number.isFinite(value) && value >= 0);
   const costs = badCost(draft.caseFixedCost) || Object.values(draft.tasks).some((task) => badCost(task.fixedCost));
   const activityIds = new Set(Object.keys(draft.tasks));
+  // Salti e rilavorazioni leggono anche gli esiti delle attività (SIM-31b).
+  const outcomes = outcomeAttributes(draft.tasks);
+  const ruleAttributes = [...attributes, ...outcomes];
   const flowRules = Object.values(draft.tasks).filter((task) =>
-    (task.skip !== undefined && skipIssue(task.skip, attributes) !== null)
-    || (task.rework !== undefined && reworkIssue(task.rework, attributes, activityIds) !== null)).length;
+    (task.skip !== undefined && skipIssue(task.skip, ruleAttributes) !== null)
+    || (task.rework !== undefined && reworkIssue(task.rework, ruleAttributes, activityIds) !== null)).length;
+  const badOutcomes = Object.entries(draft.tasks).filter(([elementId, task]) =>
+    task.outcome !== undefined && outcomeIssue(elementId, task.outcome, attributes, outcomes) !== null).length;
   const shifts = draft.resources.filter((r) => (r.shifts ?? []).some((shift) => shiftIssue(shift, draft.calendars ?? []) !== null)).length;
   const warmup = warmupIssue(draft) !== null;
   const replications = draft.replications !== undefined && !(Number.isInteger(draft.replications) && draft.replications >= 1 && draft.replications <= 20);
   const horizon = horizonIssue(draft) !== null;
-  return { durations, calendars, arrival, sla, costs, warmup, replications, horizon, flowRules, shifts,
-    ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs && !warmup && !replications && !horizon && flowRules === 0 && shifts === 0 };
+  return { durations, calendars, arrival, sla, costs, warmup, replications, horizon, flowRules, shifts, outcomes: badOutcomes,
+    ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs && !warmup && !replications && !horizon && flowRules === 0 && shifts === 0
+      && badOutcomes === 0 };
 }
 
 export type WarmupIssue = "notWhole" | "noCaseLeft";
@@ -434,6 +443,7 @@ export function scenarioToInput(
   };
 
   const arrivalCalendar = draft.arrival?.calendarId;
+  const ruleAttributes = [...(draft.caseAttributes ?? []), ...outcomeAttributes(draft.tasks)];
   return {
     ...base,
     ...(draft.caseFixedCost ? { caseFixedCost: draft.caseFixedCost } : {}),
@@ -468,8 +478,9 @@ export function scenarioToInput(
         ...(task.claims?.length ? { claims: task.claims } : {}),
         ...(task.fixedCost ? { fixedCost: task.fixedCost } : {}),
         ...(byCategory(task, draft.caseAttributes ?? [])),
-        ...(task.skip ? { skip: skipInput(task.skip, draft.caseAttributes ?? []) } : {}),
-        ...(task.rework ? { rework: reworkInput(task.rework, draft.caseAttributes ?? []) } : {}),
+        ...(task.skip ? { skip: skipInput(task.skip, ruleAttributes) } : {}),
+        ...(task.rework ? { rework: reworkInput(task.rework, ruleAttributes) } : {}),
+        ...(task.outcome ? { outcome: outcomeInput(task.outcome) } : {}),
         ...(task.durationWindows?.length ? { durationWindows: durationWindowsInput(task.durationWindows) } : {}),
         ...(typeof task.instances === "number" && task.instances > 1 ? { instances: task.instances } : {}),
         ...(others.length ? { otherAssignments: others.map((a) => ({ resourceId: a.resourceId, ...durationInput(a) })) } : {}),
@@ -479,7 +490,7 @@ export function scenarioToInput(
     ...(Object.keys(draft.waits ?? {}).length
       ? { waits: Object.entries(draft.waits ?? {}).map(([elementId, wait]) => ({ elementId, ...durationInput(wait) })) }
       : {}),
-    modelPatch: toModelPatch(draft.caseAttributes ?? [], draft.gatewayRules ?? {}, draft.casePriorities ?? []),
+    modelPatch: toModelPatch(draft.caseAttributes ?? [], draft.gatewayRules ?? {}, draft.casePriorities ?? [], ruleAttributes),
     gateways: Object.entries(draft.gateways).map(([elementId, branches]) => ({
       elementId,
       branches: Object.entries(branches).map(([flowId, probability]) => ({
@@ -616,8 +627,9 @@ function sanitizeTasks(raw: unknown): Record<string, TaskDraft> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   return Object.fromEntries(Object.entries(raw as Record<string, TaskDraft>).map(([id, task]) => {
     if (!task || typeof task !== "object") return [id, task];
-    const clean = task.skip === undefined && task.rework === undefined ? task
+    const flow = task.skip === undefined && task.rework === undefined ? task
       : { ...task, skip: sanitizeSkip(task.skip), rework: sanitizeRework(task.rework) };
+    const clean = task.outcome === undefined ? flow : { ...flow, outcome: sanitizeOutcome(task.outcome) };
     return [id, task.durationWindows === undefined ? clean : { ...clean, durationWindows: sanitizeDurationWindows(task.durationWindows) }];
   }));
 }
