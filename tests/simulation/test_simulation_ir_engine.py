@@ -526,6 +526,32 @@ def test_a_month_factor_from_the_panel_shapes_the_arrivals_through_the_runner(tm
     assert 2.3 < february / january < 3.8, (january, february)
 
 
+@pytest.mark.parametrize("kind", ["system", "person"])
+def test_a_system_works_at_night_and_on_weekends_a_person_waits_for_monday(kind):
+    # SIM-09b: i casi arrivano sabato notte. Un sistema senza calendario li
+    # lavora subito; una persona sul calendario standard aspetta lunedi' alle 9.
+    from datetime import UTC, datetime
+
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    request = CreateSimulationRunRequest(
+        tasks=[{"element_id": t, "mean_seconds": 60, "distribution": "fixed", "resource_id": "erp"} for t in ("T_receive", "T_approve", "T_pay")],
+        resources=[{"id": "erp", "name": "Sistema ERP", "amount": 50, "cost_per_hour": 0, "kind": kind}],
+        calendars=[{"id": "night", "name": "Notte", "periods": [{"from_day": "SATURDAY", "to_day": "SATURDAY", "begin": "01:00", "end": "05:00"}]}],
+        arrival={"mean_seconds": 600, "calendar_id": "night"},
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=contract_spike.BPMN_PATH.read_text(encoding="utf-8"), request=request)
+    rows = _run(_model(), payload=scenario.payload, cases=20)
+
+    starts = [datetime.fromtimestamp(row["start"], UTC) for row in rows]
+    if kind == "system":
+        assert all(row["start"] == row["enable"] for row in rows), "un sistema libero non fa aspettare"
+        assert all(s.weekday() == 5 and s.hour < 6 for s in starts)
+    else:
+        assert all(s.weekday() < 5 and 9 <= s.hour < 17 for s in starts)
+
+
 def test_a_duration_by_arrival_band_follows_the_band_each_case_arrived_in(tmp_path, monkeypatch):
     # SIM-33: chi arriva la mattina viene approvato in 5 minuti, chi arriva il
     # pomeriggio in 25. La fascia la scrive il runner nell'attributo del caso.
