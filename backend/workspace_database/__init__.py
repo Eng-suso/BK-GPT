@@ -63,68 +63,22 @@ if TYPE_CHECKING:
     from backend.workspace_services.evidence.claims import ClaimsResult
     from backend.workspace_services.evidence.reconcile import ReconcileResult
     from backend.workspace_services.source_ingestion import ParsedSource
+from backend.workspace_database._common import (
+    decode_list,
+    decode_milestones,
+    encode_list,
+    encode_milestones,
+    normalize_name,
+    now_iso,
+    slugify,
+    source_to_dict,
+    tenant_id,
+    tenant_row,
+    unique_id,
+)
 
 
 logger = logging.getLogger(__name__)
-
-def encode_list(values: list[str]) -> str:
-    return json.dumps(values, ensure_ascii=False)
-
-
-def decode_list(value: str) -> list[str]:
-    parsed = json.loads(value or "[]")
-    return parsed if isinstance(parsed, list) else []
-
-
-def decode_milestones(value: str) -> list[dict]:
-    """Read the stored milestones, upgrading rows written as plain titles.
-
-    Args:
-        value: The project's stored ``milestones_json`` payload.
-
-    Returns:
-        list[dict]: The milestones as ``{title, status, completed_at}``.
-    """
-    return normalise_milestones(decode_list(value))
-
-
-def encode_milestones(values: list[dict]) -> str:
-    return json.dumps(values, ensure_ascii=False)
-
-
-def now_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def tenant_id() -> str:
-    return get_current_tenant_id()
-
-
-def tenant_row(session, model, row_id: str):
-    row = session.get(model, row_id)
-    if row is None or getattr(row, "tenant_id", "local") != tenant_id():
-        return None
-    return row
-
-
-def slugify(value: str, fallback: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
-    return slug or fallback
-
-
-def normalize_name(value: str) -> str:
-    return " ".join(value.casefold().split())
-
-
-def unique_id(session, model, base_id: str) -> str:
-    candidate = base_id
-    suffix = 2
-
-    while session.get(model, candidate) is not None:
-        candidate = f"{base_id}-{suffix}"
-        suffix += 1
-
-    return candidate
 
 
 def process_to_dict(process: WorkspaceProcess) -> dict:
@@ -217,12 +171,13 @@ def client_to_dict(client: WorkspaceClient) -> dict:
     }
 
 
-
 #: Quante righe torna al massimo una lista senza che nessuno abbia chiesto un
 #: numero. Non e' una paginazione: e' il tetto che impedisce a una richiesta di
 #: tirare giu' il workspace intero, e sopra ci sta un conteggio, cosi' chi
 #: guarda sa che ne mancano.
 DEFAULT_LIST_LIMIT = 500
+
+
 MAX_LIST_LIMIT = 2000
 
 
@@ -2036,39 +1991,6 @@ def _assert_review_ready_for_approval(review: WorkspaceBpmnReview) -> None:
         )
 
 
-def source_to_dict(source: WorkspaceSource) -> dict:
-    def structured(raw: str | None) -> list:
-        try:
-            value = json.loads(raw or "[]")
-        except json.JSONDecodeError:
-            return []
-        return value if isinstance(value, list) else []
-
-    return {
-        "id": source.id,
-        "project_id": source.project_id,
-        "client_id": source.client_id,
-        "process_id": source.process_id,
-        "name": source.name,
-        "type": source.type,
-        "meta": source.meta,
-        "roles": structured(source.roles_json),
-        "retention": source.retention,
-        "scopes": structured(source.scopes_json),
-        "status": source.status,
-        # Stringa vuota e non `None`: chi legge confronta impronte, e un `None`
-        # fra due confronti si comporta in modo diverso da un testo assente.
-        "content_hash": getattr(source, "content_hash", None) or "",
-        "byte_size": source.byte_size,
-        "mime_type": source.mime_type,
-        "acquisition_status": source.acquisition_status,
-        "acquisition_error": source.acquisition_error,
-        "claims_status": source.claims_status,
-        "claims_error": source.claims_error,
-        "reconcile_status": source.reconcile_status,
-    }
-
-
 def decision_to_dict(decision: WorkspaceDecision) -> dict:
     return {
         "id": decision.id,
@@ -2389,7 +2311,11 @@ def create_ingested_source(
 
 
 ACQUISITION_MAX_ATTEMPTS = 4
+
+
 ACQUISITION_BACKOFF_SECONDS = 30
+
+
 # Un PDF lungo con OCR resta in lettura per minuti: il lease copre la
 # conversione piu' lenta attesa, non la media. Se chi l'ha presa muore, la
 # fonte torna eleggibile da sola.
@@ -2727,7 +2653,11 @@ def source_acquisition_stats() -> dict[str, int]:
 
 
 CLAIMS_MAX_ATTEMPTS = 3
+
+
 CLAIMS_BACKOFF_SECONDS = 60
+
+
 # Un'estrazione lunga dura quanto il modello: il lease la copre intera.
 CLAIMS_LEASE_SECONDS = 900
 
@@ -2841,7 +2771,11 @@ def fail_source_claims(source_id: str, *, error: str, permanent: bool) -> None:
 
 
 RECONCILE_MAX_ATTEMPTS = 3
+
+
 RECONCILE_BACKOFF_SECONDS = 60
+
+
 RECONCILE_LEASE_SECONDS = 900
 
 
@@ -3134,7 +3068,11 @@ def list_claim_relations(source_id: str) -> list[dict]:
 
 
 GRAPH_MAX_ATTEMPTS = 3
+
+
 GRAPH_BACKOFF_SECONDS = 60
+
+
 GRAPH_LEASE_SECONDS = 120
 
 
@@ -3694,11 +3632,16 @@ def enqueue_unchecked_conformance(limit: int = 20, *, only_tenant_id: str | None
 # modello: sui processi veri sono minuti, e una scadenza stretta farebbe lavorare
 # due volte lo stesso disegno.
 CONFORMANCE_LEASE_SECONDS = 900
+
+
 # Prese in carico per lo stesso disegno prima di smettere. Con il lease da 15
 # minuti sono piu' di un'ora di tentativi: abbastanza per un provider che torna,
 # non abbastanza per riempire il log di un errore che non passera'.
 CONFORMANCE_MAX_ATTEMPTS = 5
+
+
 CONFORMANCE_FAILED = "failed"
+
 
 # Lo stato di chi ha rinunciato: la review salvata non e' leggibile, e la coda
 # non la ripropone. Non e' `done` - nessun confronto e' stato fatto - e non e'
@@ -3746,7 +3689,11 @@ def release_conformance_check(bpmn_model_id: str, *, status: str = "pending") ->
 
 
 MATERIALIZATION_MAX_ATTEMPTS = 5
+
+
 MATERIALIZATION_BACKOFF_SECONDS = 30
+
+
 # Per quanto una riga presa in carico resta invisibile agli altri worker. Non e'
 # uno stato `running` - un lease che nessuno rilascia e' il modo in cui una coda
 # si blocca in silenzio - ma una scadenza: se chi l'ha presa muore, la riga torna
