@@ -27,7 +27,9 @@ class ExperimentEstimate(BaseModel):
 # piu' nel suo pool. ``automate``: una quota del lavoro dell'attivita' fatta da
 # un sistema (la durata scende di ``share``). ``reallocate``: una risorsa
 # spostata da un pool poco usato (``donor_*``) a quello del collo di bottiglia.
-ExperimentKind = Literal["add_resource", "automate", "reallocate"]
+# ``remove_step`` (SIM-22b): un'attivita' che il consulente ha segnato come
+# passo che non aggiunge valore, tolta a tutti i casi.
+ExperimentKind = Literal["add_resource", "automate", "reallocate", "remove_step"]
 
 # Quanto lavoro toglie l'automazione proposta: meta', un primo passo credibile.
 AUTOMATION_SHARE = 0.5
@@ -62,10 +64,52 @@ class ExperimentReport(BaseModel):
     experiments: list[Experiment] = Field(default_factory=list)
 
 
-def suggest_experiments(summary: dict | None, scenario: dict | None) -> ExperimentReport:
+def suggest_experiments(summary: dict | None, scenario: dict | None, request: dict | None = None) -> ExperimentReport:
     if not summary:
         return ExperimentReport()
+    report = _bottleneck_report(summary, scenario)
+    if scenario:
+        report.experiments.extend(_removals(summary, scenario, request or {}))
+    return report
 
+
+def _removals(summary: dict, scenario: dict, request: dict) -> list[Experiment]:
+    """SIM-22b: per ogni attivita' che il consulente ha segnato come eliminabile,
+    cosa si risparmia togliendola: la sua lavorazione e la sua attesa per caso.
+
+    La stima non sa se a valle qualcosa dipendeva da lei: lo dice il run.
+    """
+    cycle_avg = float(summary.get("cycle", {}).get("avg") or 0.0)
+    cases = _num(summary.get("casesCompleted"), 0.0)
+    experiments = []
+    for task in request.get("tasks") or []:
+        el = task.get("element_id")
+        row = _activity_row(summary, el) if task.get("removable") and el else {}
+        pool = _pool_for_task(scenario, el) if row else None
+        if not row or pool is None or cycle_avg <= 0 or cases <= 0:
+            continue
+        wait = _num((row.get("wait") or {}).get("avg"), 0.0) * _num(row.get("count"), 0.0) / cases
+        saved = min(1.0, _activity_processing_share(summary, el, cycle_avg) + wait / cycle_avg)
+        name = row.get("name") or el
+        experiments.append(Experiment(
+            kind="remove_step",
+            pool_id=str(pool["id"]),
+            pool_name=str(pool.get("name") or pool["id"]),
+            from_amount=int(pool["amount"]),
+            to_amount=int(pool["amount"]),
+            target_el=el,
+            target_name=name,
+            rationale=(
+                f"{name} e' segnata come passo che non aggiunge valore: senza, ogni caso risparmia la sua "
+                "lavorazione e la sua attesa. Prima di toglierla va verificato che nessun controllo dipenda da lei."
+            ),
+            estimate=ExperimentEstimate(cycle_pct=-round(saved, 4), cost_pct=-round(_activity_cost_share(summary, el), 4)),
+        ))
+    return experiments
+
+
+def _bottleneck_report(summary: dict, scenario: dict | None) -> ExperimentReport:
+    """Le prove sul collo di bottiglia: una risorsa in piu', spostata o un'automazione."""
     bottleneck = summary.get("bottleneck") or {}
     b_el = bottleneck.get("el")
     b_name = bottleneck.get("name")

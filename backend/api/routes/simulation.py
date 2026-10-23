@@ -231,7 +231,7 @@ def get_workspace_simulation_experiments(run_id: int) -> ExperimentReport:
     run = get_simulation_run(run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Simulazione non trovata.")
-    return suggest_experiments(run.get("summary"), run.get("scenario"))
+    return suggest_experiments(run.get("summary"), run.get("scenario"), run.get("request"))
 
 
 @router.get("/simulation-runs/{run_id}/model")

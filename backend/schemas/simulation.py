@@ -232,6 +232,9 @@ class SimTaskConfig(BaseModel):
     instances: int | None = Field(default=None, ge=1, le=50)
     # SIM-31b: l'esito dell'attivita' cambia un attributo del caso.
     outcome: SimOutcomeConfig | None = None
+    # SIM-22b: il consulente la segna come passo che non aggiunge valore; il
+    # motore la esegue come le altre, l'advisor propone di toglierla.
+    removable: bool = False
 
 
 class SimGatewayBranchConfig(BaseModel):
