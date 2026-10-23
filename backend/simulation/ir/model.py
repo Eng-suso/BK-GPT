@@ -436,14 +436,29 @@ class CaseAttribute(_Strict):
 
 
 class AttributeUpdate(_Strict):
-    """Quando il caso completa ``element_id``, ``name`` diventa ``expression``.
+    """Quando il caso completa ``element_id``, ``name`` cambia valore.
 
-    L'espressione e' quella di Prosimos (aritmetica sugli attributi del caso).
+    Con ``expression`` diventa il risultato dell'espressione di Prosimos
+    (aritmetica sugli attributi del caso); con ``options`` (SIM-31b, l'esito
+    dell'attivita') una delle categorie, scelta con la sua probabilita'.
     """
 
     element_id: str = Field(min_length=1)
     name: str = Field(min_length=1, max_length=64)
-    expression: str = Field(min_length=1, max_length=500)
+    expression: str | None = Field(default=None, min_length=1, max_length=500)
+    options: tuple[DiscreteOption, ...] | None = None
+    provenance: Provenance | None = None
+
+    @model_validator(mode="after")
+    def _one_kind(self):
+        if (self.expression is None) == (self.options is None):
+            raise ValueError(f"aggiornamento di {self.name}: o un'espressione o delle categorie")
+        if self.options is not None:
+            _unique(f"categoria di {self.name}", [option.value for option in self.options])
+            total = sum(option.probability for option in self.options)
+            if abs(total - 1.0) > 1e-6:
+                raise ValueError(f"aggiornamento di {self.name}: le probabilita' sommano {total:.4f}, non 1")
+        return self
 
 
 class PriorityRule(_Strict):
@@ -588,6 +603,10 @@ class SimulationModel(_Strict):
             _check_band_attribute(self.arrival, self.case_attributes)
 
         attributes = {attribute.name for attribute in self.case_attributes}
+        overwritten = sorted(attributes & {update.name for update in self.attribute_updates})
+        if overwritten:
+            # Prosimos rifiuta lo scenario: un evento non cambia un attributo del caso.
+            raise ValueError(f"un'attivita' non puo' cambiare un attributo del caso: {', '.join(overwritten)}")
         attributes |= {update.name for update in self.attribute_updates}
         conditions = [b.condition for g in self.gateways for b in g.branches if b.condition]
         conditions += [rule.condition for rule in self.priority_rules]
