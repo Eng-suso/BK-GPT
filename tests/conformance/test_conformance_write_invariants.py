@@ -201,3 +201,48 @@ def test_an_unreadable_plan_does_not_drop_a_drawing_saved_meanwhile(tenant, monk
     conformance_worker.drain_once(limit=5, only_tenant_id=tenant)
 
     assert _status(model_id) == "pending"
+
+
+def _lease(bpmn_model_id: str) -> str | None:
+    from backend import workspace_database as wd
+
+    with wd.workspace_connection() as session:
+        return session.execute(
+            text("SELECT conformance_leased_at FROM workspace_bpmn_reviews WHERE bpmn_model_id = :model"),
+            {"model": bpmn_model_id},
+        ).scalar()
+
+
+def test_a_worker_does_not_close_the_claim_of_the_worker_after_it(tenant, monkeypatch):
+    """Due prese in carico in fila: la prima non tocca la seconda.
+
+    Il disegno cambia mentre il primo worker legge le fonti, e un secondo worker
+    prende in carico il confronto nuovo prima che il primo finisca. Lo stato
+    della riga e' di nuovo `running`, ma la presa in carico non e' piu' quella
+    del primo: il suo rapporto e la sua chiusura non valgono per la seconda.
+    """
+    from backend import workspace_database as wd
+    from backend.agents import conformance_audit
+    from backend.workers import conformance_worker
+
+    model_id = _process_with_plan()["bpmn_model_id"]
+    wd.request_conformance_check(model_id)
+    second: dict = {}
+
+    def _second_worker_claims():
+        taken = wd.due_conformance_checks(5, only_tenant_id=tenant)
+        assert [row["bpmn_model_id"] for row in taken] == [model_id]
+        second["lease"] = _lease(model_id)
+
+    monkeypatch.setattr(
+        conformance_audit,
+        "audit_process_conformance",
+        _audit_racing_a_new_drawing(model_id, then=_second_worker_claims),
+    )
+
+    conformance_worker.drain_once(limit=1, only_tenant_id=tenant)
+
+    assert _status(model_id) == "running", "il primo worker ha chiuso la presa in carico del secondo"
+    assert _lease(model_id) == second["lease"]
+    review = wd.get_bpmn_review(model_id, include_approved=True)
+    assert (review["conformance"] or {}).get("report") is None, "il rapporto del primo e' finito sul confronto del secondo"
