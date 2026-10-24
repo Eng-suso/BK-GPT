@@ -78,10 +78,16 @@ chiave `bef4llm`. E' una lettura, non un gate.
 
 Il compilatore sul piano ideale, oggi (riferimento per i run futuri):
 
-| caso | Q_val | Q_syn | Q_prag | regole che cadono |
-| --- | --- | --- | --- | --- |
-| `esaote_ciclo_passivo` | 1.00 | 0.87 | 0.82 | fine con piu' entrate, split XOR senza join, task con piu' entrate |
-| `facility_segnalazioni_guasti` | 1.00 | 0.84 | 0.83 | le stesse, piu' il pool esterno senza processo (black box) |
+| caso | Q_val | Q_syn | Q_prag | Q_qual | regole che cadono |
+| --- | --- | --- | --- | --- | --- |
+| `esaote_ciclo_passivo` | 1.00 | 1.00 | 0.77 | 0.88 | nessuna |
+| `facility_segnalazioni_guasti` | 1.00 | 0.97 | 0.77 | 0.87 | il pool esterno senza processo (black box) |
+
+Prima del merge esclusivo del compilatore (`_add_exclusive_merges`) `Q_syn` era
+0.87 e 0.84: i rami confluivano nell'evento di fine e nei task senza gateway, e
+gli split XOR non si richiudevano. `Q_prag` e' sceso da 0.82 a 0.77 perche' i
+merge sono gateway in piu' e le metriche di dimensione li contano; `Q_qual` sale
+comunque (0.84 -> 0.88 e 0.84 -> 0.87).
 
 Nel paper i migliori modelli open-source stanno intorno a 0.86-0.90 di
 `Q_syn`, 0.85-0.90 di `Q_prag`, 0.53-0.58 di `Q_sem`.

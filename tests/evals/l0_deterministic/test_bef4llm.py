@@ -346,3 +346,7 @@ def test_the_compiler_always_emits_schema_valid_bpmn(plan_path: Path):
     report = evaluate(semantic_model_to_bpmn_xml(model))
     assert report.q_val == 1.0, report.errors[:5]
     assert report.q_syn is not None and report.q_prag is not None
+    # Nessuna confluenza implicita: ogni split si richiude, fine e task hanno
+    # un'entrata sola (il merge esclusivo del compilatore).
+    for rule in ("end_degree", "task_degree", "split_has_join", "split_degree", "join_degree"):
+        assert report.syntactic[rule] == 1.0, (rule, report.syntactic)
