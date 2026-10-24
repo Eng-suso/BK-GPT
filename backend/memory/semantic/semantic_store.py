@@ -201,11 +201,6 @@ def add_mem0_memory_with_id(
     return "Memoria salvata in Mem0.", _first_memory_id(result)
 
 
-def add_mem0_memory(content: str) -> str:
-    message, _ = add_mem0_memory_with_id(content)
-    return message
-
-
 def save_structured_consultant_memory(memory: ConsultantSemanticMemory) -> str:
     message, mem0_id = add_mem0_memory_with_id(semantic_memory_to_mem0_content(memory))
 
@@ -326,54 +321,6 @@ def list_consultant_memories(
         "memories": memories,
         "reason": "" if memories else "nessuna memoria durevole trovata",
     }
-
-
-def delete_consultant_memory(
-    memory_id: str, delete_linked: bool = False, client_id: str | None = None
-) -> str:
-    """Permanently forget a consultant memory across Mem0 and canonical storage.
-    
-    Args:
-        memory_id (str): Untrusted memory identifier to remove.
-        delete_linked (bool): Whether linked memories should also be removed.
-        client_id (str | None): Untrusted optional client scope for the deletion.
-    
-    Returns:
-        str: A status message indicating successful deletion, unavailable
-            configuration, invalid input, or incomplete deletion. Incomplete
-            deletions remain excluded from recall through a recorded tombstone.
-    
-    Side Effects:
-        Updates Mem0, canonical memory records, and deletion tombstones.
-    """
-    from backend.memory import forget
-
-    normalized_memory_id = memory_id.strip()
-    if not normalized_memory_id:
-        return "Non posso eliminare la memoria: memory_id mancante."
-
-    resolved = forget.resolve_targets(
-        consultant_id=settings.default_consultant_id,
-        mem0_user_id=settings.mem0_user_id,
-        memory_ids=[normalized_memory_id],
-    )
-    if resolved["status"] == "not_configured":
-        return f"Memoria semantica disattivata: {resolved['reason']}."
-
-    result = forget.execute_forget(
-        consultant_id=settings.default_consultant_id,
-        mem0_user_id=settings.mem0_user_id,
-        targets=resolved["targets"],
-        reason="richiesta esplicita del consulente",
-        client_id=client_id,
-    )
-    if result["status"] == "ok":
-        return f"Memoria eliminata e non piu' recuperabile: {normalized_memory_id}"
-    return (
-        f"Cancellazione incompleta per {normalized_memory_id}: "
-        f"{result.get('failed') or result.get('still_present') or result.get('reason')}. "
-        "La memoria e' comunque esclusa dal recall (lapide registrata)."
-    )
 
 
 def save_bpmn_preference(rule: str, area: str) -> str:

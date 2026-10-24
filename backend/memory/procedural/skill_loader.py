@@ -1,24 +1,14 @@
-import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
 
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.runnables import RunnableConfig
 
-from backend.llm_streaming import stream_to_text
 
 
 PROCEDURAL_DIR = Path(__file__).resolve().parent
 SKILLS_DIR = PROCEDURAL_DIR / "skills"
 
 MAX_SKILLS_PER_TURN = 4
-
-
-class SkillSelector(Protocol):
-    def stream(self, input: Any, config: RunnableConfig | None = None, **kwargs: Any):
-        ...
 
 
 @dataclass(frozen=True)
@@ -109,39 +99,6 @@ def load_skill_registry() -> list[ProceduralSkill]:
     return skills
 
 
-def build_selection_prompt(user_text: str, registry: list[ProceduralSkill]) -> list:
-    skill_descriptions = [
-        {
-            "name": skill.name,
-            "description": skill.description,
-        }
-        for skill in registry
-    ]
-
-    return [
-        SystemMessage(
-            content=(
-                "You are a procedural-skill router for a LangGraph consultant agent. "
-                "Select which Markdown procedural skills should be loaded into the next LLM context. "
-                "Use only the skill names and descriptions provided. Do not solve the user task. "
-                f"Select at most {MAX_SKILLS_PER_TURN} skills. Select no skills for ordinary chat, "
-                "small talk, or tasks that do not need a specialized consultant procedure. "
-                "Return only valid JSON with this exact shape: "
-                '{"skills":["skill_name"],"reason":"brief reason"}'
-            )
-        ),
-        HumanMessage(
-            content=(
-                "Available procedural skills:\n"
-                f"{json.dumps(skill_descriptions, ensure_ascii=False, indent=2)}\n\n"
-                "Recent user messages:\n"
-                f"{user_text}\n\n"
-                "Return JSON only."
-            )
-        ),
-    ]
-
-
 def normalize_selected_skill_names(raw_skills, valid_names: set[str]) -> list[str]:
     if not isinstance(raw_skills, list):
         return []
@@ -157,48 +114,6 @@ def normalize_selected_skill_names(raw_skills, valid_names: set[str]) -> list[st
             break
 
     return selected
-
-
-def parse_selector_response(content: str, valid_names: set[str]) -> list[str]:
-    text = str(content or "").strip()
-
-    if not text:
-        return []
-
-    json_match = re.search(r"\{.*\}", text, re.DOTALL)
-    if json_match:
-        text = json_match.group(0)
-
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        return []
-
-    return normalize_selected_skill_names(payload.get("skills", []), valid_names)
-
-
-def select_procedural_skills(messages: list, selector_llm: SkillSelector | None) -> list[str]:
-    if selector_llm is None:
-        return []
-
-    user_text = recent_user_text(messages)
-
-    if not user_text:
-        return []
-
-    registry = load_skill_registry()
-
-    if not registry:
-        return []
-
-    valid_names = {skill.name for skill in registry}
-
-    try:
-        response = stream_to_text(selector_llm, build_selection_prompt(user_text, registry))
-    except Exception:
-        return []
-
-    return parse_selector_response(response, valid_names)
 
 
 def load_skill_markdown(skill_name: str) -> str:
@@ -237,9 +152,3 @@ def build_skill_context_from_names(skill_names: list[str]) -> str:
         "Do not mention skill loading unless the user asks.\n\n"
         + "\n\n---\n\n".join(loaded_skills)
     )
-
-
-def build_skill_context(messages: list, selector_llm: SkillSelector | None = None) -> str:
-    selected_skills = select_procedural_skills(messages, selector_llm)
-
-    return build_skill_context_from_names(selected_skills)
