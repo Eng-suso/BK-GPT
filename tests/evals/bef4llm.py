@@ -854,3 +854,123 @@ def semantic_metrics(candidate: Model, reference: Model) -> dict[str, float]:
         "dependency_graph_overlap": round(_relation_overlap(candidate_direct, reference_direct), 4),
     }
 
+
+# --- aggregazione ----------------------------------------------------------------
+
+
+def _mean(values: list[float]) -> float:
+    return round(sum(values) / len(values), 4) if values else 0.0
+
+
+@dataclass
+class Bef4llmReport:
+    """Il punteggio di un BPMN. Se l'XML non e' valido restano solo `q_val` e gli errori."""
+
+    q_val: float
+    errors: list[str] = field(default_factory=list)
+    syntactic: dict[str, float] = field(default_factory=dict)
+    pragmatic: dict[str, float] = field(default_factory=dict)
+    pragmatic_values: dict[str, float] = field(default_factory=dict)
+    semantic: dict[str, float] = field(default_factory=dict)
+
+    @property
+    def q_syn(self) -> float | None:
+        return _mean(list(self.syntactic.values())) if self.syntactic else None
+
+    @property
+    def q_prag(self) -> float | None:
+        return _mean(list(self.pragmatic.values())) if self.pragmatic else None
+
+    @property
+    def q_sem(self) -> float | None:
+        return _mean(list(self.semantic.values())) if self.semantic else None
+
+    @property
+    def pragmatic_groups(self) -> dict[str, float]:
+        """I sottogruppi che il paper consiglia di leggere quando `Q_prag` scende."""
+        return {
+            group: _mean([self.pragmatic[name] for name in names])
+            for group, names in PRAGMATIC_GROUPS.items()
+            if self.pragmatic
+        }
+
+    @property
+    def q_qual(self) -> float | None:
+        """Sintassi, pragmatica e (se c'e' un riferimento) semantica."""
+        parts = [score for score in (self.q_syn, self.q_prag, self.q_sem) if score is not None]
+        return _mean(parts) if parts else None
+
+    @property
+    def q_total(self) -> float:
+        """`Q_qual` piu' la validita'. Un XML non valido vale zero."""
+        parts = [score for score in (self.q_syn, self.q_prag, self.q_sem) if score is not None]
+        return _mean([self.q_val, *parts]) if self.q_val else 0.0
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "q_val": self.q_val,
+            "q_syn": self.q_syn,
+            "q_prag": self.q_prag,
+            "q_sem": self.q_sem,
+            "q_qual": self.q_qual,
+            "q_total": self.q_total,
+            "pragmatic_groups": self.pragmatic_groups,
+            "syntactic": self.syntactic,
+            "pragmatic": self.pragmatic,
+            "pragmatic_values": {k: round(float(v), 4) for k, v in self.pragmatic_values.items()},
+            "semantic": self.semantic,
+            "errors": self.errors,
+        }
+
+
+def evaluate(xml: str, reference_xml: str | None = None) -> Bef4llmReport:
+    """BEF4LLM su un BPMN; la semantica solo se c'e' un riferimento valido."""
+    q_val, errors = validity(xml)
+    if not q_val:
+        return Bef4llmReport(q_val=q_val, errors=errors)
+    model = parse(xml)
+    report = Bef4llmReport(
+        q_val=q_val,
+        syntactic=syntactic_metrics(model),
+        pragmatic=pragmatic_metrics(model),
+        pragmatic_values=pragmatic_values(model),
+    )
+    if reference_xml is not None:
+        reference_valid, reference_errors = validity(reference_xml)
+        if not reference_valid:
+            raise ValueError(f"il riferimento non e' un BPMN valido: {reference_errors[:3]}")
+        report.semantic = semantic_metrics(model, parse(reference_xml))
+    return report
+
+
+def main(argv: list[str] | None = None) -> int:
+    """`uv run python -m tests.evals.bef4llm candidato.bpmn [--reference rif.bpmn] [--json]`"""
+    import argparse
+    import json
+
+    parser = argparse.ArgumentParser(description="Punteggio BEF4LLM di un file BPMN 2.0.")
+    parser.add_argument("candidate", type=Path)
+    parser.add_argument("--reference", type=Path, default=None)
+    parser.add_argument("--json", action="store_true", help="stampa il report completo in JSON")
+    args = parser.parse_args(argv)
+
+    reference = args.reference.read_text(encoding="utf-8") if args.reference else None
+    report = evaluate(args.candidate.read_text(encoding="utf-8"), reference)
+    if args.json:
+        print(json.dumps(report.as_dict(), indent=2, ensure_ascii=False))
+        return 0
+    for key in ("q_val", "q_syn", "q_prag", "q_sem", "q_qual", "q_total"):
+        value = getattr(report, key)
+        print(f"{key:8} {'-' if value is None else f'{value:.4f}'}")
+    for group, score in report.pragmatic_groups.items():
+        print(f"  prag/{group:20} {score:.2f}")
+    failing = {name: score for name, score in report.syntactic.items() if score < 1.0}
+    for name, score in failing.items():
+        print(f"  syn/{name:22} {score:.2f}")
+    for error in report.errors[:10]:
+        print(f"  ! {error}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
