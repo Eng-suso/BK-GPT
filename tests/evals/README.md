@@ -64,7 +64,7 @@ process modeling competences of large language models* (Information Systems
 | `Q_syn` | 16 | regole di BPMN: start/end, archi ammessi, gradi dei nodi, split richiusi da un join |
 | `Q_prag` | 15 | leggibilita': dimensione, densita', gateway, partizionabilita', concorrenza, con le soglie del paper |
 | `Q_sem` | 7 | somiglianza con un BPMN di riferimento: etichette, struttura, comportamento |
-| `Q_qual` / `Q_total` | - | media delle tre qualita' / piu' la validita' |
+| `Q_qual` / `Q_total` | - | media delle tre qualita' / piu' la validita'. Senza riferimento non esistono: c'e' solo l'indice parziale `q_partial` |
 
 ```
 uv run python -m tests.evals.bef4llm candidato.bpmn                      # Q_val, Q_syn, Q_prag
@@ -76,9 +76,11 @@ Nel golden notturno (`l1_golden/test_golden_set.py`) il disegno dell'LLM e'
 confrontato col BPMN del piano ideale e il punteggio finisce nel rapporto,
 chiave `bef4llm`. E' una lettura, non un gate.
 
-Il compilatore sul piano ideale, oggi (riferimento per i run futuri):
+Il compilatore sul piano ideale, oggi (riferimento per i run futuri). Senza un
+riferimento non c'e' `Q_sem`, quindi nemmeno `Q_qual`: l'ultima colonna e'
+l'indice parziale `(Q_syn + Q_prag) / 2`, che non e' una grandezza del paper.
 
-| caso | Q_val | Q_syn | Q_prag | Q_qual | regole che cadono |
+| caso | Q_val | Q_syn | Q_prag | parziale | regole che cadono |
 | --- | --- | --- | --- | --- | --- |
 | `esaote_ciclo_passivo` | 1.00 | 1.00 | 0.77 | 0.88 | nessuna |
 | `facility_segnalazioni_guasti` | 1.00 | 0.97 | 0.77 | 0.87 | il pool esterno senza processo (black box) |
@@ -86,8 +88,15 @@ Il compilatore sul piano ideale, oggi (riferimento per i run futuri):
 Prima del merge esclusivo del compilatore (`_add_exclusive_merges`) `Q_syn` era
 0.87 e 0.84: i rami confluivano nell'evento di fine e nei task senza gateway, e
 gli split XOR non si richiudevano. `Q_prag` e' sceso da 0.82 a 0.77 perche' i
-merge sono gateway in piu' e le metriche di dimensione li contano; `Q_qual` sale
-comunque (0.84 -> 0.88 e 0.84 -> 0.87).
+merge sono gateway in piu' e le metriche di dimensione li contano.
+
+Ablazione (ottobre 2026): ogni combinazione dei merge, 8 varianti su Esaote e 4
+su Facility. Le tracce di attivita' eseguibili sono identiche in tutte: un merge
+esclusivo esplicito ha la semantica della confluenza implicita che sostituisce.
+Con il Matchgate strutturale (post-dominatore immediato) nessuna variante con
+meno merge supera "tutti i merge" sull'indice parziale. Due processi bastano per
+scartare un'ottimizzazione, non per sceglierne una: sono casi di sviluppo, e una
+regola diversa va validata su processi indipendenti.
 
 Nel paper i migliori modelli open-source stanno intorno a 0.86-0.90 di
 `Q_syn`, 0.85-0.90 di `Q_prag`, 0.53-0.58 di `Q_sem`.
