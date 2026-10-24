@@ -307,6 +307,11 @@ def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
         session.refresh(model, with_for_update=True)
         _assert_bpmn_not_changed_underneath(session, model.id, NO_PRECONDITION)
         model.xml = _canvas_xml_for_write(version.xml, source="restore", process_name=model.name)
+        # Il disegno ripristinato e' un disegno nuovo per il confronto con le
+        # fonti: quello registrato parla della versione appena sostituita.
+        review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
+        if review is not None:
+            _queue_conformance(review)
         restored = create_bpmn_version(
             session=session,
             model=model,
