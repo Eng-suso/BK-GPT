@@ -67,7 +67,6 @@ class CanvasHandoffInput(BaseModel):
         "layout",
         "validate",
         "targeted_edit",
-        "replace_xml",
     ] = Field(description="Specific Canvas Macro action requested.")
 
 
