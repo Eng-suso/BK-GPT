@@ -55,26 +55,6 @@ class ProcessEvidenceInput(BaseModel):
     tags: list[str] = Field(default_factory=list, description="Process areas touched by this evidence.")
 
 
-class ProcessGraphContextRequestInput(BaseModel):
-    process_id: str = Field(description="Current process id.")
-    query: str = Field(description="Question that future process GraphRAG should answer.")
-    reason: str = Field(description="Why relation-heavy retrieval would help.")
-    entity_hints: list[str] = Field(
-        default_factory=list,
-        description="Known process entities: actor, activity, decision, handoff, document, system, source, gap.",
-    )
-    relation_focus: Literal[
-        "source-to-claim",
-        "claim-to-activity",
-        "actor-to-handoff",
-        "decision-to-path",
-        "gap-to-modeling",
-        "contradiction",
-        "canvas-mapping",
-        "general",
-    ] = "general"
-
-
 class CanvasHandoffInput(BaseModel):
     process_id: str = Field(description="Current process id.")
     objective: str = Field(description="What Canvas Macro should do next.")
@@ -310,38 +290,6 @@ def save_process_evidence(
                 "action": "Synthesize claims, confidence, contradictions and open questions from this source.",
             }
         ],
-    )
-
-
-@tool(args_schema=ProcessGraphContextRequestInput)
-def prepare_process_graph_context_request(
-    process_id: str,
-    query: str,
-    reason: str,
-    entity_hints: list[str] | None = None,
-    relation_focus: str = "general",
-) -> str:
-    """
-    Prepare the future process GraphRAG retrieval request without performing
-    retrieval. Use when relation-heavy process memory would help, but GraphRAG is
-    not enabled yet. The output should be used as a planning artifact only.
-    """
-    payload = process_workspace_payload(process_id)
-    return enterprise_tool_result(
-        status="not_configured",
-        action="prepare_process_graph_context_request",
-        entity_type="process_graph_context_request",
-        entity_id=process_id,
-        summary="Process GraphRAG is not enabled yet; retrieval request prepared.",
-        payload={
-            "process": payload["process"],
-            "query": query,
-            "reason": reason,
-            "entity_hints": entity_hints or [],
-            "relation_focus": relation_focus,
-            "future_tool_slot": "retrieve_process_graph_context",
-        },
-        warnings=["Do not claim GraphRAG evidence was retrieved in this turn."],
     )
 
 
