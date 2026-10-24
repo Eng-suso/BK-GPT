@@ -68,7 +68,16 @@ def _work_one(row: dict) -> bool:
             tenant_id=row["tenant_id"],
             process_id=row["process_id"],
         ):
-            report = audit_process_conformance(row["process_id"])
+            # Il rapporto lo registra il worker, sotto la sua presa in carico:
+            # un disegno salvato mentre si leggevano le fonti rimette la riga in
+            # coda, e chiuderla `done` qui perderebbe quel confronto.
+            report = audit_process_conformance(row["process_id"], persist=False)
+            if report is not None:
+                # Se la registrazione fallisce la presa in carico resta, come per
+                # una lettura fallita: si riprova alla sua scadenza.
+                wd.record_conformance_report(
+                    row["bpmn_model_id"], report.model_dump(mode="json"), only_if_running=True
+                )
     except wd.UnreadableReviewError:
         logger.warning(
             "confronto impossibile per il processo %s: il piano salvato non e' leggibile, "
@@ -76,7 +85,9 @@ def _work_one(row: dict) -> bool:
             row["process_id"],
             exc_info=True,
         )
-        wd.release_conformance_check(row["bpmn_model_id"], status=wd.CONFORMANCE_UNAVAILABLE)
+        wd.release_conformance_check(
+            row["bpmn_model_id"], status=wd.CONFORMANCE_UNAVAILABLE, only_if_running=True
+        )
         return False
     except Exception:  # noqa: BLE001 - un processo storto non ferma la coda
         logger.warning(
@@ -94,7 +105,7 @@ def _work_one(row: dict) -> bool:
         # altrimenti la stessa riga girerebbe per sempre.
         token = set_current_tenant_id(row["tenant_id"])
         try:
-            wd.release_conformance_check(row["bpmn_model_id"], status="done")
+            wd.release_conformance_check(row["bpmn_model_id"], status="done", only_if_running=True)
         finally:
             reset_current_tenant_id(token)
         return False
