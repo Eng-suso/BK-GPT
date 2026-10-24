@@ -372,6 +372,16 @@ def test_bpmn_review_tools_include_canvas_facade_for_compatibility():
     assert manage_canvas_bpmn_model.name == "manage_canvas_bpmn_model"
 
 
+def test_no_agent_can_rewrite_the_whole_canvas_xml():
+    # Whole-XML rewrites bypass the compiler: edits go through atomic element tools.
+    from backend.toolsets.registry import tools, tools_by_scope
+
+    exposed = {name for scope in tools_by_scope.values() for name in tool_names(scope)}
+    exposed |= tool_names(tools)
+    assert "replace_canvas_bpmn_xml" not in exposed
+    assert not hasattr(bpmn_toolset, "replace_canvas_bpmn_xml")
+
+
 def _process_with_exception() -> ProcessUnderstanding:
     """Build a process model with a timeout exception attached to its waiting step.
     
