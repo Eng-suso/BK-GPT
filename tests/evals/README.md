@@ -50,6 +50,47 @@ affidabile, qualunque cosa dica il resto della suite.
 | `test_judge.py`, `test_judge_calibration_set.py` | il giudice L2 passa dal gateway col suo compito, l'accordo con un umano si calcola giusto, il set di calibrazione e' utilizzabile |
 | `test_golden_graph_metrics.py` | dal piano ideale il compilatore ridisegna la mappa di riferimento, a 1.0 |
 | `test_agent_outcomes.py` | un turno vero dell'agente (`outcome_harness.py`) con un modello che sbaglia: injection, progetto fuori scope, disegno cambiato da un collega, database giu'. Lo stato cambia solo quando deve, e nessun esito finto arriva al modello |
+| `test_bef4llm.py` | le metriche BEF4LLM dicono il vero su modelli scritti a mano, e ogni BPMN che il compilatore produce dal golden set passa lo schema XSD di BPMN 2.0 |
+
+## BEF4LLM: DeliR sulla scala di un benchmark pubblicato
+
+`bef4llm.py` implementa il framework di Lauer et al., *Assessing the business
+process modeling competences of large language models* (Information Systems
+142, 2026): 39 metriche su quattro dimensioni, ognuna in [0, 1].
+
+| punteggio | metriche | cosa dice |
+| --- | --- | --- |
+| `Q_val` | 1 | l'XML passa lo schema XSD di BPMN 2.0 (`bef4llm_xsd/`). Se no, il resto non si calcola |
+| `Q_syn` | 16 | regole di BPMN: start/end, archi ammessi, gradi dei nodi, split richiusi da un join |
+| `Q_prag` | 15 | leggibilita': dimensione, densita', gateway, partizionabilita', concorrenza, con le soglie del paper |
+| `Q_sem` | 7 | somiglianza con un BPMN di riferimento: etichette, struttura, comportamento |
+| `Q_qual` / `Q_total` | - | media delle tre qualita' / piu' la validita' |
+
+```
+uv run python -m tests.evals.bef4llm candidato.bpmn                      # Q_val, Q_syn, Q_prag
+uv run python -m tests.evals.bef4llm candidato.bpmn --reference rif.bpmn # anche Q_sem
+uv run python -m tests.evals.bef4llm candidato.bpmn --json               # ogni metrica
+```
+
+Nel golden notturno (`l1_golden/test_golden_set.py`) il disegno dell'LLM e'
+confrontato col BPMN del piano ideale e il punteggio finisce nel rapporto,
+chiave `bef4llm`. E' una lettura, non un gate.
+
+Il compilatore sul piano ideale, oggi (riferimento per i run futuri):
+
+| caso | Q_val | Q_syn | Q_prag | regole che cadono |
+| --- | --- | --- | --- | --- |
+| `esaote_ciclo_passivo` | 1.00 | 0.87 | 0.82 | fine con piu' entrate, split XOR senza join, task con piu' entrate |
+| `facility_segnalazioni_guasti` | 1.00 | 0.84 | 0.83 | le stesse, piu' il pool esterno senza processo (black box) |
+
+Nel paper i migliori modelli open-source stanno intorno a 0.86-0.90 di
+`Q_syn`, 0.85-0.90 di `Q_prag`, 0.53-0.58 di `Q_sem`.
+
+Non e' una copia bit a bit: il codice degli autori non e' raggiungibile da qui
+e alcune formule del PDF hanno esponenti e pedici persi. Dove la formula e'
+illeggibile vale la fonte che il paper cita (Mendling, Cardoso, Vanderfeesten,
+Dijkman), scritto accanto a ogni metrica in `bef4llm.py`. Confrontare con le
+tabelle del paper come ordine di grandezza, non alla terza cifra.
 
 ## Eseguire
 
