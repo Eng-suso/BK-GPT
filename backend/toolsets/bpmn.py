@@ -1239,37 +1239,6 @@ def layout_canvas_bpmn(
 
 
 @tool
-def replace_canvas_bpmn_xml(
-    bpmn_model_id: str,
-    xml: str,
-    change_summary: str,
-) -> str:
-    """
-    Replace the entire BPMN XML for the canvas after a deliberate model-level edit.
-    Use only when targeted element editing is not enough and the XML comes from a
-    validated BPMNSemanticModel or an explicit user-approved BPMN XML update.
-    """
-    clean_xml = replace_bpmn_xml(xml)
-    model = workspace_database.update_bpmn_model(
-        bpmn_model_id,
-        clean_xml,
-        change_summary=change_summary,
-        source="canvas_agent_replace",
-    )
-    if model is None:
-        raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
-
-    return format_workspace_result(
-        "Canvas BPMN sostituito",
-        {
-            "bpmn_model_id": bpmn_model_id,
-            "change_summary": change_summary,
-            "xml_saved": True,
-        },
-    )
-
-
-@tool
 def list_canvas_bpmn_versions(bpmn_model_id: str) -> str:
     """
     List saved BPMN versions for this canvas model.
@@ -1430,7 +1399,6 @@ bpmn_review_tools = [
     validate_canvas_bpmn,
     preview_canvas_bpmn_change,
     layout_canvas_bpmn,
-    replace_canvas_bpmn_xml,
     list_canvas_bpmn_versions,
     restore_canvas_bpmn_version,
     prepare_process_bpmn_review,
