@@ -246,3 +246,21 @@ def test_a_worker_does_not_close_the_claim_of_the_worker_after_it(tenant, monkey
     assert _lease(model_id) == second["lease"]
     review = wd.get_bpmn_review(model_id, include_approved=True)
     assert (review["conformance"] or {}).get("report") is None, "il rapporto del primo e' finito sul confronto del secondo"
+
+
+def test_a_worker_whose_report_was_refused_does_not_count_it_as_written(tenant, monkeypatch):
+    """`_work_one` dice `True` solo se il rapporto e' stato davvero registrato."""
+    from backend import workspace_database as wd
+    from backend.agents import conformance_audit
+    from backend.workers import conformance_worker
+
+    model_id = _process_with_plan()["bpmn_model_id"]
+    wd.request_conformance_check(model_id)
+    monkeypatch.setattr(
+        conformance_audit,
+        "audit_process_conformance",
+        _audit_racing_a_new_drawing(model_id, then=lambda: wd.due_conformance_checks(5, only_tenant_id=tenant)),
+    )
+    (row,) = wd.due_conformance_checks(5, only_tenant_id=tenant)
+
+    assert conformance_worker._work_one(row) is False, "il rapporto rifiutato e' stato contato come scritto"
