@@ -7,16 +7,6 @@ from backend.bpmn.canvas_layout import ENTERPRISE_POLICY
 from backend.graphs.canvas_edit.state import CanvasState
 from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
 
-LAYOUT_SUBGRAPH_CONTRACT = """
-All agent canvas writes use DeliR's mandatory CanvasLayoutPolicy. Agents request
-semantic changes only; no positions, dimensions, rows or routes are accepted.
-Normalization, graph ranks, real-owner lanes, orthogonal routing and visual lint
-run deterministically before BPMN DI is committed. Preserve semantic documents,
-annotations, evidence, conditions and source/target references. Manual consultant
-geometry is preserved and validated on its separate save path.
-""".strip()
-
-
 def _layout_xml_from_state(state: CanvasState) -> tuple[dict | None, str]:
     model_id = state.get("bpmn_model_id")
     model = workspace_database.get_bpmn_model(model_id) if model_id else None
