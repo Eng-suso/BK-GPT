@@ -15,7 +15,12 @@ from backend.process_understanding import (
     unknown_question_id,
 )
 from backend.workspace_database._common import decode_list, encode_list, now_iso, slugify, tenant_id, tenant_row
-from backend.workspace_database.bpmn import create_bpmn_version
+from backend.workspace_database.bpmn import (
+    NO_PRECONDITION,
+    _assert_bpmn_not_changed_underneath,
+    _remember_turn_write,
+    create_bpmn_version,
+)
 from backend.workspace_database.conformance import _queue_conformance, conformance_state, decode_element_decisions
 from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
 from backend.workspace_services.bpmn_review import build_bpmn_review_draft, bpmn_xml_from_review
@@ -795,12 +800,17 @@ def approve_bpmn_review(bpmn_model_id: str, *, override: bool = False) -> dict:
         if not override:
             _assert_review_ready_for_approval(review)
 
+        # L'approvazione scrive il disegno come ogni altra strada: in fila dietro
+        # le scritture concorrenti, mai sopra una versione che il turno non ha
+        # visto, e registrata come scrittura del turno.
+        session.refresh(model, with_for_update=True)
+        _assert_bpmn_not_changed_underneath(session, model.id, NO_PRECONDITION)
         xml, _layout_report = optimize_bpmn_layout(bpmn_xml_from_review(
             bpmn_semantic_model_json=review.bpmn_semantic_model_json,
         ))
         model.xml = xml
         approved_version = int(getattr(review, "version", 1) or 1)
-        create_bpmn_version(
+        approved_drawing = create_bpmn_version(
             session=session,
             model=model,
             xml=xml,
@@ -811,11 +821,14 @@ def approve_bpmn_review(bpmn_model_id: str, *, override: bool = False) -> dict:
         )
         review.status = "approved"
         review.updated_at = now_iso()
+        # Il disegno generato e' nuovo: il confronto con le fonti va rifatto.
+        _queue_conformance(review)
         # Approving does not change what the plan says, only its standing, so the
         # recorded version is marked rather than duplicated.
         _mark_review_version_approved(session, review)
         review_payload = review_to_dict(review)
         session.flush()
+        _remember_turn_write(model.id, approved_drawing.id)
         return {
             "bpmn_model": {
                 "id": model.id,

@@ -59,6 +59,7 @@ def _work_one(row: dict) -> bool:
     from backend.agents.conformance_audit import audit_process_conformance
     from backend.llm import OperationKind, operation
 
+    recorded = None
     token = set_current_tenant_id(row["tenant_id"])
     try:
         # Il punto d'ingresso del confronto: la spesa del revisore appartiene a
@@ -68,7 +69,19 @@ def _work_one(row: dict) -> bool:
             tenant_id=row["tenant_id"],
             process_id=row["process_id"],
         ):
-            report = audit_process_conformance(row["process_id"])
+            # Il rapporto lo registra il worker, con la sua presa in carico: un
+            # disegno salvato mentre si leggevano le fonti rimette la riga in
+            # coda, o un altro worker la prende, e chiuderla `done` qui
+            # perderebbe quel confronto.
+            report = audit_process_conformance(row["process_id"], persist=False)
+            if report is not None:
+                # Se la registrazione fallisce la presa in carico resta, come per
+                # una lettura fallita: si riprova alla sua scadenza.
+                # Un rapporto rifiutato perche' un altro worker ha preso la riga
+                # non e' un confronto scritto.
+                recorded = wd.record_conformance_report(
+                    row["bpmn_model_id"], report.model_dump(mode="json"), claim=row["claim"]
+                )
     except wd.UnreadableReviewError:
         logger.warning(
             "confronto impossibile per il processo %s: il piano salvato non e' leggibile, "
@@ -76,7 +89,9 @@ def _work_one(row: dict) -> bool:
             row["process_id"],
             exc_info=True,
         )
-        wd.release_conformance_check(row["bpmn_model_id"], status=wd.CONFORMANCE_UNAVAILABLE)
+        wd.release_conformance_check(
+            row["bpmn_model_id"], status=wd.CONFORMANCE_UNAVAILABLE, claim=row["claim"]
+        )
         return False
     except Exception:  # noqa: BLE001 - un processo storto non ferma la coda
         logger.warning(
@@ -94,11 +109,11 @@ def _work_one(row: dict) -> bool:
         # altrimenti la stessa riga girerebbe per sempre.
         token = set_current_tenant_id(row["tenant_id"])
         try:
-            wd.release_conformance_check(row["bpmn_model_id"], status="done")
+            wd.release_conformance_check(row["bpmn_model_id"], status="done", claim=row["claim"])
         finally:
             reset_current_tenant_id(token)
         return False
-    return True
+    return recorded is not None
 
 
 def sweep_unchecked(*, force: bool = False) -> int:

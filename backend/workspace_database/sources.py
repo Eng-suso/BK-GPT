@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import and_, delete, func, or_, select
 
 from backend.workspace_database import plans
-from backend.workspace_database._common import now_iso, slugify, source_to_dict, tenant_id, tenant_row, unique_id
+from backend.workspace_database._common import now_iso, slugify, tenant_id, tenant_row, unique_id
 from backend.workspace_storage import (
     WorkspaceClient,
     WorkspaceProcess,
@@ -33,6 +33,39 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger("backend.workspace_database")
+
+
+def source_to_dict(source: WorkspaceSource) -> dict:
+    def structured(raw: str | None) -> list:
+        try:
+            value = json.loads(raw or "[]")
+        except json.JSONDecodeError:
+            return []
+        return value if isinstance(value, list) else []
+
+    return {
+        "id": source.id,
+        "project_id": source.project_id,
+        "client_id": source.client_id,
+        "process_id": source.process_id,
+        "name": source.name,
+        "type": source.type,
+        "meta": source.meta,
+        "roles": structured(source.roles_json),
+        "retention": source.retention,
+        "scopes": structured(source.scopes_json),
+        "status": source.status,
+        # Stringa vuota e non `None`: chi legge confronta impronte, e un `None`
+        # fra due confronti si comporta in modo diverso da un testo assente.
+        "content_hash": getattr(source, "content_hash", None) or "",
+        "byte_size": source.byte_size,
+        "mime_type": source.mime_type,
+        "acquisition_status": source.acquisition_status,
+        "acquisition_error": source.acquisition_error,
+        "claims_status": source.claims_status,
+        "claims_error": source.claims_error,
+        "reconcile_status": source.reconcile_status,
+    }
 
 
 def list_project_sources(project_id: str, *, include_client: bool = False) -> list[dict]:

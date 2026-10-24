@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 
-from backend.workspace_database._common import now_iso, source_to_dict, tenant_id
+from backend.workspace_database._common import now_iso, tenant_id
 from backend.workspace_storage import (
     WorkspaceBpmnReview,
     WorkspacePlanExtraction,
@@ -502,19 +502,47 @@ def enqueue_stale_plan_materializations(
         if only_tenant_id:
             statement = statement.where(WorkspaceProcess.tenant_id == only_tenant_id)
         processes = session.execute(statement).scalars().all()
+        # Solo le colonne che servono all'identita' del set di fonti
+        # (`source_set_identity`): caricare la riga intera portava in memoria il
+        # testo estratto di ogni fonte di ogni tenant, a ogni passata.
+        source_rows = select(
+            WorkspaceSource.tenant_id,
+            WorkspaceSource.id,
+            WorkspaceSource.name,
+            WorkspaceSource.project_id,
+            WorkspaceSource.process_id,
+            WorkspaceSource.content_hash,
+        )
+        review_rows = select(
+            WorkspaceBpmnReview.tenant_id,
+            WorkspaceBpmnReview.bpmn_model_id,
+            WorkspaceBpmnReview.evidence_source_set_id,
+        )
+        queue_rows = select(
+            WorkspacePlanMaterialization.tenant_id,
+            WorkspacePlanMaterialization.process_id,
+            WorkspacePlanMaterialization.status,
+        )
+        if only_tenant_id:
+            source_rows = source_rows.where(WorkspaceSource.tenant_id == only_tenant_id)
+            review_rows = review_rows.where(WorkspaceBpmnReview.tenant_id == only_tenant_id)
+            queue_rows = queue_rows.where(WorkspacePlanMaterialization.tenant_id == only_tenant_id)
         sources_by_project: dict[tuple[str, str], list[dict]] = {}
-        for source in session.execute(select(WorkspaceSource)).scalars():
+        for source in session.execute(source_rows):
             sources_by_project.setdefault((source.tenant_id, source.project_id), []).append(
-                source_to_dict(source)
+                {
+                    "id": source.id,
+                    "name": source.name,
+                    "project_id": source.project_id,
+                    "process_id": source.process_id,
+                    "content_hash": source.content_hash or "",
+                }
             )
         reviews = {
-            (review.tenant_id, review.bpmn_model_id): review.evidence_source_set_id
-            for review in session.execute(select(WorkspaceBpmnReview)).scalars()
+            (row.tenant_id, row.bpmn_model_id): row.evidence_source_set_id
+            for row in session.execute(review_rows)
         }
-        queue = {
-            (row.tenant_id, row.process_id): row.status
-            for row in session.execute(select(WorkspacePlanMaterialization)).scalars()
-        }
+        queue = {(row.tenant_id, row.process_id): row.status for row in session.execute(queue_rows)}
 
         stale: list[tuple[str, str]] = []
         for process in processes:

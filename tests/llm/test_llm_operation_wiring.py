@@ -143,7 +143,7 @@ class TestIPuntiDIngressoApronoLOperazione:
 
         vista: dict = {}
 
-        def _fake_audit(process_id):
+        def _fake_audit(process_id, **_kwargs):
             op = current_operation()
             vista["kind"] = op.kind if op else None
             vista["process_id"] = op.process_id if op else None
@@ -158,7 +158,7 @@ class TestIPuntiDIngressoApronoLOperazione:
         )
 
         conformance_worker._work_one(
-            {"id": 1, "tenant_id": "acme", "process_id": "proc-9", "bpmn_model_id": "bpmn-9"}
+            {"id": 1, "tenant_id": "acme", "process_id": "proc-9", "bpmn_model_id": "bpmn-9", "claim": "t0"}
         )
 
         assert vista["kind"] == OperationKind.CONFORMANCE_AUDIT
