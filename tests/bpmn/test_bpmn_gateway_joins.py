@@ -207,3 +207,28 @@ def test_every_gateway_is_laid_out():
 
 def _flow_named(model, source_id: str, name: str):
     return next(flow for flow in _out_of(model, source_id) if flow.name == name)
+
+
+def test_a_catch_event_behind_an_event_based_gateway_gets_no_merge():
+    """Nothing may sit between an event-based gateway and its catch events
+    (OMG BPMN 2.0, 10.5.6): such an event keeps its entries, every other node
+    with several entries gets its merge."""
+    from backend.bpmn.compiler import _add_exclusive_merges
+    from backend.bpmn.flow_registry import FlowRegistry
+    from backend.bpmn.models import BPMNFlowNode
+
+    nodes = [
+        BPMNFlowNode(id="race", type="eventBasedGateway", name="Cosa arriva prima?"),
+        BPMNFlowNode(id="reply", type="intermediateCatchEvent", name="Risposta", eventDefinition="message"),
+        BPMNFlowNode(id="retry", type="userTask", name="Sollecita"),
+        BPMNFlowNode(id="close", type="userTask", name="Chiudi"),
+    ]
+    registry = FlowRegistry(used_ids={node.id for node in nodes})
+    for source, target in [("race", "reply"), ("retry", "reply"), ("reply", "close"), ("retry", "close")]:
+        registry.add(source, target)
+
+    _add_exclusive_merges(nodes, registry, registry.used_ids)
+
+    assert {flow.sourceRef for flow in registry.flows if flow.targetRef == "reply"} == {"race", "retry"}
+    (entry,) = [flow for flow in registry.flows if flow.targetRef == "close"]
+    assert next(n for n in nodes if n.id == entry.sourceRef).type == "exclusiveGateway"
