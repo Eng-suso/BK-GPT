@@ -28,6 +28,8 @@ data object) e il contenuto dei sottoprocessi, che contano come un'attivita'.
 
 from __future__ import annotations
 
+import heapq
+import math
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -324,5 +326,293 @@ def syntactic_metrics(model: Model) -> dict[str, float]:
             len(splits),
         ),
         "join_degree": _share(sum(1 for g in joins if len(model.outgoing(g.id)) == 1), len(joins)),
+    }
+
+
+# --- qualita' pragmatica (Tabelle A.16 e A.18) ---------------------------------
+
+# Quattro soglie per metrica dividono i valori in cinque gruppi (Tabella A.18).
+# `desc`: meno e' meglio; `asc`: piu' e' meglio. Le direzioni sono quelle della
+# Tabella A.16; il testo del paper cita CNC e token split fra le metriche "piu'
+# e' meglio", ma la tabella delle formule le normalizza discendenti e qui vale
+# la tabella.
+PRAGMATIC_THRESHOLDS: dict[str, tuple[str, tuple[float, float, float, float]]] = {
+    "tnn": ("desc", (29.9, 43.7, 58.1, 81.1)),
+    "tng": ("desc", (1.42, 3.36, 5.3, 6.49)),
+    "tnsf": ("desc", (19.4, 34.8, 50.2, 74.8)),
+    "tnmf": ("desc", (1.09, 7.15, 13.2, 22.8)),
+    "diameter": ("desc", (7.92, 12.2, 16.5, 23.4)),
+    "density": ("desc", (0.1361169, 0.357143, 0.741667, 2.33333)),
+    "agd": ("desc", (3.67, 3.88, 4.06, 4.18)),
+    "cnc": ("desc", (0.37, 0.9, 1.43, 4.18)),
+    "gh": ("desc", (0.62, 0.79, 0.92, 0.94)),
+    "cfc": ("desc", (13, 22, 37, 51)),
+    "cc": ("asc", (0.007996, 0.030407, 0.061814, 0.112903)),
+    "sequentiality": ("desc", (0.25, 0.48, 0.7, 1.07)),
+    "separability": ("asc", (0.03, 0.37, 0.71, 1.24)),
+    "depth": ("desc", (0.42, 1.72, 3.02, 5.09)),
+    "token_split": ("desc", (0.12, 0.21, 0.6, 1.36)),
+}
+
+PRAGMATIC_GROUPS = {
+    "size": ("tnn", "tng", "tnsf", "tnmf", "diameter"),
+    "density": ("density", "agd", "cnc"),
+    "connector_interplay": ("gh", "cfc", "cc"),
+    "partitionability": ("sequentiality", "separability", "depth"),
+    "concurrency": ("token_split",),
+}
+
+
+def normalize(value: float, direction: str, thresholds: tuple[float, float, float, float]) -> float:
+    """Equazioni (1) e (2): il gruppo del valore, da 1.0 (facile) a 0.0 (difficile).
+
+    Con TNN = 45 e soglie (29.9, 43.7, 58.1, 81.1) il gruppo e' il terzo: 0.5.
+    """
+    group = sum(1 for threshold in thresholds if value >= threshold)
+    score = 1.0 - 0.25 * group
+    return score if direction == "desc" else 1.0 - score
+
+
+def _acyclic_successors(model: Model) -> dict[str, list[str]]:
+    """Il grafo senza gli archi all'indietro di una visita dagli inizi.
+
+    Diametro e profondita' sono definiti sui cammini da un inizio a una fine:
+    un ciclo li renderebbe infiniti, e un cammino semplice non lo ripercorre.
+    """
+    successors = model.successors()
+    roots = [n.id for n in model.of(START_TAGS)] or [
+        node_id for node_id in model.nodes if not model.incoming(node_id)
+    ]
+    roots += [node_id for node_id in model.nodes if node_id not in roots]
+    state: dict[str, int] = {}
+    kept: dict[str, list[str]] = {node_id: [] for node_id in model.nodes}
+    for root in roots:
+        if root in state:
+            continue
+        stack: list[tuple[str, int]] = [(root, 0)]
+        state[root] = 1
+        while stack:
+            node_id, index = stack.pop()
+            targets = successors[node_id]
+            if index < len(targets):
+                stack.append((node_id, index + 1))
+                target = targets[index]
+                if state.get(target) == 1:
+                    continue
+                kept[node_id].append(target)
+                if target not in state:
+                    state[target] = 1
+                    stack.append((target, 0))
+            else:
+                state[node_id] = 2
+    return kept
+
+
+def _topological(order_of: dict[str, list[str]]) -> list[str]:
+    indegree = {node_id: 0 for node_id in order_of}
+    for targets in order_of.values():
+        for target in targets:
+            indegree[target] += 1
+    ready = sorted(node_id for node_id, count in indegree.items() if count == 0)
+    order: list[str] = []
+    while ready:
+        current = ready.pop()
+        order.append(current)
+        for target in order_of[current]:
+            indegree[target] -= 1
+            if indegree[target] == 0:
+                ready.append(target)
+    return order
+
+
+def _diameter(model: Model) -> int:
+    """Mendling: il cammino piu' lungo da un inizio a una fine, contato in nodi."""
+    dag = _acyclic_successors(model)
+    ends = {n.id for n in model.of(END_TAGS)} or {node_id for node_id, out in dag.items() if not out}
+    starts = [n.id for n in model.of(START_TAGS)] or [
+        node_id for node_id in model.nodes if not model.incoming(node_id)
+    ]
+    longest: dict[str, int] = {}
+    for node_id in reversed(_topological(dag)):
+        tails = [longest[t] for t in dag[node_id] if t in longest]
+        if node_id in ends:
+            longest[node_id] = max([1, *(1 + tail for tail in tails)])
+        elif tails:
+            longest[node_id] = 1 + max(tails)
+    return max((longest.get(start, 0) for start in starts), default=0)
+
+
+def _depth(model: Model) -> int:
+    """Mendling: la massima annidatura, min(profondita' d'ingresso, d'uscita).
+
+    Lungo un cammino uno split apre un livello per i nodi che seguono, un join
+    lo chiude per se stesso; la profondita' d'uscita e' la stessa cosa sul
+    grafo rovesciato.
+    """
+    dag = _acyclic_successors(model)
+    splits = {g.id for g in model.gateways if len(model.outgoing(g.id)) > 1}
+    joins = {g.id for g in model.gateways if len(model.incoming(g.id)) > 1}
+    reverse: dict[str, list[str]] = {node_id: [] for node_id in dag}
+    for source, targets in dag.items():
+        for target in targets:
+            reverse[target].append(source)
+
+    def sweep(forward: dict[str, list[str]], opens: set[str], closes: set[str]) -> dict[str, int]:
+        backward: dict[str, list[str]] = {node_id: [] for node_id in forward}
+        for source, targets in forward.items():
+            for target in targets:
+                backward[target].append(source)
+        level: dict[str, int] = {}
+        for node_id in _topological(forward):
+            before = [level[p] + (1 if p in opens else 0) for p in backward[node_id]]
+            level[node_id] = max(0, max(before, default=0) - (1 if node_id in closes else 0))
+        return level
+
+    inward = sweep(dag, splits, joins)
+    outward = sweep(reverse, joins, splits)
+    return max((min(inward[n], outward[n]) for n in model.nodes), default=0)
+
+
+def _cut_vertices(model: Model) -> set[str]:
+    """Punti di articolazione del grafo non orientato (Tarjan, iterativo)."""
+    neighbours: dict[str, set[str]] = {node_id: set() for node_id in model.nodes}
+    for source, targets in model.successors().items():
+        for target in targets:
+            if source != target:
+                neighbours[source].add(target)
+                neighbours[target].add(source)
+    discovery: dict[str, int] = {}
+    low: dict[str, int] = {}
+    cuts: set[str] = set()
+    clock = 0
+    for root in model.nodes:
+        if root in discovery:
+            continue
+        discovery[root] = low[root] = clock
+        clock += 1
+        children = 0
+        stack: list[tuple[str, str | None, list[str]]] = [(root, None, sorted(neighbours[root]))]
+        while stack:
+            node_id, parent, pending = stack[-1]
+            if pending:
+                nxt = pending.pop()
+                if nxt == parent:
+                    continue
+                if nxt in discovery:
+                    low[node_id] = min(low[node_id], discovery[nxt])
+                else:
+                    discovery[nxt] = low[nxt] = clock
+                    clock += 1
+                    if node_id == root:
+                        children += 1
+                    stack.append((nxt, node_id, sorted(neighbours[nxt])))
+                continue
+            stack.pop()
+            if parent is not None:
+                low[parent] = min(low[parent], low[node_id])
+                if parent != root and low[node_id] >= discovery[parent]:
+                    cuts.add(parent)
+        if children > 1:
+            cuts.add(root)
+    return cuts
+
+
+def _node_weight(model: Model, node: Node) -> float:
+    """Vanderfeesten et al. (2008): il peso di un nodo nella cross-connectivity."""
+    if not node.is_gateway:
+        return 1.0
+    degree = len(model.incoming(node.id)) + len(model.outgoing(node.id))
+    if degree == 0 or node.gateway_kind == "AND":
+        return 1.0
+    if node.gateway_kind == "XOR":
+        return 1.0 / degree
+    combinations = 2**degree - 1
+    return 1.0 / combinations + (combinations - 1) / combinations * (1.0 / degree)
+
+
+def _cross_connectivity(model: Model) -> float:
+    """Vanderfeesten et al. (2008): quanto forte e' il legame medio fra due nodi.
+
+    Il peso di un arco e' il prodotto dei pesi dei suoi nodi, il valore di un
+    cammino il prodotto dei suoi archi, quello di una coppia il cammino migliore.
+    Con pesi in (0, 1] il cammino migliore e' il piu' corto in -log(peso).
+    """
+    nodes = list(model.nodes.values())
+    if len(nodes) < 2:
+        return 0.0
+    weight = {node.id: _node_weight(model, node) for node in nodes}
+    successors = model.successors()
+    total = 0.0
+    for origin in nodes:
+        best: dict[str, float] = {}
+        queue: list[tuple[float, str]] = [(0.0, origin.id)]
+        while queue:
+            cost, current = heapq.heappop(queue)
+            for target in successors[current]:
+                arc = weight[current] * weight[target]
+                next_cost = cost - math.log(arc)
+                if next_cost < best.get(target, math.inf):
+                    best[target] = next_cost
+                    heapq.heappush(queue, (next_cost, target))
+        total += sum(math.exp(-cost) for target, cost in best.items() if target != origin.id)
+    return total / (len(nodes) * (len(nodes) - 1))
+
+
+def pragmatic_values(model: Model) -> dict[str, float]:
+    """Le 15 misure grezze, prima delle soglie.
+
+    Dove la Tabella A.16 del PDF e' illeggibile vale la fonte citata: CFC di
+    Cardoso (OR = 2^|out| - 1), sequenzialita' di Mendling (archi fra due nodi
+    che non sono gateway, sul totale degli archi).
+    """
+    nodes, flows, gateways = model.nodes, model.sequence_flows, model.gateways
+    splits = [g for g in gateways if len(model.outgoing(g.id)) > 1]
+    kinds = [g.gateway_kind for g in gateways]
+    heterogeneity = 0.0
+    if kinds:
+        for kind in ("AND", "XOR", "OR"):
+            share = kinds.count(kind) / len(kinds)
+            if share:
+                heterogeneity -= share * math.log(share, 3)
+    cfc = sum(
+        1 if g.gateway_kind == "AND"
+        else len(model.outgoing(g.id)) if g.gateway_kind == "XOR"
+        else 2 ** len(model.outgoing(g.id)) - 1
+        for g in splits
+    )
+    size = len(nodes)
+    return {
+        "tnn": size,
+        "tng": len(gateways),
+        "tnsf": len(flows),
+        "tnmf": len(model.message_flows),
+        "diameter": _diameter(model),
+        "density": len(flows) / (size * (size - 1)) if size > 1 else 0.0,
+        "agd": (
+            sum(len(model.incoming(g.id)) + len(model.outgoing(g.id)) for g in gateways) / len(gateways)
+            if gateways else 0.0
+        ),
+        "cnc": len(flows) / size if size else 0.0,
+        "gh": heterogeneity,
+        "cfc": cfc,
+        "cc": _cross_connectivity(model),
+        "sequentiality": (
+            sum(1 for s, t in flows if not nodes[s].is_gateway and not nodes[t].is_gateway) / len(flows)
+            if flows else 0.0
+        ),
+        "separability": len(_cut_vertices(model)) / (size - 2) if size > 2 else 0.0,
+        "depth": _depth(model),
+        "token_split": sum(
+            len(model.outgoing(g.id)) - 1 for g in splits if g.gateway_kind in {"AND", "OR"}
+        ),
+    }
+
+
+def pragmatic_metrics(model: Model) -> dict[str, float]:
+    """Le 15 metriche pragmatiche, ognuna gia' portata in [0, 1] dalle soglie."""
+    values = pragmatic_values(model)
+    return {
+        name: normalize(values[name], direction, thresholds)
+        for name, (direction, thresholds) in PRAGMATIC_THRESHOLDS.items()
     }
 
