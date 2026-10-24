@@ -68,15 +68,16 @@ def _work_one(row: dict) -> bool:
             tenant_id=row["tenant_id"],
             process_id=row["process_id"],
         ):
-            # Il rapporto lo registra il worker, sotto la sua presa in carico:
-            # un disegno salvato mentre si leggevano le fonti rimette la riga in
-            # coda, e chiuderla `done` qui perderebbe quel confronto.
+            # Il rapporto lo registra il worker, con la sua presa in carico: un
+            # disegno salvato mentre si leggevano le fonti rimette la riga in
+            # coda, o un altro worker la prende, e chiuderla `done` qui
+            # perderebbe quel confronto.
             report = audit_process_conformance(row["process_id"], persist=False)
             if report is not None:
                 # Se la registrazione fallisce la presa in carico resta, come per
                 # una lettura fallita: si riprova alla sua scadenza.
                 wd.record_conformance_report(
-                    row["bpmn_model_id"], report.model_dump(mode="json"), only_if_running=True
+                    row["bpmn_model_id"], report.model_dump(mode="json"), claim=row["claim"]
                 )
     except wd.UnreadableReviewError:
         logger.warning(
@@ -86,7 +87,7 @@ def _work_one(row: dict) -> bool:
             exc_info=True,
         )
         wd.release_conformance_check(
-            row["bpmn_model_id"], status=wd.CONFORMANCE_UNAVAILABLE, only_if_running=True
+            row["bpmn_model_id"], status=wd.CONFORMANCE_UNAVAILABLE, claim=row["claim"]
         )
         return False
     except Exception:  # noqa: BLE001 - un processo storto non ferma la coda
@@ -105,7 +106,7 @@ def _work_one(row: dict) -> bool:
         # altrimenti la stessa riga girerebbe per sempre.
         token = set_current_tenant_id(row["tenant_id"])
         try:
-            wd.release_conformance_check(row["bpmn_model_id"], status="done", only_if_running=True)
+            wd.release_conformance_check(row["bpmn_model_id"], status="done", claim=row["claim"])
         finally:
             reset_current_tenant_id(token)
         return False

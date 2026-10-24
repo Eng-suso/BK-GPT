@@ -157,7 +157,7 @@ def decode_conformance_report(review: WorkspaceBpmnReview) -> dict | None:
 
 
 def record_conformance_report(
-    bpmn_model_id: str, report: dict, *, only_if_running: bool = False
+    bpmn_model_id: str, report: dict, *, claim: str | None = None
 ) -> dict | None:
     """Registra sulla review l'esito dell'ultima verifica disegno-piano-fonti.
 
@@ -169,10 +169,13 @@ def record_conformance_report(
     Args:
         bpmn_model_id: Il disegno a cui appartiene la review.
         report: Il rapporto da registrare.
-        only_if_running: Chiude il confronto solo se la presa in carico c'e'
-            ancora. E' il worker: mentre leggeva le fonti un disegno nuovo puo'
-            aver rimesso la riga in coda, e segnarla `done` perderebbe quel
-            confronto. Il rapporto si registra comunque.
+        claim: La presa in carico del worker (`due_conformance_checks`). Con
+            questa, il rapporto si registra solo se nessuno ha preso in carico
+            la riga dopo di lui, e il confronto si chiude solo se e' ancora
+            `running` sotto la sua presa: mentre leggeva le fonti un disegno
+            nuovo puo' averla rimessa in coda, o un altro worker averla presa.
+            Senza (`None`) registra e chiude sempre, come per un controllo
+            chiesto in sincrono.
 
     Returns:
         Il rapporto registrato, o ``None`` se la review non esiste nel tenant.
@@ -182,8 +185,12 @@ def record_conformance_report(
         if review is None:
             return None
         session.refresh(review, with_for_update=True)
+        if claim is not None and review.conformance_leased_at != claim:
+            # Un altro worker ha preso in carico la riga dopo di noi: il suo
+            # rapporto sara' piu' recente del nostro.
+            return None
         review.conformance_json = json.dumps(report, ensure_ascii=False)
-        if not only_if_running or review.conformance_status == "running":
+        if claim is None or review.conformance_status == "running":
             review.conformance_status = "done"
             review.conformance_leased_at = None
         session.flush()
@@ -291,6 +298,9 @@ def due_conformance_checks(limit: int = 3, *, only_tenant_id: str | None = None)
                     "tenant_id": row.tenant_id,
                     "process_id": row.process_id,
                     "bpmn_model_id": row.bpmn_model_id,
+                    # L'istante della presa in carico la identifica: chi chiude
+                    # il confronto lo ripresenta (`record_conformance_report`).
+                    "claim": now,
                 }
             )
         session.flush()
@@ -383,19 +393,22 @@ def conformance_queue_stats(*, only_tenant_id: str | None = None) -> dict[str, i
 
 
 def release_conformance_check(
-    bpmn_model_id: str, *, status: str = "pending", only_if_running: bool = False
+    bpmn_model_id: str, *, status: str = "pending", claim: str | None = None
 ) -> None:
     """Rimette una presa in carico nello stato dato (riprova, o resa).
 
-    Con `only_if_running` (il worker) non tocca una riga che un disegno nuovo ha
-    rimesso in coda nel frattempo: quel confronto e' un altro e va fatto.
+    Con `claim` (il worker) tocca la riga solo se e' ancora `running` sotto la
+    sua presa in carico: una riga rimessa in coda da un disegno nuovo, o presa
+    da un altro worker, appartiene a un altro confronto.
     """
     with workspace_connection() as session:
         review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
         if review is None:
             return
         session.refresh(review, with_for_update=True)
-        if only_if_running and review.conformance_status != "running":
+        if claim is not None and (
+            review.conformance_status != "running" or review.conformance_leased_at != claim
+        ):
             return
         review.conformance_status = status
         review.conformance_leased_at = None

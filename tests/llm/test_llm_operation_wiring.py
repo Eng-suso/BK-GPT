@@ -158,7 +158,7 @@ class TestIPuntiDIngressoApronoLOperazione:
         )
 
         conformance_worker._work_one(
-            {"id": 1, "tenant_id": "acme", "process_id": "proc-9", "bpmn_model_id": "bpmn-9"}
+            {"id": 1, "tenant_id": "acme", "process_id": "proc-9", "bpmn_model_id": "bpmn-9", "claim": "t0"}
         )
 
         assert vista["kind"] == OperationKind.CONFORMANCE_AUDIT
