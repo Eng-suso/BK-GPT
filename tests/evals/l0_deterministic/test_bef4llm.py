@@ -130,6 +130,45 @@ def test_a_join_of_another_type_is_not_a_match():
     assert syntactic_metrics(parse(xml))["split_has_join"] == 0.0
 
 
+def test_a_merge_before_the_end_does_not_close_every_split():
+    """Matchgate e' strutturale: il join e' il primo nodo da cui passano tutti i
+    rami (post-dominatore immediato), non un join che prima o poi raggiungono."""
+    xml = _bpmn(
+        [
+            ("startEvent", "s", "Start"),
+            ("userTask", "a", "Ricevi ordine"),
+            ("exclusiveGateway", "g2", "Urgente?"),
+            ("userTask", "y", "Spedisci subito"),
+            ("exclusiveGateway", "g", "Completo?"),
+            ("userTask", "b", "Approva"),
+            ("userTask", "c", "Correggi"),
+            ("userTask", "x", "Archivia"),
+            ("exclusiveGateway", "m", ""),
+            ("endEvent", "e", "Fine"),
+        ],
+        [
+            ("s", "a"), ("a", "g2"), ("g2", "y"), ("g2", "g"), ("g", "b"), ("g", "c"),
+            ("b", "x"), ("c", "x"), ("x", "m"), ("y", "m"), ("m", "e"),
+        ],
+    )
+    # g2 e' chiuso da m; i rami di g si ritrovano nel task x, implicitamente
+    assert syntactic_metrics(parse(xml))["split_has_join"] == 0.5
+
+
+def test_the_exit_split_of_a_structured_loop_is_closed_by_its_entry_merge():
+    xml = _bpmn(
+        [
+            ("startEvent", "s", "Start"),
+            ("exclusiveGateway", "m", ""),
+            ("userTask", "a", "Correggi"),
+            ("exclusiveGateway", "g", "Corretto?"),
+            ("endEvent", "e", "Fine"),
+        ],
+        [("s", "m"), ("m", "a"), ("a", "g"), ("g", "m"), ("g", "e")],
+    )
+    assert syntactic_metrics(parse(xml))["split_has_join"] == 1.0
+
+
 def test_a_missing_label_and_a_second_start_are_counted():
     xml = _bpmn(
         [
@@ -277,6 +316,21 @@ def test_the_assignment_is_optimal_not_greedy():
     assert sorted(pairs) == [(0, 1), (1, 0)]
 
 
+def test_without_a_reference_there_is_no_q_qual_only_a_partial_index():
+    report = evaluate(_xor_diamond())
+    assert report.q_sem is None
+    assert report.q_qual is None and report.q_total is None
+    assert report.q_partial == pytest.approx((report.q_syn + report.q_prag) / 2, abs=1e-4)
+
+
+def test_q_qual_is_the_mean_of_all_three_dimensions():
+    report = evaluate(_xor_diamond(), reference_xml=_xor_diamond())
+    assert report.q_qual == pytest.approx((report.q_syn + report.q_prag + report.q_sem) / 3, abs=1e-4)
+    assert report.q_total == pytest.approx(
+        (report.q_val + report.q_syn + report.q_prag + report.q_sem) / 4, abs=1e-4
+    )
+
+
 def test_a_model_is_semantically_identical_to_itself():
     xml = _xor_diamond()
     assert set(evaluate(xml, reference_xml=xml).semantic.values()) == {1.0}
@@ -343,6 +397,13 @@ def test_the_compiler_always_emits_schema_valid_bpmn(plan_path: Path):
     model = build_bpmn_semantic_model(
         process_id=f"Process_{plan_path.parent.name}", process_name=plan_path.parent.name, process=plan
     )
+    # Un merge e' solo un punto di passaggio: piu' entrate, un'uscita senza
+    # condizione. Cosi' ha la semantica della confluenza implicita che sostituisce.
+    for merge in (n for n in model.flowNodes if n.id.endswith("_merge")):
+        exits = [f for f in model.sequenceFlows if f.sourceRef == merge.id]
+        entries = [f for f in model.sequenceFlows if f.targetRef == merge.id]
+        assert merge.type == "exclusiveGateway" and len(entries) >= 2, merge.id
+        assert len(exits) == 1 and not exits[0].conditionExpression, merge.id
     report = evaluate(semantic_model_to_bpmn_xml(model))
     assert report.q_val == 1.0, report.errors[:5]
     assert report.q_syn is not None and report.q_prag is not None

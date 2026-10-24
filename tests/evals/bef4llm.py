@@ -229,14 +229,76 @@ def _reachable(successors: dict[str, list[str]], start: str) -> set[str]:
     return seen
 
 
-def _has_matching_join(model: Model, split: Node, joins: list[Node], successors: dict[str, list[str]]) -> bool:
-    """Matchgate: un join dello stesso tipo che ogni ramo dello split raggiunge."""
-    branches = [_reachable(successors, target) for target in model.outgoing(split.id)]
-    if len(branches) < 2:
+def _dominators(successors: dict[str, list[str]], roots: list[str]) -> dict[str, set[str]]:
+    """Dominatori di ogni nodo raggiungibile dalle radici (iterativo, punto fisso).
+
+    `d` domina `n` se ogni cammino da una radice a `n` passa da `d`. Sul grafo
+    rovesciato, con le fini come radici, sono i post-dominatori.
+    """
+    nodes = set(successors)
+    predecessors: dict[str, list[str]] = {node: [] for node in nodes}
+    for source, targets in successors.items():
+        for target in targets:
+            predecessors[target].append(source)
+    reachable: set[str] = set()
+    for root in roots:
+        reachable |= _reachable(successors, root)
+    dominators = {node: ({node} if node in roots else set(reachable)) for node in reachable}
+    changed = True
+    while changed:
+        changed = False
+        for node in reachable:
+            if node in roots:
+                continue
+            incoming = [dominators[p] for p in predecessors[node] if p in dominators]
+            new = {node} | (set.intersection(*incoming) if incoming else set())
+            if new != dominators[node]:
+                dominators[node], changed = new, True
+    return dominators
+
+
+def _immediate(dominators: dict[str, set[str]], node: str) -> str | None:
+    """Il dominatore stretto piu' vicino: quello dominato da tutti gli altri."""
+    strict = dominators.get(node, set()) - {node}
+    for candidate in strict:
+        if all(other in dominators.get(candidate, set()) for other in strict):
+            return candidate
+    return None
+
+
+def _structural_joins(model: Model) -> dict[str, str | None]:
+    """Per ogni nodo: il suo post-dominatore immediato, dove i suoi rami si ritrovano."""
+    successors = model.successors()
+    reverse: dict[str, list[str]] = {node: [] for node in successors}
+    for source, targets in successors.items():
+        for target in targets:
+            reverse[target].append(source)
+    ends = [node for node, targets in successors.items() if not targets]
+    post = _dominators(reverse, ends)
+    return {node: _immediate(post, node) for node in successors}
+
+
+def _has_matching_join(model: Model, split: Node, joins: list[Node], context: dict) -> bool:
+    """Matchgate: lo split e' chiuso da un join dello stesso tipo *strutturalmente*.
+
+    Non basta un join che tutti i rami raggiungono prima o poi (un merge davanti
+    alla fine lo sarebbe per ogni split): il join e' il post-dominatore immediato
+    dello split, il primo nodo da cui passano per forza tutti i suoi rami. Per lo
+    split d'uscita di un ciclo strutturato il join e' il merge d'ingresso del
+    ciclo: un join dello stesso tipo che domina lo split e che uno dei suoi rami
+    raggiunge (Mendling, modelli strutturati, 7PMG G4).
+    """
+    if len(model.outgoing(split.id)) < 2:
         return False
+    join_ids = {join.id for join in joins if join.gateway_kind == split.gateway_kind}
+    if context["post"].get(split.id) in join_ids:
+        return True
+    dominating = context["dom"].get(split.id, set()) & join_ids
+    successors = context["successors"]
     return any(
-        join.gateway_kind == split.gateway_kind and all(join.id in branch for branch in branches)
-        for join in joins
+        header in _reachable(successors, target)
+        for header in dominating
+        for target in model.outgoing(split.id)
     )
 
 
@@ -288,6 +350,12 @@ def syntactic_metrics(model: Model) -> dict[str, float]:
     exceptions = model.of(BOUNDARY_TAGS)
     splits, joins = split_and_join_gateways(model)
     successors = model.successors()
+    roots = [n.id for n in starts] or [node_id for node_id in model.nodes if not model.incoming(node_id)]
+    structure = {
+        "post": _structural_joins(model),
+        "dom": _dominators(successors, roots),
+        "successors": successors,
+    }
     processes = model.processes or [""]
 
     def degree(node: Node, inbound: int, outbound: int) -> bool:
@@ -313,7 +381,7 @@ def syntactic_metrics(model: Model) -> dict[str, float]:
         "start_degree": _share(sum(1 for n in starts if degree(n, 0, 1)), len(starts)),
         "end_degree": _share(sum(1 for n in ends if degree(n, 1, 0)), len(ends)),
         "split_has_join": _share(
-            sum(1 for g in splits if _has_matching_join(model, g, joins, successors)), len(splits)
+            sum(1 for g in splits if _has_matching_join(model, g, joins, structure)), len(splits)
         ),
         "one_process_per_pool": _share(
             sum(1 for process in model.participants.values() if process in model.processes),
@@ -896,15 +964,31 @@ class Bef4llmReport:
 
     @property
     def q_qual(self) -> float | None:
-        """Sintassi, pragmatica e (se c'e' un riferimento) semantica."""
-        parts = [score for score in (self.q_syn, self.q_prag, self.q_sem) if score is not None]
-        return _mean(parts) if parts else None
+        """Il `Q_qual` del paper: sintassi, pragmatica e semantica, tutte e tre.
+
+        Senza un riferimento non c'e' semantica e non c'e' `Q_qual`: la media
+        delle due dimensioni rimaste e' un altro indice (`q_partial`).
+        """
+        if self.q_syn is None or self.q_prag is None or self.q_sem is None:
+            return None
+        return _mean([self.q_syn, self.q_prag, self.q_sem])
 
     @property
-    def q_total(self) -> float:
-        """`Q_qual` piu' la validita'. Un XML non valido vale zero."""
-        parts = [score for score in (self.q_syn, self.q_prag, self.q_sem) if score is not None]
-        return _mean([self.q_val, *parts]) if self.q_val else 0.0
+    def q_partial(self) -> float | None:
+        """Media di sintassi e pragmatica. Non e' una grandezza del paper."""
+        if self.q_syn is None or self.q_prag is None:
+            return None
+        return _mean([self.q_syn, self.q_prag])
+
+    @property
+    def q_total(self) -> float | None:
+        """`Q_qual` piu' la validita'. Un XML non valido vale zero; senza
+        semantica il totale del paper non si calcola."""
+        if not self.q_val:
+            return 0.0
+        if self.q_qual is None:
+            return None
+        return _mean([self.q_val, self.q_syn or 0.0, self.q_prag or 0.0, self.q_sem or 0.0])
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -914,6 +998,7 @@ class Bef4llmReport:
             "q_sem": self.q_sem,
             "q_qual": self.q_qual,
             "q_total": self.q_total,
+            "q_partial": self.q_partial,
             "pragmatic_groups": self.pragmatic_groups,
             "syntactic": self.syntactic,
             "pragmatic": self.pragmatic,
@@ -959,7 +1044,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(report.as_dict(), indent=2, ensure_ascii=False))
         return 0
-    for key in ("q_val", "q_syn", "q_prag", "q_sem", "q_qual", "q_total"):
+    for key in ("q_val", "q_syn", "q_prag", "q_sem", "q_qual", "q_total", "q_partial"):
         value = getattr(report, key)
         print(f"{key:8} {'-' if value is None else f'{value:.4f}'}")
     for group, score in report.pragmatic_groups.items():
