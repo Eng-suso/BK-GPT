@@ -301,10 +301,6 @@ Regole:
 """.strip()
 
 
-def _render_plan_elements(elements: list[dict[str, Any]]) -> str:
-    return json.dumps(elements, ensure_ascii=False, indent=1)
-
-
 def auditor_prompt_version() -> str:
     """La versione del prompt del revisore: `conformance_audit@impronta`.
 

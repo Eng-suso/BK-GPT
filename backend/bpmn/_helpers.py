@@ -179,20 +179,3 @@ def decision_documentation(decision: ProcessDecision) -> str:
             "source_evidence": decision.source_evidence,
         },
     )
-
-
-def unique_texts(values: list[str]) -> list[str]:
-    """Deduplicate and normalize a list of text values.
-
-    Args:
-        values: List of strings to deduplicate.
-
-    Returns:
-        A list of unique, normalized (whitespace-collapsed) non-empty strings.
-    """
-    result: list[str] = []
-    for value in values:
-        clean = " ".join(str(value or "").split())
-        if clean and clean not in result:
-            result.append(clean)
-    return result

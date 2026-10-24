@@ -62,7 +62,3 @@ CONSULTING_SKILLS_MANIFEST = {
 
 def required_skills_for(agent_name: str) -> list[str]:
     return list(CONSULTING_SKILLS_MANIFEST.get(agent_name, {}).get("required", []))
-
-
-def forbidden_skills_for(agent_name: str) -> list[str]:
-    return list(CONSULTING_SKILLS_MANIFEST.get(agent_name, {}).get("forbidden", []))
