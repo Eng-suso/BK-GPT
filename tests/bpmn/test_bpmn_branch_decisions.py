@@ -81,8 +81,18 @@ def _node(model, name: str):
 
 
 def _flow(model, source: str, target: str):
+    """The flow from `source` to `target`, also when it reaches `target` through
+    the exclusive merge the compiler puts in front of a node with several entries."""
     source_id, target_id = _node(model, source).id, _node(model, target).id
-    return next(f for f in model.sequenceFlows if f.sourceRef == source_id and f.targetRef == target_id)
+    merges = {
+        f.sourceRef for f in model.sequenceFlows
+        if f.targetRef == target_id
+        and any(n.id == f.sourceRef and n.type == "exclusiveGateway" for n in model.flowNodes)
+    }
+    return next(
+        f for f in model.sequenceFlows
+        if f.sourceRef == source_id and (f.targetRef == target_id or f.targetRef in merges)
+    )
 
 
 def test_a_decision_after_a_branch_step_becomes_a_gateway_on_that_branch():

@@ -117,14 +117,34 @@ def test_a_complex_gateway_carries_its_activation_rule_and_a_default():
     assert f'default="{split.defaultFlowId}"' in xml
 
 
-def test_an_exclusive_split_merges_without_a_join():
+def test_an_exclusive_split_is_closed_by_an_exclusive_merge():
+    """The branches meet in a merge gateway, not in the activity that follows."""
     model = _compile(_order("exclusive"))
 
     ship = _node(model, "Spedisci")
-    assert {flow.sourceRef for flow in _into(model, ship.id)} == {
+    (entry,) = _into(model, ship.id)
+    merge = next(node for node in model.flowNodes if node.id == entry.sourceRef)
+    assert merge.type == "exclusiveGateway"
+    assert merge.laneId == ship.laneId
+    assert {flow.sourceRef for flow in _into(model, merge.id)} == {
         _node(model, "Prepara la merce").id,
         _node(model, "Emetti la fattura").id,
     }
+    assert analyze_control_flow(model).is_sound
+
+
+def test_branches_that_end_meet_in_a_merge_before_the_end_event():
+    """One end event, one entry: the end is never an implicit merge."""
+    process = _order("exclusive")
+    process.alternative_paths = [ProcessPath(id="fatturazione", label="Fatturazione", sequence=["fattura"])]
+    model = _compile(process)
+
+    (end,) = [node for node in model.flowNodes if node.type == "endEvent"]
+    (entry,) = _into(model, end.id)
+    merge = next(node for node in model.flowNodes if node.id == entry.sourceRef)
+    assert merge.type == "exclusiveGateway"
+    assert len(_into(model, merge.id)) == 2
+    assert analyze_control_flow(model).is_sound
 
 
 def test_an_event_based_gateway_can_start_the_process_and_wait_for_every_event():
