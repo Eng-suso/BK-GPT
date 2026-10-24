@@ -59,6 +59,7 @@ def _work_one(row: dict) -> bool:
     from backend.agents.conformance_audit import audit_process_conformance
     from backend.llm import OperationKind, operation
 
+    recorded = None
     token = set_current_tenant_id(row["tenant_id"])
     try:
         # Il punto d'ingresso del confronto: la spesa del revisore appartiene a
@@ -76,7 +77,9 @@ def _work_one(row: dict) -> bool:
             if report is not None:
                 # Se la registrazione fallisce la presa in carico resta, come per
                 # una lettura fallita: si riprova alla sua scadenza.
-                wd.record_conformance_report(
+                # Un rapporto rifiutato perche' un altro worker ha preso la riga
+                # non e' un confronto scritto.
+                recorded = wd.record_conformance_report(
                     row["bpmn_model_id"], report.model_dump(mode="json"), claim=row["claim"]
                 )
     except wd.UnreadableReviewError:
@@ -110,7 +113,7 @@ def _work_one(row: dict) -> bool:
         finally:
             reset_current_tenant_id(token)
         return False
-    return True
+    return recorded is not None
 
 
 def sweep_unchecked(*, force: bool = False) -> int:
