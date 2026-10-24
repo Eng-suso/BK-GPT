@@ -192,3 +192,137 @@ def parse(xml: str) -> Model:
         model.message_flows.append((str(flow.get("sourceRef")), str(flow.get("targetRef"))))
     return model
 
+
+# --- qualita' sintattica (Tabella A.15) ---------------------------------------
+
+
+def _share(passing: int, total: int) -> float:
+    """Quota di elementi che rispettano una regola. Nessun elemento: nessuna violazione."""
+    return 1.0 if total == 0 else round(passing / total, 4)
+
+
+def split_and_join_gateways(model: Model) -> tuple[list[Node], list[Node]]:
+    """Ogni gateway e' un join se ha piu' di un arco entrante, altrimenti uno split.
+
+    Il paper non dice dove cade un gateway con piu' entrate e piu' uscite, ne' uno
+    con un'entrata e un'uscita: qui ogni gateway e' giudicato una volta sola, e
+    in entrambi i casi infrange la regola del suo gruppo (15 o 16).
+    """
+    joins = [g for g in model.gateways if len(model.incoming(g.id)) > 1]
+    splits = [g for g in model.gateways if len(model.incoming(g.id)) <= 1]
+    return splits, joins
+
+
+def _reachable(successors: dict[str, list[str]], start: str) -> set[str]:
+    seen: set[str] = set()
+    frontier = [start]
+    while frontier:
+        current = frontier.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        frontier.extend(successors.get(current, []))
+    return seen
+
+
+def _has_matching_join(model: Model, split: Node, joins: list[Node], successors: dict[str, list[str]]) -> bool:
+    """Matchgate: un join dello stesso tipo che ogni ramo dello split raggiunge."""
+    branches = [_reachable(successors, target) for target in model.outgoing(split.id)]
+    if len(branches) < 2:
+        return False
+    return any(
+        join.gateway_kind == split.gateway_kind and all(join.id in branch for branch in branches)
+        for join in joins
+    )
+
+
+def _sequence_flow_allowed(model: Model, source: str, target: str) -> bool:
+    """Regola 5: un arco di sequenza non esce da una fine, non entra in un inizio
+    o in un bordo, e non attraversa il confine di un processo."""
+    origin, destination = model.nodes[source], model.nodes[target]
+    return (
+        origin.tag not in END_TAGS
+        and destination.tag not in START_TAGS | BOUNDARY_TAGS
+        and origin.process == destination.process
+    )
+
+
+def _message_flow_allowed(model: Model, source: str, target: str) -> bool:
+    """Regola 6: un messaggio parte da attivita', fine o evento che lo lancia (o da
+    un pool), arriva ad attivita', inizio o evento che lo riceve (o a un pool), e
+    collega due pool diversi."""
+    pool_of_process = {process: pool for pool, process in model.participants.items() if process}
+
+    def endpoint(element_id: str, sending: bool) -> str | None:
+        if element_id in model.participants:
+            return element_id
+        node = model.nodes.get(element_id)
+        if node is None:
+            return None
+        if sending:
+            allowed = node.is_activity or (node.message and node.tag in END_TAGS | {"intermediateThrowEvent"})
+        else:
+            allowed = node.is_activity or (
+                node.message and node.tag in START_TAGS | {"intermediateCatchEvent"} | BOUNDARY_TAGS
+            )
+        return pool_of_process.get(node.process, node.process) if allowed else None
+
+    origin, destination = endpoint(source, True), endpoint(target, False)
+    return origin is not None and destination is not None and origin != destination
+
+
+def syntactic_metrics(model: Model) -> dict[str, float]:
+    """Le 16 regole sintattiche, ognuna in [0, 1].
+
+    Booleane le prime due, quote le altre. La regola 3 (e la 4) nel PDF stampa
+    "processi con almeno un inizio" ma si chiama "un inizio per processo": vale
+    il nome, cioe' esattamente uno. La regola 10 conta come violazione anche un
+    pool senza processo (black box): la formula chiede esattamente un processo.
+    """
+    starts, ends = model.of(START_TAGS), model.of(END_TAGS)
+    intermediates = model.of(INTERMEDIATE_TAGS)
+    exceptions = model.of(BOUNDARY_TAGS)
+    splits, joins = split_and_join_gateways(model)
+    successors = model.successors()
+    processes = model.processes or [""]
+
+    def degree(node: Node, inbound: int, outbound: int) -> bool:
+        return len(model.incoming(node.id)) == inbound and len(model.outgoing(node.id)) == outbound
+
+    return {
+        "start_exists": 1.0 if starts else 0.0,
+        "end_exists": 1.0 if ends else 0.0,
+        "one_start_per_process": _share(
+            sum(1 for p in processes if sum(1 for n in starts if n.process == p) == 1), len(processes)
+        ),
+        "one_end_per_process": _share(
+            sum(1 for p in processes if sum(1 for n in ends if n.process == p) == 1), len(processes)
+        ),
+        "sequence_flow_rules": _share(
+            sum(1 for s, t in model.sequence_flows if _sequence_flow_allowed(model, s, t)),
+            len(model.sequence_flows) + model.dangling_flows,
+        ),
+        "message_flow_rules": _share(
+            sum(1 for s, t in model.message_flows if _message_flow_allowed(model, s, t)),
+            len(model.message_flows),
+        ),
+        "start_degree": _share(sum(1 for n in starts if degree(n, 0, 1)), len(starts)),
+        "end_degree": _share(sum(1 for n in ends if degree(n, 1, 0)), len(ends)),
+        "split_has_join": _share(
+            sum(1 for g in splits if _has_matching_join(model, g, joins, successors)), len(splits)
+        ),
+        "one_process_per_pool": _share(
+            sum(1 for process in model.participants.values() if process in model.processes),
+            len(model.participants),
+        ),
+        "tasks_labelled": _share(sum(1 for n in model.activities if n.name), len(model.activities)),
+        "task_degree": _share(sum(1 for n in model.activities if degree(n, 1, 1)), len(model.activities)),
+        "intermediate_degree": _share(sum(1 for n in intermediates if degree(n, 1, 1)), len(intermediates)),
+        "exception_degree": _share(sum(1 for n in exceptions if degree(n, 0, 1)), len(exceptions)),
+        "split_degree": _share(
+            sum(1 for g in splits if len(model.incoming(g.id)) == 1 and len(model.outgoing(g.id)) > 1),
+            len(splits),
+        ),
+        "join_degree": _share(sum(1 for g in joins if len(model.outgoing(g.id)) == 1), len(joins)),
+    }
+
