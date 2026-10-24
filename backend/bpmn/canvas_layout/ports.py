@@ -12,7 +12,6 @@ from dataclasses import dataclass
 
 from .geometry import Box
 
-SIDES = ("right", "left", "top", "bottom")
 NORMAL = {"right": (1, 0), "left": (-1, 0), "top": (0, -1), "bottom": (0, 1)}
 
 

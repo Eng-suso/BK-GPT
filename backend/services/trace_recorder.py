@@ -154,13 +154,6 @@ def read_trace(trace_id: str, *, tenant_id: str) -> list[AgentTraceEvent] | None
         return list(_TRACE_EVENTS.get(trace_id, ()))
 
 
-def clear_trace(trace_id: str) -> None:
-    with _GUARD:
-        _TRACE_EVENTS.pop(trace_id, None)
-        _TRACE_STARTS.pop(trace_id, None)
-        _TRACE_TENANTS.pop(trace_id, None)
-
-
 def traced_count() -> int:
     """Quante tracce sono in memoria adesso. La misura del tetto di `MAX_TRACES`."""
     with _GUARD:

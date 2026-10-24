@@ -674,19 +674,6 @@ def _process_event_log(
         return None, None
 
 
-async def create_and_run_simulation(
-    *,
-    bpmn_model: BpmnModelResponse,
-    request: CreateSimulationRunRequest,
-) -> dict:
-    """Mette il run in coda e drena la coda: per i test e chi non passa da HTTP."""
-    run, scenario, _ = prepare_simulation_run(bpmn_model=bpmn_model, request=request)
-    if scenario is None:
-        return run
-    await drain_simulation_queue()
-    return get_simulation_run(run["id"]) or run
-
-
 class SimulationLogUnavailable(LookupError):
     """Il run non esiste, o non ha un log da esportare (fallito, o anteriore a SIM-06)."""
 

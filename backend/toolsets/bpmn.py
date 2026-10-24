@@ -49,7 +49,6 @@ CanvasBpmnOperation = Literal[
     "validate_layout",
     "validate",
     "preview_change",
-    "replace_xml",
     "list_versions",
     "restore_version",
 ]
@@ -218,8 +217,6 @@ def manage_canvas_bpmn_model(
     flow_id: str | None = None,
     proposed_xml: str | None = None,
     version_id: int | None = None,
-    change_summary: str | None = None,
-    confirm_structural_change: bool = False,
     *,
     tool_call_id: Annotated[str, InjectedToolCallId] = "",
 ) -> Command:
@@ -230,7 +227,6 @@ def manage_canvas_bpmn_model(
     low-level BPMN edit tools directly. Patch/Edit agents should use local
     operations only: inspect, list_elements, update_element, add_element,
     delete_element, connect_elements, reconnect_flow, layout and validate.
-    Structural replacement requires preview/approval and confirm_structural_change.
 
     """
     if operation == "inspect":
@@ -497,31 +493,6 @@ def manage_canvas_bpmn_model(
                 "source": source,
                 **preview_bpmn_xml_change(current_xml, clean_proposed_xml),
             },
-        )
-
-    if operation == "replace_xml":
-        if not proposed_xml:
-            raise ValueError("proposed_xml obbligatorio per replace_xml.")
-        if not confirm_structural_change:
-            raise ValueError("replace_xml richiede confirm_structural_change=True dopo preview/approvazione.")
-        clean_xml = replace_bpmn_xml(proposed_xml)
-        model = workspace_database.update_bpmn_model(
-            bpmn_model_id,
-            clean_xml,
-            change_summary=change_summary or "Sostituzione strutturale canvas",
-            source="canvas_facade_replace",
-        )
-        if model is None:
-            raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
-        return _canvas_facade_result(
-            tool_call_id,
-            {
-                "operation": operation,
-                "bpmn_model_id": bpmn_model_id,
-                "change_summary": change_summary or "Sostituzione strutturale canvas",
-                "xml_saved": True,
-            },
-            updated_xml=model["xml"],
         )
 
     if operation == "list_versions":
@@ -1239,37 +1210,6 @@ def layout_canvas_bpmn(
 
 
 @tool
-def replace_canvas_bpmn_xml(
-    bpmn_model_id: str,
-    xml: str,
-    change_summary: str,
-) -> str:
-    """
-    Replace the entire BPMN XML for the canvas after a deliberate model-level edit.
-    Use only when targeted element editing is not enough and the XML comes from a
-    validated BPMNSemanticModel or an explicit user-approved BPMN XML update.
-    """
-    clean_xml = replace_bpmn_xml(xml)
-    model = workspace_database.update_bpmn_model(
-        bpmn_model_id,
-        clean_xml,
-        change_summary=change_summary,
-        source="canvas_agent_replace",
-    )
-    if model is None:
-        raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
-
-    return format_workspace_result(
-        "Canvas BPMN sostituito",
-        {
-            "bpmn_model_id": bpmn_model_id,
-            "change_summary": change_summary,
-            "xml_saved": True,
-        },
-    )
-
-
-@tool
 def list_canvas_bpmn_versions(bpmn_model_id: str) -> str:
     """
     List saved BPMN versions for this canvas model.
@@ -1430,7 +1370,6 @@ bpmn_review_tools = [
     validate_canvas_bpmn,
     preview_canvas_bpmn_change,
     layout_canvas_bpmn,
-    replace_canvas_bpmn_xml,
     list_canvas_bpmn_versions,
     restore_canvas_bpmn_version,
     prepare_process_bpmn_review,

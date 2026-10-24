@@ -229,13 +229,6 @@ def classify_and_select_context(
     return parse_classifier_response(response)
 
 
-def classify_consultant_context(
-    messages: list,
-    classifier_llm: ContextClassifier | None,
-) -> dict:
-    return classify_and_select_context(messages, classifier_llm)
-
-
 def format_classification_context(state: dict) -> str:
     category = state.get("consultant_context_category")
 

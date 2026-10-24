@@ -14,7 +14,6 @@ come conoscenza autorevole solo dopo che qualcuno ha risposto.
 
 from __future__ import annotations
 
-import json
 from typing import Literal
 
 from langchain_core.tools import tool
@@ -283,21 +282,3 @@ def raise_modeling_question(
             }
         ],
     )
-
-
-def modeling_question_payload(tool_output: str) -> dict:
-    """Il payload di un risultato di `raise_modeling_question`, per il runtime.
-
-    I tool tornano una riga di titolo e poi il JSON: qui si legge la seconda
-    parte senza far ripassare il documento dal modello.
-    """
-    try:
-        return json.loads(tool_output.split("\n", 1)[1])
-    except (IndexError, json.JSONDecodeError):
-        return {}
-
-
-process_knowledge_tools = [
-    inspect_process_knowledge,
-    raise_modeling_question,
-]

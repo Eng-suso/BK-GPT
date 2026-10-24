@@ -39,45 +39,6 @@ class ProcessGraphExtractionInput(BaseModel):
     questions_to_validate: list[str] = Field(default_factory=list, description="Questions needed to validate extraction.")
 
 
-class SaveProcessEpisodeInput(BaseModel):
-    project_id: str = Field(description="Current project id.")
-    process_id: str = Field(description="Current process id.")
-    episode_type: str = Field(description="Event type: note, call, decision, interview, workshop, feedback, or observation.")
-    title: str = Field(description="Short source-backed event title.")
-    raw_content: str = Field(description="Original notes/transcript/source text to store as raw source custody.")
-    summary: str = Field(default="", description="Concise extracted summary.")
-    insights: list[str] = Field(default_factory=list, description="Source-backed insights extracted from raw content.")
-    participants: list[str] = Field(default_factory=list, description="People, roles or teams involved.")
-    entities: list[str] = Field(default_factory=list, description="Named process entities mentioned in the evidence.")
-    source_refs: list[str] = Field(default_factory=list, description="Workspace source ids, document ids or external source references.")
-    claims: list[KnowledgeGraphClaim] = Field(default_factory=list, description="Process claims extracted from the evidence.")
-    relationships: list[KnowledgeGraphRelationship] = Field(default_factory=list, description="Enterprise graph relationships.")
-    gaps: list[KnowledgeGraphGap] = Field(default_factory=list, description="Missing data, missing evidence or modeling gaps.")
-    contradictions: list[KnowledgeGraphContradiction] = Field(default_factory=list, description="Contradictions across evidence.")
-    impacts: list[KnowledgeGraphImpact] = Field(default_factory=list, description="Business, risk or ROI impacts.")
-    tags: list[str] = Field(default_factory=list, description="Additional retrieval tags.")
-    occurred_at: str | None = Field(default=None, description="ISO date/time if known.")
-
-
-class SaveProcessInterviewInput(BaseModel):
-    project_id: str = Field(description="Current project id.")
-    process_id: str = Field(description="Current process id.")
-    title: str = Field(description="Short interview title.")
-    raw_content: str = Field(description="Original interview transcript or notes.")
-    summary: str = Field(default="", description="Concise extracted interview summary.")
-    insights: list[str] = Field(default_factory=list, description="Source-backed insights extracted from the interview.")
-    participants: list[str] = Field(default_factory=list, description="Interview participants, roles or teams.")
-    entities: list[str] = Field(default_factory=list, description="Named process entities mentioned in the interview.")
-    source_refs: list[str] = Field(default_factory=list, description="Workspace source ids, document ids or external source references.")
-    claims: list[KnowledgeGraphClaim] = Field(default_factory=list, description="Process claims extracted from the interview.")
-    relationships: list[KnowledgeGraphRelationship] = Field(default_factory=list, description="Enterprise graph relationships.")
-    gaps: list[KnowledgeGraphGap] = Field(default_factory=list, description="Missing data, missing evidence or modeling gaps.")
-    contradictions: list[KnowledgeGraphContradiction] = Field(default_factory=list, description="Contradictions across evidence.")
-    impacts: list[KnowledgeGraphImpact] = Field(default_factory=list, description="Business, risk or ROI impacts.")
-    tags: list[str] = Field(default_factory=list, description="Additional retrieval tags.")
-    occurred_at: str | None = Field(default=None, description="ISO date/time if known.")
-
-
 class ProcessGraphIndexInput(BaseModel):
     project_id: str = Field(description="Current project id.")
     process_id: str = Field(description="Current process id.")
@@ -408,101 +369,6 @@ def _save_process_episode_payload(
                 "action": "Use retrieved graph context before preparing ProcessUnderstanding.",
             },
         ],
-    )
-
-
-@tool(args_schema=SaveProcessEpisodeInput)
-def save_process_episode(
-    project_id: str,
-    process_id: str,
-    episode_type: str,
-    title: str,
-    raw_content: str,
-    summary: str = "",
-    insights: list[str] | None = None,
-    participants: list[str] | None = None,
-    entities: list[str] | None = None,
-    source_refs: list[str] | None = None,
-    claims: list[KnowledgeGraphClaim] | None = None,
-    relationships: list[KnowledgeGraphRelationship] | None = None,
-    gaps: list[KnowledgeGraphGap] | None = None,
-    contradictions: list[KnowledgeGraphContradiction] | None = None,
-    impacts: list[KnowledgeGraphImpact] | None = None,
-    tags: list[str] | None = None,
-    occurred_at: str | None = None,
-) -> str:
-    """
-    Save process-scoped episodic evidence with raw source custody and optional
-    enterprise Knowledge Graph indexing. Use for real notes, calls, workshops,
-    observations, decisions, examples or source-backed process evidence.
-    """
-    return _save_process_episode_payload(
-        action="save_process_episode",
-        entity_type="process_episode",
-        project_id=project_id,
-        process_id=process_id,
-        episode_type=episode_type,
-        title=title,
-        raw_content=raw_content,
-        summary=summary,
-        insights=insights,
-        participants=participants,
-        entities=entities,
-        source_refs=source_refs,
-        claims=claims,
-        relationships=relationships,
-        gaps=gaps,
-        contradictions=contradictions,
-        impacts=impacts,
-        tags=tags,
-        occurred_at=occurred_at,
-    )
-
-
-@tool(args_schema=SaveProcessInterviewInput)
-def save_process_interview(
-    project_id: str,
-    process_id: str,
-    title: str,
-    raw_content: str,
-    summary: str = "",
-    insights: list[str] | None = None,
-    participants: list[str] | None = None,
-    entities: list[str] | None = None,
-    source_refs: list[str] | None = None,
-    claims: list[KnowledgeGraphClaim] | None = None,
-    relationships: list[KnowledgeGraphRelationship] | None = None,
-    gaps: list[KnowledgeGraphGap] | None = None,
-    contradictions: list[KnowledgeGraphContradiction] | None = None,
-    impacts: list[KnowledgeGraphImpact] | None = None,
-    tags: list[str] | None = None,
-    occurred_at: str | None = None,
-) -> str:
-    """
-    Save a process-scoped interview with raw transcript custody and optional
-    enterprise Knowledge Graph indexing. Use when Process Chat receives interview
-    notes/transcripts that should support discovery, evidence synthesis or As-Is modeling.
-    """
-    return _save_process_episode_payload(
-        action="save_process_interview",
-        entity_type="process_interview",
-        project_id=project_id,
-        process_id=process_id,
-        episode_type="interview",
-        title=title,
-        raw_content=raw_content,
-        summary=summary,
-        insights=insights or [],
-        participants=participants or [],
-        entities=entities or [],
-        source_refs=source_refs or [],
-        claims=claims or [],
-        relationships=relationships or [],
-        gaps=gaps or [],
-        contradictions=contradictions or [],
-        impacts=impacts or [],
-        tags=["interview", *(tags or [])],
-        occurred_at=occurred_at,
     )
 
 
@@ -1170,31 +1036,6 @@ def retrieve_process_gap_context(
 
 
 @tool
-def retrieve_process_contradiction_context(
-    project_id: str,
-    process_id: str,
-    query: str,
-    reason: str = "Need process contradictions before modeling.",
-    limit: int = 8,
-) -> str:
-    """
-    Retrieve graph context about contradictory claims and source disagreement.
-    Use before creating or updating an As-Is model.
-    """
-    return retrieve_process_graph_context.invoke(
-        {
-            "project_id": project_id,
-            "process_id": process_id,
-            "query": query,
-            "relation_focus": "contradiction",
-            "reason": reason,
-            "entities": ["contradiction", "conflicting claim", "source disagreement"],
-            "limit": limit,
-        }
-    )
-
-
-@tool
 def retrieve_process_canvas_traceability_context(
     project_id: str,
     process_id: str,
@@ -1217,14 +1058,3 @@ def retrieve_process_canvas_traceability_context(
             "limit": limit,
         }
     )
-
-
-process_memory_tools = [
-    manage_process_evidence,
-    extract_process_graph_from_evidence,
-    index_process_evidence_graph,
-    retrieve_process_graph_context,
-    retrieve_process_gap_context,
-    retrieve_process_contradiction_context,
-    retrieve_process_canvas_traceability_context,
-]

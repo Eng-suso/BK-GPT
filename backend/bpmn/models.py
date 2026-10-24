@@ -51,8 +51,6 @@ ACTIVITY_NODE_TYPES: frozenset[str] = frozenset(
         "adHocSubProcess",
     }
 )
-# Activities that hold a flow of their own (OMG BPMN 2.0, 10.3.5).
-CONTAINER_NODE_TYPES: frozenset[str] = frozenset({"subProcess", "transaction", "adHocSubProcess"})
 
 
 class BPMNFlowNode(BaseModel):

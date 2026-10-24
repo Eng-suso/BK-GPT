@@ -41,8 +41,6 @@ MIME_BY_EXTENSION = {
 }
 
 
-SOURCE_ROLES = ("context", "process_evidence", "policy", "operational_data")
-
 # Parole nel nome del file che dicono a cosa serve. E' una proposta che il
 # consulente accetta o cambia con un clic sulla card, non una decisione: per
 # questo bastano regole leggibili, e nessun modello.

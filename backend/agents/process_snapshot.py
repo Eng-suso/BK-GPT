@@ -469,20 +469,6 @@ def build_process_snapshot(process_id: str) -> ProcessKnowledgeSnapshot | None:
     )
 
 
-def snapshot_is_current(process_id: str, snapshot_id: str) -> bool:
-    """Lo snapshot su cui si sta lavorando e' ancora quello vero?
-
-    Serve al Canvas alla fine di un run: se nel frattempo il Process Agent ha
-    registrato una risposta o una fonte, il disegno appena prodotto descrive uno
-    stato che non e' piu' quello ufficiale. Non e' un errore - e' il momento in
-    cui il Canvas deve rileggere e ridisegnare sulla versione nuova.
-    """
-    if not snapshot_id:
-        return False
-    current = build_process_snapshot(process_id)
-    return current is not None and current.snapshot_id == snapshot_id
-
-
 # --- il piano rifiuta di ignorare l'evidenza ------------------------------
 
 

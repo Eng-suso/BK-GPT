@@ -14,7 +14,6 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       "bpmn-js/lib/Modeler",
-      "bpmn-js-token-simulation",
     ],
   },
   server: {

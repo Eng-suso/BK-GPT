@@ -105,15 +105,3 @@ def merge_milestones(stored: list[dict], incoming: list | None) -> list[dict]:
         merged.append(entry)
 
     return merged
-
-
-def milestones_reached(values: list[dict]) -> int:
-    """Count the milestones already reached.
-
-    Args:
-        values: Normalized milestones.
-
-    Returns:
-        int: How many entries are marked as reached.
-    """
-    return sum(1 for entry in values if entry["status"] == MILESTONE_DONE)

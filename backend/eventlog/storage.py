@@ -63,11 +63,6 @@ class AnalysisRecord:
     summary: dict[str, Any] | None
 
 
-def process_exists(process_id: str) -> bool:
-    with workspace_connection() as session:
-        return tenant_row(session, WorkspaceProcess, process_id) is not None
-
-
 def store_event_log(upload: NewEventLog) -> tuple[EventLogResponse, bool] | None:
     """Registra il file sul processo. Lo stesso file gia' caricato ritrova la sua riga.
 

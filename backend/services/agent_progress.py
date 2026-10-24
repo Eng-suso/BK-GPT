@@ -92,8 +92,6 @@ ALL_PHASES: tuple[ProgressPhase, ...] = (
     CORRECTING_PLAN,
 )
 
-PHASES_BY_ID: dict[str, ProgressPhase] = {phase.id: phase for phase in ALL_PHASES}
-
 _progress_sink: ContextVar[Callable[[ProgressPhase], None] | None] = ContextVar(
     "delir_progress_sink", default=None
 )

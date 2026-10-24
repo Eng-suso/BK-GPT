@@ -11,68 +11,6 @@ from backend.memory.semantic import semantic_store
 from backend.toolsets.workspace import enterprise_tool_result
 
 
-class SaveProjectEpisodeInput(BaseModel):
-    project_id: str = Field(description="Current project id from the active Project Chat scope.")
-    episode_type: str = Field(description="Event type: note, call, decision, interview, workshop, feedback, or observation.")
-    title: str = Field(description="Short source-backed event title.")
-    raw_content: str = Field(description="Original notes/transcript/source text to store as raw source custody.")
-    summary: str = Field(default="", description="Concise extracted summary.")
-    insights: list[str] = Field(default_factory=list, description="Source-backed insights extracted from raw content.")
-    participants: list[str] = Field(default_factory=list, description="People, roles or teams involved.")
-    process_ids: list[str] = Field(default_factory=list, description="Related process ids inside the project.")
-    entities: list[str] = Field(default_factory=list, description="Named project entities mentioned in the evidence.")
-    relationships: list["ProjectGraphRelationship"] = Field(
-        default_factory=list,
-        description="Enterprise graph relationships extracted from the evidence.",
-    )
-    gaps: list["ProjectGraphGap"] = Field(default_factory=list, description="Missing data or evidence gaps.")
-    inconsistencies: list["ProjectGraphInconsistency"] = Field(
-        default_factory=list,
-        description="Contradictions or incoherent stories across evidence.",
-    )
-    roi_impacts: list["ProjectROIImpact"] = Field(
-        default_factory=list,
-        description="Potential ROI, cost, revenue, risk or efficiency impacts.",
-    )
-    tags: list[str] = Field(default_factory=list, description="Additional retrieval tags.")
-    occurred_at: str | None = Field(default=None, description="ISO date/time if known.")
-
-
-class SaveProjectInterviewInput(BaseModel):
-    project_id: str = Field(description="Current project id from the active Project Chat scope.")
-    title: str = Field(description="Short interview title.")
-    raw_content: str = Field(description="Original interview transcript or notes.")
-    summary: str = Field(default="", description="Concise extracted interview summary.")
-    insights: list[str] = Field(default_factory=list, description="Source-backed insights extracted from the interview.")
-    participants: list[str] = Field(default_factory=list, description="Interview participants, roles or teams.")
-    process_ids: list[str] = Field(default_factory=list, description="Related process ids inside the project.")
-    entities: list[str] = Field(default_factory=list, description="Named project entities mentioned in the interview.")
-    relationships: list["ProjectGraphRelationship"] = Field(
-        default_factory=list,
-        description="Enterprise graph relationships extracted from the interview.",
-    )
-    gaps: list["ProjectGraphGap"] = Field(default_factory=list, description="Missing data or evidence gaps.")
-    inconsistencies: list["ProjectGraphInconsistency"] = Field(
-        default_factory=list,
-        description="Contradictions or incoherent stories across evidence.",
-    )
-    roi_impacts: list["ProjectROIImpact"] = Field(
-        default_factory=list,
-        description="Potential ROI, cost, revenue, risk or efficiency impacts.",
-    )
-    tags: list[str] = Field(default_factory=list, description="Additional retrieval tags.")
-    occurred_at: str | None = Field(default=None, description="ISO date/time if known.")
-
-
-class RetrieveProjectEvidenceInput(BaseModel):
-    project_id: str = Field(description="Current project id from the active Project Chat scope.")
-    query: str = Field(description="Evidence retrieval question.")
-    episode_type: str | None = Field(default=None, description="Optional episode type filter, such as interview or decision.")
-    process_id: str | None = Field(default=None, description="Optional related process id.")
-    limit: int = Field(default=5, ge=1, le=10, description="Maximum local evidence matches.")
-    reason: str = Field(description="Why this evidence retrieval is needed for the current turn.")
-
-
 class ManageProjectEvidenceInput(BaseModel):
     operation: str = Field(
         description=(
@@ -333,51 +271,6 @@ def _project_workspace_graph_grounding(
     return gateway.workspace_read(project_id=project_id, process_ids=process_ids)
 
 
-@tool(args_schema=SaveProjectEpisodeInput)
-def save_project_episode(
-    project_id: str,
-    episode_type: str,
-    title: str,
-    raw_content: str,
-    summary: str = "",
-    insights: list[str] | None = None,
-    participants: list[str] | None = None,
-    process_ids: list[str] | None = None,
-    entities: list[str] | None = None,
-    relationships: list[ProjectGraphRelationship] | None = None,
-    gaps: list[ProjectGraphGap] | None = None,
-    inconsistencies: list[ProjectGraphInconsistency] | None = None,
-    roi_impacts: list[ProjectROIImpact] | None = None,
-    tags: list[str] | None = None,
-    occurred_at: str | None = None,
-) -> str:
-    """
-    Save a project-scoped episodic memory with raw source custody.
-    Use when the Project Chat receives real project evidence such as notes, calls,
-    workshop output, decisions, observations, feedback or interview-like material.
-    The agent decides when evidence should be saved; this tool does not run automatically.
-    """
-    return _save_project_episode_payload(
-        action="save_project_episode",
-        entity_type="project_episode",
-        project_id=project_id,
-        episode_type=episode_type,
-        title=title,
-        raw_content=raw_content,
-        summary=summary,
-        insights=insights,
-        participants=participants,
-        process_ids=process_ids,
-        entities=entities,
-        relationships=relationships,
-        gaps=gaps,
-        inconsistencies=inconsistencies,
-        roi_impacts=roi_impacts,
-        tags=tags,
-        occurred_at=occurred_at,
-    )
-
-
 def _save_project_episode_payload(
     *,
     action: str,
@@ -507,50 +400,6 @@ def _save_project_episode_payload(
             "canonical_write": canonical_write_result,
             "memory_result": result,
         },
-    )
-
-
-@tool(args_schema=SaveProjectInterviewInput)
-def save_project_interview(
-    project_id: str,
-    title: str,
-    raw_content: str,
-    summary: str = "",
-    insights: list[str] | None = None,
-    participants: list[str] | None = None,
-    process_ids: list[str] | None = None,
-    entities: list[str] | None = None,
-    relationships: list[ProjectGraphRelationship] | None = None,
-    gaps: list[ProjectGraphGap] | None = None,
-    inconsistencies: list[ProjectGraphInconsistency] | None = None,
-    roi_impacts: list[ProjectROIImpact] | None = None,
-    tags: list[str] | None = None,
-    occurred_at: str | None = None,
-) -> str:
-    """
-    Save a project-scoped interview as episodic memory with raw transcript custody.
-    Use when the Project Chat receives an interview transcript, interview notes, or
-    a user explicitly says the content is an interview for the current project.
-    The agent decides when to call this tool; it is not deterministic middleware.
-    """
-    return _save_project_episode_payload(
-        action="save_project_interview",
-        entity_type="project_interview",
-        project_id=project_id,
-        episode_type="interview",
-        title=title,
-        raw_content=raw_content,
-        summary=summary,
-        insights=insights or [],
-        participants=participants or [],
-        process_ids=process_ids or [],
-        entities=entities or [],
-        relationships=relationships or [],
-        gaps=gaps or [],
-        inconsistencies=inconsistencies or [],
-        roi_impacts=roi_impacts or [],
-        tags=["interview", *(tags or [])],
-        occurred_at=occurred_at,
     )
 
 
@@ -760,50 +609,6 @@ def manage_project_evidence(
         entity_id=project_id,
         summary=f"Unsupported operation: {operation}.",
         payload={"operation": normalized_operation},
-    )
-
-
-@tool(args_schema=RetrieveProjectEvidenceInput)
-def retrieve_project_evidence_context(
-    project_id: str,
-    query: str,
-    reason: str,
-    episode_type: str | None = None,
-    process_id: str | None = None,
-    limit: int = 5,
-) -> str:
-    """
-    Retrieve project-scoped episodic evidence from local source custody and Mem0
-    indexing. Use before answering project questions that depend on interviews,
-    calls, notes, decisions, source-backed observations or evidence provenance.
-    """
-    project = _require_project(project_id)
-    evidence_query = query
-    if process_id:
-        evidence_query = f"{query} process:{process_id}"
-
-    evidence = episodic_store.search_episode_memory(
-        query=evidence_query,
-        episode_type=episode_type,
-        project=project_id,
-        limit=limit,
-    )
-
-    return enterprise_tool_result(
-        status="ok",
-        action="retrieve_project_evidence_context",
-        entity_type="project_evidence_context",
-        entity_id=project_id,
-        summary=f"Evidence retrieval for {project['name']}: {reason}",
-        payload={
-            "project_id": project_id,
-            "project_name": project["name"],
-            "query": query,
-            "episode_type": episode_type,
-            "process_id": process_id,
-            "reason": reason,
-            "evidence": evidence,
-        },
     )
 
 
