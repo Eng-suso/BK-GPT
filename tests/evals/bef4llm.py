@@ -36,6 +36,8 @@ from pathlib import Path
 
 from lxml import etree
 
+from tests.evals.graph_metrics import stems
+
 BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 XSD_DIR = Path(__file__).resolve().parent / "bef4llm_xsd"
 
@@ -614,5 +616,241 @@ def pragmatic_metrics(model: Model) -> dict[str, float]:
     return {
         name: normalize(values[name], direction, thresholds)
         for name, (direction, thresholds) in PRAGMATIC_THRESHOLDS.items()
+    }
+
+
+# --- qualita' semantica (Tabella A.17) ------------------------------------------
+
+# Dijkman et al. (2011): pesi della parola identica e del sinonimo nella
+# somiglianza semantica delle etichette. Un dizionario di sinonimi italiani non
+# c'e': il termine dei sinonimi vale zero e la misura si riduce al Dice sulle
+# radici, che e' il caso peggiore per il modello valutato, mai il migliore.
+WORD_WEIGHT = 1.0
+SYNONYM_WEIGHT = 0.75
+# Sotto questa somiglianza due nodi non sono "lo stesso nodo" per la distanza di
+# edit e per nodi/archi comuni (Dijkman usa una soglia di corrispondenza).
+MATCH_CUTOFF = 0.5
+
+
+def _levenshtein(left: str, right: str) -> int:
+    previous = list(range(len(right) + 1))
+    for i, char_left in enumerate(left, 1):
+        current = [i]
+        for j, char_right in enumerate(right, 1):
+            current.append(
+                min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (char_left != char_right))
+            )
+        previous = current
+    return previous[-1]
+
+
+def syntactic_label_similarity(left: str, right: str) -> float:
+    """1 - distanza di Levenshtein / lunghezza dell'etichetta piu' lunga."""
+    left, right = left.casefold().strip(), right.casefold().strip()
+    longest = max(len(left), len(right))
+    return 1.0 if longest == 0 else 1.0 - _levenshtein(left, right) / longest
+
+
+def semantic_label_similarity(left: str, right: str) -> float:
+    """Dijkman: parole in comune sulle radici, senza dizionario di sinonimi."""
+    words_left, words_right = stems(left), stems(right)
+    if not words_left and not words_right:
+        return 1.0 if left.strip().casefold() == right.strip().casefold() else 0.0
+    if not words_left or not words_right:
+        return 0.0
+    overlap = len(words_left & words_right)
+    return 2 * WORD_WEIGHT * overlap / (len(words_left) + len(words_right))
+
+
+def optimal_assignment(scores: list[list[float]]) -> list[tuple[int, int]]:
+    """Accoppiamento bipartito di somma massima (algoritmo ungherese, O(n^3)).
+
+    Ritorna solo le coppie con punteggio positivo: un nodo accoppiato a zero
+    resta di fatto senza corrispondenza.
+    """
+    rows = len(scores)
+    cols = len(scores[0]) if rows else 0
+    if rows == 0 or cols == 0:
+        return []
+    size = max(rows, cols)
+    top = max(max(row) for row in scores)
+    cost = [
+        [top - (scores[i][j] if i < rows and j < cols else 0.0) for j in range(size)]
+        for i in range(size)
+    ]
+    inf = float("inf")
+    u, v = [0.0] * (size + 1), [0.0] * (size + 1)
+    match, way = [0] * (size + 1), [0] * (size + 1)
+    for i in range(1, size + 1):
+        match[0], column = i, 0
+        minimum, used = [inf] * (size + 1), [False] * (size + 1)
+        while True:
+            used[column] = True
+            row, delta, nxt = match[column], inf, 0
+            for j in range(1, size + 1):
+                if not used[j]:
+                    current = cost[row - 1][j - 1] - u[row] - v[j]
+                    if current < minimum[j]:
+                        minimum[j], way[j] = current, column
+                    if minimum[j] < delta:
+                        delta, nxt = minimum[j], j
+            for j in range(size + 1):
+                if used[j]:
+                    u[match[j]] += delta
+                    v[j] -= delta
+                else:
+                    minimum[j] -= delta
+            column = nxt
+            if match[column] == 0:
+                break
+        while column:
+            previous = way[column]
+            match[column] = match[previous]
+            column = previous
+    pairs = []
+    for j in range(1, size + 1):
+        i = match[j] - 1
+        if i < rows and j - 1 < cols and scores[i][j - 1] > 0:
+            pairs.append((i, j - 1))
+    return pairs
+
+
+def _category(node: Node) -> str:
+    return "gateway" if node.is_gateway else "event" if node.is_event else "activity"
+
+
+def _labelled(model: Model) -> list[Node]:
+    """I nodi confrontati per etichetta: tutti tranne i gateway (`G` nel paper)."""
+    return [node for node in model.nodes.values() if not node.is_gateway]
+
+
+def _matched_score(
+    candidate: list[Node], reference: list[Node], similarity
+) -> tuple[float, list[tuple[Node, Node, float]]]:
+    """2 * somma delle somiglianze accoppiate / (nodi del candidato + del riferimento)."""
+    if not candidate and not reference:
+        return 1.0, []
+    scores = [
+        [similarity(c, r) if _category(c) == _category(r) else 0.0 for r in reference] for c in candidate
+    ]
+    pairs = [(candidate[i], reference[j], scores[i][j]) for i, j in optimal_assignment(scores)]
+    return 2 * sum(score for _, _, score in pairs) / (len(candidate) + len(reference)), pairs
+
+
+def _work_neighbours(model: Model, node_id: str, forward: bool) -> set[str]:
+    """I nodi etichettati subito prima (o dopo), attraversando i gateway."""
+    step = model.outgoing if forward else model.incoming
+    found: set[str] = set()
+    seen = {node_id}
+    frontier = list(step(node_id))
+    while frontier:
+        current = frontier.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        if model.nodes[current].is_gateway:
+            frontier.extend(step(current))
+        else:
+            found.add(current)
+    return found
+
+
+def _context_similarity(
+    candidate: Model, reference: Model, mapping: dict[str, str], left: Node, right: Node
+) -> float:
+    """Dijkman: quanti vicini (prima e dopo) dei due nodi si corrispondono."""
+    total = 0.0
+    for forward in (False, True):
+        mine = _work_neighbours(candidate, left.id, forward)
+        theirs = _work_neighbours(reference, right.id, forward)
+        if mine and theirs:
+            shared = sum(1 for node_id in mine if mapping.get(node_id) in theirs)
+            total += shared / (2 * (len(mine) * len(theirs)) ** 0.5)
+        elif not mine and not theirs:
+            # Entrambi senza vicini da quel lato (un inizio, una fine): Dijkman
+            # lascia la frazione indefinita, qui conta come corrispondenza piena.
+            total += 0.5
+    return total
+
+
+def _node_mapping(candidate: Model, reference: Model) -> dict[str, str]:
+    """La corrispondenza fra nodi per struttura e comportamento: per etichetta,
+    nella stessa categoria, sopra `MATCH_CUTOFF`. Gateway compresi."""
+    left, right = list(candidate.nodes.values()), list(reference.nodes.values())
+    _, pairs = _matched_score(
+        left, right, lambda c, r: max(semantic_label_similarity(c.name, r.name), 1e-6)
+    )
+    return {c.id: r.id for c, r, score in pairs if score >= MATCH_CUTOFF}
+
+
+def _relation_overlap(left: set[tuple[str, str]], right: set[tuple[str, str]]) -> float:
+    union = left | right
+    return 1.0 if not union else len(left & right) / len(union)
+
+
+def _behaviour(model: Model, name_of: dict[str, str]) -> tuple[set[tuple[str, str]], set[tuple[str, str]]]:
+    """Footprint causale (chi precede chi, anche a distanza) e grafo delle
+    dipendenze (chi viene subito dopo chi) sui nodi etichettati.
+
+    E' la lettura operativa dei due insiemi della Tabella A.17 (CF e DG), che il
+    paper rimanda a [55, 57] senza formula propria: relazioni d'ordine fra nodi,
+    con `name_of` che da' lo stesso nome ai nodi accoppiati dei due modelli.
+    """
+    successors = model.successors()
+    direct: set[tuple[str, str]] = set()
+    causal: set[tuple[str, str]] = set()
+    for node in _labelled(model):
+        for nxt in _work_neighbours(model, node.id, True):
+            direct.add((name_of[node.id], name_of[nxt]))
+        for later in _reachable(successors, node.id) - {node.id}:
+            if not model.nodes[later].is_gateway:
+                causal.add((name_of[node.id], name_of[later]))
+    return causal, direct
+
+
+def semantic_metrics(candidate: Model, reference: Model) -> dict[str, float]:
+    """Le 7 metriche semantiche del candidato contro il modello di riferimento."""
+    left, right = _labelled(candidate), _labelled(reference)
+    syntactic, _ = _matched_score(left, right, lambda c, r: syntactic_label_similarity(c.name, r.name))
+    semantic, label_pairs = _matched_score(
+        left, right, lambda c, r: semantic_label_similarity(c.name, r.name)
+    )
+    label_mapping = {c.id: r.id for c, r, _ in label_pairs}
+    context, _ = _matched_score(
+        left, right, lambda c, r: _context_similarity(candidate, reference, label_mapping, c, r)
+    )
+
+    mapping = _node_mapping(candidate, reference)
+    nodes_total = len(candidate.nodes) + len(reference.nodes)
+    edges_total = len(candidate.sequence_flows) + len(reference.sequence_flows)
+    candidate_edges = {(mapping.get(s, f"~{s}"), mapping.get(t, f"~{t}")) for s, t in candidate.sequence_flows}
+    reference_edges = set(reference.sequence_flows)
+    unmatched_nodes = nodes_total - 2 * len(mapping)
+    unmatched_edges = len(candidate_edges ^ reference_edges)
+    substitution = sum(
+        1 - semantic_label_similarity(candidate.nodes[c].name, reference.nodes[r].name)
+        for c, r in mapping.items()
+    )
+    snv = unmatched_nodes / nodes_total if nodes_total else 0.0
+    sev = unmatched_edges / edges_total if edges_total else 0.0
+    sbv = 2 * substitution / (nodes_total - unmatched_nodes) if nodes_total - unmatched_nodes else 0.0
+    common = (
+        1 - (unmatched_nodes + unmatched_edges) / (nodes_total + edges_total)
+        if nodes_total + edges_total else 1.0
+    )
+
+    candidate_names = {node_id: f"#{mapping[node_id]}" if node_id in mapping else f"c:{node_id}" for node_id in candidate.nodes}
+    matched = set(mapping.values())
+    reference_names = {node_id: f"#{node_id}" if node_id in matched else f"r:{node_id}" for node_id in reference.nodes}
+    candidate_causal, candidate_direct = _behaviour(candidate, candidate_names)
+    reference_causal, reference_direct = _behaviour(reference, reference_names)
+    return {
+        "syntactic_label_similarity": round(syntactic, 4),
+        "semantic_label_similarity": round(semantic, 4),
+        "context_similarity": round(context, 4),
+        "graph_edit_similarity": round(1 - (snv + sev + sbv) / 3, 4),
+        "common_nodes_and_edges": round(common, 4),
+        "causal_footprint_overlap": round(_relation_overlap(candidate_causal, reference_causal), 4),
+        "dependency_graph_overlap": round(_relation_overlap(candidate_direct, reference_direct), 4),
     }
 
