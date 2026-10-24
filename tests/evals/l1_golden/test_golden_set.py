@@ -8,8 +8,10 @@ costa chiamate e non e' deterministico:
     DELIR_GOLDEN_EVAL=1 DELIR_LIVE_LLM=1 uv run pytest tests/evals/l1_golden/test_golden_set.py -q -s
 
 Per ogni caso: estrazione per fonte a testo intero, compilazione, confronto col
-riferimento, verifica di provenance. Il rapporto finisce in
-`tests/golden/reports/<caso>.json`.
+riferimento, verifica di provenance, e il punteggio BEF4LLM (`tests/evals/bef4llm.py`)
+del disegno contro quello del piano ideale. Il rapporto finisce in
+`tests/golden/reports/<caso>.json`. BEF4LLM e' riportato, non e' un gate: serve a
+leggere DeliR sulla scala di un benchmark pubblicato.
 
 Un caso `validated` confrontato con `tests/golden/baseline.json` fa fallire il
 run se peggiora oltre la tolleranza, o se smette di essere onesto (su questo
@@ -57,6 +59,8 @@ def test_the_extractor_maps_the_golden_case(case):
     from backend.agents.plan_provenance import verify_plan_provenance
     from backend.agents.process_synthesis import extract_plan_from_sources
     from backend.bpmn import build_bpmn_semantic_model, semantic_model_to_bpmn_xml
+    from backend.process_understanding import ProcessUnderstanding
+    from tests.evals.bef4llm import evaluate as bef4llm
     from tests.evals.graph_metrics import (
         compare,
         knowledge_metrics,
@@ -79,7 +83,16 @@ def test_the_extractor_maps_the_golden_case(case):
         process_name=case.process_name,
         process=extraction.process,
     )
-    metrics = compare(parse_bpmn(semantic_model_to_bpmn_xml(model)), case)
+    xml = semantic_model_to_bpmn_xml(model)
+    metrics = compare(parse_bpmn(xml), case)
+    ideal = ProcessUnderstanding.model_validate(
+        json.loads((case.root / "ideal_plan.json").read_text(encoding="utf-8"))
+    )
+    reference_xml = semantic_model_to_bpmn_xml(
+        build_bpmn_semantic_model(
+            process_id=f"Process_{case.case_id}", process_name=case.process_name, process=ideal
+        )
+    )
     provenance = verify_plan_provenance(extraction.process, sources)
 
     plan = extraction.process.model_dump(mode="json")
@@ -93,6 +106,7 @@ def test_the_extractor_maps_the_golden_case(case):
         "extraction_failures": extraction.failures,
         "provenance": provenance.summary(),
         "compiler_warnings": model.model_warnings,
+        "bef4llm": bef4llm(xml, reference_xml=reference_xml).as_dict(),
         "plan": plan_shape(plan),
         "consolidation": (
             extraction.consolidation.as_log_entry() if extraction.consolidation else None
