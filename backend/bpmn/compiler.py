@@ -68,7 +68,9 @@ _GATEWAY_BPMN_TYPE: dict[str, str] = {
 _DATA_BASED_GATEWAYS = frozenset({"exclusiveGateway", "inclusiveGateway", "complexGateway"})
 # Splits that may run several branches at once: where those branches meet again
 # a join of the same type waits for them (OMG BPMN 2.0, 10.5.4-10.5.7). An
-# exclusive split runs one branch, so its branches merge without a gateway.
+# exclusive split runs one branch: where its branches (or a rework loop) meet
+# again an exclusive merge gateway takes them, never the activity or the end
+# event itself (Mendling et al., 7PMG; BEF4LLM syntactic rules 8, 9, 12).
 _SYNCHRONIZING_GATEWAYS = frozenset({"parallelGateway", "inclusiveGateway", "complexGateway"})
 _SIGNAL_WORDS = ("segnale", "signal", "broadcast")
 
@@ -309,6 +311,7 @@ def build_bpmn_semantic_model(
     _cut_at_links(nodes, registry)
     _add_synchronizing_joins(nodes, registry, gateway_by_decision_id, used_ids)
     _normalize_event_gateways(nodes, registry, used_ids, warnings)
+    _add_exclusive_merges(nodes, registry, used_ids)
     flows = registry.flows
     _assign_gateway_defaults(nodes, flows, warnings, declared_default_ids={flow.id for flow in declared_defaults})
     populate_lane_refs(lanes, nodes)
@@ -1504,6 +1507,44 @@ def _add_synchronizing_joins(
                 registry.retarget(flow, join.id)
             registry.add(join.id, meeting)
             break
+
+
+def _add_exclusive_merges(
+    nodes: list[BPMNFlowNode],
+    registry: FlowRegistry,
+    used_ids: set[str],
+) -> None:
+    """Put an exclusive merge in front of every non-gateway node with several entries.
+
+    An activity, event or end event reached by more than one sequence flow
+    merges them implicitly: legal BPMN, but the reader has to infer it and the
+    split it closes stays open on the diagram. The merge gateway makes it
+    explicit and leaves the node with one entry. Synchronizing joins are
+    already in place, so what still meets here is exclusive (alternative
+    branches, rework loops, exception handlers rejoining). A catch event behind
+    an event-based gateway keeps its entries: nothing may sit between the two.
+    Merges go at the end of `nodes`: order carries no meaning in BPMN, and the
+    plan's own elements stay ahead of the ones the compiler adds.
+    """
+    type_by_id = {node.id: node.type for node in nodes}
+    for node in list(nodes):
+        if node.type.endswith("Gateway") or node.type in {"startEvent", "boundaryEvent"}:
+            continue
+        entries = [flow for flow in registry.flows if flow.targetRef == node.id]
+        if len(entries) < 2:
+            continue
+        if any(type_by_id.get(flow.sourceRef) == "eventBasedGateway" for flow in entries):
+            continue
+        merge = BPMNFlowNode(
+            id=xml_id(f"{node.id}_merge", "Gateway", used_ids),
+            type="exclusiveGateway",
+            name="",
+            laneId=node.laneId,
+        )
+        nodes.append(merge)
+        for flow in entries:
+            registry.retarget(flow, merge.id)
+        registry.add(merge.id, node.id)
 
 
 def _breadth_first(start: str, successors: dict[str, list[str]]) -> list[str]:

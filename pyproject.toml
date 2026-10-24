@@ -39,6 +39,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "lxml>=6.1",
     "mypy>=1.19.1",
     "python-docx>=1.2.0",
     "python-pptx>=1.0.2",

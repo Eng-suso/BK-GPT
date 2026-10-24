@@ -458,7 +458,7 @@ def test_loop_compiles_through_an_exclusive_gateway_and_is_sound():
     gateway = next(n for n in model.flowNodes if n.id == review_out[0].targetRef)
     assert gateway.type == "exclusiveGateway"
     gateway_out = [f for f in model.sequenceFlows if f.sourceRef == gateway.id]
-    assert {f.targetRef for f in gateway_out} == {
+    assert {_past_merge(model, f.targetRef) for f in gateway_out} == {
         next(n.id for n in model.flowNodes if n.name == "Prepara bozza"),
         next(n.id for n in model.flowNodes if n.name == "Pubblica"),
     }
@@ -469,6 +469,15 @@ def test_loop_compiles_through_an_exclusive_gateway_and_is_sound():
     assert not any(i.code == "implicit_parallel_split" for i in report.errors)
     assert report.is_sound
     assert validate_bpmn_xml(semantic_model_to_bpmn_xml(model))["valid"] is True
+
+
+def _past_merge(model, node_id: str) -> str:
+    """The node a flow really leads to, past an exclusive merge with one exit."""
+    node = next(n for n in model.flowNodes if n.id == node_id)
+    exits = [f.targetRef for f in model.sequenceFlows if f.sourceRef == node_id]
+    if node.type == "exclusiveGateway" and len(exits) == 1:
+        return exits[0]
+    return node_id
 
 
 def _canvas_xml(process_body: str) -> str:
@@ -672,7 +681,7 @@ def test_flow_graph_completion_wires_gateway_branches_and_warns_on_implicit_spli
     gateway_node = next(n for n in model.flowNodes if n.type == "exclusiveGateway")
     task_a = next(n.id for n in model.flowNodes if n.name == "A")
     branches = [f for f in model.sequenceFlows if f.sourceRef == gateway_node.id]
-    rework = next((f for f in branches if f.targetRef == task_a), None)
+    rework = next((f for f in branches if _past_merge(model, f.targetRef) == task_a), None)
     assert rework is not None
     assert rework.conditionExpression == "difetti trovati"
     assert any("ramo implicito" in w for w in model.model_warnings)
