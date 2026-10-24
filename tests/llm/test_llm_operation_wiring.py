@@ -143,7 +143,7 @@ class TestIPuntiDIngressoApronoLOperazione:
 
         vista: dict = {}
 
-        def _fake_audit(process_id):
+        def _fake_audit(process_id, **_kwargs):
             op = current_operation()
             vista["kind"] = op.kind if op else None
             vista["process_id"] = op.process_id if op else None
