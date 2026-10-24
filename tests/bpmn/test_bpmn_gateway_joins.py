@@ -222,9 +222,15 @@ def test_a_catch_event_behind_an_event_based_gateway_gets_no_merge():
         BPMNFlowNode(id="reply", type="intermediateCatchEvent", name="Risposta", eventDefinition="message"),
         BPMNFlowNode(id="retry", type="userTask", name="Sollecita"),
         BPMNFlowNode(id="close", type="userTask", name="Chiudi"),
+        BPMNFlowNode(id="start", type="startEvent", name="Inizio"),
+        BPMNFlowNode(id="late", type="boundaryEvent", name="Scaduto", attachedToRef="retry", eventDefinition="timer"),
     ]
     registry = FlowRegistry(used_ids={node.id for node in nodes})
-    for source, target in [("race", "reply"), ("retry", "reply"), ("reply", "close"), ("retry", "close")]:
+    # inizi e bordi non ricevono archi; anche se ne avessero, non avrebbero un merge
+    for source, target in [
+        ("race", "reply"), ("retry", "reply"), ("reply", "close"), ("retry", "close"),
+        ("race", "start"), ("retry", "start"), ("race", "late"), ("reply", "late"),
+    ]:
         registry.add(source, target)
 
     _add_exclusive_merges(nodes, registry, registry.used_ids)
@@ -232,3 +238,6 @@ def test_a_catch_event_behind_an_event_based_gateway_gets_no_merge():
     assert {flow.sourceRef for flow in registry.flows if flow.targetRef == "reply"} == {"race", "retry"}
     (entry,) = [flow for flow in registry.flows if flow.targetRef == "close"]
     assert next(n for n in nodes if n.id == entry.sourceRef).type == "exclusiveGateway"
+    assert {f.sourceRef for f in registry.flows if f.targetRef == "start"} == {"race", "retry"}
+    assert {f.sourceRef for f in registry.flows if f.targetRef == "late"} == {"race", "reply"}
+    assert sum(n.type == "exclusiveGateway" for n in nodes) == 1

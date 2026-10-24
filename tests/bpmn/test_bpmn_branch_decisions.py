@@ -82,12 +82,16 @@ def _node(model, name: str):
 
 def _flow(model, source: str, target: str):
     """The flow from `source` to `target`, also when it reaches `target` through
-    the exclusive merge the compiler puts in front of a node with several entries."""
+    the exclusive merge the compiler puts in front of a node with several entries.
+    A merge is an exclusive gateway whose single exit is `target`: a decision
+    gateway that happens to feed `target` does not count."""
     source_id, target_id = _node(model, source).id, _node(model, target).id
+    exits: dict[str, list[str]] = {}
+    for f in model.sequenceFlows:
+        exits.setdefault(f.sourceRef, []).append(f.targetRef)
     merges = {
-        f.sourceRef for f in model.sequenceFlows
-        if f.targetRef == target_id
-        and any(n.id == f.sourceRef and n.type == "exclusiveGateway" for n in model.flowNodes)
+        n.id for n in model.flowNodes
+        if n.type == "exclusiveGateway" and exits.get(n.id) == [target_id]
     }
     return next(
         f for f in model.sequenceFlows
