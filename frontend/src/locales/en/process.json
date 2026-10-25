@@ -1705,6 +1705,15 @@
       "applied": "Changes applied to the draft. Start the run when you are ready.",
       "noRun": "Applying only changes the draft: you start the run.",
       "reconfirm": "Changed roles must be confirmed again in the panel before the run."
+    },
+    "narrative": {
+      "title": "Text for the client",
+      "write": "Write the text for the client",
+      "rewrite": "Rewrite",
+      "writing": "Writing…",
+      "source": "Written by the AI from the computed reading: every number comes from the runs, none from the model.",
+      "recordTitle": "Text for the client",
+      "label": "Text for the client for {{name}}"
     }
   },
   "side": {

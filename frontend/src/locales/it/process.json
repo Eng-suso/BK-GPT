@@ -1705,6 +1705,15 @@
       "applied": "Modifiche applicate alla bozza. Avvia il run quando vuoi.",
       "noRun": "Applicare cambia solo la bozza: il run lo avvii tu.",
       "reconfirm": "I ruoli cambiati vanno riconfermati nel pannello prima del run."
+    },
+    "narrative": {
+      "title": "Testo per il cliente",
+      "write": "Scrivi il testo per il cliente",
+      "rewrite": "Riscrivi",
+      "writing": "Scrivo…",
+      "source": "Redatto dall'AI dalla lettura calcolata: ogni numero viene dai run, nessuno dal modello.",
+      "recordTitle": "Testo per il cliente",
+      "label": "Testo per il cliente di {{name}}"
     }
   },
   "side": {
