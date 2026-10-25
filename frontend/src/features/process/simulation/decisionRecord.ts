@@ -33,6 +33,8 @@ export type DecisionRecordInput = {
   tornado: Tornado | null;
   /** SIM-24: la lettura calcolata (vincolo e scambio tempo/costo). */
   reading?: string[];
+  /** SIM-24b: lo stesso confronto redatto per il cliente, se il consulente l'ha fatto scrivere. */
+  narrative?: string | null;
 };
 
 const escape = (value: string) =>
@@ -152,6 +154,7 @@ ${input.alternative.changes.length ? list(input.alternative.changes) : `<p>${esc
 <tbody>${resultsRows}</tbody></table>
 <p class="note">${escape(method)}</p>
 ${input.reading?.length ? `<p><b>${escape(t("simulation.interpretation.title"))}.</b> ${escape(input.reading.join(" "))}</p>` : ""}
+${input.narrative ? `<p><b>${escape(t("simulation.narrative.recordTitle"))}.</b> ${escape(input.narrative)}</p><p class="note">${escape(t("simulation.narrative.source"))}</p>` : ""}
 
 <h2>${escape(k("assumptionsTitle"))}</h2>
 <table><thead><tr><th scope="col">${escape(k("family"))}</th><th scope="col">${escape(k("readiness"))}</th><th scope="col">${escape(k("confidence"))}</th></tr></thead>

@@ -46,6 +46,13 @@ describe("decision record (SIM-27)", () => {
     expect(html).toContain("Quale vale, e per quali casi?");
   });
 
+  it("adds the text written for the client, escaped and said to come from the AI (SIM-24b)", () => {
+    const html = decisionRecordHtml(input({ narrative: "Un caso dura −1 h in meno <b>subito</b>." }), t, "it");
+    expect(html).toContain("Testo per il cliente.</b> Un caso dura −1 h in meno &lt;b&gt;subito&lt;/b&gt;.");
+    expect(html).toContain("Redatto dall&#39;AI");
+    expect(decisionRecordHtml(input(), t, "it")).not.toContain("Testo per il cliente");
+  });
+
   it("escapes what comes from the client's files", () => {
     const html = decisionRecordHtml(input(), t, "it");
     expect(html).not.toContain("<script>");

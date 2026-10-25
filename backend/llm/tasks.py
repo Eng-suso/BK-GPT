@@ -42,6 +42,7 @@ class LlmTask(StrEnum):
     EVAL_JUDGE = "eval_judge"
     CLAIM_MATCHING = "claim_matching"
     SIMULATION_WHAT_IF = "simulation_what_if"
+    SIMULATION_NARRATIVE = "simulation_narrative"
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,6 +208,13 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
     # davanti al pannello: niente retry, un guasto si dice e si riprova a mano.
     LlmTask.SIMULATION_WHAT_IF: TaskProfile(
         LlmTask.SIMULATION_WHAT_IF, reasoning_effort="none", max_output_tokens=1024, scales_with_input=False
+    ),
+    # SIM-24b (gate G4): la lettura gia' calcolata di un'alternativa, riscritta in
+    # poche frasi per il cliente. Il modello non scrive cifre: cita i KPI con
+    # segnaposti che il codice sostituisce con i valori dei run, e un testo con
+    # un numero suo si rifiuta. E' redazione, non giudizio: niente ragionamento.
+    LlmTask.SIMULATION_NARRATIVE: TaskProfile(
+        LlmTask.SIMULATION_NARRATIVE, reasoning_effort="none", max_output_tokens=600, scales_with_input=False
     ),
 }
 

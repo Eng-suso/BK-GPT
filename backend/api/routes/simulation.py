@@ -45,6 +45,13 @@ from backend.simulation.storage import (
 from backend.workspace_database import get_bpmn_model
 from backend.schemas.simulation import BpmnCompatibilityRequest, BpmnCompatibilityResponse
 from backend.simulation.compatibility import compatibility_report_for_model
+from backend.simulation.narrative import (
+    NarrativeRejected,
+    NarrativeUnavailable,
+    SimulationNarrativeRequest,
+    SimulationNarrativeResponse,
+    write,
+)
 from backend.simulation.whatif import (
     SimulationWhatIfRequest,
     SimulationWhatIfResponse,
@@ -174,6 +181,23 @@ def translate_workspace_simulation_what_if(
     except WhatIfUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except WhatIfFailed as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/bpmn-models/{bpmn_model_id}/simulation-narrative")
+def write_workspace_simulation_narrative(
+    bpmn_model_id: str,
+    request: SimulationNarrativeRequest,
+) -> SimulationNarrativeResponse:
+    """La lettura calcolata di un'alternativa, redatta per il cliente (SIM-24b): i numeri vengono dai run."""
+    model = get_bpmn_model(bpmn_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
+    try:
+        return write(BpmnModelResponse(**model).process_id, request)
+    except NarrativeUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except NarrativeRejected as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 

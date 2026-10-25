@@ -80,6 +80,7 @@ class OperationKind:
     EVAL = "eval"
     CLAIM_MATCHING = "claim_matching"
     SIMULATION_WHAT_IF = "simulation_what_if"
+    SIMULATION_NARRATIVE = "simulation_narrative"
 
 
 _current: ContextVar[Operation | None] = ContextVar("delir_llm_operation", default=None)

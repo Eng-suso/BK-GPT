@@ -156,6 +156,11 @@ async function fixture(page: Page, workspace: Workspace, runs: unknown[] = []) {
     else if (path.endsWith("/simulation-runs")) data = runs;
     else if (path.endsWith("/replay")) data = { run_id: 41, schema_version: 1, replay };
     else if (path.endsWith("/experiments")) data = { bottleneck_el: null, bottleneck_name: null, factors: {}, experiments: [] };
+    else if (path.endsWith("/simulation-narrative")) {
+      // SIM-24b: il backend rimette i valori dei KPI al posto dei segnaposto; qui il testo e' gia' verificato.
+      narrativeRequests.push(request.postDataJSON());
+      data = { text: "Con un approvatore in più un caso si chiude prima; il lavoro si accumula ancora davanti ad Approva.", cited: ["K1"] };
+    }
     else if (path.endsWith("/ws-model")) data = { id: "ws-model", process_id: "ws-process", name: "Ciclo passivo", xml };
     else if (path.endsWith("/processes/ws-process/event-logs")) data = [{
       id: "elog-1", process_id: "ws-process", name: "erp.csv", format: "csv", delimiter: ";", byte_size: 100, row_count: 80,
@@ -165,6 +170,7 @@ async function fixture(page: Page, workspace: Workspace, runs: unknown[] = []) {
   });
 }
 
+const narrativeRequests: unknown[] = [];
 const tabs = (page: Page) => page.locator("[data-sim-scenario-tabs]");
 
 test("the AS-IS comes from the draft and a new scenario keeps only its changes", async ({ page }, testInfo) => {
@@ -329,6 +335,41 @@ test("an alternative's decision record downloads as one printable page (SIM-27)"
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Decision record · A · +1 approvatore");
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(axe.violations).toEqual([]);
+});
+
+test("the reading of an alternative is written for the client with the numbers of the runs (SIM-24b)", async ({ page }, testInfo) => {
+  narrativeRequests.length = 0;
+  const workspace = new Workspace().seedWith(draft,
+    { name: "+1 approvatore", patch: [{ op: "set", path: ["resources", { id: "r1" }, "amount"], value: 3 }] });
+  await fixture(page, workspace, [...group(41, 1, "g-asis", [3600, 3720, 3660]), ...group(51, 2, "g-a", [3000, 3130, 3070])]);
+  await page.goto(`${studio}/workspace/41?panel=scenarios`);
+  const panel = page.locator("[data-sim-scenario-workspace]");
+  const reading = panel.locator('[data-sim-workspace-reading-row="A"]');
+  await expect(reading).toContainText("Il vincolo resta «Approva».");
+  expect(narrativeRequests).toEqual([]);
+
+  await reading.getByRole("button", { name: "Scrivi il testo per il cliente · A · +1 approvatore" }).click();
+  const text = reading.getByRole("figure", { name: "Testo per il cliente di A · +1 approvatore" });
+  await expect(text).toContainText("un caso si chiude prima");
+  await expect(text).toContainText("ogni numero viene dai run");
+  const sent = narrativeRequests[0] as { language: string; scenario_name: string; kpis: { label: string; value: string; verdict: string }[]; names: string[] };
+  expect(sent.language).toBe("it");
+  expect(sent.scenario_name).toBe("A · +1 approvatore");
+  expect(sent.kpis[0]?.label).toBe("Durata media del caso");
+  expect(sent.kpis[0]?.verdict).toBe("better");
+  expect(sent.names).toContain("Approva");
+  await reading.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("client-narrative.png"), animations: "disabled" });
+  const axe = await new AxeBuilder({ page }).include('[data-sim-workspace-reading-row="A"]').withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+
+  // Il testo finisce nel decision record dell'alternativa, con la sua fonte.
+  const download = page.waitForEvent("download");
+  await panel.getByRole("button", { name: "Scarica il decision record di A · +1 approvatore", exact: true }).click();
+  const path = testInfo.outputPath("decision-record-narrative.html");
+  await (await download).saveAs(path);
+  const html = (await import("node:fs")).readFileSync(path, "utf-8");
+  expect(html).toContain("<b>Testo per il cliente.</b> Con un approvatore in più un caso si chiude prima");
 });
 
 test("the Workspace tool gives no verdict between runs on different AS-IS versions", async ({ page }) => {
