@@ -87,7 +87,10 @@ def _compile(process: ProcessUnderstanding) -> BPMNSemanticModel:
 def test_decision_without_a_gateway_type_still_compiles_to_an_exclusive_gateway():
     model = _compile(_process("exclusive"))
     gateways = [node for node in model.flowNodes if node.type.endswith("Gateway")]
-    assert [g.type for g in gateways] == ["exclusiveGateway"]
+    splits = [g for g in gateways if sum(f.sourceRef == g.id for f in model.sequenceFlows) > 1]
+    assert [g.type for g in splits] == ["exclusiveGateway"]
+    # the rest are the merges that close it: exclusive, one exit each
+    assert all(g.type == "exclusiveGateway" for g in gateways)
 
 
 def test_inclusive_decision_compiles_to_an_inclusive_gateway():

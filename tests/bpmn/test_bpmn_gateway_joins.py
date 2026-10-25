@@ -117,14 +117,34 @@ def test_a_complex_gateway_carries_its_activation_rule_and_a_default():
     assert f'default="{split.defaultFlowId}"' in xml
 
 
-def test_an_exclusive_split_merges_without_a_join():
+def test_an_exclusive_split_is_closed_by_an_exclusive_merge():
+    """The branches meet in a merge gateway, not in the activity that follows."""
     model = _compile(_order("exclusive"))
 
     ship = _node(model, "Spedisci")
-    assert {flow.sourceRef for flow in _into(model, ship.id)} == {
+    (entry,) = _into(model, ship.id)
+    merge = next(node for node in model.flowNodes if node.id == entry.sourceRef)
+    assert merge.type == "exclusiveGateway"
+    assert merge.laneId == ship.laneId
+    assert {flow.sourceRef for flow in _into(model, merge.id)} == {
         _node(model, "Prepara la merce").id,
         _node(model, "Emetti la fattura").id,
     }
+    assert analyze_control_flow(model).is_sound
+
+
+def test_branches_that_end_meet_in_a_merge_before_the_end_event():
+    """One end event, one entry: the end is never an implicit merge."""
+    process = _order("exclusive")
+    process.alternative_paths = [ProcessPath(id="fatturazione", label="Fatturazione", sequence=["fattura"])]
+    model = _compile(process)
+
+    (end,) = [node for node in model.flowNodes if node.type == "endEvent"]
+    (entry,) = _into(model, end.id)
+    merge = next(node for node in model.flowNodes if node.id == entry.sourceRef)
+    assert merge.type == "exclusiveGateway"
+    assert len(_into(model, merge.id)) == 2
+    assert analyze_control_flow(model).is_sound
 
 
 def test_an_event_based_gateway_can_start_the_process_and_wait_for_every_event():
@@ -187,3 +207,37 @@ def test_every_gateway_is_laid_out():
 
 def _flow_named(model, source_id: str, name: str):
     return next(flow for flow in _out_of(model, source_id) if flow.name == name)
+
+
+def test_a_catch_event_behind_an_event_based_gateway_gets_no_merge():
+    """Nothing may sit between an event-based gateway and its catch events
+    (OMG BPMN 2.0, 10.5.6): such an event keeps its entries, every other node
+    with several entries gets its merge."""
+    from backend.bpmn.compiler import _add_exclusive_merges
+    from backend.bpmn.flow_registry import FlowRegistry
+    from backend.bpmn.models import BPMNFlowNode
+
+    nodes = [
+        BPMNFlowNode(id="race", type="eventBasedGateway", name="Cosa arriva prima?"),
+        BPMNFlowNode(id="reply", type="intermediateCatchEvent", name="Risposta", eventDefinition="message"),
+        BPMNFlowNode(id="retry", type="userTask", name="Sollecita"),
+        BPMNFlowNode(id="close", type="userTask", name="Chiudi"),
+        BPMNFlowNode(id="start", type="startEvent", name="Inizio"),
+        BPMNFlowNode(id="late", type="boundaryEvent", name="Scaduto", attachedToRef="retry", eventDefinition="timer"),
+    ]
+    registry = FlowRegistry(used_ids={node.id for node in nodes})
+    # inizi e bordi non ricevono archi; anche se ne avessero, non avrebbero un merge
+    for source, target in [
+        ("race", "reply"), ("retry", "reply"), ("reply", "close"), ("retry", "close"),
+        ("race", "start"), ("retry", "start"), ("race", "late"), ("reply", "late"),
+    ]:
+        registry.add(source, target)
+
+    _add_exclusive_merges(nodes, registry, registry.used_ids)
+
+    assert {flow.sourceRef for flow in registry.flows if flow.targetRef == "reply"} == {"race", "retry"}
+    (entry,) = [flow for flow in registry.flows if flow.targetRef == "close"]
+    assert next(n for n in nodes if n.id == entry.sourceRef).type == "exclusiveGateway"
+    assert {f.sourceRef for f in registry.flows if f.targetRef == "start"} == {"race", "retry"}
+    assert {f.sourceRef for f in registry.flows if f.targetRef == "late"} == {"race", "reply"}
+    assert sum(n.type == "exclusiveGateway" for n in nodes) == 1
