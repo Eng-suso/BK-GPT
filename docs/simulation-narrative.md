@@ -35,5 +35,6 @@ modello come tale, e il prompt chiede di non presentarla come un guadagno.
 - `narrative.test.ts`, `ClientNarrative.ui.test.tsx`, `decisionRecord.test.ts`.
 - `e2e/simulation-scenarios.spec.ts`: testo nella lettura e nel decision record, con axe.
 
-Da fare con una chiave per gli eval: un golden set di letture con il testo atteso,
-per misurare quante volte il modello rispetta la regola delle cifre al primo colpo.
+## Eval
+
+Golden set in `tests/golden/simulation/narrative.json` (6 confronti IT/EN, con KPI certi e incerti e nomi con cifre). In ogni CI il test L0 verifica che i casi siano coerenti; con il modello il run L1 (`test_simulation_llm_eval.py`, anche notturno) misura i testi verificati al primo colpo e la citazione dei KPI certi, in `tests/golden/reports/simulation_narrative.json`, e fallisce se un testo verificato contiene ancora una cifra non dei run. Che un KPI incerto non diventi un guadagno lo misurera' il giudice L2.

@@ -45,5 +45,6 @@ dice: si imposta a mano.
 - `whatIf.test.ts`, `WhatIfComposer.ui.test.tsx`: applicazione e componente.
 - `e2e/simulation-what-if.spec.ts`: frase → anteprima → applica → run, con axe.
 
-Da fare quando c'è una chiave per gli eval: un piccolo golden set di frasi
-(italiano e inglese) con le modifiche attese, per misurare la traduzione.
+## Eval
+
+Golden set in `tests/golden/simulation/what_if.json` (18 frasi IT/EN, ogni tipo di modifica, parti non traducibili). In ogni CI `tests/evals/l0_deterministic/test_simulation_llm_golden.py` verifica che ogni risposta attesa passi da `parse`. Con il modello: `DELIR_GOLDEN_EVAL=1 DELIR_LIVE_LLM=1 uv run pytest tests/evals/l1_golden/test_simulation_llm_eval.py -s` (anche nel run notturno `golden-eval.yml`) scrive precision, recall e casi esatti in `tests/golden/reports/simulation_what_if.json`. Il set e' `draft_da_validare`: diventa un gate dopo la rilettura di un consulente e la prima baseline.
