@@ -115,3 +115,38 @@ def test_a_failure_of_the_model_is_said(fake_llm):
 
     with pytest.raises(NarrativeRejected):
         write("proc-1", REQUEST)
+
+
+def _url(bpmn_model_id: str) -> str:
+    return f"/v1/workspace/bpmn-models/{bpmn_model_id}/simulation-narrative"
+
+
+def test_the_route_returns_the_verified_text(api_client, new_bpmn_model, fake_llm):
+    _, answer = fake_llm
+    answer["result"] = NarrativeDraft(text="Un caso dura [K1] in meno.")
+
+    response = api_client.post(_url(new_bpmn_model()), json=REQUEST.model_dump())
+
+    assert response.status_code == 200
+    assert response.json() == {"text": "Un caso dura −1 h 20 min ± 12 min in meno.", "cited": ["K1"]}
+
+
+def test_the_route_rejects_a_text_with_its_own_numbers(api_client, new_bpmn_model, fake_llm):
+    _, answer = fake_llm
+    answer["result"] = NarrativeDraft(text="Un caso dura 80 minuti in meno.")
+
+    response = api_client.post(_url(new_bpmn_model()), json=REQUEST.model_dump())
+
+    assert response.status_code == 502
+    assert "numeri non verificabili" in response.json()["error"]["message"]
+
+
+def test_the_route_says_when_the_model_is_missing(api_client, new_bpmn_model, fake_llm, monkeypatch):
+    monkeypatch.setattr(settings, "openai_api_key", "")
+
+    assert api_client.post(_url(new_bpmn_model()), json=REQUEST.model_dump()).status_code == 503
+
+
+def test_the_route_needs_a_known_model_and_at_least_one_kpi(api_client, new_bpmn_model, fake_llm):
+    assert api_client.post(_url("missing"), json=REQUEST.model_dump()).status_code == 404
+    assert api_client.post(_url(new_bpmn_model()), json={**REQUEST.model_dump(), "kpis": []}).status_code == 422
