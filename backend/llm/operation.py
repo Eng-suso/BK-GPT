@@ -79,6 +79,7 @@ class OperationKind:
     TRANSCRIPTION = "transcription"
     EVAL = "eval"
     CLAIM_MATCHING = "claim_matching"
+    SIMULATION_WHAT_IF = "simulation_what_if"
 
 
 _current: ContextVar[Operation | None] = ContextVar("delir_llm_operation", default=None)
