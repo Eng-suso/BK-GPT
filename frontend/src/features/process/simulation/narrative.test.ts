@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { narrativeRequest } from "./narrative";
-import type { ScenarioDelta } from "./scenarioWorkspace";
+import { narrativeRequest, narrativeRunsKey } from "./narrative";
+import type { ScenarioDelta, ScenarioRuns } from "./scenarioWorkspace";
 
 const interval = (delta: number, verdict: "better" | "worse" | "unclear"): ScenarioDelta =>
   ({ kind: "interval", paired: true, value: { a: 0, b: 0, delta, half: 60, verdict, probBetter: 0.9, comparisons: 1 } }) as unknown as ScenarioDelta;
@@ -41,5 +41,16 @@ describe("narrativeRequest (SIM-24b)", () => {
 
   it("with no measured difference there is nothing to write", () => {
     expect(narrativeRequest({ ...base, kpis: [...base.kpis], deltas: { cycle: null } })).toBeNull();
+  });
+});
+
+describe("narrativeRunsKey (SIM-24b)", () => {
+  const results = (...ids: number[]) => ({ completed: ids.map((id) => ({ id })) }) as unknown as ScenarioRuns;
+
+  it("changes when the AS-IS or the alternative is run again, so an old text is not shown", () => {
+    const before = narrativeRunsKey(results(41, 42), results(51, 52));
+    expect(narrativeRunsKey(results(41, 42), results(51, 52))).toBe(before);
+    expect(narrativeRunsKey(results(41, 42), results(61, 62))).not.toBe(before);
+    expect(narrativeRunsKey(results(71), results(51, 52))).not.toBe(before);
   });
 });

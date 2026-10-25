@@ -1,5 +1,5 @@
 import type { ReplicationKpi } from "./replications";
-import type { ScenarioDelta } from "./scenarioWorkspace";
+import type { ScenarioDelta, ScenarioRuns } from "./scenarioWorkspace";
 import type { SimulationNarrativeRequest } from "./simulationTypes";
 
 /**
@@ -41,4 +41,12 @@ export function narrativeRequest(input: {
     reading: input.reading.slice(0, 6),
     names: [...new Set(input.names.filter(Boolean))].slice(0, 60),
   };
+}
+
+/**
+ * I run da cui e' nato un testo: AS-IS e alternativa. Se uno dei due viene
+ * rieseguito la chiave cambia, e il testo con i numeri vecchi non si mostra piu'.
+ */
+export function narrativeRunsKey(asIs: ScenarioRuns | null, alternative: ScenarioRuns): string {
+  return [...(asIs?.completed ?? []), ...alternative.completed].map((run) => run.id).join(",");
 }
