@@ -5,6 +5,8 @@ import {
   scenarioProvenanceSchema,
   scenarioTemplateSchema,
   simulationClaimsSchema,
+  whatIfTranslationSchema,
+  type WhatIfTranslation,
   type SimulationClaims,
   simulationReplaySchema,
   simulationRunSchema,
@@ -180,6 +182,15 @@ export async function fetchSimulationClaims(bpmnModelId: string, currentBpmnXml:
     body: { current_bpmn_xml: currentBpmnXml },
   });
   return simulationClaimsSchema.parse(raw);
+}
+
+/** SIM-23: una frase come modifiche dello scenario. Solo l'anteprima: nessun run parte da qui. */
+export async function translateWhatIf(
+  bpmnModelId: string,
+  body: { sentence: string; activities: { id: string; name: string }[]; resources: { id: string; name: string; units: number }[] },
+): Promise<WhatIfTranslation> {
+  const raw = await http<unknown>(`/v1/workspace/bpmn-models/${bpmnModelId}/simulation-what-if`, { method: "POST", body });
+  return whatIfTranslationSchema.parse(raw);
 }
 
 /** Where each simulable element came from — discovery evidence or inference. */

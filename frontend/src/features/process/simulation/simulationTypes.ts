@@ -360,6 +360,23 @@ export const claimProposalSchema = z.object({
 });
 export type ClaimProposal = z.infer<typeof claimProposalSchema>;
 
+/** SIM-23: una modifica tradotta da una frase del consulente; gli id sono quelli della bozza. */
+export const whatIfChangeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("resource_units"), resource_id: z.string(), units: z.number().int().positive() }),
+  z.object({ kind: z.literal("activity_duration"), element_id: z.string(), factor: z.number().positive().nullable(), mean_minutes: z.number().positive().nullable() }),
+  z.object({ kind: z.literal("skip_activity"), element_id: z.string(), percent: z.number().positive().max(100) }),
+  z.object({ kind: z.literal("demand"), factor: z.number().positive() }),
+  z.object({ kind: z.literal("resource_cost"), resource_id: z.string(), cost_per_hour: z.number().nonnegative() }),
+]);
+export type WhatIfChange = z.infer<typeof whatIfChangeSchema>;
+
+export const whatIfTranslationSchema = z.object({
+  changes: z.array(whatIfChangeSchema),
+  not_understood: z.string().nullable(),
+  rejected: z.number().int().nonnegative(),
+});
+export type WhatIfTranslation = z.infer<typeof whatIfTranslationSchema>;
+
 export const simulationClaimsSchema = z.object({
   sources: z.number(),
   activities: z.array(z.object({ element_id: z.string(), name: z.string(), proposals: z.array(claimProposalSchema) })),

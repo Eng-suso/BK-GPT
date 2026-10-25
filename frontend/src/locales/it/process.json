@@ -1687,6 +1687,24 @@
       "label": "Log {{format}}",
       "downloadAs": "Scarica il log simulato in {{format}}",
       "error": "Il log di questo run non si può scaricare: i run più vecchi non lo conservano. Rilancia la simulazione."
+    },
+    "whatIf": {
+      "title": "Prova con una frase",
+      "hint": "Scrivi cosa vuoi provare, per esempio «un approvatore in più e Verifica dura il 30% in meno». Il modello traduce la frase in modifiche: le vedi prima di applicarle, e nessun run parte da qui.",
+      "label": "Cosa vuoi provare",
+      "placeholder": "Un approvatore in più e Verifica dura il 30% in meno",
+      "translate": "Traduci",
+      "translating": "Traduco…",
+      "previewTitle": "Modifiche proposte",
+      "nothing": "Nessuna modifica da applicare: la frase non cambia la bozza.",
+      "notUnderstood": "Non tradotto: «{{text}}». Si imposta a mano nel pannello.",
+      "rejected_one": "{{count}} modifica scartata perché non si applica a questa bozza.",
+      "rejected_other": "{{count}} modifiche scartate perché non si applicano a questa bozza.",
+      "apply": "Applica alla bozza",
+      "discard": "Scarta",
+      "applied": "Modifiche applicate alla bozza. Avvia il run quando vuoi.",
+      "noRun": "Applicare cambia solo la bozza: il run lo avvii tu.",
+      "reconfirm": "I ruoli cambiati vanno riconfermati nel pannello prima del run."
     }
   },
   "side": {

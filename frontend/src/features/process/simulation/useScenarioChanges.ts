@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { describeChanges, type ChangeNames, type ScenarioChange } from "./scenarioChanges";
+import { describeChanges, type ChangeNames, type ScenarioChange, type StoredPatchOp } from "./scenarioChanges";
 import type { WorkspaceScenario } from "./scenarioWorkspace";
 import type { ScenarioDraft } from "./simulationScenario";
 import type { ScenarioTemplate } from "./simulationTypes";
@@ -26,9 +26,10 @@ export function useScenarioChanges(baseline: ScenarioDraft | null, template: Sce
     return { elements, resources };
   }, [template, baseline, t]);
 
-  const read = React.useCallback((scenario: WorkspaceScenario): ScenarioChange[] => describeChanges(
-    scenario.patch,
-    scenario.conflicts,
+  /** Una patch qualunque sulla bozza di partenza: lo scenario salvato, o un'anteprima (SIM-23). */
+  const readPatch = React.useCallback((patch: StoredPatchOp[], conflicts: number[] = []): ScenarioChange[] => describeChanges(
+    patch,
+    conflicts,
     baseline ?? {},
     names,
     {
@@ -46,6 +47,8 @@ export function useScenarioChanges(baseline: ScenarioDraft | null, template: Sce
     },
   ), [baseline, names, t, locale]);
 
+  const read = React.useCallback((scenario: WorkspaceScenario) => readPatch(scenario.patch, scenario.conflicts), [readPatch]);
+
   /** Una riga leggibile: "Approvatore · Unita': 1 → 2", "Bot: aggiunto". */
   const text = React.useCallback((change: ScenarioChange): string => {
     const what = change.field ? `${change.subject} · ${change.field}` : change.subject;
@@ -54,5 +57,5 @@ export function useScenarioChanges(baseline: ScenarioDraft | null, template: Sce
     return `${what}: ${change.from ?? "—"} → ${change.to ?? "—"}`;
   }, [t]);
 
-  return { read, text };
+  return { read, readPatch, text };
 }

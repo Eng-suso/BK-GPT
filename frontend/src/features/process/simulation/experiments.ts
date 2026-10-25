@@ -25,7 +25,7 @@ function scaled<T extends DurationDraft>(duration: T, factor: number): T {
 }
 
 /** Tutte le durate dell'attivita': base, altri ruoli, per categoria e per soglia. */
-function automated(task: TaskDraft, factor: number): TaskDraft {
+export function scaleTaskDurations(task: TaskDraft, factor: number): TaskDraft {
   return {
     ...scaled(task, factor),
     ...(task.otherAssignments ? { otherAssignments: task.otherAssignments.map((a) => scaled(a, factor)) } : {}),
@@ -48,7 +48,7 @@ export function experimentDraft(draft: ScenarioDraft, exp: Experiment, scenarioN
   if (exp.kind === "automate") {
     const task = exp.target_el ? draft.tasks[exp.target_el] : undefined;
     if (!task || !exp.target_el) return draft;
-    return { ...draft, scenarioName, tasks: { ...draft.tasks, [exp.target_el]: automated(task, 1 - (exp.share ?? 0.5)) } };
+    return { ...draft, scenarioName, tasks: { ...draft.tasks, [exp.target_el]: scaleTaskDurations(task, 1 - (exp.share ?? 0.5)) } };
   }
   const target = resourceFor(draft, exp.pool_name, serving);
   const donor = exp.kind === "reallocate" ? resourceFor(draft, exp.donor_pool_name) : undefined;

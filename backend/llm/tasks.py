@@ -41,6 +41,7 @@ class LlmTask(StrEnum):
     TRANSCRIPTION = "transcription"
     EVAL_JUDGE = "eval_judge"
     CLAIM_MATCHING = "claim_matching"
+    SIMULATION_WHAT_IF = "simulation_what_if"
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,6 +199,14 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
     # aspetta la risposta: niente retry, un guasto ricade sul solo lessicale.
     LlmTask.CLAIM_MATCHING: TaskProfile(
         LlmTask.CLAIM_MATCHING, reasoning_effort="none", max_output_tokens=1024, scales_with_input=False
+    ),
+    # SIM-23 (gate G4): una frase del consulente tradotta in modifiche tipizzate
+    # dello scenario. Il modello sceglie fra id gia' mostrati dentro uno schema
+    # strict; i limiti dei valori e l'applicazione alla bozza sono codice, e il
+    # consulente vede l'anteprima prima di ogni run. Il consulente aspetta
+    # davanti al pannello: niente retry, un guasto si dice e si riprova a mano.
+    LlmTask.SIMULATION_WHAT_IF: TaskProfile(
+        LlmTask.SIMULATION_WHAT_IF, reasoning_effort="none", max_output_tokens=1024, scales_with_input=False
     ),
 }
 

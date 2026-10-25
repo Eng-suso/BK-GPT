@@ -57,6 +57,7 @@ const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const bootstrapping = new Set<string>();
 
 export type ScenarioLab = {
+  bpmnModelId: string;
   bpmnXml: string | null;
   template: ScenarioTemplate | null;
   templateLoading: boolean;
@@ -501,6 +502,7 @@ export function useScenarioLab(): ScenarioLab {
   }, [template, bpmnXml, scenarioBlocker, flushSave, submit, draftOf, syncSection, t]);
 
   return {
+    bpmnModelId,
     bpmnXml,
     template,
     templateLoading,
@@ -537,7 +539,7 @@ function without<T>(all: Record<number, T>, id: number): Record<number, T> {
   return Object.fromEntries(Object.entries(all).filter(([key]) => Number(key) !== id));
 }
 
-function readError(error: unknown): string {
+export function readError(error: unknown): string {
   if (error instanceof HttpError) {
     const body = error.body;
     if (body && typeof body === "object") {

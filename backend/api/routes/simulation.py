@@ -45,6 +45,13 @@ from backend.simulation.storage import (
 from backend.workspace_database import get_bpmn_model
 from backend.schemas.simulation import BpmnCompatibilityRequest, BpmnCompatibilityResponse
 from backend.simulation.compatibility import compatibility_report_for_model
+from backend.simulation.whatif import (
+    SimulationWhatIfRequest,
+    SimulationWhatIfResponse,
+    WhatIfFailed,
+    WhatIfUnavailable,
+    translate,
+)
 
 
 router = APIRouter(
@@ -151,6 +158,23 @@ def get_workspace_simulation_claims(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/bpmn-models/{bpmn_model_id}/simulation-what-if")
+def translate_workspace_simulation_what_if(
+    bpmn_model_id: str,
+    request: SimulationWhatIfRequest,
+) -> SimulationWhatIfResponse:
+    """Una frase del consulente come modifiche dello scenario (SIM-23): solo l'anteprima, nessun run."""
+    model = get_bpmn_model(bpmn_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
+    try:
+        return translate(BpmnModelResponse(**model).process_id, request)
+    except WhatIfUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except WhatIfFailed as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/bpmn-models/{bpmn_model_id}/simulation-model")
