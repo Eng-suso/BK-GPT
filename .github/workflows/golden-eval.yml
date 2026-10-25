@@ -108,7 +108,7 @@ jobs:
           DELIR_TEST_LLM_BASE_URL: ${{ vars.DELIR_TEST_LLM_BASE_URL }}
           DELIR_TEST_LLM_MODEL: ${{ vars.DELIR_TEST_LLM_MODEL }}
           DELIR_TEST_LLM_API_KEY: ${{ secrets.DELIR_TEST_LLM_API_KEY }}
-        run: uv run pytest tests/evals/l1_golden/test_golden_set.py -v -s -rs --tb=short
+        run: uv run pytest tests/evals/l1_golden/test_golden_set.py tests/evals/l1_golden/test_simulation_llm_eval.py -v -s -rs --tb=short
 
       - name: Upload golden reports
         uses: actions/upload-artifact@v4
