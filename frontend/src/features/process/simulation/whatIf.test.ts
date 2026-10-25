@@ -28,6 +28,15 @@ describe("applyWhatIf (SIM-23)", () => {
     });
   });
 
+  it("a large process sends at most the activities and roles the backend accepts", () => {
+    const tasks = Object.fromEntries(Array.from({ length: 250 }, (_, i) => [`T${i}`, { meanMinutes: 5 }]));
+    const resources = Array.from({ length: 120 }, (_, i) => ({ id: `r${i}`, name: "x".repeat(300), amount: 1, costPerHour: 0 }));
+    const context = whatIfContext({ ...draft, tasks, resources } as unknown as ScenarioDraft, {});
+    expect(context.activities).toHaveLength(200);
+    expect(context.resources).toHaveLength(100);
+    expect(context.resources[0]?.name).toHaveLength(200);
+  });
+
   it("sets the units of a role and asks to confirm its parameters again", () => {
     const { draft: next, skipped } = applyWhatIf(draft, [{ kind: "resource_units", resource_id: "r1", units: 3 }]);
     expect(next.resources[0]).toMatchObject({ amount: 3, parametersConfirmed: false });

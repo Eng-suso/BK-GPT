@@ -16,11 +16,17 @@ export type WhatIfOutcome = {
   skipped: WhatIfChange[];
 };
 
+// Gli stessi limiti di `backend/simulation/whatif.py`: un processo piu' grande manda i primi, non fallisce.
+const MAX_ACTIVITIES = 200;
+const MAX_RESOURCES = 100;
+const MAX_NAME_CHARS = 200;
+
 /** Le attivita' e i ruoli da mostrare al modello, con i nomi del processo. */
 export function whatIfContext(draft: ScenarioDraft, taskNames: Record<string, string>) {
+  const name = (value: string) => value.slice(0, MAX_NAME_CHARS);
   return {
-    activities: Object.keys(draft.tasks).map((id) => ({ id, name: taskNames[id] || id })),
-    resources: draft.resources.map((r) => ({ id: r.id, name: r.name || r.id, units: r.amount })),
+    activities: Object.keys(draft.tasks).slice(0, MAX_ACTIVITIES).map((id) => ({ id, name: name(taskNames[id] || id) })),
+    resources: draft.resources.slice(0, MAX_RESOURCES).map((r) => ({ id: r.id, name: name(r.name || r.id), units: r.amount })),
   };
 }
 
