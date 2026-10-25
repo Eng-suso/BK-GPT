@@ -6,6 +6,9 @@ import {
   scenarioTemplateSchema,
   simulationClaimsSchema,
   whatIfTranslationSchema,
+  simulationNarrativeSchema,
+  type SimulationNarrative,
+  type SimulationNarrativeRequest,
   type WhatIfTranslation,
   type SimulationClaims,
   simulationReplaySchema,
@@ -191,6 +194,12 @@ export async function translateWhatIf(
 ): Promise<WhatIfTranslation> {
   const raw = await http<unknown>(`/v1/workspace/bpmn-models/${bpmnModelId}/simulation-what-if`, { method: "POST", body });
   return whatIfTranslationSchema.parse(raw);
+}
+
+/** SIM-24b: la lettura calcolata di un'alternativa, redatta per il cliente. I numeri vengono dai run. */
+export async function writeSimulationNarrative(bpmnModelId: string, body: SimulationNarrativeRequest): Promise<SimulationNarrative> {
+  const raw = await http<unknown>(`/v1/workspace/bpmn-models/${bpmnModelId}/simulation-narrative`, { method: "POST", body });
+  return simulationNarrativeSchema.parse(raw);
 }
 
 /** Where each simulable element came from — discovery evidence or inference. */

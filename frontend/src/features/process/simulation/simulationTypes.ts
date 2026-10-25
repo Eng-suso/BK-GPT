@@ -377,6 +377,18 @@ export const whatIfTranslationSchema = z.object({
 });
 export type WhatIfTranslation = z.infer<typeof whatIfTranslationSchema>;
 
+/** SIM-24b: il testo per il cliente, con i valori dei KPI gia' messi dal backend al posto dei segnaposto. */
+export const simulationNarrativeSchema = z.object({ text: z.string(), cited: z.array(z.string()) });
+export type SimulationNarrative = z.infer<typeof simulationNarrativeSchema>;
+export type SimulationNarrativeRequest = {
+  language: "it" | "en";
+  as_is_name: string;
+  scenario_name: string;
+  kpis: { label: string; value: string; verdict: "better" | "worse" | "unclear" | "same" }[];
+  reading: string[];
+  names: string[];
+};
+
 export const simulationClaimsSchema = z.object({
   sources: z.number(),
   activities: z.array(z.object({ element_id: z.string(), name: z.string(), proposals: z.array(claimProposalSchema) })),
