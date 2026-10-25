@@ -1,0 +1,90 @@
+{
+  "about": "SIM-23: frasi del consulente e modifiche attese. Le modifiche sono quelle che `parse` deve restituire; `not_understood` dice se una parte della frase deve restare fuori. Stato: draft_da_validare (scritto da Claude, da rileggere con un consulente prima di farne un gate).",
+  "status": "draft_da_validare",
+  "processes": {
+    "p2p": {
+      "activities": [
+        {"id": "T_receive", "name": "Ricevi fattura"},
+        {"id": "T_check", "name": "Verifica fattura"},
+        {"id": "T_approve", "name": "Approva pagamento"},
+        {"id": "T_pay", "name": "Esegui bonifico"}
+      ],
+      "resources": [
+        {"id": "clerk", "name": "Impiegato contabile", "units": 3},
+        {"id": "approver", "name": "Responsabile acquisti", "units": 1},
+        {"id": "treasury", "name": "Tesoreria", "units": 2}
+      ]
+    },
+    "claims": {
+      "activities": [
+        {"id": "A_open", "name": "Open claim"},
+        {"id": "A_assess", "name": "Assess damage"},
+        {"id": "A_fraud", "name": "Fraud check"},
+        {"id": "A_settle", "name": "Settle claim"}
+      ],
+      "resources": [
+        {"id": "handler", "name": "Claims handler", "units": 5},
+        {"id": "expert", "name": "Loss adjuster", "units": 2}
+      ]
+    }
+  },
+  "cases": [
+    {"id": "it-un-approvatore-in-piu", "process": "p2p", "language": "it",
+     "sentence": "Un responsabile acquisti in più",
+     "expected": [{"kind": "resource_units", "resource_id": "approver", "units": 2}], "not_understood": false},
+    {"id": "it-tre-approvatori", "process": "p2p", "language": "it",
+     "sentence": "Mettiamo tre responsabili acquisti",
+     "expected": [{"kind": "resource_units", "resource_id": "approver", "units": 3}], "not_understood": false},
+    {"id": "it-verifica-30-in-meno", "process": "p2p", "language": "it",
+     "sentence": "La verifica della fattura dura il 30% in meno",
+     "expected": [{"kind": "activity_duration", "element_id": "T_check", "factor": 0.7}], "not_understood": false},
+    {"id": "it-approvazione-due-ore", "process": "p2p", "language": "it",
+     "sentence": "L'approvazione del pagamento dura due ore",
+     "expected": [{"kind": "activity_duration", "element_id": "T_approve", "mean_minutes": 120}], "not_understood": false},
+    {"id": "it-togli-verifica", "process": "p2p", "language": "it",
+     "sentence": "Togliamo la verifica della fattura",
+     "expected": [{"kind": "skip_activity", "element_id": "T_check", "percent": 100}], "not_understood": false},
+    {"id": "it-salta-meta", "process": "p2p", "language": "it",
+     "sentence": "Metà delle fatture salta l'approvazione",
+     "expected": [{"kind": "skip_activity", "element_id": "T_approve", "percent": 50}], "not_understood": false},
+    {"id": "it-domanda-20", "process": "p2p", "language": "it",
+     "sentence": "Arrivano il 20% di fatture in più",
+     "expected": [{"kind": "demand", "factor": 1.2}], "not_understood": false},
+    {"id": "it-costo-tesoreria", "process": "p2p", "language": "it",
+     "sentence": "La tesoreria costa 45 euro l'ora",
+     "expected": [{"kind": "resource_cost", "resource_id": "treasury", "cost_per_hour": 45}], "not_understood": false},
+    {"id": "it-due-modifiche", "process": "p2p", "language": "it",
+     "sentence": "Un impiegato contabile in meno e il bonifico dura la metà",
+     "expected": [
+       {"kind": "resource_units", "resource_id": "clerk", "units": 2},
+       {"kind": "activity_duration", "element_id": "T_pay", "factor": 0.5}
+     ], "not_understood": false},
+    {"id": "it-parte-non-traducibile", "process": "p2p", "language": "it",
+     "sentence": "Un responsabile acquisti in più e lavoriamo anche il sabato",
+     "expected": [{"kind": "resource_units", "resource_id": "approver", "units": 2}], "not_understood": true},
+    {"id": "it-niente-da-tradurre", "process": "p2p", "language": "it",
+     "sentence": "Rendiamo il processo più snello",
+     "expected": [], "not_understood": true},
+    {"id": "it-attivita-che-non-esiste", "process": "p2p", "language": "it",
+     "sentence": "Il controllo qualità dura il 10% in meno",
+     "expected": [], "not_understood": true},
+    {"id": "en-two-more-handlers", "process": "claims", "language": "en",
+     "sentence": "Two more claims handlers",
+     "expected": [{"kind": "resource_units", "resource_id": "handler", "units": 7}], "not_understood": false},
+    {"id": "en-fraud-check-faster", "process": "claims", "language": "en",
+     "sentence": "Fraud check takes half the time",
+     "expected": [{"kind": "activity_duration", "element_id": "A_fraud", "factor": 0.5}], "not_understood": false},
+    {"id": "en-skip-fraud-for-30", "process": "claims", "language": "en",
+     "sentence": "30% of claims skip the fraud check",
+     "expected": [{"kind": "skip_activity", "element_id": "A_fraud", "percent": 30}], "not_understood": false},
+    {"id": "en-demand-down", "process": "claims", "language": "en",
+     "sentence": "We expect 25% fewer claims",
+     "expected": [{"kind": "demand", "factor": 0.75}], "not_understood": false},
+    {"id": "en-assess-one-day", "process": "claims", "language": "en",
+     "sentence": "Assessing the damage takes one day",
+     "expected": [{"kind": "activity_duration", "element_id": "A_assess", "mean_minutes": 1440}], "not_understood": false},
+    {"id": "en-adjuster-cost-and-new-tool", "process": "claims", "language": "en",
+     "sentence": "Loss adjusters cost 80 an hour and we buy a new CRM",
+     "expected": [{"kind": "resource_cost", "resource_id": "expert", "cost_per_hour": 80}], "not_understood": true}
+  ]
+}

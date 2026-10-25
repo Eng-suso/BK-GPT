@@ -1,0 +1,63 @@
+{
+  "about": "SIM-24b: confronti gia' calcolati fra AS-IS e alternativa. Il testo del modello deve passare `verify` (nessuna cifra sua) e citare i KPI in `must_cite`; quelli in `uncertain` non vanno presentati come guadagni (lo misura il giudice L2 quando c'e' il modello). Stato: draft_da_validare.",
+  "status": "draft_da_validare",
+  "cases": [
+    {"id": "it-piu-veloce-piu-caro", "request": {
+      "language": "it", "as_is_name": "AS-IS", "scenario_name": "A · +1 Responsabile acquisti",
+      "kpis": [
+        {"label": "Durata media del caso", "value": "−1 h 20 min ± 12 min", "verdict": "better"},
+        {"label": "Attesa media", "value": "−1 h 05 min ± 10 min", "verdict": "better"},
+        {"label": "Costo per caso", "value": "+4,10 € ± 0,80 €", "verdict": "worse"},
+        {"label": "Casi all'ora", "value": "+0,1 casi/h ± 0,2 casi/h", "verdict": "unclear"}
+      ],
+      "reading": ["Il vincolo si sposta da «Approva pagamento» a «Esegui bonifico».", "Più veloce, ma ogni ora risparmiata per caso costa."],
+      "names": ["Approva pagamento", "Esegui bonifico", "Responsabile acquisti"]},
+     "must_cite": ["K1", "K3"], "uncertain": ["K4"]},
+    {"id": "it-nessuna-differenza-certa", "request": {
+      "language": "it", "as_is_name": "AS-IS", "scenario_name": "B · Verifica automatica",
+      "kpis": [
+        {"label": "Durata media del caso", "value": "−3 min ± 9 min", "verdict": "unclear"},
+        {"label": "Costo per caso", "value": "−0,20 € ± 0,90 €", "verdict": "unclear"}
+      ],
+      "reading": ["Il vincolo resta «Verifica fattura».", "Nessuna differenza certa su tempo e costo."],
+      "names": ["Verifica fattura"]},
+     "must_cite": [], "uncertain": ["K1", "K2"]},
+    {"id": "it-meglio-su-tutto", "request": {
+      "language": "it", "as_is_name": "AS-IS", "scenario_name": "C · Senza doppia verifica",
+      "kpis": [
+        {"label": "Durata media del caso", "value": "−45 min ± 6 min", "verdict": "better"},
+        {"label": "Costo per caso", "value": "−3,00 € ± 0,40 €", "verdict": "better"}
+      ],
+      "reading": ["Il vincolo resta «Approva pagamento»."],
+      "names": ["Approva pagamento", "Verifica 2"]},
+     "must_cite": ["K1", "K2"], "uncertain": []},
+    {"id": "it-una-sola-simulazione", "request": {
+      "language": "it", "as_is_name": "AS-IS", "scenario_name": "D · Tesoreria 24/7",
+      "kpis": [
+        {"label": "Durata media del caso", "value": "−20 min", "verdict": "better"},
+        {"label": "Costo per caso", "value": "+1,50 €", "verdict": "worse"}
+      ],
+      "reading": [],
+      "names": ["Tesoreria"]},
+     "must_cite": ["K1", "K2"], "uncertain": []},
+    {"id": "en-cheaper-slower", "request": {
+      "language": "en", "as_is_name": "AS-IS", "scenario_name": "A · One adjuster less",
+      "kpis": [
+        {"label": "Average case duration", "value": "+2 h 10 min ± 25 min", "verdict": "worse"},
+        {"label": "Cost per case", "value": "−12.00 € ± 2.10 €", "verdict": "better"}
+      ],
+      "reading": ["The constraint stays at «Assess damage».", "Cheaper, but slower."],
+      "names": ["Assess damage", "Loss adjuster"]},
+     "must_cite": ["K1", "K2"], "uncertain": []},
+    {"id": "en-relieved", "request": {
+      "language": "en", "as_is_name": "AS-IS", "scenario_name": "B · Skip fraud check for 30%",
+      "kpis": [
+        {"label": "Average case duration", "value": "−1 h 30 min ± 15 min", "verdict": "better"},
+        {"label": "Average wait", "value": "−1 h 20 min ± 14 min", "verdict": "better"},
+        {"label": "Cost per case", "value": "+0.30 € ± 0.90 €", "verdict": "unclear"}
+      ],
+      "reading": ["«Fraud check» is no longer the bottleneck."],
+      "names": ["Fraud check"]},
+     "must_cite": ["K1"], "uncertain": ["K3"]}
+  ]
+}

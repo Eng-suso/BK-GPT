@@ -11,7 +11,7 @@ e **quando gira**, non l'unico nome che il test puo' avere.
 | livello | cartella | cosa misura | quando gira | modello |
 | --- | --- | --- | --- | --- |
 | L0 | `l0_deterministic/` | invarianti: provenance, isolamento tenant, scope, scritture approvate, proiezioni stale, BPMN valido, compilatore sul golden set | ogni PR (CI/CD Pipeline) | no |
-| L1 | `l1_golden/` | interviste → piano → BPMN contro la mappa di riferimento (disegno, handoff, eccezioni) e cio' che il piano sa (evidenze, claim, conflitti); loop di conformita' | notturno (`golden-eval.yml`) o a mano | si' |
+| L1 | `l1_golden/` | interviste → piano → BPMN contro la mappa di riferimento (disegno, handoff, eccezioni) e cio' che il piano sa (evidenze, claim, conflitti); loop di conformita'; what-if e testo per il cliente della simulazione (`test_simulation_llm_eval.py`: precision, recall, testi verificati al primo colpo) | notturno (`golden-eval.yml`) o a mano | si' |
 | L1 | `l1_retrieval/` | 16 domande da consulente sulle interviste del golden set: recall@5, precision@5, MRR, nDCG@5 del ramo lessicale di `graph_retrieve`, piu' nessun chunk fuori scope. Da costruire: ramo vettoriale e memoria (recall, stale, wrong-scope) | ogni PR (deterministico) | no |
 | L2 | `l2_semantic/` | giudizio dove una regola non basta. Il giudice (`judge.py`, compito `eval_judge` sul modello dei test) risponde a domande chiuse si'/no con confidenza, o da' un voto 1-5 seguendo i passi scritti di un criterio. Prima di giudicare l'agente si calibra contro un umano (`calibration_discovery.json`: 18 domande di discovery "necessarie?", accuracy e kappa). La rubrica deterministica di `rubric.py` resta per la mappatura | a mano | si' |
 | L3 | `l3_trajectory/` | il percorso dell'agente, non la risposta: tool che deve chiamare (anche con l'operazione giusta), tool vietati, chiamate ripetute, budget (`trajectory_metrics.py`). Tre traiettorie attese dell'agente di processo, ognuna con la regola del prodotto che la impone citata alla lettera. Da costruire: il runner che fa girare l'agente sul modello dei test e le misura | - | - |
@@ -51,6 +51,7 @@ affidabile, qualunque cosa dica il resto della suite.
 | `test_golden_graph_metrics.py` | dal piano ideale il compilatore ridisegna la mappa di riferimento, a 1.0 |
 | `test_agent_outcomes.py` | un turno vero dell'agente (`outcome_harness.py`) con un modello che sbaglia: injection, progetto fuori scope, disegno cambiato da un collega, database giu'. Lo stato cambia solo quando deve, e nessun esito finto arriva al modello |
 | `test_bef4llm.py` | le metriche BEF4LLM dicono il vero su modelli scritti a mano, e ogni BPMN che il compilatore produce dal golden set passa lo schema XSD di BPMN 2.0 |
+| `test_simulation_llm_golden.py` | il golden set di what-if (SIM-23) e testo per il cliente (SIM-24b) chiede solo risposte che il codice accetta, e le sue metriche (`simulation_llm_metrics.py`) dicono il vero |
 
 ## BEF4LLM: DeliR sulla scala di un benchmark pubblicato
 
