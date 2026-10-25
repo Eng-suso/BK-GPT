@@ -1687,6 +1687,23 @@
       "label": "{{format}} log",
       "downloadAs": "Download the simulated log as {{format}}",
       "error": "This run's log cannot be downloaded: older runs do not keep it. Run the simulation again."
+    },
+    "whatIf": {
+      "title": "Try it with a sentence",
+      "hint": "Write what you want to try, for example “one more approver and Review takes 30% less”. The model translates the sentence into changes: you see them before applying, and no run starts from here.",
+      "label": "What do you want to try",
+      "placeholder": "One more approver and Review takes 30% less",
+      "translate": "Translate",
+      "translating": "Translating…",
+      "previewTitle": "Proposed changes",
+      "nothing": "Nothing to apply: the sentence does not change the draft.",
+      "notUnderstood": "Not translated: “{{text}}”. Set it by hand in the panel.",
+      "rejected_one": "{{count}} change dropped because it does not apply to this draft.",
+      "rejected_other": "{{count}} changes dropped because they do not apply to this draft.",
+      "apply": "Apply to draft",
+      "discard": "Discard",
+      "applied": "Changes applied to the draft. Start the run when you are ready.",
+      "noRun": "Applying only changes the draft: you start the run."
     }
   },
   "side": {

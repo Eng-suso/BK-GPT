@@ -18,6 +18,7 @@ import { ScenarioTabs } from "../ScenarioTabs";
 import { changedElements } from "../scenarioWorkspace";
 import { uncertainFactors } from "../sensitivity";
 import { useSourceConflicts } from "../useSourceConflicts";
+import { WhatIfComposer } from "../WhatIfComposer";
 import type { NodeDecoration } from "../canvas/SimulationCanvas";
 
 /**
@@ -120,6 +121,10 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
             <Skeleton className="h-40 w-full" />
           </div>
         ) : (
+          <>
+          <div className="px-4">
+            <WhatIfComposer bpmnModelId={lab.bpmnModelId} template={template} draft={draft} onApply={updateDraft} />
+          </div>
           <SimulationConfigRail
             embedded
             workspace
@@ -135,6 +140,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
             focusElementId={focusEl}
             provenance={confidence}
           />
+          </>
         )}
       </div>
 
