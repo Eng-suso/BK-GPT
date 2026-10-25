@@ -46,7 +46,13 @@ export function WhatIfComposer({ bpmnModelId, template, draft, onApply }: Props)
   // L'anteprima si calcola sulla bozza di adesso: se nel frattempo cambia, si vede cambiare.
   const preview = React.useMemo(() => (result ? applyWhatIf(draft, result.changes) : null), [draft, result]);
   const patch = React.useMemo(() => (preview ? diffScenario(draft, preview.draft) : []), [draft, preview]);
-  const lines = React.useMemo(() => changes.readPatch(patch).map((change) => changes.text(change)), [changes, patch]);
+  // "Confermata: si' -> no" non e' una modifica chiesta: e' la riconferma che ne segue, detta a parole sotto.
+  const confirmation = (path: (string | { id: string })[]) => path[path.length - 1] === "parametersConfirmed";
+  const lines = React.useMemo(
+    () => changes.readPatch(patch).filter((change) => !confirmation(patch[change.index]?.path ?? [])).map((change) => changes.text(change)),
+    [changes, patch],
+  );
+  const reconfirm = patch.some((op) => confirmation(op.path) && op.op === "set" && op.value === false);
 
   const trimmed = sentence.trim();
   const submit = (event: React.FormEvent) => {
@@ -122,7 +128,9 @@ export function WhatIfComposer({ bpmnModelId, template, draft, onApply }: Props)
             <Button type="button" size="sm" disabled={patch.length === 0} onClick={apply}>{t("simulation.whatIf.apply")}</Button>
             <Button type="button" size="sm" variant="ghost" onClick={discard}>{t("simulation.whatIf.discard")}</Button>
           </div>
-          <p className="text-xs text-muted-foreground">{t("simulation.whatIf.noRun")}</p>
+          <p className="text-xs text-muted-foreground">
+            {reconfirm ? `${t("simulation.whatIf.reconfirm")} ` : ""}{t("simulation.whatIf.noRun")}
+          </p>
         </div>
       )}
     </section>

@@ -1703,7 +1703,8 @@
       "apply": "Apply to draft",
       "discard": "Discard",
       "applied": "Changes applied to the draft. Start the run when you are ready.",
-      "noRun": "Applying only changes the draft: you start the run."
+      "noRun": "Applying only changes the draft: you start the run.",
+      "reconfirm": "Changed roles must be confirmed again in the panel before the run."
     }
   },
   "side": {

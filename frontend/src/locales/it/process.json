@@ -1703,7 +1703,8 @@
       "apply": "Applica alla bozza",
       "discard": "Scarta",
       "applied": "Modifiche applicate alla bozza. Avvia il run quando vuoi.",
-      "noRun": "Applicare cambia solo la bozza: il run lo avvii tu."
+      "noRun": "Applicare cambia solo la bozza: il run lo avvii tu.",
+      "reconfirm": "I ruoli cambiati vanno riconfermati nel pannello prima del run."
     }
   },
   "side": {

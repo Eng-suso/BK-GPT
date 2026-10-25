@@ -64,6 +64,8 @@ describe("WhatIfComposer (SIM-23)", () => {
       resources: [{ id: "r1", name: "Approvatore", units: 2 }],
     });
     expect(screen.getByText(/Approvatore · .*: 2 → 3/)).toBeTruthy();
+    expect(screen.queryByText(/sì → no/)).toBeNull();
+    expect(screen.getByText(/vanno riconfermati/)).toBeTruthy();
     expect(screen.getByText(/Non tradotto: «anche il sabato»/)).toBeTruthy();
     expect(screen.getByText(/1 modifica scartata/)).toBeTruthy();
     // Nessun run e nessuna modifica finché il consulente non applica.
