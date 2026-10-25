@@ -192,5 +192,16 @@ def test_the_route_says_when_the_model_fails(api_client, new_bpmn_model, fake_ll
 
 def test_the_route_rejects_an_unknown_model_and_an_empty_sentence(api_client, new_bpmn_model, fake_llm):
     assert api_client.post("/v1/workspace/bpmn-models/missing/simulation-what-if", json=_body()).status_code == 404
-    empty = {**_body(), "sentence": ""}
-    assert api_client.post(f"/v1/workspace/bpmn-models/{new_bpmn_model()}/simulation-what-if", json=empty).status_code == 422
+    for sentence in ("", "   "):
+        empty = {**_body(), "sentence": sentence}
+        assert api_client.post(f"/v1/workspace/bpmn-models/{new_bpmn_model()}/simulation-what-if", json=empty).status_code == 422
+
+
+def test_a_large_process_fits_in_the_request():
+    big = SimulationWhatIfRequest.model_validate({
+        "sentence": "domanda +10%",
+        "activities": [{"id": f"T{i}", "name": f"Attivita' {i}"} for i in range(150)],
+        "resources": [{"id": f"R{i}", "name": f"Ruolo {i}", "units": 1} for i in range(80)],
+    })
+
+    assert "[A149] Attivita' 149" in render(big)

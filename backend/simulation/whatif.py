@@ -27,8 +27,10 @@ from pydantic import BaseModel, ConfigDict, Field
 logger = logging.getLogger(__name__)
 
 MAX_SENTENCE_CHARS = 400
-MAX_ACTIVITIES = 60
-MAX_RESOURCES = 40
+# Le stesse di `whatIf.ts`: un processo piu' grande manda le prime, non fallisce.
+MAX_ACTIVITIES = 200
+MAX_RESOURCES = 100
+MAX_NAME_CHARS = 200
 
 # I limiti di una modifica sensata. Oltre, e' un errore di lettura del modello.
 MAX_UNITS = 200
@@ -86,19 +88,20 @@ class WhatIfActivity(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1, max_length=200)
-    name: str = Field(max_length=200)
+    name: str = Field(max_length=MAX_NAME_CHARS)
 
 
 class WhatIfResource(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1, max_length=200)
-    name: str = Field(max_length=200)
+    name: str = Field(max_length=MAX_NAME_CHARS)
     units: int = Field(ge=0, le=10_000)
 
 
 class SimulationWhatIfRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    # Una frase di soli spazi e' vuota: non arriva al modello.
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     sentence: str = Field(min_length=1, max_length=MAX_SENTENCE_CHARS)
     activities: list[WhatIfActivity] = Field(default_factory=list, max_length=MAX_ACTIVITIES)
