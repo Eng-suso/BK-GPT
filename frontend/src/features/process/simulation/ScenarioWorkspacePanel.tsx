@@ -25,6 +25,8 @@ import {
 import { decisionRecordHtml } from "./decisionRecord";
 import { ScenarioOutcomes } from "./ScenarioOutcome";
 import { interpret, interpretationLines } from "./interpretation";
+import { ClientNarrative } from "./ClientNarrative";
+import { narrativeRequest } from "./narrative";
 import { buildTornado, studyMembers } from "./sensitivity";
 import { buildInputConfidence } from "./simulationProvenance";
 import { sourceConflicts } from "./sourceConflicts";
@@ -56,6 +58,8 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
   const real = useRealProcessing();
   const [params, setParams] = useSearchParams();
   const [starting, setStarting] = React.useState<Set<number>>(new Set());
+  // SIM-24b: il testo per il cliente di ogni alternativa, per id dello scenario; finisce anche nel decision record.
+  const [narratives, setNarratives] = React.useState<Record<number, string>>({});
   const { workspace } = lab;
 
   const rows = React.useMemo(() => {
@@ -128,6 +132,7 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
       reading: comparisons[index - 1]
         ? interpretationLines(interpret(asIs, results, comparisons[index - 1]!), t, { duration: (v) => formatDuration(v, lang), currency: (v) => formatCurrency(v, lang) })
         : [],
+      narrative: narratives[scenario.id] ?? null,
     }, t, lang);
     const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
     const link = document.createElement("a");
@@ -259,10 +264,36 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
               if (!comparison || !results.completed.length || !asIs.completed.length) return null;
               const lines = interpretationLines(interpret(asIs, results, comparison), t, { duration: (v) => formatDuration(v, lang), currency: (v) => formatCurrency(v, lang) });
               if (!lines.length) return null;
+              const request = narrativeRequest({
+                language: lang,
+                asIsName: scenarioDisplayName(rows[0]!.scenario),
+                scenarioName: scenarioDisplayName(scenario),
+                kpis: [...WORKSPACE_KPIS],
+                deltas: comparison.kpis,
+                label: (kpi) => t(`simulation.results.replicationKpi.${kpi}`),
+                value: (kpi, delta) => delta.kind === "interval"
+                  ? t("simulation.scenarios.workspace.deltaInterval", { delta: signed(kpi, delta.value.delta), half: format[kpi](delta.value.half) })
+                  : t("simulation.scenarios.workspace.deltaSingle", { delta: signed(kpi, delta.delta) }),
+                reading: lines,
+                names: [
+                  ...(lab.template?.tasks ?? []).map((task) => task.name),
+                  ...(lab.template?.gateways ?? []).map((gateway) => gateway.name),
+                  ...(lab.baselineDraft?.resources ?? []).map((resource) => resource.name),
+                ],
+              });
               return (
                 <li key={scenario.id} className="text-xs leading-snug text-muted-foreground" data-sim-workspace-reading-row={scenario.label}>
                   <span className="font-medium text-foreground">{scenarioDisplayName(scenario)}</span>
                   {" · "}{lines.join(" ")}
+                  {request && !comparison.mismatch && (
+                    <ClientNarrative
+                      bpmnModelId={lab.bpmnModelId}
+                      name={scenarioDisplayName(scenario)}
+                      request={request}
+                      text={narratives[scenario.id] ?? null}
+                      onWritten={(text) => setNarratives((current) => ({ ...current, [scenario.id]: text }))}
+                    />
+                  )}
                 </li>
               );
             })}
