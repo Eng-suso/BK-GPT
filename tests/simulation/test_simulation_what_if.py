@@ -146,3 +146,51 @@ def test_a_failure_of_the_model_is_said_not_hidden(fake_llm):
 
     with pytest.raises(WhatIfFailed):
         translate("proc-1", REQUEST)
+
+
+def _body() -> dict:
+    return REQUEST.model_dump()
+
+
+def test_the_route_returns_the_preview_and_starts_no_run(api_client, new_bpmn_model, fake_llm):
+    _, answer = fake_llm
+    answer["result"] = _answer(
+        [{"kind": "resource_units", "target": "R0", "mode": "delta", "value": 1}],
+        not_understood="anche il sabato",
+    )
+    bpmn_model_id = new_bpmn_model()
+
+    response = api_client.post(f"/v1/workspace/bpmn-models/{bpmn_model_id}/simulation-what-if", json=_body())
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "changes": [{"kind": "resource_units", "resource_id": "approver", "units": 3}],
+        "not_understood": "anche il sabato",
+        "rejected": 0,
+    }
+    runs = api_client.get(f"/v1/workspace/bpmn-models/{bpmn_model_id}/simulation-runs")
+    assert runs.status_code == 200 and runs.json() == []
+
+
+def test_the_route_says_when_the_model_is_missing(api_client, new_bpmn_model, fake_llm, monkeypatch):
+    monkeypatch.setattr(settings, "openai_api_key", "")
+
+    response = api_client.post(f"/v1/workspace/bpmn-models/{new_bpmn_model()}/simulation-what-if", json=_body())
+
+    assert response.status_code == 503
+    assert "chiave del modello" in response.json()["error"]["message"]
+
+
+def test_the_route_says_when_the_model_fails(api_client, new_bpmn_model, fake_llm):
+    _, answer = fake_llm
+    answer["result"] = RuntimeError("timeout")
+
+    response = api_client.post(f"/v1/workspace/bpmn-models/{new_bpmn_model()}/simulation-what-if", json=_body())
+
+    assert response.status_code == 502
+
+
+def test_the_route_rejects_an_unknown_model_and_an_empty_sentence(api_client, new_bpmn_model, fake_llm):
+    assert api_client.post("/v1/workspace/bpmn-models/missing/simulation-what-if", json=_body()).status_code == 404
+    empty = {**_body(), "sentence": ""}
+    assert api_client.post(f"/v1/workspace/bpmn-models/{new_bpmn_model()}/simulation-what-if", json=empty).status_code == 422
