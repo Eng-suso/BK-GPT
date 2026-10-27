@@ -255,6 +255,40 @@ def test_a_transient_failure_is_retried_later(empty_process, monkeypatch):  # no
     assert not ready
 
 
+@pytest.mark.parametrize("reaches_worker_as", ["exception", "reason"])
+def test_an_empty_account_never_dead_letters_the_plan(
+    empty_process,  # noqa: F811
+    monkeypatch,
+    reaches_worker_as,
+):
+    """Credito finito non e' colpa del piano: la riga aspetta, i tentativi restano."""
+    _save_interviews(empty_process)
+    message = (
+        "Error code: 429 - {'error': {'message': 'You have no credits remaining.',"
+        " 'type': 'insufficient_quota', 'code': 'credit_balance_exhausted'}}"
+    )
+
+    def _broke(process_id: str, *, force: bool = False) -> PlanSynthesis:
+        if reaches_worker_as == "exception":
+            raise RuntimeError(message)
+        return PlanSynthesis(action="synthesis_failed", snapshot=None, reason=message)
+
+    monkeypatch.setattr(process_synthesis, "ensure_process_plan", _broke)
+
+    plan_worker.drain_once(limit=50)
+
+    row = wd.plan_materialization_for(empty_process["process_id"])
+    assert row["status"] == "pending"
+    assert row["attempts"] == 0
+    assert "insufficient_quota" in row["last_error"]
+    ready = [
+        item
+        for item in wd.due_plan_materializations(limit=50)
+        if item["process_id"] == empty_process["process_id"]
+    ]
+    assert not ready
+
+
 def test_a_process_that_no_longer_exists_leaves_the_queue_at_once(
     empty_process,  # noqa: F811
     monkeypatch,
