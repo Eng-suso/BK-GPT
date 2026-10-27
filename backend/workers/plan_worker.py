@@ -31,6 +31,7 @@ import time
 
 from backend import workspace_database as wd
 from backend.security import reset_current_tenant_id, set_current_tenant_id
+from backend.workers import retry
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +85,7 @@ def _work_one(row: dict) -> bool:
                 row["process_id"],
                 exc_info=True,
             )
-            wd.fail_plan_materialization(row["id"], error=f"{type(exc).__name__}: {exc}")
+            _fail(row, f"{type(exc).__name__}: {exc}")
             return False
 
         if synthesis.action in _SETTLED:
@@ -95,9 +96,9 @@ def _work_one(row: dict) -> bool:
             )
             return True
 
-        wd.fail_plan_materialization(
-            row["id"],
-            error=synthesis.reason or synthesis.action,
+        _fail(
+            row,
+            synthesis.reason or synthesis.action,
             # Un processo che non esiste non ricompare: la riga esce subito
             # invece di consumare quattro tentativi per dire la stessa cosa.
             max_attempts=(
@@ -107,6 +108,24 @@ def _work_one(row: dict) -> bool:
         return False
     finally:
         reset_current_tenant_id(token)
+
+
+def _fail(row: dict, error: str, *, max_attempts: int = wd.MATERIALIZATION_MAX_ATTEMPTS) -> None:
+    """Chiude un tentativo non riuscito.
+
+    Il credito finito non e' un difetto del piano: la riga aspetta senza bruciare
+    i tentativi e riparte quando qualcuno ricarica. Il provider lo dice nel testo
+    sia quando l'eccezione risale sia quando la sintesi la riporta come `reason`.
+    """
+    if retry.is_quota_exhausted(Exception(error)):
+        wd.fail_plan_materialization(
+            row["id"],
+            error=error,
+            consumes_attempt=False,
+            pause_seconds=retry.EXHAUSTED_PAUSE_SECONDS,
+        )
+        return
+    wd.fail_plan_materialization(row["id"], error=error, max_attempts=max_attempts)
 
 
 def sweep_stale_plans(*, force: bool = False) -> int:
