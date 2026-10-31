@@ -8,7 +8,9 @@ from typing import Literal
 
 from anyio import to_thread
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler as default_http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from backend.api.errors import setup_api_error_handlers
@@ -245,5 +247,61 @@ def frontend():
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
     return Response(status_code=204)
+
+
+#: Il primo pezzo dei percorsi che non sono pagine: un `GET /v1/...` sbagliato
+#: deve ricevere il suo 404, non la pagina dell'app.
+NOT_PAGE_ROOTS = {"v1", "chat", "health", "docs", "redoc", "openapi.json", "assets", "src", "styles"}
+PAGE_HEADERS = {"Cache-Control": "no-store"}
+#: Il cruscotto che il consulente manda al suo cliente: il codice del link sta
+#: dopo `#`, e la pagina non deve passarlo a nessuno ne' finire in un indice.
+SHARE_PAGE_HEADERS = {
+    "Cache-Control": "no-store",
+    "Referrer-Policy": "no-referrer",
+    "X-Robots-Tag": "noindex, nofollow",
+}
+
+
+def built_frontend_file(path: str) -> Path | None:
+    """Un file del build (`share.html`, `favicon.svg`, ...), mai fuori dalla sua cartella."""
+    if not DIST_DIR.is_dir():
+        return None
+    root = DIST_DIR.resolve()
+    candidate = (root / path.lstrip("/")).resolve()
+    if root not in candidate.parents or not candidate.is_file():
+        return None
+    return candidate
+
+
+def is_app_page(path: str) -> bool:
+    """`/projects/abc` e' una pagina di React; `/v1/...` e `/x.js` non lo sono."""
+    parts = [part for part in path.split("/") if part]
+    if not parts:
+        return True
+    return parts[0] not in NOT_PAGE_ROOTS and "." not in parts[-1]
+
+
+@app.exception_handler(StarletteHTTPException)
+async def frontend_page_fallback(request: Request, exc: StarletteHTTPException):
+    """Le pagine dell'app si aprono anche dopo un refresh o da un link salvato.
+
+    In sviluppo ci pensa Vite. In produzione le serve il backend, che conosceva
+    solo `/`: ogni altra pagina dava 404, e il link del cruscotto per il
+    cliente (`/share.html#codice`) non si apriva. Qui arrivano solo i 404 di
+    instradamento - nessuna rotta corrisponde - di un `GET`; le API che dicono
+    "non trovato" da sole passano dal gestore di `backend.api.errors`, e ogni
+    altro caso riceve la risposta di sempre.
+    """
+    if exc.status_code == 404 and request.method in {"GET", "HEAD"}:
+        path = request.url.path
+        built = built_frontend_file(path)
+        if built is not None:
+            if built.name == "share.html":
+                return FileResponse(built, headers=SHARE_PAGE_HEADERS)
+            headers = PAGE_HEADERS if built.suffix == ".html" else None
+            return FileResponse(built, headers=headers)
+        if is_app_page(path):
+            return FileResponse(FRONTEND_INDEX, headers=PAGE_HEADERS)
+    return await default_http_exception_handler(request, exc)
 
 
