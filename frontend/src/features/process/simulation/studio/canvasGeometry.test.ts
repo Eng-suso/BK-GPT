@@ -1,7 +1,45 @@
 import { describe, expect, it } from "vitest";
 import { defaultLayout, layoutSchema } from "../dashboard/dashboardModel";
 import { formatMetric } from "../dashboard/dashboardFormatting";
-import { bounds, fitCamera, sceneRects, materializeScene, zoomCamera, resizeRect, insertionRect, freeInsertionRect } from "./canvasGeometry";
+import { bounds, fitCamera, sceneRects, materializeScene, zoomCamera, normalizeCanvasWheel, resizeRect, insertionRect, freeInsertionRect } from "./canvasGeometry";
+
+describe("canvas wheel navigation", () => {
+  const viewport = { width: 1000, height: 700 };
+
+  it("preserves fractional trackpad pixels and makes line scrolling travel the same distance", () => {
+    expect(normalizeCanvasWheel({ deltaMode: 0, deltaX: 2.5, deltaY: -7.25 }, viewport)).toEqual({ dx: 2.5, dy: -7.25 });
+    const lines = normalizeCanvasWheel({ deltaMode: 1, deltaX: 2, deltaY: -3 }, viewport);
+    expect(lines).toEqual({ dx: 32, dy: -48 });
+    expect(lines).toEqual(normalizeCanvasWheel({ deltaMode: 0, deltaX: 32, deltaY: -48 }, viewport));
+  });
+
+  it("uses each viewport dimension for page-sized movement", () => {
+    expect(normalizeCanvasWheel({ deltaMode: 2, deltaX: 1, deltaY: -1 }, viewport)).toEqual({ dx: 1000, dy: -700 });
+  });
+
+  it("pans horizontally with Shift for pixel, line and page wheels", () => {
+    expect(normalizeCanvasWheel({ deltaMode: 0, deltaX: 0, deltaY: 24, shiftKey: true }, viewport)).toEqual({ dx: 24, dy: 0 });
+    expect(normalizeCanvasWheel({ deltaMode: 1, deltaX: 0, deltaY: 3, shiftKey: true }, viewport)).toEqual({ dx: 48, dy: 0 });
+    expect(normalizeCanvasWheel({ deltaMode: 2, deltaX: 0, deltaY: 1, shiftKey: true }, viewport)).toEqual({ dx: 1000, dy: 0 });
+  });
+
+  it("preserves browser-translated Shift trackpad motion and redirects diagonal movement", () => {
+    expect(normalizeCanvasWheel({ deltaMode: 0, deltaX: 36.5, deltaY: 0, shiftKey: true }, viewport)).toEqual({ dx: 36.5, dy: 0 });
+    expect(normalizeCanvasWheel({ deltaMode: 0, deltaX: 12, deltaY: 24, shiftKey: true }, viewport)).toEqual({ dx: 36, dy: 0 });
+  });
+
+  it("keeps Ctrl/Cmd zoom working with Shift and anchors equivalent wheel units to the pointer", () => {
+    const camera = { x: -80, y: 25, scale: 0.8 };
+    const pixels = normalizeCanvasWheel({ deltaMode: 0, deltaX: 0, deltaY: -48, ctrlKey: true }, viewport);
+    for (const modifier of [{ ctrlKey: true }, { metaKey: true }]) {
+      const lines = normalizeCanvasWheel({ deltaMode: 1, deltaX: 0, deltaY: -3, shiftKey: true, ...modifier }, viewport);
+      const zoomed = zoomCamera(camera, Math.exp(-lines.dy * 0.002), 300, 200);
+      expect(zoomed).toEqual(zoomCamera(camera, Math.exp(-pixels.dy * 0.002), 300, 200));
+      expect((300 - zoomed.x) / zoomed.scale).toBeCloseTo((300 - camera.x) / camera.scale);
+      expect((200 - zoomed.y) / zoomed.scale).toBeCloseTo((200 - camera.y) / camera.scale);
+    }
+  });
+});
 
 describe("analytical scene", () => {
   it("migrates legacy layouts without mutating or dropping analytical objects", () => {

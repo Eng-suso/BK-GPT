@@ -15,8 +15,8 @@ export function WorkspaceContextBar({ title, navigation, actions, className }: {
 }
 
 /** A labelled command group, without implying toolbar arrow-key behavior. */
-export function WorkspaceCommandBar({ label, children, className, material = "toolbar" }: { label: string; children: Slot; className?: string; material?: "toolbar" | "floating" }): React.JSX.Element {
-  return <Surface asChild variant={material}><div data-workspace-layer="commands" role="group" aria-label={label} className={cn("flex shrink-0 flex-wrap items-center gap-2 px-2 py-1.5", className)}>{children}</div></Surface>;
+export function WorkspaceCommandBar({ label, children, className, material = "floating" }: { label: string; children: Slot; className?: string; material?: "toolbar" | "floating" }): React.JSX.Element {
+  return <Surface asChild variant={material}><div data-workspace-layer="commands" role="group" aria-label={label} className={cn("flex shrink-0 flex-wrap items-center gap-2 rounded-full px-2 py-1.5", className)}>{children}</div></Surface>;
 }
 
 /** The stage owns available height. Inspectors and playback never stack above it. */

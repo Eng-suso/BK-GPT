@@ -75,7 +75,7 @@ export function DataTable<T>({
       Array.from({ length: skeletonRows }, (_, i) => (
         <TableRow key={`sk-${i}`} className="border-border/60">
           {columns.map((_, c) => (
-            <TableCell key={c} className="h-14 px-4">
+            <TableCell key={c} className="h-14 px-3">
               <Skeleton className="h-3 w-[60%]" />
             </TableCell>
           ))}
@@ -111,13 +111,13 @@ export function DataTable<T>({
                               ? "descending"
                               : "none"
                       }
-                      className="h-auto ui-surface-toolbar px-4 py-3 text-micro font-semibold tracking-[0.04em] text-muted-foreground uppercase"
+                      className="h-auto ui-surface-toolbar px-3 py-3 text-xs font-medium text-muted-foreground"
                     >
                       {canSort ? (
                         <button
                           type="button"
                           onClick={header.column.getToggleSortingHandler()}
-                          className="-mx-1 inline-flex items-center gap-1 rounded-sm px-1 py-0.5 uppercase select-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                          className="-mx-1 inline-flex items-center gap-1 rounded-sm px-1 py-0.5 select-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
                         >
                           {flexRender(
                             header.column.columnDef.header,
@@ -190,7 +190,7 @@ export function DataTable<T>({
                       <TableCell
                         key={cell.id}
                         className={cn(
-                          "h-14 px-4 text-body-sm text-muted-foreground",
+                          "h-14 px-3 text-body-sm text-muted-foreground",
                           ci === 0 &&
                             isSelected &&
                             "before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-primary before:content-['']",

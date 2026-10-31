@@ -1106,7 +1106,7 @@
       "center": "Center process",
       "applyFinalHeatmap": "Apply whole-run heatmap",
       "navigation": "Navigation",
-      "gestureHint": "Space + drag to pan; Ctrl/Cmd + wheel to zoom",
+      "gestureHint": "Wheel or trackpad: pan · Shift + wheel: pan horizontally · Ctrl/Cmd + wheel or trackpad pinch: zoom · Space + drag: move the workspace",
       "resizeCanvas": "Resize canvas area",
       "resizeInspector": "Resize details panel"
     },

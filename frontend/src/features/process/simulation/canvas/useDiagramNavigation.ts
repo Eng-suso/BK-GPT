@@ -1,5 +1,6 @@
 import React from "react";
 import { svc, type BpmnCanvas, type BpmnViewer } from "./bpmnViewer";
+import { normalizeCanvasWheel } from "../studio/canvasGeometry";
 
 const INTERACTIVE = "button,input,select,textarea,summary,a,[contenteditable=true],.sim-canvas-widget";
 
@@ -49,10 +50,10 @@ export function useDiagramNavigation(container: React.RefObject<HTMLDivElement |
       if (!service) return;
       event.preventDefault(); event.stopPropagation();
       const scale = scaling();
-      if (event.ctrlKey || event.metaKey) service.zoom(Math.max(0.2, Math.min(4, service.zoom() * Math.exp(-event.deltaY * 0.002))), { x: (event.clientX - scale.box.left) / scale.x, y: (event.clientY - scale.box.top) / scale.y });
+      const delta = normalizeCanvasWheel(event, { width: element.clientWidth, height: element.clientHeight });
+      if (event.ctrlKey || event.metaKey) service.zoom(Math.max(0.2, Math.min(4, service.zoom() * Math.exp(-delta.dy * 0.002))), { x: (event.clientX - scale.box.left) / scale.x, y: (event.clientY - scale.box.top) / scale.y });
       else {
-        const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientHeight : 1;
-        service.scroll({ dx: -(event.shiftKey ? event.deltaY : event.deltaX) * unit / scale.x, dy: event.shiftKey ? 0 : -event.deltaY * unit / scale.y });
+        service.scroll({ dx: -delta.dx / scale.x, dy: -delta.dy / scale.y });
       }
     };
     const key = (event: KeyboardEvent) => {

@@ -702,7 +702,9 @@
 .process-workspace--embedded { padding: 8px 12px 12px; }
 .process-bpmn-toolbar { min-height: 44px; padding: 6px 10px; gap: 8px; }
 .process-bpmn-stage { position: relative; }
-.process-canvas-navigation { position: absolute; bottom: 12px; right: 80px; z-index: 6; display: flex; align-items: center; gap: 2px; padding: 4px; }
+.process-canvas-navigation { position: absolute; bottom: 12px; right: 80px; z-index: 6; display: flex; align-items: center; gap: 2px; padding: 5px; border-radius: 999px; }
+.process-bpmn-toolbar.ui-surface { margin: 8px 10px; border-radius: 999px; border: 1px solid var(--material-edge); background: var(--material-floating); box-shadow: var(--glass-shadow); }
+.process-creation-tools:not(.process-creation-tools--expanded) { align-self: start; max-height: calc(100% - 16px); margin: 8px 3px; padding: 5px 3px; border: 1px solid var(--material-edge); border-radius: 24px; box-shadow: var(--glass-shadow); background: var(--material-floating); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
 .process-canvas-legend-popover { top: auto; bottom: calc(100% + 8px); }
 .process-canvas-legend-popover .process-bpmn-legend { border: 0; padding: 0; gap: 12px; }
 .process-document-details { z-index: 40; }
@@ -719,7 +721,14 @@
   .process-section-link { display: none; }
   .process-workspace--embedded { padding: 6px; }
   .process-canvas-navigation { right: 8px; bottom: 40px; }
-  .process-canvas-navigation > button:not([aria-label]) { display: none; }
+  .process-canvas-navigation { max-width: calc(100% - 16px); flex-wrap: wrap; justify-content: flex-end; }
+  .process-canvas-navigation [data-slot="button"] { min-width: 44px; min-height: 44px; }
+  /* Reading gets the whole canvas. Creation stays one tap away in the library. */
+  .process-bpmn-stage { grid-template-columns: minmax(0, 1fr); }
+  .process-creation-tools:not(.process-creation-tools--expanded) { position: absolute; z-index: 8; top: 8px; left: 8px; min-height: 44px; padding: 2px; border: 1px solid var(--material-divider); border-radius: var(--material-radius-control); box-shadow: var(--shadow-control); }
+  .process-creation-tools:not(.process-creation-tools--expanded) > :is(button, hr) { display: none; }
+  .process-library-toggle [data-slot="button"] { min-width: 40px; min-height: 40px; }
+  .process-library-entry { min-height: 44px; }
 }
 
 .process-studio-properties.ui-workspace-inspector { display: flex; margin-left: 12px; }
