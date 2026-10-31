@@ -209,20 +209,13 @@ app.include_router(chat_router)
 app.include_router(audio_router)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-FRONTEND_DIR = PROJECT_ROOT / "frontend"
-DIST_DIR = FRONTEND_DIR / "dist"
+#: Solo il build. Il sorgente (`frontend/src`) non si pubblica: in sviluppo lo
+#: serve Vite, e qui sarebbe stato codice leggibile da chiunque.
+DIST_DIR = PROJECT_ROOT / "frontend" / "dist"
+FRONTEND_INDEX = DIST_DIR / "index.html"
 
-if DIST_DIR.exists() and (DIST_DIR / "index.html").exists():
-    FRONTEND_INDEX = DIST_DIR / "index.html"
-    if (DIST_DIR / "assets").exists():
-        app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
-else:
-    FRONTEND_INDEX = FRONTEND_DIR / "index.html"
-
-if (FRONTEND_DIR / "styles").exists():
-    app.mount("/styles", StaticFiles(directory=FRONTEND_DIR / "styles"), name="styles")
-if (FRONTEND_DIR / "src").exists():
-    app.mount("/src", StaticFiles(directory=FRONTEND_DIR / "src"), name="src")
+if (DIST_DIR / "assets").is_dir():
+    app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
 
 
 @app.get("/health")
@@ -239,11 +232,6 @@ async def health():
     return {"status": "ok"}
 
 
-@app.get("/", include_in_schema=False)
-def frontend():
-    return FileResponse(FRONTEND_INDEX, headers={"Cache-Control": "no-store"})
-
-
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
     return Response(status_code=204)
@@ -251,7 +239,7 @@ def favicon():
 
 #: Il primo pezzo dei percorsi che non sono pagine: un `GET /v1/...` sbagliato
 #: deve ricevere il suo 404, non la pagina dell'app.
-NOT_PAGE_ROOTS = {"v1", "chat", "health", "docs", "redoc", "openapi.json", "assets", "src", "styles"}
+NOT_PAGE_ROOTS = {"v1", "chat", "health", "docs", "redoc", "openapi.json", "assets"}
 PAGE_HEADERS = {"Cache-Control": "no-store"}
 #: Il cruscotto che il consulente manda al suo cliente: il codice del link sta
 #: dopo `#`, e la pagina non deve passarlo a nessuno ne' finire in un indice.
@@ -301,7 +289,20 @@ async def frontend_page_fallback(request: Request, exc: StarletteHTTPException):
             headers = PAGE_HEADERS if built.suffix == ".html" else None
             return FileResponse(built, headers=headers)
         if is_app_page(path):
-            return FileResponse(FRONTEND_INDEX, headers=PAGE_HEADERS)
+            return app_page_response()
     return await default_http_exception_handler(request, exc)
+
+
+def app_page_response() -> Response:
+    """La pagina dell'app; senza build lo dice, invece di una pagina bianca."""
+    if FRONTEND_INDEX.is_file():
+        return FileResponse(FRONTEND_INDEX, headers=PAGE_HEADERS)
+    return JSONResponse(
+        status_code=404,
+        content={
+            "detail": "Frontend non compilato: esegui `npm run build`, "
+            "oppure apri l'app da Vite (`npm run dev`)."
+        },
+    )
 
 

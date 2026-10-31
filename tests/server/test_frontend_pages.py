@@ -103,3 +103,34 @@ def test_a_path_cannot_leave_the_build_folder(client: TestClient, built_frontend
 
     assert response.status_code == 404
     assert "suso-gpt" not in response.text
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/src/lib/security.ts", "/src/main.tsx", "/styles/tokens/primitive.css", "/index.html"],
+)
+def test_the_source_code_of_the_frontend_is_not_published(client: TestClient, path: str):
+    """Il backend pubblicava `frontend/src`: chiunque leggeva il codice, autenticazione compresa.
+
+    Serviva a un `index.html` sorgente che carica TypeScript grezzo, cioe' a una
+    pagina bianca: in sviluppo quei file li serve Vite. Senza build (`dist`) non
+    c'e' nessuna pagina da servire.
+    """
+    if (app_module.DIST_DIR / "index.html").is_file() and path == "/index.html":
+        pytest.skip("con un build presente /index.html e' la pagina dell'app")
+    response = client.get(path)
+
+    assert response.status_code == 404
+    assert "import" not in response.text
+
+
+def test_without_a_build_a_page_says_so_instead_of_a_blank_screen(
+    client: TestClient, tmp_path: Path, monkeypatch
+):
+    monkeypatch.setattr(app_module, "DIST_DIR", tmp_path / "dist")
+    monkeypatch.setattr(app_module, "FRONTEND_INDEX", tmp_path / "dist" / "index.html")
+
+    for path in ("/", "/projects"):
+        response = client.get(path)
+        assert response.status_code == 404
+        assert "npm run build" in response.json()["detail"]
