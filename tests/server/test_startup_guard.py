@@ -70,3 +70,35 @@ def test_a_declared_environment_with_authentication_starts(monkeypatch):
     monkeypatch.setattr(settings, "delir_api_token", "un-token-vero")
 
     assert assert_environment_is_defensible() == "guarded"
+
+
+@pytest.mark.parametrize("environment", ["prod", "staging", "produzione"])
+def test_a_real_environment_does_not_publish_the_map_of_its_api(monkeypatch, environment):
+    """`/docs` e `/openapi.json` elencano ogni rotta coi suoi parametri.
+
+    In sviluppo servono; su internet sono la mappa per chi cerca da dove entrare.
+    """
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from backend.app import api_docs_settings
+
+    monkeypatch.setattr(settings, "delir_environment", environment)
+    client = TestClient(FastAPI(**api_docs_settings()))
+
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert client.get(path).status_code == 404
+
+
+@pytest.mark.parametrize("environment", ["dev", "local", "test"])
+def test_a_development_machine_keeps_the_api_docs(monkeypatch, environment):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from backend.app import api_docs_settings
+
+    monkeypatch.setattr(settings, "delir_environment", environment)
+    client = TestClient(FastAPI(**api_docs_settings()))
+
+    assert client.get("/docs").status_code == 200
+    assert client.get("/openapi.json").status_code == 200

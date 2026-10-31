@@ -6,7 +6,7 @@ import { Button } from "@/ui/button";
 import { Checkbox } from "@/ui/checkbox";
 import { Input } from "@/ui/input";
 
-import { Clock, Day } from "./ArrivalBands";
+import { Clock, Day } from "./ArrivalBandsPanel";
 import { MAX_PERCENT, MAX_WINDOWS, MIN_PERCENT, durationWindowIssues, newDurationWindow, type DurationWindowDraft } from "./durationWindows";
 import type { TaskDraft } from "./simulationScenario";
 

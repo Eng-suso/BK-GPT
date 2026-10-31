@@ -8,7 +8,9 @@ from typing import Literal
 
 from anyio import to_thread
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler as default_http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from backend.api.errors import setup_api_error_handlers
@@ -144,7 +146,20 @@ async def lifespan(_app: FastAPI):
             pass
 
 
-app = FastAPI(lifespan=lifespan)
+def api_docs_settings() -> dict[str, str | None]:
+    """`/docs`, `/redoc` e `/openapi.json` solo dove partire aperti e' lecito.
+
+    Elencano ogni rotta coi suoi parametri: in sviluppo servono, su internet
+    sono la mappa per chi cerca da dove entrare. Lo schema resta disponibile al
+    codice (`app.openapi()`, usato da `scripts/dump_openapi.py`).
+    """
+    environment = (settings.delir_environment or "dev").strip().lower()
+    if environment in OPEN_ENVIRONMENTS:
+        return {}
+    return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+
+
+app = FastAPI(lifespan=lifespan, **api_docs_settings())
 setup_api_error_handlers(app)
 
 
@@ -207,20 +222,13 @@ app.include_router(chat_router)
 app.include_router(audio_router)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-FRONTEND_DIR = PROJECT_ROOT / "frontend"
-DIST_DIR = FRONTEND_DIR / "dist"
+#: Solo il build. Il sorgente (`frontend/src`) non si pubblica: in sviluppo lo
+#: serve Vite, e qui sarebbe stato codice leggibile da chiunque.
+DIST_DIR = PROJECT_ROOT / "frontend" / "dist"
+FRONTEND_INDEX = DIST_DIR / "index.html"
 
-if DIST_DIR.exists() and (DIST_DIR / "index.html").exists():
-    FRONTEND_INDEX = DIST_DIR / "index.html"
-    if (DIST_DIR / "assets").exists():
-        app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
-else:
-    FRONTEND_INDEX = FRONTEND_DIR / "index.html"
-
-if (FRONTEND_DIR / "styles").exists():
-    app.mount("/styles", StaticFiles(directory=FRONTEND_DIR / "styles"), name="styles")
-if (FRONTEND_DIR / "src").exists():
-    app.mount("/src", StaticFiles(directory=FRONTEND_DIR / "src"), name="src")
+if (DIST_DIR / "assets").is_dir():
+    app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
 
 
 @app.get("/health")
@@ -237,13 +245,77 @@ async def health():
     return {"status": "ok"}
 
 
-@app.get("/", include_in_schema=False)
-def frontend():
-    return FileResponse(FRONTEND_INDEX, headers={"Cache-Control": "no-store"})
-
-
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
     return Response(status_code=204)
+
+
+#: Il primo pezzo dei percorsi che non sono pagine: un `GET /v1/...` sbagliato
+#: deve ricevere il suo 404, non la pagina dell'app.
+NOT_PAGE_ROOTS = {"v1", "chat", "health", "docs", "redoc", "openapi.json", "assets"}
+PAGE_HEADERS = {"Cache-Control": "no-store"}
+#: Il cruscotto che il consulente manda al suo cliente: il codice del link sta
+#: dopo `#`, e la pagina non deve passarlo a nessuno ne' finire in un indice.
+SHARE_PAGE_HEADERS = {
+    "Cache-Control": "no-store",
+    "Referrer-Policy": "no-referrer",
+    "X-Robots-Tag": "noindex, nofollow",
+}
+
+
+def built_frontend_file(path: str) -> Path | None:
+    """Un file del build (`share.html`, `favicon.svg`, ...), mai fuori dalla sua cartella."""
+    if not DIST_DIR.is_dir():
+        return None
+    root = DIST_DIR.resolve()
+    candidate = (root / path.lstrip("/")).resolve()
+    if root not in candidate.parents or not candidate.is_file():
+        return None
+    return candidate
+
+
+def is_app_page(path: str) -> bool:
+    """`/projects/abc` e' una pagina di React; `/v1/...` e `/x.js` non lo sono."""
+    parts = [part for part in path.split("/") if part]
+    if not parts:
+        return True
+    return parts[0] not in NOT_PAGE_ROOTS and "." not in parts[-1]
+
+
+@app.exception_handler(StarletteHTTPException)
+async def frontend_page_fallback(request: Request, exc: StarletteHTTPException):
+    """Le pagine dell'app si aprono anche dopo un refresh o da un link salvato.
+
+    In sviluppo ci pensa Vite. In produzione le serve il backend, che conosceva
+    solo `/`: ogni altra pagina dava 404, e il link del cruscotto per il
+    cliente (`/share.html#codice`) non si apriva. Qui arrivano solo i 404 di
+    instradamento - nessuna rotta corrisponde - di un `GET`; le API che dicono
+    "non trovato" da sole passano dal gestore di `backend.api.errors`, e ogni
+    altro caso riceve la risposta di sempre.
+    """
+    if exc.status_code == 404 and request.method in {"GET", "HEAD"}:
+        path = request.url.path
+        built = built_frontend_file(path)
+        if built is not None:
+            if built.name == "share.html":
+                return FileResponse(built, headers=SHARE_PAGE_HEADERS)
+            headers = PAGE_HEADERS if built.suffix == ".html" else None
+            return FileResponse(built, headers=headers)
+        if is_app_page(path):
+            return app_page_response()
+    return await default_http_exception_handler(request, exc)
+
+
+def app_page_response() -> Response:
+    """La pagina dell'app; senza build lo dice, invece di una pagina bianca."""
+    if FRONTEND_INDEX.is_file():
+        return FileResponse(FRONTEND_INDEX, headers=PAGE_HEADERS)
+    return JSONResponse(
+        status_code=404,
+        content={
+            "detail": "Frontend non compilato: esegui `npm run build`, "
+            "oppure apri l'app da Vite (`npm run dev`)."
+        },
+    )
 
 
