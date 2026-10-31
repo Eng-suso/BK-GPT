@@ -77,6 +77,14 @@ def test_the_extractor_maps_the_golden_case(case):
     assert extraction.process is not None, (
         f"{case.case_id}: nessun piano estratto ({'; '.join(extraction.failures)})"
     )
+    # Il piano si salva prima di compilarlo: e' l'unica parte che costa chiamate.
+    # Se il compilatore si rompe su un piano vero, il caso si riproduce offline
+    # da qui, senza ripagare l'estrazione.
+    REPORTS.mkdir(parents=True, exist_ok=True)
+    (REPORTS / f"{case.case_id}.plan.json").write_text(
+        json.dumps(extraction.process.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
     model = build_bpmn_semantic_model(
         process_id=f"Process_{case.case_id}",

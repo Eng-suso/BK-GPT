@@ -31,8 +31,8 @@ finito si spunta li', con il numero della PR.
 
 | # | lavoro | stato | sblocca chi |
 | --- | --- | --- | --- |
-| 1 | Chiave del modello dei test su GitHub e nel `.env` | **bloccato** | Sohayb: secret `DELIR_TEST_LLM_API_KEY`, variabili `DELIR_TEST_LLM_BASE_URL` e `DELIR_TEST_LLM_MODEL` |
-| 2 | Primo run del golden notturno sul modello dei test, e verifica che l'estrattore regga l'output strutturato su Gemini | dopo 1 | `gh workflow run golden-eval.yml` |
+| 1 | Chiave del modello dei test su GitHub e nel `.env` | secret e `.env` fatti il 31/10; **mancano le variabili** | Sohayb: variabili `DELIR_TEST_LLM_BASE_URL` e `DELIR_TEST_LLM_MODEL` |
+| 2 | Primo run del golden notturno sul modello dei test, e verifica che l'estrattore regga l'output strutturato su Gemini | **in locale fatto il 31/10** (sotto); in CI dopo 1 | `gh workflow run golden-eval.yml` |
 | 3 | Firma delle etichette (golden set + calibrazione) | **bloccato** | un consulente, o Sohayb, sul doc di revisione |
 | 4 | Dopo la firma: `status` a `validated` nei tre file, baseline da `tests/golden/reports/`, il giudice diventa gate (kappa >= 0.6) | dopo 2 e 3 | - |
 | 5 | Runner L3: far girare l'agente di processo sulle 3 traiettorie col modello dei test | dopo 1 | - |
@@ -42,6 +42,31 @@ finito si spunta li', con il numero della PR.
 | 9 | Security L3: Promptfoo red team | libero | - |
 
 Il primo lavoro libero, senza chiavi ne' decisioni, e' il 9.
+
+## Primo golden col modello vero (31/10/2026)
+
+In locale, `gemini-3.5-flash-lite`, riferimenti ancora `draft_da_validare`
+(misurati, non gate). Il primo Q_sem di DeliR:
+
+| caso | Q_val | Q_syn | Q_prag | Q_sem | Q_total |
+| --- | --- | --- | --- | --- | --- |
+| Esaote ciclo passivo | 1.00 | 0.79 | 0.82 | **0.20** | 0.70 |
+| Facility segnalazioni guasti | 1.00 | 0.72 | 0.82 | **0.27** | 0.70 |
+
+Per arrivarci sono servite tre correzioni, ognuna trovata dal golden stesso:
+
+1. Gemini rifiutava con un 400 lo schema del piano: il gateway ora ripiega su
+   JSON libero validato da pydantic, con qualunque provider;
+2. un'etichetta di gateway posata sulla porta di un data object murava la
+   porta, e il layout falliva ("Nessun percorso ortogonale"); in piu' il
+   ripiego a griglia del router impiegava 187 s su Facility, ora 15 s con
+   output identico;
+3. un message flow da un passo al pool che lo contiene (vietato in BPMN) non
+   si poteva disegnare: il compilatore lo scarta con un avviso.
+
+I tre piani estratti sono in `tests/fixtures/extracted_plans/` e girano in CI.
+Q_sem basso con un modello lite non dice ancora se il limite e' l'estrattore o
+il modello: il confronto utile e' lo stesso golden con un modello piu' forte.
 
 ## Regole di lavoro
 

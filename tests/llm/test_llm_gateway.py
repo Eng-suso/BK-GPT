@@ -271,6 +271,189 @@ class TestLeChiamateStrutturateSonoQuasiTutte:
         assert evento["tokens"].input == 500, "il fornitore ha risposto, e va pagato"
 
 
+def _bad_request(message: str = "Request contains an invalid argument.") -> Exception:
+    import httpx
+    import openai
+
+    response = httpx.Response(400, request=httpx.Request("POST", "http://provider.test/v1"))
+    return openai.BadRequestError(message, response=response, body=None)
+
+
+class _TextMessage(_FakeMessage):
+    def __init__(self, content: str, **kwargs):
+        super().__init__(**kwargs)
+        self.content = content
+
+
+@pytest.fixture()
+def any_provider(monkeypatch, con_chiave):
+    """Un provider compatibile OpenAI che non e' OpenAI.
+
+    `native` decide cosa succede con lo schema nativo (`with_structured_output`):
+    un'eccezione da alzare o una risposta. `free` e' la coda delle risposte in
+    JSON libero; `json_object` dice se il provider accetta quel `response_format`.
+    """
+    from backend.llm.gateway import reset_structured_output_memory
+
+    reset_structured_output_memory()
+    state: dict = {
+        "native": _bad_request(),
+        "free": [],
+        "json_object": True,
+        "native_calls": 0,
+        "free_calls": [],
+    }
+
+    class _Runnable:
+        def __init__(self, mode: str):
+            self.mode = mode
+
+        def stream(self, conversation, **_kwargs):
+            if self.mode == "native":
+                state["native_calls"] += 1
+                if isinstance(state["native"], BaseException):
+                    raise state["native"]
+                yield state["native"]
+                return
+            if self.mode == "json_object" and not state["json_object"]:
+                raise _bad_request("response_format json_object non supportato")
+            state["free_calls"].append({"mode": self.mode, "conversation": list(conversation)})
+            yield state["free"].pop(0)
+
+    class _Client(_Runnable):
+        def __init__(self):
+            super().__init__("text")
+
+        def bind(self, **kwargs):
+            assert kwargs == {"response_format": {"type": "json_object"}}
+            return _Runnable("json_object")
+
+        def with_structured_output(self, _schema, include_raw=False):
+            assert include_raw is True
+            return _Runnable("native")
+
+    client = _Client()
+    monkeypatch.setattr("backend.llm.gateway._client", lambda *_a, **_k: client)
+    yield state
+    reset_structured_output_memory()
+
+
+class TestLoSchemaRegeConQualunqueProvider:
+    """Il modello dei test cambia provider a ogni chiave: l'estrazione non deve accorgersene."""
+
+    def test_uno_schema_rifiutato_ripiega_sul_json_libero(self, any_provider, ledger):
+        any_provider["free"] = [_TextMessage('{"answer": "si"}', input_tokens=300, output_tokens=9)]
+
+        with operation(OperationKind.CONFORMANCE_AUDIT):
+            verdetto = run(task=LlmTask.CONFORMANCE_AUDIT, messages=[], output=_Verdict)
+
+        assert verdetto == _Verdict(answer="si")
+        assert [riga["outcome"] for riga in ledger] == [Outcome.ERROR, Outcome.OK], (
+            "il 400 e la chiamata buona sono due righe: il registro dice anche il tentativo"
+        )
+        assert ledger[0]["error_kind"] == "BadRequestError"
+        assert ledger[1]["tokens"].input == 300
+        istruzione = any_provider["free_calls"][0]["conversation"][-1].content
+        assert '"answer"' in istruzione, "lo schema viaggia nel prompt, non nel response_format"
+
+    def test_il_rifiuto_si_paga_una_volta_per_provider(self, any_provider, ledger):
+        any_provider["free"] = [_TextMessage('{"answer": "a"}'), _TextMessage('{"answer": "b"}')]
+
+        with operation(OperationKind.CONFORMANCE_AUDIT):
+            run(task=LlmTask.CONFORMANCE_AUDIT, messages=[], output=_Verdict)
+            secondo = run(task=LlmTask.CONFORMANCE_AUDIT, messages=[], output=_Verdict)
+
+        assert secondo.answer == "b"
+        assert any_provider["native_calls"] == 1, "il secondo compito va diritto al JSON libero"
+
+    def test_un_provider_che_rispetta_lo_schema_non_cambia_strada(self, any_provider, ledger):
+        any_provider["native"] = {"raw": _FakeMessage(), "parsed": _Verdict(answer="si"), "parsing_error": None}
+
+        with operation(OperationKind.CONFORMANCE_AUDIT):
+            run(task=LlmTask.CONFORMANCE_AUDIT, messages=[], output=_Verdict)
+            run(task=LlmTask.CONFORMANCE_AUDIT, messages=[], output=_Verdict)
+
+        assert any_provider["native_calls"] == 2
+        assert any_provider["free_calls"] == [], "OpenAI in produzione resta sullo schema nativo"
+
+    def test_un_json_sbagliato_torna_indietro_una_volta_con_l_errore(self, any_provider, ledger):
+        any_provider["free"] = [_TextMessage('{"risposta": "si"}'), _TextMessage('{"answer": "si"}')]
+
+        with operation(OperationKind.CONFORMANCE_AUDIT):
+            verdetto = run(task=LlmTask.CONFORMANCE_AUDIT, messages=[], output=_Verdict)
+
+        assert verdetto.answer == "si"
+        correzione = any_provider["free_calls"][1]["conversation"]
+        assert correzione[-2].content == '{"risposta": "si"}', "il modello rivede cosa ha scritto"
+        assert "answer" in correzione[-1].content, "e l'errore dice quale campo manca"
+        assert [riga.get("error_kind") for riga in ledger] == [
+            "BadRequestError",
+            "invalid_structured_output",
+            None,
+        ]
+
+    def test_due_json_sbagliati_di_fila_sono_un_errore(self, any_provider, ledger):
+        from pydantic import ValidationError
+
+        any_provider["free"] = [_TextMessage("{}"), _TextMessage("non e' json")]
+
+        with operation(OperationKind.CONFORMANCE_AUDIT):
+            with pytest.raises(ValidationError):
+                run(task=LlmTask.CONFORMANCE_AUDIT, messages=[], output=_Verdict)
+
+        assert len(any_provider["free_calls"]) == 2, "una sola correzione, non un ciclo"
+
+    def test_il_json_dentro_un_blocco_di_codice_si_legge(self, any_provider, ledger):
+        any_provider["free"] = [_TextMessage('Ecco:\n```json\n{"answer": "si"}\n```')]
+
+        with operation(OperationKind.CONFORMANCE_AUDIT):
+            assert run(task=LlmTask.CONFORMANCE_AUDIT, messages=[], output=_Verdict).answer == "si"
+
+    def test_senza_json_object_resta_il_testo(self, any_provider, ledger):
+        any_provider["json_object"] = False
+        any_provider["free"] = [_TextMessage('{"answer": "si"}')]
+
+        with operation(OperationKind.CONFORMANCE_AUDIT):
+            assert run(task=LlmTask.CONFORMANCE_AUDIT, messages=[], output=_Verdict).answer == "si"
+
+        assert any_provider["free_calls"][0]["mode"] == "text"
+
+    def test_un_400_che_non_e_lo_schema_non_inquina_il_ricordo(self, any_provider, ledger):
+        any_provider["json_object"] = False
+        any_provider["free"] = _ExplodingQueue(_bad_request("context length exceeded"))
+
+        with operation(OperationKind.CONFORMANCE_AUDIT):
+            with pytest.raises(Exception, match="context length"):
+                run(task=LlmTask.CONFORMANCE_AUDIT, messages=[], output=_Verdict)
+
+        from backend.llm import gateway
+
+        assert gateway._NATIVE_SCHEMA_REJECTED == set(), (
+            "se nemmeno il JSON libero passa, il 400 non era lo schema: si riprova nativo"
+        )
+
+    def test_un_prompt_non_in_lista_riceve_comunque_lo_schema(self, any_provider, ledger):
+        any_provider["free"] = [_TextMessage('{"answer": "si"}')]
+
+        with operation(OperationKind.CONFORMANCE_AUDIT):
+            run(task=LlmTask.CONFORMANCE_AUDIT, messages="valuta questo", output=_Verdict)
+
+        conversazione = any_provider["free_calls"][0]["conversation"]
+        assert conversazione[0].content == "valuta questo"
+        assert '"answer"' in conversazione[-1].content
+
+
+class _ExplodingQueue(list):
+    """Una coda di risposte che alza al primo pop: il provider rifiuta anche il testo."""
+
+    def __init__(self, exc: Exception):
+        super().__init__()
+        self.exc = exc
+
+    def pop(self, *_args):
+        raise self.exc
+
+
 class TestIlRegistroDeiCompiti:
     def test_ogni_compito_ha_un_profilo(self):
         """Un default silenzioso rimetterebbe in piedi il `medium` per tutto."""
