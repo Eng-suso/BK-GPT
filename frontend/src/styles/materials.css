@@ -199,7 +199,6 @@
   }
   @media (prefers-reduced-transparency: reduce) {
     .ui-surface, .ui-field, .app-chrome, .app-product-content > main { background: var(--color-surface-primary); }
-    .app-sidebar, .app-topbar { -webkit-backdrop-filter: none; backdrop-filter: none; }
     .ui-surface-framed::before { background: var(--color-surface-secondary); }
     .ui-surface-floating, .ui-dialog-scrim, .app-sidebar, .app-topbar { backdrop-filter: none; -webkit-backdrop-filter: none; }
   }
@@ -212,7 +211,7 @@
       background: Canvas;
       box-shadow: none;
     }
-    .ui-surface-floating, .ui-dialog-scrim { backdrop-filter: none; -webkit-backdrop-filter: none; }
+    .ui-surface-floating, .ui-dialog-scrim, .app-sidebar, .app-topbar { backdrop-filter: none; -webkit-backdrop-filter: none; }
     .ui-nav-item[aria-current="page"],
     .ui-segmented [data-state="active"] { outline: 2px solid Highlight; outline-offset: -2px; }
     .ui-button, .ui-field { color: ButtonText; border-color: ButtonText; }

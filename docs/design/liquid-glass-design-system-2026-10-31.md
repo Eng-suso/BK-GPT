@@ -80,6 +80,30 @@ chat e canvas superati (assenza di errori JavaScript e overflow del documento,
 nessuna violazione axe seria/critica; focus tastiera e libreria mobile).
 61 test mirati superati in 11 file. Non è una certificazione WCAG completa.
 
+Verifica estesa: 18 superfici per 2 viewport, senza errori JavaScript, fallimenti
+HTTP o overflow del documento; 20 scansioni axe aggiuntive senza violazioni.
+Il percorso da cliente a progetto, chat, canvas, review, simulazione e consegna
+è stato percorso tramite i comandi reali dell'interfaccia, senza mutazioni.
+
+## Anteprime del design system applicato
+
+![Home: chrome flottante e capsule](previews/liquid-home-desktop.png)
+
+![Progetti: stessi materiali, filtri e pulsanti](previews/liquid-projects-desktop.png)
+
+La tabella condivisa usa intestazioni in forma normale e padding compatto:
+la colonna finale resta interamente visibile a 1440 px nonostante il nuovo
+inset della shell. Su mobile conserva lo scorrimento orizzontale accessibile.
+
+| Area | Anteprima |
+| --- | --- |
+| Progetto | [Desktop](previews/liquid-project-detail-desktop.png) |
+| Chat | [Mobile](previews/liquid-chat-mobile.png) |
+| Canvas | [Desktop](previews/liquid-canvas-desktop.png) |
+| Review | [Desktop](previews/liquid-review-desktop.png) |
+| Simulazione | [Desktop](previews/liquid-simulation-desktop.png) |
+| Consegna | [Mobile](previews/liquid-handover-mobile.png) |
+
 Le scelte seguono [Apple HIG: materiali](https://developer.apple.com/design/human-interface-guidelines/materials),
 [colore](https://developer.apple.com/design/human-interface-guidelines/color),
 [feedback](https://developer.apple.com/design/human-interface-guidelines/feedback)
