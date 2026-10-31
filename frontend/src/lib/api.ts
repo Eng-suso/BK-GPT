@@ -1,8 +1,5 @@
 const win = window as unknown as Record<string, string | undefined>;
-const configuredApiBase =
-  win.DELIR_API_BASE ||
-  win.SUSO_API_BASE ||
-  import.meta.env.VITE_API_BASE_URL;
+const configuredApiBase = win.DELIR_API_BASE || import.meta.env.VITE_API_BASE_URL;
 
 const LOCAL_BACKEND = "http://127.0.0.1:8000";
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost"]);
