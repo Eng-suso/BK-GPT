@@ -54,7 +54,7 @@ function formatClock(iso: string | undefined, locale: string): string {
 }
 
 const META_LABEL_CLASS =
-  "text-micro font-semibold uppercase tracking-[0.04em] text-muted-foreground";
+  "text-xs font-medium text-muted-foreground";
 
 function ActivityIcon({ icon, running }: { icon?: string; running: boolean }) {
   const className = cn("size-3.5 flex-none", running ? "text-primary" : "text-muted-foreground");
@@ -280,7 +280,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </span>
           ) : null}
           {hasBody ? (
-            <div className="ml-auto flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100">
+            <div className="message-actions ml-auto flex items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/msg:opacity-100 motion-reduce:transition-none">
               <Button
                 type="button"
                 variant="ghost"

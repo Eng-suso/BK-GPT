@@ -36,14 +36,14 @@ export function ListToolbar({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <div className="flex h-8 w-52 items-center gap-2 ui-field rounded-full px-2.5 text-muted-foreground">
+      <div className="ui-field flex h-9 w-full items-center gap-2 rounded-full px-3 text-muted-foreground sm:w-60">
         <Search className="size-3.5" />
         <input
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
-          className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
+          className="min-w-0 w-full bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground sm:text-body-sm"
         />
       </div>
 
@@ -81,7 +81,7 @@ function FilterMenu({ filter }: { filter: ListFilterMenu }): React.JSX.Element {
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          "inline-flex h-8 items-center gap-1.5 rounded-lg border ui-button-glass px-2.5 text-xs font-medium shadow-control transition-colors outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted/40",
+          "inline-flex min-h-9 items-center gap-1.5 rounded-full border ui-button-glass px-3 text-body-sm font-medium transition-colors duration-150 outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted/40 motion-reduce:transition-none",
           active
             ? "border-primary/40 text-foreground"
             : "border-border text-muted-foreground",
@@ -96,7 +96,7 @@ function FilterMenu({ filter }: { filter: ListFilterMenu }): React.JSX.Element {
         <ChevronDown className="size-3 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="max-h-72 w-56">
-        <DropdownMenuLabel className="text-micro font-semibold tracking-[0.04em] text-muted-foreground uppercase">
+        <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
           {filter.label}
         </DropdownMenuLabel>
         {filter.options.length === 0 ? (

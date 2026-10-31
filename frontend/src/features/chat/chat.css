@@ -157,13 +157,10 @@
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--material-divider);
   border-radius: 18px 18px 6px 18px;
-  background-color: var(--material-panel);
-  background-image: var(--glass-sheen);
-  box-shadow: var(--glass-shadow);
-  -webkit-backdrop-filter: blur(12px) saturate(1.35);
-  backdrop-filter: blur(12px) saturate(1.35);
+  background: var(--material-inset);
+  box-shadow: none;
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -284,30 +281,25 @@
   width: min(100%, var(--chat-measure));
   margin-inline: auto;
   background: var(--material-panel);
-  border: 1px solid var(--material-edge);
+  border: 1px solid var(--material-control-edge);
   border-radius: var(--material-radius-frame);
-  padding: var(--space-400);
-  box-shadow: var(--material-shadow);
+  padding: var(--space-300);
+  box-shadow: var(--composer-shadow);
   display: flex;
   flex-direction: column;
-  gap: var(--space-400);
+  gap: var(--space-200);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .composer-box:focus-within {
-  border-color: var(--material-edge);
-  outline: 2px solid color-mix(in srgb, var(--color-border-selected) 70%, transparent);
-  outline-offset: 6px;
-  box-shadow: var(--material-shadow);
+  border-color: var(--primary);
+  box-shadow: var(--composer-shadow-focus);
 }
 
 .composer-bottom-bar {
   display: flex;
-  /* Allegati, postura e ragionamento a sinistra, autonomia e invio a destra:
-     quando non stanno su una riga la barra va a capo invece di sovrapporre i
-     controlli (a 390px il ragionamento finiva sotto l'autonomia). */
-  flex-wrap: wrap;
-  align-items: flex-end;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-300);
   padding-top: var(--space-100);
@@ -315,22 +307,35 @@
 
 .composer-actions {
   display: flex;
-  align-items: flex-end;
-  gap: var(--space-200);
+  align-items: center;
+  gap: var(--space-100);
   margin-left: auto;
+  min-width: 0;
 }
 
 .composer-submit-control {
-  width: 5.5rem;
-  min-width: 5.5rem;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--radius-circular);
+  box-shadow: none;
+}
+.composer-submit-control svg { width: 18px; height: 18px; }
+.composer-agent-stop svg { width: 14px; height: 14px; fill: currentColor; }
+.composer-submit-control:disabled {
+  color: var(--color-text-disabled);
+  background: var(--color-surface-disabled);
+  border-color: var(--material-divider);
 }
 
 .composer-bottom-left {
   display: flex;
   align-items: center;
-  gap: var(--space-200);
+  gap: var(--space-100);
   min-width: 0;
 }
+.composer-preferences { display: flex; align-items: center; min-width: 0; gap: var(--space-50); }
 
 /* "+" — la porta di ingresso degli allegati. Tonda e neutra: e' un contenitore
    di azioni secondarie, non compete con Invia. */
@@ -339,12 +344,21 @@
   flex: none;
   border-radius: 999px;
   color: var(--color-text-secondary);
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  box-shadow: none;
+  transition: color 150ms ease, background-color 150ms ease;
 }
 
 .composer-add:hover:not(:disabled),
 .composer-mic:hover:not(:disabled) {
   color: var(--color-text-primary);
+  background: var(--material-inset);
 }
+.composer-add:active:not(:disabled), .composer-mic:active:not(:disabled) { background: var(--color-action-secondary-active); }
+.composer-add:focus-visible, .composer-mic:focus-visible, .composer-submit-control:focus-visible, .composer-stop:focus-visible, .chat-mode-trigger:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* Il gruppo "+ / microfono" e' un blocco solo, staccato dalla modalita'. */
 .composer-add + .composer-mic {
@@ -391,7 +405,7 @@
   max-width: 100%;
   padding: var(--space-100) var(--space-100) var(--space-100) var(--space-200);
   border: var(--border-width-100) solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--material-radius-control);
   background: var(--color-surface-app);
   color: var(--color-text-primary);
   font-size: var(--font-size-100);
@@ -570,14 +584,13 @@
   font-size: var(--font-size-100);
 }
 
-/* Modalita' di lavoro: la barra mostra quella attiva, il menu porta le altre
-   con la spiegazione di cosa cambia. Un solo controllo invece di tre. */
+/* Work preferences show their selected state without competing with Send. */
 .chat-mode-trigger {
   flex: none;
   gap: var(--space-100);
   min-width: 0;
   padding-inline: var(--space-200);
-  border-radius: 999px;
+  border-radius: var(--material-radius-control);
   color: var(--color-text-secondary);
   /* Piu' piccola del testo del messaggio e di Invia: e' un'impostazione della
      riga, non un'azione da eseguire. */
@@ -605,10 +618,16 @@
 .chat-mode-trigger-caret {
   opacity: 0.6;
 }
+.chat-mode-trigger:active:not(:disabled) { background: var(--color-action-secondary-active); }
+.composer-add:disabled, .composer-mic:disabled, .chat-mode-trigger:disabled {
+  color: var(--color-text-disabled);
+  background: transparent;
+  opacity: 0.7;
+}
 
 .chat-mode-menu {
   width: 320px;
-  max-width: min(320px, calc(100vw - var(--space-500)));
+  max-width: min(320px, calc(100vw - var(--space-600)));
 }
 
 .chat-mode-item {
@@ -702,25 +721,21 @@
   box-shadow: var(--shadow-card);
 }
 
-/* Su composer stretto resta l'icona: dice comunque quale modalita' e' attiva,
-   e il nome accessibile del bottone la nomina per esteso. */
-@container composer-wrap (max-width: 420px) {
-  .chat-mode-trigger-label {
-    display: none;
-  }
-}
-
-/* Ultima cosa a cedere: l'etichetta di Invia. La freccia resta, e il nome
-   accessibile e' comunque sul bottone. */
-@container composer-wrap (max-width: 320px) {
-  .composer-submit-control {
-    min-width: 2rem;
-    width: 2rem;
-  }
-
-  .composer-actions .btn-send span {
-    display: none;
-  }
+/* A dedicated preferences row keeps the primary action in one predictable
+   place on narrow canvases. Autonomy always keeps its written state. */
+@container composer-wrap (max-width: 640px) {
+  .composer-bottom-bar { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: var(--space-100); }
+  .composer-bottom-left { display: contents; }
+  .composer-preferences { grid-column: 1 / -1; grid-row: 1; padding-bottom: var(--space-100); border-bottom: 1px solid var(--material-divider); }
+  .composer-preferences .chat-mode-trigger { min-width: 0; max-width: none; flex: 1 1 0; justify-content: flex-start; }
+  .composer-add { grid-row: 2; }
+  .composer-actions { grid-column: 2; grid-row: 2; width: 100%; justify-content: flex-end; }
+  .composer-add, .composer-mic, .composer-submit-control { width: 40px; min-width: 40px; height: 40px; }
+  .chat-autonomy-trigger { min-width: 0; max-width: none; flex: 1; justify-content: flex-end; }
+  .chat-autonomy-trigger .chat-mode-trigger-label { display: inline; }
+  .chat-autonomy-trigger .chat-mode-trigger-caret { display: none; }
+  .composer-stop { padding-inline: var(--space-200); min-height: 40px; gap: var(--space-100); }
+  .composer-recording-stop-label { display: none; }
 }
 
 /* ── Icons inside the chat surfaces (scoped, not global) ────── */
@@ -2423,7 +2438,12 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
 }
 .viewport .messages { padding-block: 20px; }
 .embedded-chat-panel .message-list { max-width: var(--chat-measure); }
-.embedded-chat-panel .composer-box { width: min(100%, var(--chat-measure)); }
+.embedded-chat-panel .composer-wrap .composer-box.ui-surface-framed {
+  width: min(100%, var(--chat-measure));
+  padding: var(--space-300);
+  box-shadow: var(--composer-shadow);
+}
+.embedded-chat-panel .composer-wrap .composer-box.ui-surface-framed:focus-within { box-shadow: var(--composer-shadow-focus); }
 .composer-wrap textarea { max-height: min(180px, 24dvh); }
 .chat-mode-trigger { min-height: 32px; }
 .chat-history-dialog .sidebar {
@@ -2442,13 +2462,23 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   overflow-y: auto;
   box-shadow: none;
 }
-/* Su composer stretto: target piu' generosi al tocco e testo a 16px per non
-   far zoomare iOS. Se i controlli non stanno su una riga, la barra va a capo
-   (vedi `.composer-bottom-bar`). */
+/* Narrow surfaces keep the two deliberate control rows and readable input. */
+@media (hover: none), (pointer: coarse) {
+  .message-actions { opacity: 1; }
+  .message-actions [data-slot="button"] { min-width: 40px; min-height: 40px; }
+}
 @container composer-wrap (max-width: 640px) {
   .composer-bottom-bar { gap: var(--space-200); }
-  .chat-mode-trigger { min-height: 32px; }
+  .chat-mode-trigger { min-height: 40px; }
   .composer-wrap textarea { font-size: var(--font-size-400); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer-box, .composer-add, .composer-mic, .composer-submit-control, .chat-mode-trigger { transition: none; }
+}
+@media (forced-colors: active) {
+  .composer-box, .embedded-chat-panel .composer-wrap .composer-box.ui-surface-framed, .user-message-glass { background: Canvas; border-color: CanvasText; box-shadow: none; }
+  .composer-submit-control:disabled, .composer-add:disabled, .composer-mic:disabled, .chat-mode-trigger:disabled { color: GrayText; opacity: 1; }
+  .composer-add:focus-visible, .composer-mic:focus-visible, .composer-submit-control:focus-visible, .composer-stop:focus-visible, .chat-mode-trigger:focus-visible { outline-color: Highlight; }
 }
 @media (max-width: 540px) {
   .viewport .welcome, .embedded-chat-panel .welcome { padding-block: 12px; }

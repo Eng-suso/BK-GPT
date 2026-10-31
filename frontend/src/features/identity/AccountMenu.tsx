@@ -49,12 +49,12 @@ export function AccountMenu({ compact = false, onOpenSettings }: AccountMenuProp
         <button
           type="button"
           aria-label={t("identity.menuLabel", { workspace })}
-          className="inline-flex shrink-0 items-center gap-2.5 rounded-lg py-[3px] pl-[3px] pr-1.5 hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-ring"
+          className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2.5 rounded-lg px-1.5 transition-colors duration-150 hover:bg-muted/70 active:bg-muted focus-visible:outline-2 focus-visible:outline-ring data-[state=open]:bg-muted motion-reduce:transition-none"
         >
           <span className="grid size-[30px] place-items-center rounded-full bg-muted text-muted-foreground ring-1 ring-black/5">
             <CircleUserRound className="size-4" strokeWidth={1.7} />
           </span>
-          <span className={cn("hidden max-w-[160px] leading-tight", !compact && "lg:block")}>
+          <span className={cn("hidden max-w-[160px] text-left leading-tight", !compact && data && "lg:block")}>
             <span className="block truncate text-xs font-semibold">{workspace}</span>
             {accessLabel ? (
               <span className="block truncate text-micro text-muted-foreground">{accessLabel}</span>

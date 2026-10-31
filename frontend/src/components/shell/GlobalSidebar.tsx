@@ -46,16 +46,16 @@ export function GlobalSidebar({
   return (
     <aside
       aria-label={t("nav.primary")}
-      className={cn("app-chrome flex flex-col items-center border-r px-2 py-4", drawer ? "h-full items-stretch px-3" : !compact && "lg:items-stretch lg:px-3", className)}
+      className={cn("app-chrome app-sidebar flex flex-col items-center border-r px-2 py-5", drawer ? "h-full items-stretch px-3" : !compact && "lg:items-stretch lg:px-3", className)}
     >
-      <div className="pb-[18px] pt-1 lg:px-2">
+      <div className="pb-7 pt-1 lg:px-2">
         {drawer ? <DelirLogo /> : <>
           <DelirLogo compact className={compact ? "" : "lg:hidden"} />
           <DelirLogo className={compact ? "hidden" : "hidden lg:inline-flex"} />
         </>}
       </div>
 
-      <nav className="flex w-full flex-col gap-0.5">
+      <nav className="flex w-full flex-col gap-1">
         {shellSections.map((item) => {
           const Icon = item.icon;
           const isActive = item.id === activeSection;
@@ -67,17 +67,17 @@ export function GlobalSidebar({
               title={t(item.labelKey)}
               onClick={() => onSectionChange(item.id)}
               className={cn(
-                "ui-nav-item relative flex h-10 items-center justify-center gap-[11px] rounded-lg text-body-sm font-normal text-muted-foreground",
+                "ui-nav-item relative flex h-11 items-center justify-center gap-3 rounded-full text-sm font-normal text-muted-foreground transition-colors duration-150 motion-reduce:transition-none",
                 expanded,
-                "hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
+                "hover:bg-muted/70 hover:text-foreground active:bg-muted focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2",
                 isActive &&
-                  "font-medium text-primary",
+                  "font-medium text-foreground",
               )}
             >
               <Icon
                 className={cn(
                   "size-[17px] shrink-0",
-                  isActive ? "opacity-100" : "opacity-70",
+                  isActive ? "text-primary" : "opacity-80",
                 )}
                 strokeWidth={1.6}
               />
@@ -93,7 +93,7 @@ export function GlobalSidebar({
           title={t("nav.help")}
           aria-haspopup="dialog"
           onClick={onOpenHelp}
-          className={cn("flex h-10 items-center justify-center gap-[11px] rounded-lg text-body-sm text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring", expanded)}
+          className={cn("ui-nav-item flex h-11 items-center justify-center gap-3 rounded-lg text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted/70 hover:text-foreground active:bg-muted focus-visible:outline-2 focus-visible:outline-ring motion-reduce:transition-none", expanded)}
         >
           <HelpCircle className="size-[17px] shrink-0 opacity-70" strokeWidth={1.6} />
           <span className={label}>{t("nav.help")}</span>
@@ -104,7 +104,7 @@ export function GlobalSidebar({
           aria-current={settingsActive ? "page" : undefined}
           onClick={onOpenSettings}
           className={cn(
-            "flex h-10 items-center justify-center gap-[11px] rounded-lg text-body-sm text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
+            "ui-nav-item flex h-11 items-center justify-center gap-3 rounded-lg text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted/70 hover:text-foreground active:bg-muted focus-visible:outline-2 focus-visible:outline-ring motion-reduce:transition-none",
             expanded,
             settingsActive && "font-medium text-primary",
           )}

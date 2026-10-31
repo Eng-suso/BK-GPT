@@ -35,6 +35,7 @@ function ChoiceMenu<T extends string>({
   options,
   onChange,
   disabled,
+  className,
 }: {
   icon: React.ReactNode;
   menuLabel: string;
@@ -43,19 +44,24 @@ function ChoiceMenu<T extends string>({
   options: Option<T>[];
   onChange: (value: T) => void;
   disabled?: boolean;
+  className?: string;
 }): React.JSX.Element {
+  const accessibleLabel = triggerLabel.startsWith(`${menuLabel}:`)
+    ? triggerLabel
+    : `${menuLabel}: ${triggerLabel}`;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="chat-mode-trigger"
+          className={`chat-mode-trigger ${className ?? ""}`}
           type="button"
           variant="ghost"
           size="sm"
           disabled={disabled}
           // Il nome accessibile porta lo stato: chi ascolta lo schermo sente la
           // scelta attiva senza aprire il menu.
-          aria-label={`${menuLabel}: ${triggerLabel}`}
+          aria-label={accessibleLabel}
+          title={accessibleLabel}
         >
           {icon}
           <span className="chat-mode-trigger-label">{triggerLabel}</span>
@@ -166,6 +172,7 @@ export function AutonomySelector({
   return (
     <ChoiceMenu
       icon={<ShieldCheck aria-hidden="true" />}
+      className="chat-autonomy-trigger"
       menuLabel={t("autonomy.label")}
       triggerLabel={t(`autonomy.${value}.label`)}
       value={value}

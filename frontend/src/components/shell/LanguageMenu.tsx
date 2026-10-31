@@ -1,4 +1,4 @@
-import { Languages } from "lucide-react";
+import { Check, Languages } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -17,7 +17,7 @@ export function LanguageMenu(): React.JSX.Element {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={t("language.label")}
-        className="grid size-[34px] place-items-center rounded-lg text-muted-foreground hover:bg-muted/60"
+        className="ui-chrome-control"
       >
         <Languages className="size-[17px]" strokeWidth={1.7} />
       </DropdownMenuTrigger>
@@ -30,6 +30,7 @@ export function LanguageMenu(): React.JSX.Element {
             data-active={current === lng}
           >
             {t(`language.${lng}`)}
+            {current === lng && <Check className="ml-auto size-4 text-primary" aria-hidden="true" />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

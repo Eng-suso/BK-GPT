@@ -75,7 +75,7 @@ export function NotificationsMenu({ onNavigate }: NotificationsMenuProps): React
           // Visibile anche su schermo stretto: un piano fallito o un rilievo sono la
           // ragione per cui si riapre il prodotto, e su telefono la barra e' l'unico
           // posto dove possono comparire.
-          className="relative grid size-[34px] shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-ring"
+          className="ui-chrome-control relative"
         >
           <Bell className="size-[17px]" strokeWidth={1.7} />
           {unread > 0 ? (

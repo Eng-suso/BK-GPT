@@ -1106,7 +1106,7 @@
       "center": "Centra processo",
       "applyFinalHeatmap": "Applica heatmap dell’intera esecuzione",
       "navigation": "Navigazione",
-      "gestureHint": "Spazio + trascina per muoverti; Ctrl/Cmd + rotella per zoomare",
+      "gestureHint": "Rotella o trackpad: scorri · Maiusc + rotella: spostamento orizzontale · Ctrl/Cmd + rotella o pinch sul trackpad: zoom · Spazio + trascina: sposta la tela",
       "resizeCanvas": "Ridimensiona area canvas",
       "resizeInspector": "Ridimensiona pannello di dettagli"
     },

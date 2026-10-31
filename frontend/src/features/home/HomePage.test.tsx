@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { MemoryRouter } from "react-router-dom";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { i18n } from "@/lib/i18n";
@@ -81,6 +81,22 @@ afterAll(() => {
 });
 
 describe("HomePage", () => {
+  it("retries the failed clients request instead of remaining on the error screen", async () => {
+    let attempts = 0;
+    http.mockImplementation(async (path) => {
+      if (path.includes("/clients")) {
+        attempts += 1;
+        if (attempts === 1) throw new Error("Clients unavailable");
+        return [];
+      }
+      return [project()];
+    });
+    renderHome();
+    fireEvent.click(await screen.findByRole("button", { name: "Riprova" }));
+    expect(await screen.findByText("Riorganizzazione acquisti")).toBeInTheDocument();
+    expect(attempts).toBe(2);
+  });
+
   it("counts every engagement when no period is chosen", async () => {
     backendReturns([
       project(),

@@ -63,7 +63,7 @@ export function AppLayout(): React.JSX.Element {
 
   return (
     <>
-    <div className={cn("app-material grid h-dvh grid-cols-[minmax(0,1fr)] overflow-hidden text-foreground md:grid-cols-[60px_minmax(0,1fr)]", !compactNav && "lg:grid-cols-[212px_minmax(0,1fr)]")}>
+    <div className={cn("app-material app-product-shell grid h-dvh grid-cols-[minmax(0,1fr)] overflow-hidden text-foreground md:grid-cols-[60px_minmax(0,1fr)]", !compactNav && "lg:grid-cols-[224px_minmax(0,1fr)]")}>
       <GlobalSidebar
         compact={compactNav}
         className="max-md:hidden"
@@ -73,7 +73,7 @@ export function AppLayout(): React.JSX.Element {
         onOpenHelp={() => setIsHelpOpen(true)}
         onOpenSettings={() => navigate(ROUTES.settings)}
       />
-      <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden", isStudio ? "grid-rows-[48px_minmax(0,1fr)]" : "grid-rows-[60px_minmax(0,1fr)]")}>
+      <div className={cn("app-product-content grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden", isStudio ? "grid-rows-[48px_minmax(0,1fr)]" : "grid-rows-[60px_minmax(0,1fr)]")}>
         <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} onOpenSearch={() => setIsSearchOpen(true)} onNavigate={(href) => navigate(href)} onOpenSettings={() => navigate(ROUTES.settings)} onOpenMobileNavigation={() => setIsMobileNavOpen(true)} periodApplies={periodApplies} />
         <main className="min-h-0 overflow-hidden">
           {/* La rete sta qui dentro e non intorno alla shell: una schermata che
