@@ -146,7 +146,20 @@ async def lifespan(_app: FastAPI):
             pass
 
 
-app = FastAPI(lifespan=lifespan)
+def api_docs_settings() -> dict[str, str | None]:
+    """`/docs`, `/redoc` e `/openapi.json` solo dove partire aperti e' lecito.
+
+    Elencano ogni rotta coi suoi parametri: in sviluppo servono, su internet
+    sono la mappa per chi cerca da dove entrare. Lo schema resta disponibile al
+    codice (`app.openapi()`, usato da `scripts/dump_openapi.py`).
+    """
+    environment = (settings.delir_environment or "dev").strip().lower()
+    if environment in OPEN_ENVIRONMENTS:
+        return {}
+    return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+
+
+app = FastAPI(lifespan=lifespan, **api_docs_settings())
 setup_api_error_handlers(app)
 
 
