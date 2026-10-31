@@ -1,0 +1,29 @@
+# Il contesto di build porta solo cio' che il Dockerfile copia.
+# Mai segreti: nessun .env entra nell'immagine.
+**/.env
+**/.env.*
+!ops/.env.example
+
+.git
+.github
+.claude
+.coderabbit
+.venv
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+
+frontend/dist
+frontend/coverage
+frontend/storybook-static
+data
+tests
+e2e
+e2e-fullstack
+docs
+landing
+test-results
+playwright-report

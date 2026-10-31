@@ -1,0 +1,111 @@
+# Produzione su una VM sola: il compose dei dati (docker-compose.yml) + l'app,
+# Prosimos e i limiti di memoria.
+#
+#   cd ops
+#   cp .env.example .env          # TUTTE le variabili, password comprese
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Regola di progetto (deployment-and-tenancy.md): la PROD deve reggere a
+# 2 OCPU / 12 GB. I limiti qui sotto sommano 11 GB e lasciano il resto al
+# sistema; tests/server/test_prod_compose.py lo controlla a ogni modifica.
+#
+# Niente e' pubblicato oltre 127.0.0.1: il traffico arriva dal tunnel
+# Cloudflare (fase 2), mai da una porta aperta della VM.
+
+services:
+  postgres:
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+
+  neo4j:
+    deploy:
+      resources:
+        limits:
+          memory: 2560m
+
+  docling:
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+
+  # Il motore delle simulazioni. Solo sulla rete interna: lo chiama l'app.
+  prosimos:
+    build:
+      context: ./prosimos
+      dockerfile: runner/Dockerfile
+    image: delir-prosimos-runner:${DELIR_IMAGE_TAG:-pilot}
+    container_name: delir-prosimos
+    restart: unless-stopped
+    environment:
+      # Un worker = una simulazione alla volta. Sei (il default) non stanno in
+      # 2 GB; due bastano a un consulente, e l'app mette in coda il resto.
+      GUNICORN_WORKERS: ${PROSIMOS_WORKERS:-2}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: ${DELIR_IMAGE:-delir:pilot}
+    container_name: delir-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      prosimos:
+        condition: service_healthy
+      docling:
+        condition: service_started
+    environment:
+      DELIR_ENVIRONMENT: prod
+      DELIR_AUTH_ENABLED: "true"
+      DELIR_API_TOKEN: ${DELIR_API_TOKEN:?serve DELIR_API_TOKEN}
+      DELIR_ADMIN_TOKEN: ${DELIR_ADMIN_TOKEN:-}
+      # Il browser che apre una pagina non manda il tenant: il default deve
+      # essere l'unico ammesso, o ogni pagina risponde 403.
+      DELIR_DEFAULT_TENANT_ID: ${DELIR_TENANT_ID:?serve DELIR_TENANT_ID}
+      DELIR_ALLOWED_TENANT_IDS: ${DELIR_TENANT_ID:?serve DELIR_TENANT_ID}
+      DELIR_CORS_ORIGINS: ${DELIR_PUBLIC_ORIGIN:?serve DELIR_PUBLIC_ORIGIN}
+      RUN_MIGRATIONS_ON_STARTUP: "false"
+      # Le password finiscono dentro un URL: solo lettere e cifre.
+      WORKSPACE_DATABASE_URL: postgresql+psycopg://delir_workspace:${DELIR_WORKSPACE_PASSWORD}@postgres:5432/workspace
+      CANONICAL_DATABASE_URL: postgresql+psycopg://delir_app:${DELIR_APP_PASSWORD}@postgres:5432/delir
+      CANONICAL_MIGRATOR_URL: postgresql+psycopg://delir_migrator:${DELIR_MIGRATOR_PASSWORD}@postgres:5432/delir
+      CANONICAL_WORKER_URL: postgresql+psycopg://delir_worker:${DELIR_WORKER_PASSWORD}@postgres:5432/delir
+      MEM0_DATABASE_URL: postgresql://delir_mem0:${DELIR_MEM0_PASSWORD}@postgres:5432/mem0
+      NEO4J_URL: bolt://neo4j:7687
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      PROSIMOS_BASE_URL: http://prosimos:5000
+      DOCLING_SERVE_URL: http://docling:5001
+      SOURCE_STORAGE_ROOT: /app/data
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?serve OPENAI_API_KEY}
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      # Davanti c'e' cloudflared sulla stessa rete docker: l'IP del client
+      # vero arriva negli header inoltrati.
+      FORWARDED_ALLOW_IPS: "*"
+    volumes:
+      - delir_appdata:/app/data
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+
+volumes:
+  delir_appdata:
+    name: delir_appdata

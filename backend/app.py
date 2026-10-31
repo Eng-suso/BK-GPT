@@ -127,7 +127,7 @@ async def lifespan(_app: FastAPI):
     from backend.workers.simulation_worker import run_simulation_queue
     from backend.workers.supervisor import run_queue_workers
 
-    if settings.workspace_database_url:
+    if settings.workspace_database_url and settings.run_migrations_on_startup:
         await asyncio.to_thread(ensure_schema)  # migra il DB operativo a head
 
     worker_task = asyncio.create_task(run_queue_workers(), name="queue_workers")
@@ -243,6 +243,26 @@ async def health():
     quindi risponde sempre.
     """
     return {"status": "ok"}
+
+
+@app.get("/health/ready", include_in_schema=False)
+async def health_ready():
+    """Puo' servire richieste: database raggiungibili e allo schema del codice.
+
+    `/health` resta vivo anche con il database spento; questa e' la domanda di
+    chi decide se mandare traffico (uptime check, rilascio senza
+    interruzione). Gira in un thread suo, fuori dal threadpool delle richieste,
+    e ogni controllo ha un timeout breve: risponde anche sotto carico.
+    """
+    from backend.readiness import readiness_checks
+
+    checks = await asyncio.to_thread(readiness_checks)
+    ready = all(result == "ok" for result in checks.values())
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={"status": "ready" if ready else "not_ready", "checks": checks},
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/favicon.ico", include_in_schema=False)

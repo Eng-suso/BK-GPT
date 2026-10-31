@@ -16,7 +16,7 @@ primi 3–5 clienti pilota senza affidarsi a isolamento "per convenzione".
 
 | Track | Cosa | Stato |
 |---|---|---|
-| **A — Infra hardening + deploy** | tunnel, chiusura porte, Kamal, build GHCR, zero-downtime | ⬜ non iniziata |
+| **A — Infra hardening + deploy** | tunnel, chiusura porte, Kamal, build GHCR, zero-downtime | 🟡 in corso — A2, A3 fatti (pilota: compose, Kamal rimandato) |
 | **B — Tenant boundary end-to-end** | Supabase Auth + membership + kill `default_consultant_id` + code/worker tenant-aware + RLS workspace | ⬜ non iniziata |
 
 **Gate cliente #1** = Track B chiusa. Fino ad allora staging/prod possono girare
@@ -150,7 +150,7 @@ origine privata, nessuna porta inbound sulla VM.
   dall'IP pubblico rifiutato, da Tailscale ok.
 - **Note:** _(vuoto)_
 
-### A2 — Dockerfile backend ARM64  ⬜
+### A2 — Dockerfile backend ARM64  ✅
 - **Cosa:** multi-stage. Stage 1 `python:3.14-slim` + `uv sync --locked` (il
   progetto è **solo backend** nell'immagine: il FE sta su Vercel, non serve più
   buildare `frontend/`). Entrypoint: `alembic upgrade head` +
@@ -167,9 +167,19 @@ origine privata, nessuna porta inbound sulla VM.
 - **Accettazione:** `docker build --platform linux/arm64 .` produce immagine che
   parte con DSN validi e serve `/health`; due container avviati insieme non
   vanno in deadlock sulle migration.
-- **Note:** _(vuoto)_
+- **Note:** fatto il 2026-10-31 (pilota, fase 1). **Deviazione voluta:** il
+  frontend compilato sta *dentro* l'immagine (stadio Node su `$BUILDPLATFORM`,
+  niente emulazione) e lo serve il backend: un dominio solo, niente CORS fra
+  domini, una sola regola Cloudflare Access. Vercel resta un'opzione per dopo.
+  Migratore unico: `python -m scripts.migrate` (advisory lock nel db
+  `workspace`), primo comando di `ops/docker/entrypoint.sh`; l'immagine ha
+  `RUN_MIGRATIONS_ON_STARTUP=false`. Un solo worker uvicorn (B4). Provata in
+  `linux/arm64` (QEMU): primo avvio migra 19 + 13 revisioni, secondo avvio
+  no-op, container `healthy`. Sotto emulazione Python parte in ~1 s: per questo
+  `HEALTHCHECK` ha timeout 10 s e start-period 180 s. Test:
+  `tests/server/test_migrations_entry.py` (lock rispettato, entrambi a head).
 
-### A3 — Health/readiness reale  ⬜
+### A3 — Health/readiness reale  ✅
 - **Cosa:** `/health` resta liveness povera. Aggiungere `/health/ready` che
   verifica: Postgres canonical + workspace raggiungibili, Alembic a head ( entrambe
   le tracce). Kamal usa `/health/ready` come gate prima dello switch traffico.
@@ -177,7 +187,11 @@ origine privata, nessuna porta inbound sulla VM.
   `/v1/observability/queues`).
 - **Accettazione:** con DB spento `/health/ready` → 503; con DB su e migration a
   head → 200.
-- **Note:** _(vuoto)_
+- **Note:** fatto il 2026-10-31. `backend/readiness.py`: per database
+  `ok`/`down`/`behind`, niente DSN nella risposta (rotta pubblica), timeout di
+  connessione 3 s, gira in `asyncio.to_thread` fuori dal threadpool delle
+  richieste. Lo usa il `HEALTHCHECK` dell'immagine. Test:
+  `tests/server/test_readiness.py`.
 
 ### A4 — CI: build immagine → GHCR  ⬜
 - **Cosa:** nuovo job in `.github/workflows/ci.yml` (o workflow separato
@@ -669,3 +683,4 @@ pgvector). Mem0 è il più sensibile: il recall entra nel prompt LLM.
 | _(brainstorm iniziale)_ | Sohayb + Claude | Doc creato. Architettura target + Track A/B definite. Nessuno step tecnico iniziato: si attende risoluzione dei 3 blocker. |
 | _(brainstorm, +Mem0)_ | Sohayb + Claude | Mem0 aggiunto come terzo datastore tenant-sensitive: nuovo step **B8** (isolamento tenant), `mem0_user_id` nel kill-list di B4, `mem0_worker` in B5, backup A8 esteso ai 3 db, GDPR B10 purga anche Mem0, snapshot + alternative aggiornati. |
 | 2026-09-03 | Codex | Blocker 3 confermato da Sohayb: `develop` deploya staging, label `deploy-staging` su PR per on-demand, `main` + CI verde + approval deploya prod. Restano aperti i blocker VM Oracle A1 e dominio Cloudflare. |
+| 2026-10-31 | Claude | Pilota fase 1: A2 + A3 fatti. Immagine ARM64 con frontend dentro, migratore unico sotto lock, `/health/ready`, overlay `ops/docker-compose.prod.yml` (app + Prosimos + volume `delir_appdata` + tetti di memoria 11 GB su 12, controllati da `tests/server/test_prod_compose.py`). Kamal (A5) rimandato: per un consulente basta compose con downtime breve al rilascio. |
