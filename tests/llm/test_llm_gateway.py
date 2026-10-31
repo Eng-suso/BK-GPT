@@ -450,7 +450,7 @@ class _ExplodingQueue(list):
         super().__init__()
         self.exc = exc
 
-    def pop(self, *_args):  # noqa: D401 - firma di list.pop
+    def pop(self, *_args):
         raise self.exc
 
 
