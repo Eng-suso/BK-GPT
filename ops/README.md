@@ -380,3 +380,35 @@ sola), `TestSweep` (grafo sporco → rifuso + Neo4j).
 - **L3** — flusso di ingestione documenti KB cliente (`kg_source`/`kg_chunk`
   ci sono, manca l'upload → chunk → grafo dedicato)
 - reranker sul risultato ibrido (oggi RRF puro, nessun cross-encoder)
+
+## Produzione (pilota, una VM)
+
+Un'immagine sola (`Dockerfile` alla radice): frontend compilato + backend.
+Sulla VM si avvia il compose dei dati con l'overlay di produzione:
+
+```bash
+cd ops
+cp .env.example .env    # cambia TUTTO; password solo lettere e cifre
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml ps   # app "healthy"
+curl -s http://127.0.0.1:8000/health/ready
+```
+
+| Cosa | Dove |
+|---|---|
+| Migrazioni | `ops/docker/entrypoint.sh` → `python -m scripts.migrate` (entrambe le tracce, sotto advisory lock), poi uvicorn. L'app non migra (`RUN_MIGRATIONS_ON_STARTUP=false`) |
+| Processi | un solo worker uvicorn: i lock dei turni di chat sono in memoria (B4) |
+| File caricati | volume `delir_appdata` → `/app/data`. Va nel backup insieme ai tre database |
+| Simulazioni | `prosimos` (runner di `ops/prosimos/runner`), 2 worker, solo rete interna |
+| Memoria | ogni servizio ha un tetto, totale 11 GB su 12 (`tests/server/test_prod_compose.py`) |
+| Salute | `/health` = processo vivo; `/health/ready` = database raggiungibili e a head |
+| Tenant | `DELIR_TENANT_ID` e' sia il default sia l'unico ammesso: un altro tenant riceve 403 |
+
+**Attenzione sulla macchina di sviluppo:** i nomi dei container e dei volumi
+sono gli stessi dello stack di sviluppo (`delir-postgres`, `delir_pgdata`).
+Per provare l'overlay in locale usare `-p <nome>` e un override che rinomina
+container, volumi e porte, o si avvia sul database di sviluppo.
+
+Aggiornamento: `git pull` + lo stesso `up -d --build`. Il container vecchio si
+ferma prima che parta il nuovo (pochi secondi di interruzione): per un
+consulente e' accettabile, il rilascio senza interruzione e' Kamal (A5).
