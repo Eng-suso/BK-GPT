@@ -56,6 +56,62 @@ def test_when_crowded_a_free_port_beats_the_default_placement():
     assert not segment_hits_box(*DATA_OBJECT_STUB, label.expanded(4))
 
 
+def _reference_grid_cross(a, b, c, d):
+    """The per-pair crossing rule the grid search used before `_GridIndex`."""
+    if a[1] == b[1] and c[0] == d[0]:
+        return min(a[0], b[0]) <= c[0] <= max(a[0], b[0]) and min(c[1], d[1]) < a[1] < max(c[1], d[1])
+    if a[0] == b[0] and c[1] == d[1]:
+        return min(a[1], b[1]) <= c[1] <= max(a[1], b[1]) and min(c[0], d[0]) < a[0] < max(c[0], d[0])
+    return False
+
+
+def _reference_cost(u, v, boxes, routes, gap):
+    from itertools import pairwise
+
+    from backend.bpmn.canvas_layout.router import _OVERLAP_WEIGHT, _overlap
+
+    if any(segment_hits_box(u, v, box) for box in boxes):
+        return None
+    return sum(
+        _reference_grid_cross(u, v, w, z) + _overlap(u, v, w, z, gap) * _OVERLAP_WEIGHT
+        for route in routes
+        for w, z in pairwise(route)
+    )
+
+
+def test_the_grid_index_gives_the_cost_the_per_pair_formulas_gave():
+    """Speed only: the routes a diagram gets must not change by one pixel."""
+    import random
+
+    from backend.bpmn.canvas_layout.router import _GridIndex
+
+    rng = random.Random(20261031)
+    # A coarse lattice, so that touching ends, shared lines and equal
+    # coordinates - the edge cases - happen often.
+    def coordinate():
+        return rng.randrange(0, 12) * 10
+
+    def orthogonal_route():
+        point = (coordinate(), coordinate())
+        route = [point]
+        for step in range(rng.randrange(1, 5)):
+            point = (coordinate(), point[1]) if step % 2 == 0 else (point[0], coordinate())
+            route.append(point)
+        return route
+
+    for _ in range(300):
+        boxes = [Box(coordinate(), coordinate(), rng.randrange(1, 4) * 10, rng.randrange(1, 4) * 10) for _ in range(rng.randrange(0, 4))]
+        routes = [orthogonal_route() for _ in range(rng.randrange(0, 5))]
+        index = _GridIndex(boxes, routes)
+        for _ in range(20):
+            u = (coordinate(), coordinate())
+            v = (coordinate(), u[1]) if rng.random() < 0.5 else (u[0], coordinate())
+            if u == v:
+                continue
+            gap = rng.choice([0, 5, 10])
+            assert index.cost(u, v, gap) == _reference_cost(u, v, boxes, routes, gap), (u, v, boxes, routes, gap)
+
+
 @pytest.mark.parametrize("plan", sorted(FIXTURES.glob("*.plan.json")), ids=lambda path: path.stem)
 def test_plans_extracted_by_a_real_llm_compile_to_a_drawable_diagram(plan):
     from backend.bpmn import build_bpmn_semantic_model, semantic_model_to_bpmn_xml
