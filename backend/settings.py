@@ -209,6 +209,12 @@ class Settings(BaseSettings):
     # dichiara, ed e' proprio quella dichiarazione a chiudere la porta.
     delir_environment: str = "dev"
 
+    # Chi porta lo schema a head. In sviluppo l'app, a ogni avvio: comodo. In
+    # un deploy due container possono partire insieme e migrare in parallelo lo
+    # stesso schema; li' lo fa un solo comando prima dell'app
+    # (`python -m scripts.migrate`, sotto lock) e questa riga va a false.
+    run_migrations_on_startup: bool = True
+
     delir_auth_enabled: bool = False
     delir_api_token: str | None = None
     delir_admin_token: str | None = None
