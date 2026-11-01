@@ -162,7 +162,16 @@
       "globalsTitle": "Parametri globali",
       "backedByInterview": "{{count}} elemento da intervista",
       "backedByInterview_other": "{{count}} elementi da intervista",
-      "ofTotal": "su {{total}}"
+      "ofTotal": "su {{total}}",
+      "editorTitle": "Configura scenario",
+      "editorScope": "Ipotesi della simulazione",
+      "editorDescription": "Imposta volumi, risorse e tempi del processo.",
+      "sectionLabel": "Sezione",
+      "readyHint": "Verifica le ipotesi prima di avviare.",
+      "incompleteHint": "Completa i parametri richiesti nelle sezioni.",
+      "localDraft": "Stai modificando una bozza locale",
+      "syncDetails": "Dettagli della sincronizzazione",
+      "tools": "Strumenti"
     },
     "output": {
       "eyebrow": "Risultati",
@@ -191,7 +200,7 @@
       "expand": "Espandi parametri",
       "globals": "Generale",
       "defaultDuration": "Durata default, min",
-      "defaultDurationMin": "Durata def., min",
+      "defaultDurationMin": "Durata predefinita (minuti)",
       "resources": "Risorse",
       "resourceOriginHint": "Le lane identificano i gruppi operativi; la pool ne indica il contesto. Capacità e costo sono ipotesi dello scenario da verificare.",
       "noResources": "Nessuna risorsa configurata",

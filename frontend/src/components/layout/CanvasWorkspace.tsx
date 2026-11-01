@@ -62,7 +62,7 @@ export function CanvasWorkspaceShell({ label, commands, children, inspector, pla
   </section>;
 }
 
-export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string; title: string; scope?: string; closeLabel: string; onClose: () => void; children: Slot; footer?: Slot; hidden?: boolean; resizeLabel?: string; initialWidth?: number; minimumStageWidth?: number; maximumWidth?: number; className?: string; bodyClassName?: string }>(({ label, title, scope, closeLabel, onClose, children, footer, hidden, resizeLabel, initialWidth = 400, minimumStageWidth = 492, maximumWidth = 760, className, bodyClassName }, forwardedRef) => {
+export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string; title: string; scope?: string; closeLabel: string; onClose: () => void; children: Slot; footer?: Slot; hidden?: boolean; resizeLabel?: string; initialWidth?: number; minimumStageWidth?: number; maximumWidth?: number; minimumWidth?: number; purpose?: "inspect" | "edit"; className?: string; bodyClassName?: string }>(({ label, title, scope, closeLabel, onClose, children, footer, hidden, resizeLabel, initialWidth = 400, minimumStageWidth = 492, maximumWidth = 760, minimumWidth = 320, purpose = "inspect", className, bodyClassName }, forwardedRef) => {
   const element = React.useRef<HTMLElement | null>(null);
   const [width, setWidth] = React.useState<number | null>(null);
   const [maximum, setMaximum] = React.useState(760);
@@ -77,10 +77,11 @@ export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string;
     observer.observe(parent);
     return () => observer.disconnect();
   }, [minimumStageWidth, maximumWidth]);
-  const current = Math.max(320, Math.min(maximum, width ?? initialWidth));
-  return <Surface asChild variant="panel"><aside ref={setRef} hidden={hidden} aria-label={label} data-workspace-layer="inspector" style={resizeLabel ? { "--workspace-inspector-width": `${current}px` } as React.CSSProperties : undefined} className={cn("ui-workspace-inspector relative flex min-h-0 shrink-0 flex-col overflow-hidden", className)} onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
-    {resizeLabel && <WorkspaceResizeSeparator label={resizeLabel} value={current} minimum={320} maximum={maximum} onResize={setWidth} />}
-    <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3"><div className="min-w-0">{scope && <p className="text-xs text-muted-foreground">{scope}</p>}<h2 data-dock-title tabIndex={-1} className="text-sm font-semibold outline-none">{title}</h2></div><Button size="icon" variant="ghost" onClick={onClose} aria-label={closeLabel}><X aria-hidden className="size-4" /></Button></header>
+  const minimum = Math.min(minimumWidth, maximum);
+  const current = Math.max(minimum, Math.min(maximum, width ?? initialWidth));
+  return <Surface asChild variant="panel"><aside ref={setRef} hidden={hidden} aria-label={label} data-workspace-layer="inspector" data-purpose={purpose} style={resizeLabel ? { "--workspace-inspector-width": `${current}px` } as React.CSSProperties : undefined} className={cn("ui-workspace-inspector relative flex min-h-0 shrink-0 flex-col overflow-hidden", className)} onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
+    {resizeLabel && <WorkspaceResizeSeparator label={resizeLabel} value={current} minimum={minimum} maximum={maximum} onResize={setWidth} />}
+    <header className={cn("flex shrink-0 items-center justify-between gap-3 border-b border-border", purpose === "edit" ? "min-h-[88px] px-6 py-5" : "px-4 py-3")}><div className="min-w-0">{scope && <p className="text-xs text-muted-foreground">{scope}</p>}<h2 data-dock-title tabIndex={-1} className={cn("font-semibold outline-none", purpose === "edit" ? "text-lg" : "text-sm")}>{title}</h2></div><Button size="icon" variant="ghost" onClick={onClose} aria-label={closeLabel}><X aria-hidden className="size-4" /></Button></header>
     <div className={cn("ui-scrollbar min-h-0 flex-1 overflow-auto p-4", bodyClassName)}>{children}</div>
     {footer && <footer data-workspace-layer="inspector-footer" className="shrink-0 border-t border-border p-4">{footer}</footer>}
   </aside></Surface>;

@@ -239,3 +239,43 @@ conserva misure, passi ed Evidence. Tutte le anteprime usano dati sintetici.
 | Canvas BPMN, header unificato | [Desktop](previews/hierarchy-canvas.png) · [Mobile](previews/hierarchy-canvas-mobile.png) |
 | Simulazione con analisi aperta | [Desktop](previews/hierarchy-simulation.png) |
 | Simulazione senza pannello laterale | [Desktop](previews/hierarchy-simulation-canvas.png) |
+
+
+## Editor scenario leggibile — 1 novembre 2026
+
+Il configuratore distingue la modifica dall'ispezione dei risultati. WorkspaceInspector
+offre una variante edit: apertura a 600px, ridimensionamento fino a 760px quando
+lo spazio del canvas lo consente e intestazione da almeno 88px. EditorWorkspace,
+EditorBody ed EditorActions definiscono una composizione riutilizzabile: navigazione
+persistente, un solo corpo scorrevole e azioni sempre raggiungibili. DetailPanelSection
+espone ancore stabili per raggiungere i gruppi di parametri.
+
+La navigazione per sezione sostituisce la fila di comandi che andava a capo e
+segue anche lo scorrimento manuale, consentendo di tornare alla stessa sezione.
+Il menu Strumenti raccoglie modifica in linguaggio naturale, ipotesi e risultati.
+La modifica testuale si apre su richiesta; conferme e guardie prima dell'applicazione
+restano attive. Titoli duplicati e contenitori con scroll annidati sono rimossi.
+Campi da almeno 44px, spaziatura dei gruppi e colonne sensibili alla larghezza
+dell'editor usano le primitive e i materiali condivisi.
+
+Sotto 1200px, il configuratore occupa lo spazio di lavoro e la chiusura restituisce
+il canvas. Il trascinamento dell'ispettore resta un'interazione desktop. L'avviso
+di bozza locale rimane visibile come stato con dettagli espandibili: la mancata
+disponibilità dell'API degli scenari nella fixture non viene presentata come risolta.
+
+Le anteprime usano dati sintetici. Il manifest dedicato conserva misure, risultati
+e identificativi REA: [verifica editor scenario](previews/scenario-editor-verification-2026-11-01.json).
+
+| Superficie | Anteprima |
+| --- | --- |
+| Configuratore e canvas | [Desktop 1882px](previews/scenario-editor-desktop.png) |
+| Parametri delle risorse | [Desktop](previews/scenario-editor-resources.png) |
+| Editor compatto | [Mobile](previews/scenario-editor-mobile.png) |
+
+Verifica del configuratore: typecheck, lint e build riusciti; 10 test in due
+suite esistenti e quattro scenari browser a 1882, 1440, 1024 e 390px. Quattro
+scansioni axe senza violazioni rilevate. Verificati scorrimento unico, selezione
+ripetuta delle sezioni, ritorno del focus dal dialogo, resize da tastiera
+480–760px e ripristino del canvas su tablet/mobile. Le tre catture REA sono
+complete, senza page errors e con chiusura confermata del browser di verifica.
+Restano i warning preesistenti sulla dimensione dei chunk.

@@ -162,7 +162,16 @@
       "globalsTitle": "Global parameters",
       "backedByInterview": "{{count}} element from interview",
       "backedByInterview_other": "{{count}} elements from interview",
-      "ofTotal": "of {{total}}"
+      "ofTotal": "of {{total}}",
+      "editorTitle": "Configure scenario",
+      "editorScope": "Simulation assumptions",
+      "editorDescription": "Set process volumes, resources and timings.",
+      "sectionLabel": "Section",
+      "readyHint": "Review the assumptions before starting.",
+      "incompleteHint": "Complete the required parameters in each section.",
+      "localDraft": "You are editing a local draft",
+      "syncDetails": "Synchronization details",
+      "tools": "Tools"
     },
     "output": {
       "eyebrow": "Results",

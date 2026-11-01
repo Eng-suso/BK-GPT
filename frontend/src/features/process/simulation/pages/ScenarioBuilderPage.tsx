@@ -5,6 +5,8 @@ import { Skeleton } from "@/ui/skeleton";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/ui/dropdown-menu";
+import { ChevronDown } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/ui/dialog";
 import { ROUTES } from "@/app/routes";
 import { runWaitTitle } from "../runQueue";
@@ -30,11 +32,13 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
   const { t } = useTranslation("process");
   const navigate = useNavigate();
   const { projectId, processId, selectedElementId, selectElement } = useSimulationSection();
-  const [reference, setReference] = React.useState<"model" | "readiness" | null>(null);
+  const [reference, setReference] = React.useState<"model" | "readiness" | "whatIf" | null>(null);
   const referenceTrigger = React.useRef<HTMLElement | null>(null);
+  const toolsTrigger = React.useRef<HTMLButtonElement>(null);
+  const menuOpensReference = React.useRef(false);
   const pendingField = React.useRef<string | null>(null);
-  const openReference = (next: "model" | "readiness") => {
-    referenceTrigger.current = document.activeElement as HTMLElement | null;
+  const openReference = (next: "model" | "readiness" | "whatIf", opener?: HTMLElement | null) => {
+    referenceTrigger.current = opener ?? document.activeElement as HTMLElement | null;
     setReference(next);
   };
   const lab = useScenarioLab();
@@ -97,7 +101,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+        {!embedded && <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
           <h2 className="text-lg font-semibold tracking-[-0.01em] text-foreground">
             {t("simulation.scenario.pageTitle")}
@@ -111,9 +115,8 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
             <Button size="sm" variant="outline" onClick={() => openReference("readiness")}>{t("simulation.workspace.assumptions")}</Button>
             {activeRun?.status === "completed" && <Button size="sm" variant="outline" onClick={() => navigate(ROUTES.projects.simulation(projectId, processId, "overview"))}>{t("simulation.workspace.viewResults")}</Button>}
           </div>
-        </header>
-      {!templateLoading && <ScenarioTabs lab={lab} />}
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto ui-surface ui-surface-panel">
+        </header>}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {templateLoading ? (
           <div className="grid gap-3">
             <Skeleton className="h-24 w-full" />
@@ -122,12 +125,15 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
           </div>
         ) : (
           <>
-          <div className="px-4">
-            <WhatIfComposer bpmnModelId={lab.bpmnModelId} template={template} draft={draft} onApply={updateDraft} />
-          </div>
           <SimulationConfigRail
             embedded
             workspace
+            intro={<ScenarioTabs lab={lab} />}
+            navigationActions={<DropdownMenu><DropdownMenuTrigger asChild><Button ref={toolsTrigger} size="sm" variant="outline">{t("simulation.scenario.tools")}<ChevronDown aria-hidden="true" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" onCloseAutoFocus={event => { if (menuOpensReference.current) { event.preventDefault(); menuOpensReference.current = false; } }}>
+              <DropdownMenuItem onSelect={() => { menuOpensReference.current = true; openReference("whatIf", toolsTrigger.current); }}>{t("simulation.whatIf.title")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => { menuOpensReference.current = true; openReference("readiness", toolsTrigger.current); }}>{t("simulation.workspace.assumptions")}</DropdownMenuItem>
+              {activeRun?.status === "completed" && <DropdownMenuItem onSelect={() => navigate(ROUTES.projects.simulation(projectId, processId, "overview"))}>{t("simulation.workspace.viewResults")}</DropdownMenuItem>}
+            </DropdownMenuContent></DropdownMenu>}
             template={template}
             templateLoading={templateLoading}
             claims={claims}
@@ -151,8 +157,8 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
           (field ?? referenceTrigger.current)?.focus({ preventScroll: true });
           pendingField.current = null;
         }} className={reference === "model" ? "flex h-[85dvh] flex-col border-border sm:max-w-[calc(100vw-4rem)]" : "max-h-[85dvh] overflow-y-auto border-border sm:max-w-lg"}>
-          <DialogTitle>{t(reference === "model" ? "simulation.diagram.title" : "simulation.workspace.assumptions")}</DialogTitle>
-          {reference === "model" ? <SimulationBpmnView className="min-h-0 flex-1" bpmnXml={bpmnXml} selectedElementId={focusEl} onSelectElement={(id) => { if (id && (draft.tasks[id] || draft.gateways[id])) { setFocusEl(id); pendingField.current = id; setReference(null); } }} /> :
+          <DialogTitle>{t(reference === "model" ? "simulation.diagram.title" : reference === "whatIf" ? "simulation.whatIf.title" : "simulation.workspace.assumptions")}</DialogTitle>
+          {reference === "model" ? <SimulationBpmnView className="min-h-0 flex-1" bpmnXml={bpmnXml} selectedElementId={focusEl} onSelectElement={(id) => { if (id && (draft.tasks[id] || draft.gateways[id])) { setFocusEl(id); pendingField.current = id; setReference(null); } }} /> : reference === "whatIf" ? <WhatIfComposer embedded bpmnModelId={lab.bpmnModelId} template={template} draft={draft} onApply={updateDraft} /> :
           <ReadinessSummary
             confidence={confidence}
             provenance={provenance}
