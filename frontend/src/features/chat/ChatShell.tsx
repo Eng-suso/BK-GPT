@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { MoreHorizontal, Search, Settings, Share2, Trash2, X } from "lucide-react";
 
 import { Button } from "@/ui/button";
+import { Surface } from "@/ui/surface";
 import { Dialog, DialogContent, DialogTitle } from "@/ui/dialog";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import {
@@ -160,7 +161,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
   const { t, i18n } = useTranslation("chat");
   const locale = i18n.language || "it";
   const [isDrawerOpen, setIsDrawerOpen] = useState(() => window.innerWidth >= 1440);
-  const compactHistory = useMediaQuery("(max-width: 1099px)");
+  const compactHistory = useMediaQuery("(max-width: 1279px)");
   const historyButtonRef = useRef<HTMLButtonElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -337,7 +338,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
           </DialogContent>
         </Dialog>
 
-        <section className="main">
+        <Surface asChild variant="panel"><section className="main">
           <ChatHeader
             title={headerTitle}
             isDrawerOpen={isDrawerOpen}
@@ -381,7 +382,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
             onAttach={onAttach}
             onVoice={onVoice}
           />
-        </section>
+        </section></Surface>
       </section>
     </div>
   );

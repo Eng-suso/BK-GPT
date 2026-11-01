@@ -10,7 +10,9 @@
     "help": "Aiuto",
     "profile": "Impostazioni",
     "toggle": "Espandi o riduci navigazione",
-    "open": "Apri la navigazione"
+    "open": "Apri la navigazione",
+    "resize": "Ridimensiona la navigazione",
+    "tools": "Strumenti workspace"
   },
   "actions": {
     "new": "Nuovo",

@@ -847,7 +847,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           aria-label={t("composer.placeholder")}
           disabled={isLocked}
           autoComplete="off"
-          className="max-h-[180px] min-h-[42px] w-full resize-none border-none bg-transparent px-0.5 py-1 text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/90 disabled:opacity-60"
+          className="max-h-[180px] min-h-[42px] w-full resize-none border-none bg-transparent px-0.5 py-1 text-base leading-normal text-foreground outline-none placeholder:text-muted-foreground/90 disabled:opacity-60"
         />
         {audioStatus && (
           <div className="min-h-[18px] px-0.5 text-xs leading-normal text-muted-foreground">

@@ -1,20 +1,24 @@
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type CSSProperties } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Dialog as DialogPrimitive } from "radix-ui";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { ErrorBoundary } from "@/components/feedback";
 import { GlobalSidebar } from "@/components/shell/GlobalSidebar";
 import { HelpDialog } from "@/components/shell/HelpDialog";
 import { TopBar } from "@/components/shell/TopBar";
+import { useNavigationLayout } from "@/components/shell/useNavigationLayout";
+import { WorkspaceChromeProvider, WorkspaceGlobalTools } from "@/components/shell/WorkspaceChrome";
+import { WorkspaceResizeSeparator } from "@/components/layout/CanvasWorkspace";
 import { GlobalSearchDialog } from "@/features/search/GlobalSearchDialog";
 import { ServiceStatusDialog } from "@/features/status/ServiceStatusDialog";
 import { Skeleton } from "@/ui/skeleton";
+import { Button } from "@/ui/button";
 import { Toaster } from "@/ui/sonner";
 import { ROUTES, SECTION_PATH, isSettingsPath, sectionFromPath } from "@/app/routes";
 
 import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
-import { cn } from "@/lib/utils";
 
 /** Le schermate che filtrano per periodo. */
 const PERIOD_AWARE_PATHS: string[] = [ROUTES.home, ROUTES.projects.list];
@@ -40,8 +44,9 @@ export function AppLayout(): React.JSX.Element {
   );
   const activeSection = settingsActive ? null : sectionFromPath(location.pathname);
   const isStudio = location.pathname.includes("/processes/");
-  const [expandedStudioNav, setExpandedStudioNav] = useState(false);
-  const compactNav = isStudio && !expandedStudioNav;
+  const usesWorkspaceChrome = isStudio && !location.pathname.endsWith("/handover/dashboard");
+  const navigation = useNavigationLayout(isStudio);
+  const compactNav = navigation.collapsed;
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -61,21 +66,30 @@ export function AppLayout(): React.JSX.Element {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  const topBar = <TopBar embedded={usesWorkspaceChrome} compact={isStudio} navigationExpanded={!compactNav} onOpenSearch={() => setIsSearchOpen(true)} onNavigate={(href) => navigate(href)} onOpenSettings={() => navigate(ROUTES.settings)} onOpenMobileNavigation={() => setIsMobileNavOpen(true)} periodApplies={periodApplies} />;
+
   return (
     <>
-    <div className={cn("app-material app-product-shell grid h-dvh grid-cols-[minmax(0,1fr)] overflow-hidden text-foreground md:grid-cols-[60px_minmax(0,1fr)]", !compactNav && "lg:grid-cols-[224px_minmax(0,1fr)]")}>
+    <div data-navigation={compactNav ? "compact" : "expanded"} data-workspace={usesWorkspaceChrome ? "studio" : "product"} style={{ "--layout-sidebar-width": `${navigation.width}px` } as CSSProperties} className="app-material app-product-shell grid h-dvh overflow-hidden text-foreground">
+      <div id="app-navigation" className="app-navigation-host relative min-h-0 max-md:hidden">
       <GlobalSidebar
         compact={compactNav}
-        className="max-md:hidden"
+        className="h-full"
         activeSection={activeSection}
         onSectionChange={(section) => navigate(SECTION_PATH[section])}
         settingsActive={settingsActive}
         onOpenHelp={() => setIsHelpOpen(true)}
         onOpenSettings={() => navigate(ROUTES.settings)}
       />
-      <div className={cn("app-product-content grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden", isStudio ? "grid-rows-[48px_minmax(0,1fr)]" : "grid-rows-[60px_minmax(0,1fr)]")}>
-        <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} onOpenSearch={() => setIsSearchOpen(true)} onNavigate={(href) => navigate(href)} onOpenSettings={() => navigate(ROUTES.settings)} onOpenMobileNavigation={() => setIsMobileNavOpen(true)} periodApplies={periodApplies} />
-        <main className="min-h-0 overflow-hidden">
+      <Button variant="outline" size="icon-sm" className="absolute -right-4 top-5 z-20" aria-label={t("nav.toggle")} aria-expanded={!compactNav} aria-controls="app-navigation" onClick={navigation.toggle}>{compactNav ? <ChevronRight aria-hidden /> : <ChevronLeft aria-hidden />}</Button>
+      {!compactNav && <WorkspaceResizeSeparator label={t("nav.resize")} value={navigation.width} minimum={navigation.minimum} maximum={navigation.maximum} onResize={navigation.resize} edge="end" />}
+      </div>
+      <div className="app-product-content grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden">
+        {!usesWorkspaceChrome && topBar}
+
+        <WorkspaceChromeProvider value={usesWorkspaceChrome ? topBar : null}>
+        <main className="relative min-h-0 overflow-hidden">
+          {usesWorkspaceChrome && <div className="app-workspace-fallback-tools"><WorkspaceGlobalTools /></div>}
           {/* La rete sta qui dentro e non intorno alla shell: una schermata che
               si ferma non deve portarsi via navigazione, ricerca e chat. La
               chiave è il percorso, così andare altrove ripulisce l'errore
@@ -89,6 +103,7 @@ export function AppLayout(): React.JSX.Element {
             </Suspense>
           </ErrorBoundary>
         </main>
+        </WorkspaceChromeProvider>
       </div>
     </div>
     {/* Le conferme di salvataggio vivono sopra ogni schermata: un form che si

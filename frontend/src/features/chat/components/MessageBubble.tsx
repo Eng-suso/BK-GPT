@@ -271,7 +271,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     const htmlContent = renderMarkdown(message.content);
     const hasBody = Boolean(message.content?.trim());
     return (
-      <div className="message assistant markdown group/msg w-full max-w-full text-sm leading-relaxed text-foreground">
+      <div className="message assistant markdown group/msg w-full max-w-full text-base leading-relaxed text-foreground">
         <div className="mb-1.5 flex items-center gap-2 leading-none">
           <span className={META_LABEL_CLASS}>{t("message.assistant")}</span>
           {time ? (
@@ -348,7 +348,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           ))}
         </ul>
       ) : null}
-      <div className="user-message-glass whitespace-pre-wrap px-3.5 py-2.5 text-sm leading-relaxed text-foreground">
+      <div className="user-message-glass whitespace-pre-wrap px-4 py-3 text-base leading-relaxed text-foreground">
         {message.content}
       </div>
     </div>

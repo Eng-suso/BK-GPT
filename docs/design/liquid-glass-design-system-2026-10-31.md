@@ -187,3 +187,55 @@ Sono verifiche su fixture sintetica, non una certificazione dell'intero prodotto
 | Piano e sintesi | [Desktop](previews/liquid-plan-summary-desktop.png) |
 | Decisioni | [Desktop](previews/liquid-plan-decisions-desktop.png) · [Mobile](previews/liquid-plan-decisions-mobile.png) |
 | Portafoglio progetti | [Desktop 1594px](previews/liquid-projects-desktop.png) |
+
+
+## Gerarchia degli spazi e sidebar regolabile — 1 novembre 2026
+
+La shell usa un budget unico: margini e separazioni da 16px, navigazione iniziale
+272px, barra globale da 72px e intestazione contestuale condivisa da 64px.
+Sui telefoni restano inset e comandi adattati al viewport. La cronologia della
+chat è un livello secondario; la conversazione usa la superficie principale,
+lo stesso WorkspaceContextBar degli altri workspace e testo da 16px.
+
+La sidebar principale si ridimensiona trascinando il bordo destro, tra 224 e
+384px. La freccia sul bordo la comprime a 72px e ripristina l'ultima larghezza.
+Il separatore supporta frecce, Home ed End. Stato e larghezza restano nel browser
+tra navigazioni e ricaricamenti; storage assente o malformato non blocca l'uso.
+La griglia della shell si aggiorna insieme alla sidebar: i pannelli non si
+sovrappongono al contenuto. Il separatore è lo stesso componente degli ispettori.
+
+Negli studio BPMN e simulazione la barra globale separata viene sostituita da
+Strumenti workspace nell'header contestuale. Ricerca, avvisi, lingua, account e
+navigazione mobile restano disponibili; Ctrl/Cmd+K continua a funzionare.
+Il comando globale resta raggiungibile anche durante caricamento o errore della
+schermata. Il processo e le sue viste sono raggruppati a sinistra del contesto.
+
+La simulazione distingue la vista di osservazione dall'analisi: il selettore
+condiviso SegmentedControl cambia il modo di vedere lo stesso canvas, mentre
+Analisi apre gli strumenti secondari. Il pannello risultati parte da 320px,
+è ridimensionabile e può essere chiuso con Mostra solo il canvas. I pannelli di
+confronto partono da 400px. Non vengono alterati scenari o risultati del backend.
+Il focus entra nel pannello scelto e torna al comando di apertura alla chiusura.
+
+A 1882×956 il canvas BPMN misura 771px in altezza; la zona analitica della
+simulazione misura 730px. Sono misure delle fixture controllate, non promesse per
+ogni contenuto. A 1440px resta la stessa altezza; su viewport stretti i pannelli
+si dispongono in sequenza con scorrimento interno. Non è un comportamento di
+sovrapposizione obbligatoria del pannello sul canvas.
+
+Verifica: build, lint e typecheck riusciti; 15 test in cinque suite, inclusi
+quattro test della preferenza di navigazione. Sei scenari browser per gerarchia,
+resize, persistenza e recupero più due regressioni su tabelle/movimento riusciti.
+Le tre superfici sono controllate a 1882, 1440, 1024 e 390px; sei scansioni axe
+senza violazioni rilevate. Catture REA complete e senza page errors.
+
+Il [manifest di questa verifica](previews/hierarchy-verification-2026-11-01.json)
+conserva misure, passi ed Evidence. Tutte le anteprime usano dati sintetici.
+
+| Superficie | Anteprima |
+| --- | --- |
+| Consulente, sidebar estesa a 384px | [Desktop](previews/hierarchy-consultant-wide.png) |
+| Consulente, sidebar compatta | [Desktop](previews/hierarchy-consultant-compact.png) |
+| Canvas BPMN, header unificato | [Desktop](previews/hierarchy-canvas.png) · [Mobile](previews/hierarchy-canvas-mobile.png) |
+| Simulazione con analisi aperta | [Desktop](previews/hierarchy-simulation.png) |
+| Simulazione senza pannello laterale | [Desktop](previews/hierarchy-simulation-canvas.png) |

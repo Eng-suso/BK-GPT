@@ -39,10 +39,10 @@ export const ConversationList: React.FC<ConversationListProps> = ({
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
       {groups.map((group) => (
         <section key={group.key} aria-label={t(`threads.group.${group.key}`)}>
-          <h3 className="mb-1 px-2 text-micro font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+          <h3 className="mb-3 px-3 text-xs font-medium text-muted-foreground">
             {t(`threads.group.${group.key}`)}
           </h3>
-          <ul className="flex flex-col gap-0.5" role="list">
+          <ul className="flex flex-col gap-2" role="list">
             {group.sessions.map((session) => {
               const isActive = session.threadId === currentThreadId;
               const when = formatThreadTime(session, locale);
@@ -50,13 +50,13 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                 <li
                   key={session.threadId}
                   className={cn(
-                    "group flex items-center gap-1 rounded-md border border-transparent pr-1 transition-colors hover:bg-muted",
-                    isActive && "border-border bg-accent hover:bg-accent",
+                    "group flex items-center gap-1 rounded-[var(--material-radius-control)] border border-transparent pr-1 transition-colors hover:bg-muted",
+                    isActive && "border-border/50 bg-muted/70 hover:bg-muted/70",
                   )}
                 >
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex min-w-0 flex-1 flex-col gap-1 rounded-[var(--material-radius-control)] px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-current={isActive ? "page" : undefined}
                     onClick={() => onSelectSession?.(session.threadId)}
                   >
@@ -71,7 +71,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                       {session.title}
                     </span>
                     {when ? (
-                      <span className="text-micro tabular-nums text-muted-foreground">
+                      <span className="text-xs tabular-nums text-muted-foreground">
                         {when}
                       </span>
                     ) : null}

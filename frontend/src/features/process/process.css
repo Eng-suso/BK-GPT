@@ -698,7 +698,7 @@
 }
 
 /* Process studio adopts the shared workspace hierarchy; materials stay in Satin. */
-.process-studio-header { margin: 0; border-radius: 0; min-height: 52px; padding-block: 6px; }
+.process-studio-header { margin: 0; border-radius: 0; min-height: var(--layout-contextbar-height); padding-block: 12px; }
 .process-workspace--embedded { padding: 8px 12px 12px; }
 .process-bpmn-toolbar { min-height: 44px; padding: 6px 10px; gap: 8px; }
 .process-bpmn-stage { position: relative; }
@@ -715,7 +715,9 @@
      del processo restava una lettera. */
   .process-studio-header { gap: 4px; row-gap: 6px; padding-inline: 8px; flex-wrap: wrap; }
   .process-studio-header h1 { font-size: var(--font-size-200); }
-  .process-studio-header > :last-child { flex-basis: 100%; }
+  .process-studio-header h1 { max-width: none; min-width: 140px; flex: 1; }
+  .process-studio-header > [data-workspace-layer="primary-navigation"] { order: 2; flex-basis: auto; }
+  .process-studio-header > :last-child { order: 3; flex-basis: auto; }
   .process-studio-header > :last-child > :last-child { margin-left: auto; }
   .process-view-label { display: none; }
   .process-section-link { display: none; }

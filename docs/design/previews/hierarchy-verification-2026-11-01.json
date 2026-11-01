@@ -1,0 +1,422 @@
+{
+  "date": "2026-11-01",
+  "data": "Synthetic pitch fixture on separate local API",
+  "scope": "Resizable navigation; shared context headers; canvas-first process and simulation workspaces",
+  "captures": [
+    {
+      "preview": "hierarchy-consultant-wide.png",
+      "sha256": "df2b30f1904468d600b19b5ecfd8395a4dfd46ed5488e75b8f8c72eadbeb27d9",
+      "evidence_id": "ev_18282432e4729196e4274172e87d8cfc0be95c52da582673246fb4ae4089ac04",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "cleanup": "terminated-owned-process",
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "resize-navigation",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "release-resize-focus",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle-navigation",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "preview": "hierarchy-consultant-compact.png",
+      "sha256": "de6a09583c4231870822d353b482c04f02af3121c551951697b97abff7e5ef70",
+      "evidence_id": "ev_78d2ba0444cc6b7e1e9a27692e409d46020d2855d1b0b9801b5096d3e6596abc",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "cleanup": "terminated-owned-process",
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "collapse-navigation",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle-navigation",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "preview": "hierarchy-canvas.png",
+      "sha256": "19619d011ff6d6559fe41e6f6517c114cde69c1efc10d65523061eadc607cc07",
+      "evidence_id": "ev_bcf055a3790703528662e78680db23a405edd277a5fc4e6391e106fa7f952d98",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "cleanup": "terminated-owned-process",
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "preview": "hierarchy-canvas-mobile.png",
+      "sha256": "2e9f7230000cea7eaa096f5f44554b5fcbcc5b219f83d092d705d919fc66643c",
+      "evidence_id": "ev_90af841ba244284467d89d1e3a6e3299d845ef324cca4ad09a19bf319d828f91",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "cleanup": "terminated-owned-process",
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "preview": "hierarchy-simulation.png",
+      "sha256": "781bc9ddce118afb52a4230ef20389858bc92a5481de86475995e21e980dda9d",
+      "evidence_id": "ev_2408814e4dd305cecba89b724b80635e0e5add4f85b740286d47412b852f1f3a",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "cleanup": "terminated-owned-process",
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "preview": "hierarchy-simulation-canvas.png",
+      "sha256": "1f15d734ef8666d08958ede124291e056d246179dac018c9c6cd9ef816063723",
+      "evidence_id": "ev_adbb8fade7dc48737ca230bf1513027a2aa21d282a0bbb44a615142b2e6108ad",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "cleanup": "terminated-owned-process",
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "choose-analysis",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "show-canvas",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle-canvas",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    }
+  ],
+  "viewports": [
+    {
+      "width": 1882,
+      "surfaces": [
+        {
+          "name": "consultant",
+          "doc": 1882,
+          "body": 1882,
+          "topbarHeight": 72,
+          "canvas": null,
+          "headerHeight": 64,
+          "navWidth": 272,
+          "violations": []
+        },
+        {
+          "name": "canvas",
+          "doc": 1882,
+          "body": 1882,
+          "topbarHeight": 0,
+          "canvas": {
+            "top": 155,
+            "height": 771,
+            "width": 1734
+          },
+          "headerHeight": 67,
+          "navWidth": 72,
+          "violations": []
+        },
+        {
+          "name": "simulation",
+          "doc": 1882,
+          "body": 1882,
+          "topbarHeight": 0,
+          "canvas": {
+            "top": 151,
+            "height": 730,
+            "width": 1744
+          },
+          "headerHeight": 64,
+          "navWidth": 72,
+          "violations": []
+        }
+      ],
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "surfaces": [
+        {
+          "name": "consultant",
+          "doc": 1440,
+          "body": 1440,
+          "topbarHeight": 72,
+          "canvas": null,
+          "headerHeight": 64,
+          "navWidth": 272,
+          "violations": []
+        },
+        {
+          "name": "canvas",
+          "doc": 1440,
+          "body": 1440,
+          "topbarHeight": 0,
+          "canvas": {
+            "top": 155,
+            "height": 771,
+            "width": 1292
+          },
+          "headerHeight": 67,
+          "navWidth": 72,
+          "violations": []
+        },
+        {
+          "name": "simulation",
+          "doc": 1440,
+          "body": 1440,
+          "topbarHeight": 0,
+          "canvas": {
+            "top": 151,
+            "height": 730,
+            "width": 1302
+          },
+          "headerHeight": 64,
+          "navWidth": 72,
+          "violations": []
+        }
+      ],
+      "errors": []
+    },
+    {
+      "width": 1024,
+      "surfaces": [
+        {
+          "name": "consultant",
+          "doc": 1024,
+          "body": 1024,
+          "topbarHeight": 72,
+          "canvas": null,
+          "headerHeight": 64,
+          "navWidth": 272,
+          "violations": []
+        },
+        {
+          "name": "canvas",
+          "doc": 1024,
+          "body": 1024,
+          "topbarHeight": 0,
+          "canvas": {
+            "top": 155,
+            "height": 771,
+            "width": 876
+          },
+          "headerHeight": 67,
+          "navWidth": 72,
+          "violations": []
+        },
+        {
+          "name": "simulation",
+          "doc": 1024,
+          "body": 1024,
+          "topbarHeight": 0,
+          "canvas": {
+            "top": 240,
+            "height": 629,
+            "width": 886
+          },
+          "headerHeight": 109,
+          "navWidth": 72,
+          "violations": []
+        }
+      ],
+      "errors": []
+    },
+    {
+      "width": 390,
+      "surfaces": [
+        {
+          "name": "consultant",
+          "doc": 390,
+          "body": 390,
+          "topbarHeight": 64,
+          "canvas": null,
+          "headerHeight": 61,
+          "navWidth": 0,
+          "violations": []
+        },
+        {
+          "name": "canvas",
+          "doc": 390,
+          "body": 390,
+          "topbarHeight": 0,
+          "canvas": {
+            "top": 185,
+            "height": 645,
+            "width": 362
+          },
+          "headerHeight": 109,
+          "navWidth": 0,
+          "violations": []
+        },
+        {
+          "name": "simulation",
+          "doc": 390,
+          "body": 390,
+          "topbarHeight": 0,
+          "canvas": {
+            "top": 316,
+            "height": 560,
+            "width": 360
+          },
+          "headerHeight": 109,
+          "navWidth": 0,
+          "violations": []
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "validation": {
+    "typecheck": "passed",
+    "lint": "passed",
+    "build": "passed; existing large-chunk warnings",
+    "unitTests": "15 passed in 5 suites, including 4 new navigation preference regressions",
+    "browserTests": "6 hierarchy/navigation/recovery scenarios passed; 2 existing table/motion regressions passed",
+    "accessibility": "6 axe scans on consultant, process canvas and simulation at 1882/390; no violations",
+    "interactions": [
+      "pointer resize from 272 to 352px",
+      "Home/End/arrow-key bounds 224–384px",
+      "collapse to 72px and restore last expanded width",
+      "persistence after reload and route navigation",
+      "global workspace tools and search",
+      "close/reopen analysis; board recovers inspector width",
+      "mobile navigation from an intentionally failed lazy route"
+    ]
+  }
+}

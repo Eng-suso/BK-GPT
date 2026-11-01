@@ -28,6 +28,16 @@
 
   /* Apple regular material: readable content, glass above it, concentric radii. */
   --radius: 20px;
+  --layout-shell-padding: 16px;
+  --layout-shell-gap: 16px;
+  --layout-sidebar-width: 17rem;
+  --layout-rail-width: 72px;
+  --layout-topbar-height: 72px;
+  --layout-contextbar-height: 64px;
+  --layout-nav-row-height: 48px;
+  --layout-history-width: 16rem;
+  --layout-history-gap: 16px;
+  --layout-conversation-gutter: clamp(20px, 3vw, 40px);
   --material-radius-control: 18px;
   --material-radius-panel: 26px;
   --material-radius-frame: 30px;

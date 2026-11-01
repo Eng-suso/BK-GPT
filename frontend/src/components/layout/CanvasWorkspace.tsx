@@ -3,14 +3,16 @@ import { MoveDiagonal2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { Surface } from "@/ui/surface";
+import { WorkspaceGlobalTools } from "@/components/shell/WorkspaceChrome";
 
 type Slot = React.ReactNode;
 
 /** Context identifies the document; commands and analytical content belong below it. */
-export function WorkspaceContextBar({ title, navigation, actions, className }: { title: string; navigation?: Slot; actions?: Slot; className?: string }): React.JSX.Element {
-  return <header data-workspace-layer="context" className={cn("flex min-w-0 shrink-0 items-center gap-3 border-b border-border px-4 py-2", className)}>
-    {navigation}<h1 title={title} className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight">{title}</h1>
-    {actions && <div className="flex min-w-0 shrink-0 items-center gap-2">{actions}</div>}
+export function WorkspaceContextBar({ title, navigation, primaryActions, actions, className }: { title: string; navigation?: Slot; primaryActions?: Slot; actions?: Slot; className?: string }): React.JSX.Element {
+  return <header data-workspace-layer="context" className={cn("ui-workspace-context flex min-w-0 shrink-0 items-center gap-3 border-b border-border", className)}>
+    {navigation}<h1 title={title} className={cn("min-w-0 truncate text-base font-semibold tracking-tight", primaryActions ? "max-w-[min(24vw,320px)]" : "flex-1")}>{title}</h1>
+    {primaryActions && <div data-workspace-layer="primary-navigation" className="min-w-0">{primaryActions}</div>}
+    <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">{actions}<WorkspaceGlobalTools /></div>
   </header>;
 }
 
@@ -89,10 +91,10 @@ WorkspaceInspector.displayName = "WorkspaceInspector";
 export function WorkspaceResizeSeparator({ label, value, minimum, maximum, onResize, edge = "start" }: { label: string; value: number; minimum: number; maximum: number; onResize: (value: number) => void; edge?: "start" | "end" }): React.JSX.Element {
   const gesture = React.useRef<{ x: number; value: number } | null>(null);
   const change = (next: number) => onResize(Math.max(minimum, Math.min(maximum, next)));
-  return <div role="separator" tabIndex={0} aria-label={label} aria-orientation="vertical" aria-valuemin={minimum} aria-valuemax={maximum} aria-valuenow={value} aria-valuetext={`${Math.round(value)} px`} className="ui-workspace-splitter" onPointerDown={event => {
+  return <div role="separator" tabIndex={0} data-edge={edge} aria-label={label} aria-orientation="vertical" aria-valuemin={minimum} aria-valuemax={maximum} aria-valuenow={value} aria-valuetext={`${Math.round(value)} px`} className="ui-workspace-splitter" onPointerDown={event => {
     if (event.button !== 0) return;
     event.preventDefault(); gesture.current = { x: event.clientX, value }; event.currentTarget.setPointerCapture(event.pointerId);
-  }} onPointerMove={event => { const start = gesture.current; if (start) change(start.value + (start.x - event.clientX) * (edge === "start" ? 1 : -1)); }} onPointerUp={() => { gesture.current = null; }} onPointerCancel={() => { gesture.current = null; }} onKeyDown={event => {
+  }} onPointerMove={event => { const start = gesture.current; if (start) change(start.value + (start.x - event.clientX) * (edge === "start" ? 1 : -1)); }} onPointerUp={() => { gesture.current = null; }} onPointerCancel={() => { gesture.current = null; }} onLostPointerCapture={() => { gesture.current = null; }} onKeyDown={event => {
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); change(value + (event.key === "ArrowLeft" ? 20 : -20) * (edge === "start" ? 1 : -1)); }
     if (event.key === "Home" || event.key === "End") { event.preventDefault(); change(event.key === "Home" ? minimum : maximum); }
   }}><span aria-hidden /></div>;

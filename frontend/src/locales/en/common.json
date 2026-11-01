@@ -10,7 +10,9 @@
     "help": "Help",
     "profile": "Settings",
     "toggle": "Expand or collapse navigation",
-    "open": "Open navigation"
+    "open": "Open navigation",
+    "resize": "Resize navigation",
+    "tools": "Workspace tools"
   },
   "actions": {
     "new": "New",
