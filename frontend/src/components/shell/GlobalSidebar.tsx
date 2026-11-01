@@ -1,5 +1,5 @@
 import { DelirLogo } from "@/components/brand/DelirLogo";
-import { HelpCircle, Settings } from "lucide-react";
+import { HelpCircle, Settings, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ import type { ShellSection } from "./types";
 
 export type GlobalSidebarProps = {
   compact?: boolean;
+  onToggleNavigation?: () => void;
   /** Dentro il cassetto del telefono: etichette sempre visibili. */
   drawer?: boolean;
   className?: string;
@@ -30,6 +31,7 @@ export type GlobalSidebarProps = {
  */
 export function GlobalSidebar({
   compact = false,
+  onToggleNavigation,
   drawer = false,
   className,
   activeSection,
@@ -48,11 +50,16 @@ export function GlobalSidebar({
       aria-label={t("nav.primary")}
       className={cn("app-chrome app-sidebar flex flex-col items-center", drawer ? "h-full items-stretch px-3" : !compact && "lg:items-stretch lg:px-3", className)}
     >
-      <div className="app-sidebar-brand">
+      <div className={cn("app-sidebar-brand", drawer ? "justify-start" : !compact && "lg:justify-between")}>
+        <div className={cn("app-sidebar-identity", !drawer && compact && onToggleNavigation && "lg:hidden")}>
         {drawer ? <DelirLogo /> : <>
           <DelirLogo compact className={compact ? "" : "lg:hidden"} />
           <DelirLogo className={compact ? "hidden" : "hidden lg:inline-flex"} />
         </>}
+        </div>
+        {!drawer && onToggleNavigation && <button type="button" className="ui-chrome-control hidden lg:grid" aria-label={t("nav.toggle")} title={t("nav.toggle")} aria-expanded={!compact} aria-controls="app-navigation" onClick={onToggleNavigation}>
+          {compact ? <PanelLeftOpen aria-hidden="true" className="size-[18px]" strokeWidth={1.7} /> : <PanelLeftClose aria-hidden="true" className="size-[18px]" strokeWidth={1.7} />}
+        </button>}
       </div>
 
       <nav className="flex w-full flex-col gap-1.5">

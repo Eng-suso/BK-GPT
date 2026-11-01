@@ -1,7 +1,6 @@
 import { Suspense, useEffect, useState, type CSSProperties } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Dialog as DialogPrimitive } from "radix-ui";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { ErrorBoundary } from "@/components/feedback";
@@ -14,7 +13,6 @@ import { WorkspaceResizeSeparator } from "@/components/layout/CanvasWorkspace";
 import { GlobalSearchDialog } from "@/features/search/GlobalSearchDialog";
 import { ServiceStatusDialog } from "@/features/status/ServiceStatusDialog";
 import { Skeleton } from "@/ui/skeleton";
-import { Button } from "@/ui/button";
 import { Toaster } from "@/ui/sonner";
 import { ROUTES, SECTION_PATH, isSettingsPath, sectionFromPath } from "@/app/routes";
 
@@ -74,6 +72,7 @@ export function AppLayout(): React.JSX.Element {
       <div id="app-navigation" className="app-navigation-host relative min-h-0 max-md:hidden">
       <GlobalSidebar
         compact={compactNav}
+        onToggleNavigation={navigation.toggle}
         className="h-full"
         activeSection={activeSection}
         onSectionChange={(section) => navigate(SECTION_PATH[section])}
@@ -81,7 +80,6 @@ export function AppLayout(): React.JSX.Element {
         onOpenHelp={() => setIsHelpOpen(true)}
         onOpenSettings={() => navigate(ROUTES.settings)}
       />
-      <Button variant="outline" size="icon-sm" className="absolute -right-4 top-5 z-20" aria-label={t("nav.toggle")} aria-expanded={!compactNav} aria-controls="app-navigation" onClick={navigation.toggle}>{compactNav ? <ChevronRight aria-hidden /> : <ChevronLeft aria-hidden />}</Button>
       {!compactNav && <WorkspaceResizeSeparator label={t("nav.resize")} value={navigation.width} minimum={navigation.minimum} maximum={navigation.maximum} onResize={navigation.resize} edge="end" />}
       </div>
       <div className="app-product-content grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden">

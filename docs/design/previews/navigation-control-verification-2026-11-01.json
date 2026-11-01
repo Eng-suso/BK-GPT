@@ -1,0 +1,133 @@
+{
+  "date": "2026-11-01",
+  "data": "Synthetic pitch fixture on separate local API",
+  "scope": "Navigation toggle contained in shared sidebar header",
+  "captures": [
+    {
+      "preview": "navigation-integrated-compact.png",
+      "sha256": "7502e9ab38c8eaa7a3d9aef45225e8ac77ae8e33310cd8be8c94e3b9d95d2b92",
+      "evidence_id": "ev_e20ebd324570c2810e154d5c420af5ae887bd6f93515d85107b066ea19f6595a",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "cleanup": "terminated-owned-process",
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "collapse-navigation",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle-navigation",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "preview": "navigation-integrated-expanded.png",
+      "sha256": "1ca1e03f266f8541d070979d2c1823369ebb7c453b796733d8302b3f1cacae33",
+      "evidence_id": "ev_6f2af8957ae29e51239cd2e0a34414d4662a1c700848323a5d2227861cf4733a",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "cleanup": "terminated-owned-process",
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    }
+  ],
+  "browserVerification": [
+    {
+      "width": 1882,
+      "compact": {
+        "x": 30,
+        "right": 74,
+        "width": 44,
+        "height": 44,
+        "sidebarLeft": 16,
+        "sidebarRight": 88,
+        "position": "static",
+        "shadow": "none"
+      },
+      "overflow": false,
+      "violations": [],
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "compact": {
+        "x": 30,
+        "right": 74,
+        "width": 44,
+        "height": 44,
+        "sidebarLeft": 16,
+        "sidebarRight": 88,
+        "position": "static",
+        "shadow": "none"
+      },
+      "overflow": false,
+      "violations": [],
+      "errors": []
+    },
+    {
+      "width": 900,
+      "overflow": false,
+      "violations": [],
+      "errors": []
+    },
+    {
+      "width": 390,
+      "overflow": false,
+      "violations": [],
+      "errors": []
+    }
+  ],
+  "checks": {
+    "typecheck": "passed",
+    "lint": "passed",
+    "browserScenarios": 4,
+    "axeScans": 4,
+    "build": {
+      "status": "passed",
+      "warning": "Existing process/simulation chunks exceed 500 kB."
+    }
+  }
+}

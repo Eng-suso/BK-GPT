@@ -198,7 +198,7 @@ chat è un livello secondario; la conversazione usa la superficie principale,
 lo stesso WorkspaceContextBar degli altri workspace e testo da 16px.
 
 La sidebar principale si ridimensiona trascinando il bordo destro, tra 224 e
-384px. La freccia sul bordo la comprime a 72px e ripristina l'ultima larghezza.
+384px. Il comando nell'intestazione la comprime a 72px e ripristina l'ultima larghezza.
 Il separatore supporta frecce, Home ed End. Stato e larghezza restano nel browser
 tra navigazioni e ricaricamenti; storage assente o malformato non blocca l'uso.
 La griglia della shell si aggiorna insieme alla sidebar: i pannelli non si
@@ -279,3 +279,27 @@ ripetuta delle sezioni, ritorno del focus dal dialogo, resize da tastiera
 480–760px e ripristino del canvas su tablet/mobile. Le tre catture REA sono
 complete, senza page errors e con chiusura confermata del browser di verifica.
 Restano i warning preesistenti sulla dimensione dei chunk.
+
+
+## Comando della sidebar integrato — 1 novembre 2026
+
+Il comando di espansione vive nell'intestazione di GlobalSidebar. AppLayout
+passa il comportamento alla componente, senza posizionare pulsanti nel vuoto
+tra navigazione e contenuto. Il controllo usa ui-chrome-control: area da 44px,
+hover discreto, focus visibile e posizione statica. Nel rail compatto sostituisce
+il monogramma; nella navigazione estesa si affianca al marchio. Lo spazio
+dell'intestazione e l'allineamento delle voci restano stabili.
+
+Il comando appare nei viewport desktop, dove la sidebar può espandersi; sul
+rail intermedio resta il monogramma e sui telefoni resta il cassetto di navigazione.
+Ridimensionamento, preferenza persistente e semantica aria-expanded restano
+gestiti dai componenti esistenti.
+
+Verifica: typecheck, lint e build riusciti; quattro scenari browser a 1882, 1440, 900
+e 390px, con quattro scansioni axe senza violazioni rilevate. Controllati
+contenimento del controllo da 44×44px, attivazione da tastiera, focus,
+riapertura alla larghezza scelta, passaggio allo studio e cassetto mobile.
+Due catture REA complete e senza page errors: [rail compatto](previews/navigation-integrated-compact.png)
+e [sidebar estesa](previews/navigation-integrated-expanded.png).
+Il [manifest di verifica](previews/navigation-control-verification-2026-11-01.json)
+conserva misure, digest e identificativi delle prove su fixture sintetica.
