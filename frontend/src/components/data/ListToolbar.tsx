@@ -80,11 +80,12 @@ function FilterMenu({ filter }: { filter: ListFilterMenu }): React.JSX.Element {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
+        data-active={active > 0}
         className={cn(
-          "inline-flex min-h-9 items-center gap-1.5 rounded-full border ui-button-glass px-3 text-body-sm font-medium transition-colors duration-150 outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted/40 motion-reduce:transition-none",
+          "ui-filter-control inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-body-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring",
           active
             ? "border-primary/40 text-foreground"
-            : "border-border text-muted-foreground",
+            : "border-transparent text-muted-foreground",
         )}
       >
         {filter.label}

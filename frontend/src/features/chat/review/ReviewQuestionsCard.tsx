@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { CornerDownLeft, HelpCircle, Check } from "lucide-react";
 
 import { Button } from "@/ui/button";
+import { Input } from "@/ui/input";
+import { Surface } from "@/ui/surface";
 import { cn } from "@/lib/utils";
 import type { ReviewOpenQuestion } from "../types";
 import { sortQuestions } from "./questionOrder";
@@ -33,7 +35,7 @@ export function ReviewQuestionsCard({
   const current = open[0];
 
   return (
-    <section className="review-questions-card" aria-label={t("questions.title")}>
+    <Surface asChild variant="panel"><section className="review-questions-card" aria-label={t("questions.title")}>
       <header className="review-questions-header">
         <span className="review-questions-icon" aria-hidden="true">
           <HelpCircle className="size-4" />
@@ -55,7 +57,7 @@ export function ReviewQuestionsCard({
           onAnswer={onAnswer}
         />
       </ol>
-    </section>
+    </section></Surface>
   );
 }
 
@@ -160,7 +162,8 @@ function OpenQuestion({
         onKeyDown={selectByDigit}
       >
         {options.map((option, index) => (
-          <button
+          <Button
+            variant="outline"
             key={option.label}
             type="button"
             className={cn(
@@ -181,11 +184,12 @@ function OpenQuestion({
               {option.label}
             </span>
             {option.implication ? <small>{option.implication}</small> : null}
-          </button>
+          </Button>
         ))}
 
         {isWritingOwn ? null : (
-          <button
+          <Button
+            variant="outline"
             type="button"
             className="review-question-option review-question-option-other"
             disabled={isAnswering}
@@ -205,7 +209,7 @@ function OpenQuestion({
                 ? t("questions.noneOfThese")
                 : t("questions.writeAnswer")}
             </small>
-          </button>
+          </Button>
         )}
       </div>
 
@@ -220,7 +224,7 @@ function OpenQuestion({
           <label className="sr-only" htmlFor={`${labelId}-own`}>
             {t("questions.ownLabel")}
           </label>
-          <input
+          <Input
             id={`${labelId}-own`}
             ref={ownInputRef}
             type="text"

@@ -927,37 +927,12 @@
 .bpmn-review-sheet-footer,
 .bpmn-review-tab-section,
 .bpmn-review-overview-hero,
-.bpmn-review-document-card {
-  min-width: 0;
-  max-width: 100%;
-}
+.bpmn-review-document-card { min-width: 0; }
 
 .bpmn-review-card-heading h4,
 .bpmn-review-card-copy > p,
 .bpmn-review-card-actions > span {
   overflow-wrap: anywhere;
-}
-
-.bpmn-review-sheet-overlay {
-  background: rgba(15, 23, 42, 0.24) !important;
-  backdrop-filter: blur(3px);
-}
-
-.bpmn-review-sheet-content {
-  z-index: 60 !important;
-  top: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  left: auto !important;
-  grid-template-rows: auto minmax(40px, auto) auto minmax(0, 1fr) auto;
-  width: min(760px, 100vw) !important;
-  max-width: none !important;
-  height: 100dvh !important;
-  translate: none !important;
-  border-width: 0 0 0 1px;
-  border-radius: 18px 0 0 18px !important;
-  background: color-mix(in srgb, white 94%, var(--blue-50));
-  box-shadow: -28px 0 80px -38px rgba(15, 23, 42, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.6) inset;
 }
 
 .bpmn-review-sheet-header {
@@ -971,6 +946,7 @@
 }
 
 .bpmn-review-sheet-heading {
+  flex-direction: row;
   display: flex;
   flex: 1 1 auto;
   align-items: flex-start;
@@ -1005,8 +981,7 @@
   margin: 0 var(--space-600);
   padding: 0 var(--space-300);
   overflow: hidden;
-  border-top: 1px solid var(--blue-200);
-  border-bottom: 1px solid var(--blue-200);
+  border-bottom: 1px solid var(--material-divider);
   color: var(--color-text-secondary);
   font-size: var(--font-size-100);
 }
@@ -1048,63 +1023,8 @@
   display: none;
 }
 
-.bpmn-review-nav-button {
-  display: inline-flex;
-  min-height: 36px;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--space-150);
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--color-text-tertiary);
-  padding: 0 var(--space-200) var(--space-200);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-200);
-  transition: color 150ms ease, border-color 150ms ease;
-}
-
-.bpmn-review-nav-button:hover,
-.bpmn-review-nav-button:focus-visible,
-.bpmn-review-nav-button.is-active {
-  color: var(--color-action-primary);
-}
-
-.bpmn-review-nav-button.is-active {
-  border-bottom-color: var(--color-action-primary);
-  font-weight: var(--font-weight-semibold);
-}
-
-.bpmn-review-nav-button svg {
-  width: 15px;
-  height: 15px;
-}
-
-.bpmn-review-nav-button strong {
-  display: inline-grid;
-  min-width: 18px;
-  height: 18px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--state-warning-surface);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-50);
-}
-
 .bpmn-review-sheet-body {
   padding: var(--space-400) var(--space-600) var(--space-600);
-}
-
-.bpmn-review-overview-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 120px;
-  gap: var(--space-400);
-  align-items: center;
-  padding: var(--space-400);
-  border: 1px solid var(--blue-200);
-  border-radius: 16px;
-  background: linear-gradient(135deg, var(--blue-50), rgba(255, 255, 255, 0.82));
 }
 
 .bpmn-review-overview-label {
@@ -1113,8 +1033,7 @@
   color: var(--color-action-primary);
   font-size: var(--font-size-100);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0;
 }
 
 .bpmn-review-overview-hero h3 {
@@ -1131,42 +1050,6 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-300);
   line-height: 1.55;
-}
-
-.bpmn-review-hero-score {
-  display: grid;
-  place-items: center;
-  align-content: center;
-  width: 112px;
-  height: 112px;
-  border: 8px solid var(--state-warning-border);
-  border-radius: 50%;
-  background: var(--color-surface-primary);
-}
-
-.bpmn-review-hero-score.is-ready {
-  border-color: var(--state-success-border);
-}
-
-.bpmn-review-hero-score > span {
-  font-size: 2.15rem;
-  font-weight: var(--font-weight-semibold);
-  line-height: 0.95;
-}
-
-.bpmn-review-hero-score small {
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-100);
-}
-
-.bpmn-review-hero-score em {
-  margin-top: 4px;
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-50);
-  font-style: normal;
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .bpmn-review-overview-stats {
@@ -1187,13 +1070,7 @@
   border-left: 0;
 }
 
-.bpmn-review-document-card {
-  margin-top: var(--space-400);
-  overflow: hidden;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 14px;
-  background: var(--color-surface-primary);
-}
+.bpmn-review-document-card { margin-top: var(--space-400); overflow: hidden; }
 
 .bpmn-review-document-header {
   display: flex;
@@ -1265,26 +1142,6 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-100);
   font-weight: var(--font-weight-semibold);
-}
-
-.bpmn-review-editor textarea {
-  width: 100%;
-  min-height: 360px;
-  resize: vertical;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-300);
-  background: var(--color-surface-primary);
-  padding: var(--space-300);
-  color: var(--color-text-primary);
-  font-family: var(--font-family-geist-mono);
-  font-size: var(--font-size-200);
-  line-height: 1.6;
-}
-
-.bpmn-review-editor textarea:focus {
-  border-color: var(--color-border-selected);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-border-selected) 24%, transparent);
-  outline: none;
 }
 
 .bpmn-review-tab-section {
@@ -1433,11 +1290,6 @@
   overflow-wrap: anywhere;
 }
 
-.bpmn-review-sheet-footer .bpmn-review-footer-actions {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
 @container chat-panel (max-width: 420px) {
   .bpmn-review-card {
     grid-template-columns: 32px minmax(0, 1fr);
@@ -1480,9 +1332,6 @@
 }
 
 @media (max-width: 760px) {
-  .bpmn-review-sheet-content {
-    border-radius: 0;
-  }
 
   .bpmn-review-sheet-header,
   .bpmn-review-sheet-body,
@@ -1505,22 +1354,7 @@
     padding-left: var(--space-400);
   }
 
-  .bpmn-review-overview-hero {
-    grid-template-columns: minmax(0, 1fr) 92px;
-    gap: var(--space-300);
-    padding: var(--space-400);
   }
-
-  .bpmn-review-hero-score {
-    width: 88px;
-    height: 88px;
-    border-width: 6px;
-  }
-
-  .bpmn-review-hero-score > span {
-    font-size: 1.7rem;
-  }
-}
 
 @media (max-width: 520px) {
   .bpmn-review-sheet-header {
@@ -1528,22 +1362,13 @@
   }
 
   .bpmn-review-sheet-heading {
+  flex-direction: row;
     flex-basis: 100%;
   }
 
   .bpmn-review-sheet-actions {
     width: 100%;
     justify-content: flex-end;
-  }
-
-  .bpmn-review-overview-hero {
-    grid-template-columns: 1fr;
-  }
-
-  .bpmn-review-hero-score {
-    width: 74px;
-    height: 74px;
-    justify-self: start;
   }
 
   .bpmn-review-overview-stats {
@@ -1563,24 +1388,6 @@
     flex-direction: column;
   }
 
-  .bpmn-review-footer-actions {
-    flex-wrap: wrap;
-  }
-
-  .bpmn-review-footer-actions > * {
-    min-width: 0;
-  }
-
-  .bpmn-review-footer-actions > * {
-    flex: 1;
-  }
-}
-
-/* Radix dialog utilities define their own centering and the legacy review
-   rules above define a three-row sheet. Keep the final workspace contract
-   explicit so the panel stays a true full-height drawer at every viewport. */
-.bpmn-review-sheet-content {
-  grid-template-rows: auto minmax(40px, auto) auto minmax(0, 1fr) auto !important;
 }
 
 body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
@@ -1700,46 +1507,18 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   color: var(--color-text-primary);
 }
 
-.bpmn-review-sheet-content {
-  position: fixed;
-  inset: 12px 12px 12px auto;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 0;
-  width: min(720px, calc(100vw - 24px));
-  max-width: none;
-  height: calc(100dvh - 24px);
-  padding: 0;
-  overflow: hidden;
-  transform: translateX(100%);
-  border: 1px solid color-mix(in srgb, var(--blue-200) 72%, white);
-  border-radius: 18px;
-  background: color-mix(in srgb, white 91%, var(--blue-50));
-  box-shadow: -24px 0 70px -34px rgba(15, 23, 42, 0.42), var(--shadow-300);
-  backdrop-filter: blur(18px) saturate(1.16);
-  animation: none !important;
-  transition: transform 240ms ease-out;
-}
-
-.bpmn-review-sheet-content[data-state="open"] {
-  transform: translateX(0) !important;
-}
-
-.bpmn-review-sheet-content[data-state="closed"] {
-  transform: translateX(100%) !important;
-}
-
 .bpmn-review-sheet-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-400);
   padding: var(--space-400) var(--space-600);
-  border-bottom: 1px solid color-mix(in srgb, var(--blue-200) 58%, transparent);
-  background: color-mix(in srgb, white 60%, transparent);
+  border-bottom: 1px solid var(--material-divider);
+  background: var(--material-chrome);
 }
 
 .bpmn-review-sheet-heading {
+  flex-direction: row;
   display: flex;
   min-width: 0;
   align-items: flex-start;
@@ -1767,8 +1546,7 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   line-height: 1.45;
 }
 
-.bpmn-review-sheet-actions,
-.bpmn-review-footer-actions {
+.bpmn-review-sheet-actions {
   display: flex;
   flex: none;
   align-items: center;
@@ -2012,42 +1790,6 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   gap: var(--space-200);
 }
 
-.bpmn-review-issue {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-300);
-  padding: var(--space-300);
-  border: 1px solid var(--state-warning-border);
-  border-radius: var(--radius-300);
-  background: var(--state-warning-surface);
-}
-
-.bpmn-review-issue-marker {
-  width: 8px;
-  height: 8px;
-  margin-top: 5px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--color-status-warning);
-}
-
-.bpmn-review-issue div {
-  display: grid;
-  gap: 3px;
-}
-
-.bpmn-review-issue strong {
-  color: var(--color-text-primary);
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-medium);
-  line-height: 1.45;
-}
-
-.bpmn-review-issue span:not(.bpmn-review-issue-marker) {
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-100);
-}
-
 .bpmn-review-empty-state {
   padding: var(--space-400);
   border: 1px dashed var(--state-success-border);
@@ -2084,8 +1826,8 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   justify-content: space-between;
   gap: var(--space-400);
   padding: var(--space-400) var(--space-600);
-  border-top: 1px solid color-mix(in srgb, var(--blue-200) 58%, transparent);
-  background: color-mix(in srgb, white 72%, transparent);
+  border-top: 1px solid var(--material-divider);
+  background: var(--material-chrome);
 }
 
 .bpmn-review-sheet-footer p {
@@ -2111,16 +1853,6 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
 
   .bpmn-review-card-dot {
     display: none;
-  }
-
-  .bpmn-review-sheet-content {
-    top: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: 100dvh !important;
-    border-radius: 0 !important;
   }
 
   .bpmn-review-sheet-header,
@@ -2160,29 +1892,13 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
     flex-direction: column;
   }
 
-  .bpmn-review-footer-actions {
-    justify-content: stretch;
-  }
-
-  .bpmn-review-footer-actions > * {
-    flex: 1;
-  }
 }
 
 /* ── Domande aperte del piano ───────────────────────────────────
    Le lacune del piano come decisioni che il consulente puo' chiudere.
    Stessa famiglia visiva della review card, tono piu' sobrio: qui non si
    annuncia un risultato, si chiede una scelta. */
-.review-questions-card {
-  margin: var(--space-300) 0;
-  padding: var(--space-400);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-300);
-  background: var(--color-surface-primary);
-  box-shadow: var(--shadow-card);
-  min-width: 0;
-  max-width: 100%;
-}
+.review-questions-card { margin: var(--space-300) 0; padding: var(--space-400); min-width: 0; max-width: 100%; }
 
 .review-questions-header {
   display: flex;
@@ -2230,39 +1946,8 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
    transcript: si apre, si chiude e si riapre senza lasciare residui fra i
    messaggi. Prima readiness card, questionario e review restavano incollati alla
    conversazione e scorrevano con lei per sempre. */
-.modeling-workspace-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-300);
-  width: 100%;
-  max-width: var(--chat-measure);
-  margin-inline: auto;
-}
-
-.modeling-workspace-text {
-  flex: 1;
-  min-width: 0;
-}
-
-.modeling-workspace-title {
-  margin: 0;
-  overflow: hidden;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-100);
-  font-weight: var(--font-weight-semibold);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.modeling-workspace-detail {
-  margin: 0;
-  overflow: hidden;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-100);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+.chat-workspace-slot { background: transparent; }
+.modeling-workspace-bar { width: 100%; max-width: var(--chat-measure); margin-inline: auto; }
 
 /* L'argomento della domanda: quale parte del modello cambia se si risponde.
    Raggruppa le domande correlate senza doverlo spiegare a parole. */
@@ -2271,8 +1956,8 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   color: var(--color-text-secondary);
   font-size: var(--font-size-100);
   font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  text-transform: none;
+  letter-spacing: 0;
   overflow-wrap: anywhere;
 }
 
@@ -2322,35 +2007,7 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   gap: var(--space-200);
 }
 
-.review-question-option {
-  display: block;
-  width: 100%;
-  padding: var(--space-200) var(--space-300);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-300);
-  background: var(--color-surface-app);
-  color: var(--color-text-primary);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-200);
-  text-align: left;
-  transition: border-color 150ms ease, background-color 150ms ease;
-}
-
-.review-question-option:hover:not(:disabled) {
-  border-color: var(--color-border-selected);
-  background: var(--color-surface-primary);
-}
-
-.review-question-option:focus-visible {
-  outline: var(--border-width-200) solid var(--color-border-selected);
-  outline-offset: 1px;
-}
-
-.review-question-option:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
+.review-question-option { display: block; width: 100%; height: auto; min-height: 44px; padding: var(--space-300) var(--space-400); border-radius: var(--material-radius-control); white-space: normal; text-align: left; }
 
 .review-question-option.is-pending {
   border-color: var(--color-border-selected);
@@ -2405,23 +2062,7 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   margin-top: var(--space-200);
 }
 
-.review-question-own input {
-  flex: 1;
-  min-width: 0;
-  padding: var(--space-200) var(--space-300);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-300);
-  background: var(--color-surface-app);
-  color: var(--color-text-primary);
-  font: inherit;
-  font-size: var(--font-size-200);
-}
-
-.review-question-own input:focus-visible {
-  border-color: var(--color-border-selected);
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
+.review-question-own input { flex: 1; min-width: 0; }
 
 /* Conversation workspace: readable messages and controls at every panel width. */
 .viewport, .embedded-chat-panel {
@@ -2607,16 +2248,21 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   color: var(--color-text-secondary);
 }
 
-/* Dentro il pannello review la card domande è già in un contenitore: niente
-   doppio bordo, niente doppia ombra. */
-.bpmn-review-tab-section .review-questions-card {
-  padding: 0;
-  border: none;
-  box-shadow: none;
-}
-
 /* Status feedback follows the same reading measure as the conversation. */
 .chat-service-notice {
   width: min(100%, var(--chat-measure));
   margin: 16px auto;
 }
+
+/* Review composes shared sheet, tabs, fields and surfaces; only layout lives here. */
+.bpmn-review-sheet-content { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.bpmn-review-sections { min-height: 0; gap: 0; }
+.bpmn-review-overview-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-400); padding: var(--space-600); }
+.bpmn-review-overview-label { text-transform: none; letter-spacing: 0; color: var(--color-text-secondary); }
+.bpmn-review-overview-hero h3 { font-size: var(--font-size-600); line-height: 1.3; }
+.bpmn-review-overview-hero p { font-size: var(--font-size-200); }
+.bpmn-review-summary-metric { display: grid; gap: var(--space-200); color: var(--color-text-secondary); font-size: var(--font-size-100); }
+.bpmn-review-summary-metric strong { font-size: var(--font-size-800); line-height: 1; color: var(--foreground); font-weight: var(--font-weight-medium); }
+.bpmn-review-summary-metric small { font-size: var(--font-size-200); color: var(--color-text-secondary); }
+.bpmn-review-editor textarea { min-height: 360px; resize: vertical; font-family: var(--font-family-geist-mono); line-height: 1.6; }
+@media (max-width: 540px) { .bpmn-review-overview-hero { padding: var(--space-400); } .bpmn-review-sheet-nav [data-slot="tabs-trigger"] { min-height: 40px; } }

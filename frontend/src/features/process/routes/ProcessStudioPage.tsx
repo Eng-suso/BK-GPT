@@ -145,7 +145,7 @@ export function ProcessStudioPage(): React.JSX.Element {
   return (
     <Tabs value={view} onValueChange={setView} className="h-full min-h-0 gap-0">
       <WorkspaceContextBar className="process-studio-header" title={process.name} navigation={<div className="flex shrink-0 items-center gap-2"><Button variant="ghost" size="icon-sm" onClick={backToProject} aria-label={t("actions.backToProject")} title={t("actions.backToProject")}><ArrowLeft aria-hidden className="size-4" /></Button><Badge variant="secondary" className="process-stage-badge">{process.stage}</Badge></div>} actions={<>
-        <TabsList aria-label={t("actions.views")}>
+        <TabsList variant="navigation" aria-label={t("actions.views")}>
           {VIEWS.map((v) => { const Icon = VIEW_ICON[v]; const label = v === "canvas" && process.stage === "AS-IS" ? t("review.asIs") : t(`tabs.${v}`); return <TabsTrigger key={v} value={v} aria-label={label} title={label}><Icon aria-hidden /><span className="process-view-label">{label}</span></TabsTrigger>; })}
         </TabsList>
         <WorkspaceDisclosure label={t("canvas.documentDetails")} contentClassName="process-document-details">

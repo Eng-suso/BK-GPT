@@ -95,6 +95,21 @@ La tabella condivisa usa intestazioni in forma normale e padding compatto:
 la colonna finale resta interamente visibile a 1440 px nonostante il nuovo
 inset della shell. Su mobile conserva lo scorrimento orizzontale accessibile.
 
+### Spazio e feedback dei controlli
+
+Il pannello laterale delle liste richiede almeno **112rem**: il budget include
+sidebar, margini, tabella leggibile e ispettore da 320px. La media query usata
+dai clic delle righe corrisponde al breakpoint CSS. A 1594px la lista usa la
+larghezza disponibile; alle larghezze maggiori può affiancare il dettaglio.
+Le tabelle brevi seguono il contenuto, mentre quelle lunghe si riducono nello
+spazio disponibile mantenendo lo scorrimento interno.
+
+I filtri sono controlli secondari leggeri, distinti dalle azioni a pulsante.
+La pressione dei pulsanti usa una variazione ottica del 2% senza cambiare il
+flusso del layout; il menu entra in 180ms ed esce in 100ms. La preferenza di
+movimento ridotto disabilita questi effetti. La ricostruzione REA a 1594×956
+è completa: `ev_d2375138ba4c72253e144269e709e8238414f1d028beceb0c2ad8d9895fc9f0d`.
+
 | Area | Anteprima |
 | --- | --- |
 | Progetto | [Desktop](previews/liquid-project-detail-desktop.png) |
@@ -128,3 +143,47 @@ La PR non certifica autenticazione enterprise, permessi o conformità completa.
 La raccolta precedente `DESIGN.md` e l'audit del 20 ottobre sono materiale
 storico locale: non descrivono automaticamente lo stato attuale. Il design
 system aggiornato è [satin-design-system.md](satin-design-system.md).
+
+
+## Correzioni sul feedback — 1 novembre 2026
+
+Le correzioni passano dai componenti condivisi. Input, Textarea e Select usano
+un solo bordo di focus da 1px, con aura al 10% e senza contorno separato.
+Il contrasto del bordo resta distinguibile; in forced colors si usa il contorno
+nativo Highlight. Hover, stato disabilitato e stato di errore restano separati.
+
+La variante navigation di Tabs viene usata dal processo e dal piano BPMN.
+Mantiene selezione, frecce da tastiera e focus in un'unica composizione.
+ActionPrompt raccoglie versione, domanda effettiva, azione e chiusura: sostituisce
+la striscia a larghezza piena sopra il composer.
+
+DialogContent offre ora una variante sheet con gli stessi materiali di Surface,
+animazione e fallback per movimento ridotto. DialogActions mantiene leggibili le
+etichette e impila le azioni su mobile. Il focus torna al comando di apertura
+anche nei form che usano autofocus. La review riusa Tabs, Surface, Input,
+Textarea, Button e InlineNotice, eliminando le ricette CSS concorrenti del pannello.
+
+Decidi apre direttamente le decisioni senza inviare risposte o generare modelli.
+Sintesi e struttura restano accessibili dai tab. La vista di lettura presenta il
+piano del processo, senza nomi di file o etichette di formato; Markdown compare
+nel solo editor dove serve a capire cosa si sta modificando. Sul canvas review
+è rimossa l'identità duplicata; l'attribuzione BPMN.io resta presente.
+
+Verifica del follow-up: typecheck, lint e build riusciti; 24 test in 3 suite
+esistenti; 4 scenari browser riusciti. Layout controllato a 1594, 1792, 1920 e
+390px, tabelle sintetiche da 3 e 15 righe, movimento normale e ridotto.
+Dieci scansioni axe a 1594/390px senza violazioni rilevate. Verificati navigazione
+con frecce, editor, risposta libera senza invio, Escape, ritorno del focus e
+assenza di testo tagliato nelle azioni del pannello.
+
+Le sei catture REA sono complete e senza page errors. Identità, digest delle
+immagini, passi e risultati sono nel [manifest di verifica](previews/feedback-verification-2026-11-01.json).
+Sono verifiche su fixture sintetica, non una certificazione dell'intero prodotto.
+
+| Superficie | Anteprima implementata |
+| --- | --- |
+| Campo selezionato | [Desktop](previews/liquid-field-focus-desktop.png) |
+| Chat e prossima decisione | [Desktop](previews/liquid-process-chat-desktop.png) |
+| Piano e sintesi | [Desktop](previews/liquid-plan-summary-desktop.png) |
+| Decisioni | [Desktop](previews/liquid-plan-decisions-desktop.png) · [Mobile](previews/liquid-plan-decisions-mobile.png) |
+| Portafoglio progetti | [Desktop 1594px](previews/liquid-projects-desktop.png) |

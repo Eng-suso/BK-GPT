@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 /**
  * Standard workspace list screen: a scrolling main column
  * (page header + toolbar + table) beside an optional right detail panel.
- * The panel is hidden below the `panel` breakpoint (1440px) so it never
+ * The panel is hidden below the `panel` breakpoint (112rem) so it never
  * squeezes the table.
  */
 export function WorkspaceListView({
@@ -32,7 +32,7 @@ export function WorkspaceListView({
         className,
       )}
     >
-      <div className="flex min-w-0 flex-col gap-4 overflow-hidden px-4 py-4 sm:px-7 sm:py-6">
+      <div className="flex min-w-0 flex-col gap-4 overflow-hidden px-4 py-4 sm:px-6 sm:py-6">
         {header}
         {toolbar}
         {children}
