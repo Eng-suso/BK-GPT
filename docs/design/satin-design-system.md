@@ -1,5 +1,21 @@
 # DeliR — Satin design system
 
+## Liquid Glass — 31 ottobre 2026
+
+Sohay ha confermato Liquid Glass e capsule morbide come direzione del prodotto.
+Il design system usa navigazione traslucida e flottante, riflessi luminosi ai
+bordi, controlli a capsula e superfici di contenuto arrotondate e leggibili.
+Il materiale regolare distingue i comandi dal contenuto; non si applica blur
+a righe di tabella, testi o elementi BPMN. Geist e il marchio DeliR restano;
+l'accento interattivo è un blu chiaro della famiglia Apple, distinto dal logo.
+
+Hover, pressione, focus, disabilitato e caricamento fanno parte del componente.
+Su mobile la libreria BPMN si apre da un controllo compatto, Leggi e Centra
+restano visibili e la Home mantiene i progetti nella prima area utile.
+
+Fonti, misure, anteprime e limiti:
+[Liquid Glass design system — 2026-10-31](liquid-glass-design-system-2026-10-31.md).
+
 Decisione di prodotto, 2026-09-08: applicare a tutta l'interfaccia l'identità
 del riferimento fornito da Sohay: vetro bianco satinato, doppia cornice luminosa,
 rilievi morbidi e controlli a capsula. Il riferimento riguarda l'aspetto, non

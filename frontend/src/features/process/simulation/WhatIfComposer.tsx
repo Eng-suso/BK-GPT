@@ -14,6 +14,7 @@ import { readError } from "./useScenarioLab";
 import { applyWhatIf, whatIfContext } from "./whatIf";
 
 type Props = {
+  embedded?: boolean;
   bpmnModelId: string;
   template: ScenarioTemplate | null;
   draft: ScenarioDraft;
@@ -26,7 +27,8 @@ type Props = {
  * uno scenario del workspace, e la bozza cambia solo con "Applica". Nessun run
  * parte da qui: lo avvia il consulente, come sempre.
  */
-export function WhatIfComposer({ bpmnModelId, template, draft, onApply }: Props): React.JSX.Element {
+export function WhatIfComposer({
+  embedded = false, bpmnModelId, template, draft, onApply }: Props): React.JSX.Element {
   const { t } = useTranslation("process");
   const [sentence, setSentence] = React.useState("");
   const [result, setResult] = React.useState<WhatIfTranslation | null>(null);
@@ -74,9 +76,9 @@ export function WhatIfComposer({ bpmnModelId, template, draft, onApply }: Props)
   };
 
   return (
-    <section aria-labelledby={`${fieldId}-title`} className="grid gap-3 border-b border-border py-4" data-testid="sim-what-if">
+    <section aria-labelledby={`${fieldId}-title`} className={embedded ? "grid gap-4 pt-4" : "grid gap-3 border-b border-border py-4"} data-testid="sim-what-if">
       <div className="grid gap-1">
-        <h4 id={`${fieldId}-title`} className="text-sm font-semibold text-foreground">{t("simulation.whatIf.title")}</h4>
+        <h4 id={`${fieldId}-title`} className={embedded ? "sr-only" : "text-sm font-semibold text-foreground"}>{t("simulation.whatIf.title")}</h4>
         <p id={hintId} className="text-xs text-muted-foreground">{t("simulation.whatIf.hint")}</p>
       </div>
       <form className="grid gap-2" onSubmit={submit}>

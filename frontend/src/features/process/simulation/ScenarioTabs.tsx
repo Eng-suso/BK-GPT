@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle, Copy, MoreHorizontal, Plus, Trash2, Undo2 } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/feedback";
+import { DisclosureNotice } from "@/components/feedback/DisclosureNotice";
 import { Button } from "@/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/ui/dropdown-menu";
@@ -26,7 +27,7 @@ export function ScenarioTabs({ lab }: { lab: ScenarioLab }): React.JSX.Element |
   const changes = useScenarioChanges(baselineDraft, template);
   const scenarios = workspaceScenarios(workspace);
   if (!workspace?.baseline || !selectedScenario) {
-    return workspaceError ? <p role="status" className="sim-scenario-notice">{workspaceError}</p> : null;
+    return workspaceError ? <DisclosureNotice title={t("simulation.scenario.localDraft")}>{workspaceError}</DisclosureNotice> : null;
   }
   const full = workspace.alternatives.length >= MAX_ALTERNATIVES;
   const list = selectedScenario.kind === "alternative" ? changes.read(selectedScenario) : [];

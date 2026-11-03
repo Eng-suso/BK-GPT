@@ -1,0 +1,655 @@
+{
+  "date": "2026-11-01",
+  "scope": "Shared DS focus, navigation, form/sheet actions, review decisions and portfolio layout",
+  "data": "Synthetic pitch fixture; separate local API",
+  "captures": [
+    {
+      "capture": "feedback-field-focus",
+      "preview": "liquid-field-focus-desktop.png",
+      "sha256": "33e756e38c5dec2be85f3e432994581392825b2a44a8dc49149b7a27e1d99e61",
+      "evidence_id": "ev_993852dc4f9bca5e9a496ec6b12e3367968210edbff32254a92704f01a1c43c2",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "open-client",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "focus-settle",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "capture": "feedback-chat",
+      "preview": "liquid-process-chat-desktop.png",
+      "sha256": "b69015701a81539c0fb7558806dc0d79eb8ea2d8541cdd3d583df3d831d72454",
+      "evidence_id": "ev_635a302f886d8afe56376c5439d11d1d8859ae3b3fb8b7e10faf7a99044ad301",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "capture": "feedback-decisions",
+      "preview": "liquid-plan-decisions-desktop.png",
+      "sha256": "a56b20a3eff4a595dccde96bd2630ae3f5270b05ecc7da792c0c081027bfa8dd",
+      "evidence_id": "ev_70fc1fa879f77d6c82dc72c0912c2d9afaa979744f932edaa6c5d4398e88b5a9",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "open-review",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "sheet-settle",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "capture": "feedback-review-summary",
+      "preview": "liquid-plan-summary-desktop.png",
+      "sha256": "139a1451799b8211699bf3b37f0b7b8357678c90dde82608d799a5bd6c635eec",
+      "evidence_id": "ev_a05904819a206cb644f88a0ec8e517897ff8883bdc7883a465fb684c1cf50d95",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "open-review",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "open-summary",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "summary-settle",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "capture": "feedback-review-mobile",
+      "preview": "liquid-plan-decisions-mobile.png",
+      "sha256": "f31c4a1ae21dfbb6ef3f3b2a1452bb5244a6b72fb97a10a321bc5b3b5aef4ab8",
+      "evidence_id": "ev_c4381380d10e159f3a47498de7417ac87bc57290965d21f938e52b69d6044680",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "open-review",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "sheet-settle",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "capture": "feedback-projects",
+      "preview": "liquid-projects-desktop.png",
+      "sha256": "c094554b0e72d7b0734664be7a0b021517d368a285153b4fed16dfae66da47d5",
+      "evidence_id": "ev_560fa7f68c2befa85aad5cbad2dd896ebc3297ebdaa1c9860c6f9686fe30a353",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    }
+  ],
+  "layout": {
+    "date": "2026-11-01",
+    "fixture": "Synthetic pitch API only",
+    "viewports": [
+      {
+        "viewport": 1594,
+        "documentWidth": 1594,
+        "bodyWidth": 1594,
+        "panelVisible": false,
+        "panelWidth": 0,
+        "tableClientWidth": 1282,
+        "tableScrollWidth": 1282,
+        "tableRight": 1556,
+        "headers": [
+          {
+            "text": "Progetto",
+            "right": 658.375
+          },
+          {
+            "text": "Cliente",
+            "right": 832.078125
+          },
+          {
+            "text": "Fase corrente",
+            "right": 968.3125
+          },
+          {
+            "text": "Referente",
+            "right": 1111.609375
+          },
+          {
+            "text": "Stato",
+            "right": 1210.921875
+          },
+          {
+            "text": "Processi",
+            "right": 1313.9375
+          },
+          {
+            "text": "Avanzamento",
+            "right": 1489.515625
+          },
+          {
+            "text": "",
+            "right": 1556
+          }
+        ]
+      },
+      {
+        "viewport": 1792,
+        "documentWidth": 1792,
+        "bodyWidth": 1792,
+        "panelVisible": true,
+        "panelWidth": 320,
+        "tableClientWidth": 1160,
+        "tableScrollWidth": 1160,
+        "tableRight": 1434,
+        "headers": [
+          {
+            "text": "Progetto",
+            "right": 621.796875
+          },
+          {
+            "text": "Cliente",
+            "right": 778.96875
+          },
+          {
+            "text": "Fase corrente",
+            "right": 902.234375
+          },
+          {
+            "text": "Referente",
+            "right": 1031.890625
+          },
+          {
+            "text": "Stato",
+            "right": 1121.75
+          },
+          {
+            "text": "Processi",
+            "right": 1214.96875
+          },
+          {
+            "text": "Avanzamento",
+            "right": 1373.828125
+          },
+          {
+            "text": "",
+            "right": 1434
+          }
+        ]
+      },
+      {
+        "viewport": 1920,
+        "documentWidth": 1920,
+        "bodyWidth": 1920,
+        "panelVisible": true,
+        "panelWidth": 320,
+        "tableClientWidth": 1288,
+        "tableScrollWidth": 1288,
+        "tableRight": 1562,
+        "headers": [
+          {
+            "text": "Progetto",
+            "right": 660.171875
+          },
+          {
+            "text": "Cliente",
+            "right": 834.6875
+          },
+          {
+            "text": "Fase corrente",
+            "right": 971.5625
+          },
+          {
+            "text": "Referente",
+            "right": 1115.53125
+          },
+          {
+            "text": "Stato",
+            "right": 1215.3125
+          },
+          {
+            "text": "Processi",
+            "right": 1318.8125
+          },
+          {
+            "text": "Avanzamento",
+            "right": 1495.203125
+          },
+          {
+            "text": "",
+            "right": 1562
+          }
+        ]
+      },
+      {
+        "viewport": 390,
+        "documentWidth": 390,
+        "bodyWidth": 390,
+        "panelVisible": false,
+        "panelWidth": 0,
+        "tableClientWidth": 342,
+        "tableScrollWidth": 1081,
+        "tableRight": 366,
+        "headers": [
+          {
+            "text": "Progetto",
+            "right": 348
+          },
+          {
+            "text": "Cliente",
+            "right": 494.421875
+          },
+          {
+            "text": "Fase corrente",
+            "right": 609.265625
+          },
+          {
+            "text": "Referente",
+            "right": 730.0625
+          },
+          {
+            "text": "Stato",
+            "right": 813.78125
+          },
+          {
+            "text": "Processi",
+            "right": 900.625
+          },
+          {
+            "text": "Avanzamento",
+            "right": 1048.625
+          },
+          {
+            "text": "",
+            "right": 1104.625
+          }
+        ]
+      }
+    ],
+    "motion": [
+      {
+        "reducedMotion": "no-preference",
+        "menu": {
+          "animationName": "liquid-menu-enter",
+          "animationDuration": "0.18s",
+          "boxShadow": "rgb(255, 255, 255) 0px 1px 0px 0px inset, rgba(255, 255, 255, 0.4) 0px -1px 0px 0px inset, rgba(35, 48, 70, 0.2) 0px 16px 40px -10px, rgba(35, 48, 70, 0.1) 0px 0px 0px 0.5px"
+        },
+        "filter": {
+          "transitionProperty": "background-color, border-color, color, transform",
+          "transitionDuration": "0.18s, 0.18s, 0.18s, 0.18s",
+          "boxShadow": "none"
+        },
+        "button": {
+          "transitionProperty": "color, background-color, border-color, box-shadow, transform, scale",
+          "transitionDuration": "0.2s"
+        }
+      },
+      {
+        "reducedMotion": "reduce",
+        "menu": {
+          "animationName": "none",
+          "animationDuration": "0s",
+          "boxShadow": "rgb(255, 255, 255) 0px 1px 0px 0px inset, rgba(255, 255, 255, 0.4) 0px -1px 0px 0px inset, rgba(35, 48, 70, 0.2) 0px 16px 40px -10px, rgba(35, 48, 70, 0.1) 0px 0px 0px 0.5px"
+        },
+        "filter": {
+          "transitionProperty": "none",
+          "transitionDuration": "0s",
+          "boxShadow": "none"
+        },
+        "button": {
+          "transitionProperty": "none",
+          "transitionDuration": "0s"
+        }
+      }
+    ],
+    "pageErrors": [],
+    "tableHeight": {
+      "short": {
+        "cardHeight": 267.5,
+        "cardBottom": 563.25,
+        "tableHeight": 212.5,
+        "footerBottom": 562.25,
+        "viewportHeight": 956
+      },
+      "manyRows": [
+        {
+          "viewportWidth": 1594,
+          "viewportHeight": 956,
+          "documentWidth": 1594,
+          "cardHeight": 623.25,
+          "cardBottom": 919,
+          "scrollerHeight": 568,
+          "scrollerContentHeight": 885,
+          "footerBottom": 918,
+          "footerHeight": 53
+        },
+        {
+          "viewportWidth": 390,
+          "viewportHeight": 844,
+          "documentWidth": 390,
+          "cardHeight": 393.5,
+          "cardBottom": 821,
+          "scrollerHeight": 339,
+          "scrollerContentHeight": 885,
+          "footerBottom": 820,
+          "footerHeight": 53
+        }
+      ]
+    }
+  },
+  "interactionAudits": [
+    {
+      "width": 1594,
+      "checks": [
+        {
+          "focus": {
+            "outline": "none",
+            "outlineOffset": "0px",
+            "borderWidth": "1px",
+            "shadow": "color(srgb 0 0.407843 0.85098 / 0.1) 0px 0px 0px 3px"
+          }
+        },
+        {
+          "bounds": {
+            "left": 822,
+            "right": 1582,
+            "bottom": 944,
+            "footerBottom": 943,
+            "viewportWidth": 1594,
+            "viewportHeight": 956,
+            "scrollClient": 600,
+            "scrollHeight": 754,
+            "docWidth": 1594
+          }
+        },
+        {
+          "actionBounds": [
+            {
+              "text": "Rivedi più tardi",
+              "width": 127,
+              "content": 127,
+              "left": 1206.5,
+              "right": 1335.125
+            },
+            {
+              "text": "Annulla",
+              "width": 80,
+              "content": 80,
+              "left": 1343.125,
+              "right": 1425.328125
+            },
+            {
+              "text": "Salva piano",
+              "width": 122,
+              "content": 122,
+              "left": 1433.328125,
+              "right": 1557
+            },
+            {
+              "text": "Approva e genera BPMN",
+              "width": 204,
+              "content": 204,
+              "left": 1351.46875,
+              "right": 1557
+            }
+          ]
+        }
+      ],
+      "audits": [
+        {
+          "name": "client dialog",
+          "violations": []
+        },
+        {
+          "name": "chat and action prompt",
+          "violations": []
+        },
+        {
+          "name": "decisions",
+          "violations": []
+        },
+        {
+          "name": "plan summary",
+          "violations": []
+        },
+        {
+          "name": "plan editor",
+          "violations": []
+        }
+      ],
+      "errors": []
+    },
+    {
+      "width": 390,
+      "checks": [
+        {
+          "focus": {
+            "outline": "none",
+            "outlineOffset": "0px",
+            "borderWidth": "1px",
+            "shadow": "color(srgb 0 0.407843 0.85098 / 0.1) 0px 0px 0px 3px"
+          }
+        },
+        {
+          "bounds": {
+            "left": 6,
+            "right": 384,
+            "bottom": 838,
+            "footerBottom": 837,
+            "viewportWidth": 390,
+            "viewportHeight": 844,
+            "scrollClient": 309,
+            "scrollHeight": 859,
+            "docWidth": 390
+          }
+        },
+        {
+          "actionBounds": [
+            {
+              "text": "Rivedi più tardi",
+              "width": 342,
+              "content": 342,
+              "left": 23,
+              "right": 367
+            },
+            {
+              "text": "Annulla",
+              "width": 342,
+              "content": 342,
+              "left": 23,
+              "right": 367
+            },
+            {
+              "text": "Salva piano",
+              "width": 342,
+              "content": 342,
+              "left": 23,
+              "right": 367
+            },
+            {
+              "text": "Approva e genera BPMN",
+              "width": 342,
+              "content": 342,
+              "left": 23,
+              "right": 367
+            }
+          ]
+        }
+      ],
+      "audits": [
+        {
+          "name": "client dialog",
+          "violations": []
+        },
+        {
+          "name": "chat and action prompt",
+          "violations": []
+        },
+        {
+          "name": "decisions",
+          "violations": []
+        },
+        {
+          "name": "plan summary",
+          "violations": []
+        },
+        {
+          "name": "plan editor",
+          "violations": []
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "checks": {
+    "typecheck": "passed",
+    "lint": "passed",
+    "build": "passed; existing chunk-size warnings",
+    "unitTests": "24 passed in 3 existing suites",
+    "browserTests": "4 passed: layout/motion/long tables + decision/focus journeys at desktop/mobile"
+  }
+}

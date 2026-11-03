@@ -50,18 +50,39 @@ function DialogContent({
   children,
   showCloseButton = true,
   overlayClassName,
+  variant = "dialog",
+  onOpenAutoFocus,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
   overlayClassName?: string
+  variant?: "dialog" | "sheet"
 }) {
+  const opener = React.useRef<HTMLElement | null>(
+    typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null
+  )
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        onOpenAutoFocus={(event) => {
+          const active = document.activeElement
+          // A form's native autoFocus may already have moved inside the panel.
+          if (active instanceof HTMLElement && !active.closest('[data-slot="dialog-content"]')) opener.current = active
+          onOpenAutoFocus?.(event)
+        }}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          if (!event.defaultPrevented && opener.current?.isConnected) {
+            event.preventDefault()
+            opener.current.focus({ preventScroll: true })
+          }
+        }}
         className={cn(
-          "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 ui-surface ui-surface-floating overflow-y-auto max-h-[calc(100dvh-2rem)] overscroll-contain p-6 motion-reduce:animate-none duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
+          "fixed z-50 grid ui-surface ui-surface-floating overscroll-contain motion-reduce:animate-none duration-200 outline-none",
+          variant === "sheet" ? "ui-dialog-sheet" : "top-[50%] left-[50%] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto max-h-[calc(100dvh-2rem)] p-6 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
           className
         )}
         {...props}
@@ -131,6 +152,11 @@ function DialogTitle({
   )
 }
 
+/** Action labels keep their natural width; narrow panels stack the actions. */
+function DialogActions({ className, ...props }: React.ComponentProps<"div">) {
+  return <div data-slot="dialog-actions" className={cn("ui-dialog-actions", className)} {...props} />
+}
+
 function DialogDescription({
   className,
   ...props
@@ -146,6 +172,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogActions,
   DialogClose,
   DialogContent,
   DialogDescription,

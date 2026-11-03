@@ -39,14 +39,14 @@ export function NavRow({
       <span className="min-w-0">
         <span
           className={cn(
-            "block truncate text-xs font-medium text-foreground",
+            "block truncate text-sm font-medium text-foreground",
             titleClassName,
           )}
         >
           {title}
         </span>
         {meta != null && (
-          <span className="block truncate text-micro text-muted-foreground">
+          <span className="mt-1 block truncate text-xs leading-5 text-muted-foreground">
             {meta}
           </span>
         )}
@@ -58,7 +58,7 @@ export function NavRow({
   );
 
   const shared = cn(
-    "flex items-center justify-between gap-3 border-b border-border/60 px-4 py-2.5 text-left transition-colors last:border-b-0 hover:bg-muted/40",
+    "flex min-h-14 items-center justify-between gap-3 border-b border-border/60 px-4 py-3 text-left outline-none transition-colors duration-150 last:border-b-0 hover:bg-muted/60 active:bg-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring motion-reduce:transition-none",
     disabled && "pointer-events-none opacity-40",
     className,
   );

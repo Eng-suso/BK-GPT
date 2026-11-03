@@ -51,6 +51,21 @@ export function fitCamera(rect: CanvasRect, width: number, height: number, botto
   return { x: (width - rect.width * scale) / 2 - rect.x * scale, y: (available - rect.height * scale) / 2 - rect.y * scale, scale };
 }
 
+/** Convert wheel units to viewport pixels before panning or pointer-anchored
+ * zoom. Shift maps vertical wheel movement to horizontal pan, as in bpmn-js;
+ * Ctrl/Cmd keeps the vertical zoom delta even when Shift is also held. */
+export function normalizeCanvasWheel(
+  event: { deltaX: number; deltaY: number; deltaMode: number; shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean },
+  viewport: { width: number; height: number },
+): { dx: number; dy: number } {
+  const horizontal = event.shiftKey && !event.ctrlKey && !event.metaKey;
+  const unitX = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.width : 1;
+  const unitY = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.height : 1;
+  // Browsers can pretranslate Shift+wheel into deltaX already. Preserve it
+  // while routing any remaining vertical movement onto the horizontal axis.
+  return { dx: (horizontal ? event.deltaX + event.deltaY : event.deltaX) * unitX, dy: horizontal ? 0 : event.deltaY * unitY };
+}
+
 /** Zoom around the pointer rather than the scene origin. */
 export function zoomCamera(camera: Camera, factor: number, x: number, y: number): Camera {
   const scale = Math.max(0.15, Math.min(2.5, camera.scale * factor));

@@ -21,14 +21,12 @@
 .sim-studio-widget-host .sim-widget-inspector > header { display:none; }
 .sim-studio-widget-host .sim-inspector-body { max-height:none; overflow:visible; }
 .sim-studio-widget-host .sim-inspector-body > details { padding-inline:0; }
-.sim-studio-dock-body .sim-config-body { padding:0 0 16px; }
-.sim-studio-dock-body .sim-config-body > section { padding-block:16px; }
 .sim-studio-dock-body .sim-config-workspace { box-shadow:none; }
 .sim-studio-dock-body .sim-embedded-heatmap > aside { width:100%; }
 .sim-studio-dock-body .sim-embedded-heatmap { height:auto; }
 .sim-studio-dock-body .sim-embedded-heatmap header { padding:0 0 12px; }
-.sim-studio-dock-body:has(.sim-config-workspace) { overflow:hidden; }
-.sim-studio-dock-body:has(.sim-config-workspace) > div:first-child { height:100%; }
+.sim-studio-editor-body { padding:0; overflow:hidden; display:flex; flex-direction:column; }
+.sim-studio-editor-body > div:first-child { flex:1; min-height:0; }
 .sim-studio .is-integrated { flex:1; display:flex; flex-direction:column; min-height:0; padding:0; overflow:hidden; }
 .is-integrated .sim-dashboard-header { display:flex; justify-content:flex-end; margin:0; gap:8px; flex-shrink:0; }
 .is-integrated .sim-dashboard-actions { display:flex; gap:6px; position:static; }
@@ -444,3 +442,15 @@
 .sim-param-group { display:grid; gap:6px; }
 .sim-param-group + .sim-param-group { padding-top:10px; border-top:1px dashed var(--border); }
 .sim-param-group h5 { font-size: var(--font-size-100); font-weight:600; color:var(--muted-foreground); }
+
+/* Editing takes the available workspace on compact screens; closing restores the canvas. */
+@media(max-width:1199px) {
+ .sim-studio-shell:has(.sim-studio-dock[data-purpose="edit"]:not([hidden])) { overflow:hidden; }
+ .sim-studio:has(.sim-studio-dock[data-purpose="edit"]:not([hidden])) { min-height:0; }
+ .sim-studio:has(.sim-studio-dock[data-purpose="edit"]:not([hidden])) .sim-studio-body { min-height:0; overflow:hidden; }
+ .sim-studio:has(.sim-studio-dock[data-purpose="edit"]:not([hidden])) .sim-studio-board,
+ .sim-studio:has(.sim-studio-dock[data-purpose="edit"]:not([hidden])) .sim-studio-tools,
+ .sim-studio:has(.sim-studio-dock[data-purpose="edit"]:not([hidden])) .sim-studio-transport { display:none; }
+ .sim-studio .sim-studio-dock[data-purpose="edit"] { flex:1; min-height:0; height:100%; }
+ .sim-studio-dock[data-purpose="edit"] .sim-studio-dock-body { max-height:none; }
+}

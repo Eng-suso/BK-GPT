@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { ClipboardCheck, X } from "lucide-react";
+import { ClipboardCheck } from "lucide-react";
 
+import { ActionPrompt } from "@/components/feedback/ActionPrompt";
 import { Button } from "@/ui/button";
 import type { BpmnReview } from "../types";
 
@@ -64,72 +65,32 @@ export function ModelingWorkspaceBar({
   const planStateUnknown = !review && (isLoadingReview || Boolean(reviewError));
 
   return (
-    <div
+    <ActionPrompt
       className="modeling-workspace-bar"
-      role="region"
-      aria-label={t("modeling.label")}
-    >
-      <div className="modeling-workspace-text">
-        <p className="modeling-workspace-title">
-          {planStateUnknown
-            ? reviewError
-              ? t("modeling.planUnreadable")
-              : t("modeling.rereading")
-            : review
-              ? needsDecision
-                ? openQuestions.length === 1
-                  ? t("modeling.oneDecision")
-                  : t("modeling.manyDecisions", { count: openQuestions.length })
-                : t("modeling.available")
-              : t("modeling.modelling")}
-        </p>
-        <p className="modeling-workspace-detail">
-          {planStateUnknown
-            ? (reviewError ??
-              t("modeling.rereadingDetail"))
-            : review
-              ? // La versione del piano e' il dato che rende verificabile "il piano
-                // e' aggiornato": senza, e' un'affermazione senza referente, e il
-                // consulente non ha modo di sapere se sta guardando cio' che ha
-                // appena chiesto di scrivere o la versione di prima.
-                t("modeling.planVersion", { version: review.version })
-              : t("modeling.startHint")}
-        </p>
-      </div>
-
-      {planStateUnknown ? null : review ? (
-        <Button
-          ref={openButtonRef}
-          type="button"
-          size="sm"
-          variant={needsDecision ? "default" : "outline"}
-          onClick={onOpenReview}
-        >
-          <ClipboardCheck aria-hidden="true" />
+      label={t("modeling.label")}
+      icon={<ClipboardCheck className="size-4" />}
+      dismissLabel={t("modeling.dismiss")}
+      onDismiss={onDismiss}
+      meta={review ? t("modeling.planVersion", { version: review.version }) : undefined}
+      title={planStateUnknown
+        ? reviewError ? t("modeling.planUnreadable") : t("modeling.rereading")
+        : review ? needsDecision
+          ? openQuestions.length === 1 ? t("modeling.oneDecision") : t("modeling.manyDecisions", { count: openQuestions.length })
+          : t("modeling.available")
+        : t("modeling.modelling")}
+      action={planStateUnknown ? undefined : review ? (
+        <Button ref={openButtonRef} type="button" size="sm" variant="outline" onClick={onOpenReview}>
           {t(needsDecision ? "modeling.decide" : "modeling.open")}
         </Button>
       ) : (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={isBusy}
-          onClick={onStartModeling}
-        >
-          <ClipboardCheck aria-hidden="true" />
+        <Button type="button" size="sm" variant="outline" disabled={isBusy} onClick={onStartModeling}>
           {t("modeling.draft")}
         </Button>
       )}
-
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        aria-label={t("modeling.dismiss")}
-        onClick={onDismiss}
-      >
-        <X aria-hidden="true" />
-      </Button>
-    </div>
+    >
+      {planStateUnknown ? reviewError ?? t("modeling.rereadingDetail")
+        : review ? needsDecision ? openQuestions[0].question : t("modeling.readyHint")
+        : t("modeling.startHint")}
+    </ActionPrompt>
   );
 }

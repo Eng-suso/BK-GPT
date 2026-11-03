@@ -685,7 +685,8 @@ export function useBpmnCanvas({
     const canvasService: BpmnCanvasService = canvas(modelerRef.current);
     const currentZoom = (canvasService.zoom() as number) || 1;
     canvasService.zoom(
-      Math.min(Math.max(currentZoom + delta, 0.2), 3),
+      // Match diagram-js wheel/keyboard zoom's native 20–400% range.
+      Math.min(Math.max(currentZoom + delta, 0.2), 4),
     );
   }, []);
 

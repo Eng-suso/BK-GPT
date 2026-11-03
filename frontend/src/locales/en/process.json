@@ -162,7 +162,16 @@
       "globalsTitle": "Global parameters",
       "backedByInterview": "{{count}} element from interview",
       "backedByInterview_other": "{{count}} elements from interview",
-      "ofTotal": "of {{total}}"
+      "ofTotal": "of {{total}}",
+      "editorTitle": "Configure scenario",
+      "editorScope": "Simulation assumptions",
+      "editorDescription": "Set process volumes, resources and timings.",
+      "sectionLabel": "Section",
+      "readyHint": "Review the assumptions before starting.",
+      "incompleteHint": "Complete the required parameters in each section.",
+      "localDraft": "You are editing a local draft",
+      "syncDetails": "Synchronization details",
+      "tools": "Tools"
     },
     "output": {
       "eyebrow": "Results",
@@ -1106,9 +1115,12 @@
       "center": "Center process",
       "applyFinalHeatmap": "Apply whole-run heatmap",
       "navigation": "Navigation",
-      "gestureHint": "Space + drag to pan; Ctrl/Cmd + wheel to zoom",
+      "gestureHint": "Wheel or trackpad: pan · Shift + wheel: pan horizontally · Ctrl/Cmd + wheel or trackpad pinch: zoom · Space + drag: move the workspace",
       "resizeCanvas": "Resize canvas area",
-      "resizeInspector": "Resize details panel"
+      "resizeInspector": "Resize details panel",
+      "analysis": "Analysis",
+      "canvasOnly": "Show canvas only",
+      "displayMode": "Simulation view"
     },
     "eventLog": {
       "intro": "Upload a system export (CSV or XES): columns, formats, data quality and real KPIs computed exactly like the simulation.",

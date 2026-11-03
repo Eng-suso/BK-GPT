@@ -3,20 +3,22 @@ import { MoveDiagonal2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { Surface } from "@/ui/surface";
+import { WorkspaceGlobalTools } from "@/components/shell/WorkspaceChrome";
 
 type Slot = React.ReactNode;
 
 /** Context identifies the document; commands and analytical content belong below it. */
-export function WorkspaceContextBar({ title, navigation, actions, className }: { title: string; navigation?: Slot; actions?: Slot; className?: string }): React.JSX.Element {
-  return <header data-workspace-layer="context" className={cn("flex min-w-0 shrink-0 items-center gap-3 border-b border-border px-4 py-2", className)}>
-    {navigation}<h1 title={title} className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight">{title}</h1>
-    {actions && <div className="flex min-w-0 shrink-0 items-center gap-2">{actions}</div>}
+export function WorkspaceContextBar({ title, navigation, primaryActions, actions, className }: { title: string; navigation?: Slot; primaryActions?: Slot; actions?: Slot; className?: string }): React.JSX.Element {
+  return <header data-workspace-layer="context" className={cn("ui-workspace-context flex min-w-0 shrink-0 items-center gap-3 border-b border-border", className)}>
+    {navigation}<h1 title={title} className={cn("min-w-0 truncate text-base font-semibold tracking-tight", primaryActions ? "max-w-[min(24vw,320px)]" : "flex-1")}>{title}</h1>
+    {primaryActions && <div data-workspace-layer="primary-navigation" className="min-w-0">{primaryActions}</div>}
+    <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">{actions}<WorkspaceGlobalTools /></div>
   </header>;
 }
 
 /** A labelled command group, without implying toolbar arrow-key behavior. */
-export function WorkspaceCommandBar({ label, children, className, material = "toolbar" }: { label: string; children: Slot; className?: string; material?: "toolbar" | "floating" }): React.JSX.Element {
-  return <Surface asChild variant={material}><div data-workspace-layer="commands" role="group" aria-label={label} className={cn("flex shrink-0 flex-wrap items-center gap-2 px-2 py-1.5", className)}>{children}</div></Surface>;
+export function WorkspaceCommandBar({ label, children, className, material = "floating" }: { label: string; children: Slot; className?: string; material?: "toolbar" | "floating" }): React.JSX.Element {
+  return <Surface asChild variant={material}><div data-workspace-layer="commands" role="group" aria-label={label} className={cn("flex shrink-0 flex-wrap items-center gap-2 rounded-full px-2 py-1.5", className)}>{children}</div></Surface>;
 }
 
 /** The stage owns available height. Inspectors and playback never stack above it. */
@@ -60,7 +62,7 @@ export function CanvasWorkspaceShell({ label, commands, children, inspector, pla
   </section>;
 }
 
-export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string; title: string; scope?: string; closeLabel: string; onClose: () => void; children: Slot; footer?: Slot; hidden?: boolean; resizeLabel?: string; initialWidth?: number; minimumStageWidth?: number; maximumWidth?: number; className?: string; bodyClassName?: string }>(({ label, title, scope, closeLabel, onClose, children, footer, hidden, resizeLabel, initialWidth = 400, minimumStageWidth = 492, maximumWidth = 760, className, bodyClassName }, forwardedRef) => {
+export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string; title: string; scope?: string; closeLabel: string; onClose: () => void; children: Slot; footer?: Slot; hidden?: boolean; resizeLabel?: string; initialWidth?: number; minimumStageWidth?: number; maximumWidth?: number; minimumWidth?: number; purpose?: "inspect" | "edit"; className?: string; bodyClassName?: string }>(({ label, title, scope, closeLabel, onClose, children, footer, hidden, resizeLabel, initialWidth = 400, minimumStageWidth = 492, maximumWidth = 760, minimumWidth = 320, purpose = "inspect", className, bodyClassName }, forwardedRef) => {
   const element = React.useRef<HTMLElement | null>(null);
   const [width, setWidth] = React.useState<number | null>(null);
   const [maximum, setMaximum] = React.useState(760);
@@ -75,10 +77,11 @@ export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string;
     observer.observe(parent);
     return () => observer.disconnect();
   }, [minimumStageWidth, maximumWidth]);
-  const current = Math.max(320, Math.min(maximum, width ?? initialWidth));
-  return <Surface asChild variant="panel"><aside ref={setRef} hidden={hidden} aria-label={label} data-workspace-layer="inspector" style={resizeLabel ? { "--workspace-inspector-width": `${current}px` } as React.CSSProperties : undefined} className={cn("ui-workspace-inspector relative flex min-h-0 shrink-0 flex-col overflow-hidden", className)} onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
-    {resizeLabel && <WorkspaceResizeSeparator label={resizeLabel} value={current} minimum={320} maximum={maximum} onResize={setWidth} />}
-    <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3"><div className="min-w-0">{scope && <p className="text-xs text-muted-foreground">{scope}</p>}<h2 data-dock-title tabIndex={-1} className="text-sm font-semibold outline-none">{title}</h2></div><Button size="icon" variant="ghost" onClick={onClose} aria-label={closeLabel}><X aria-hidden className="size-4" /></Button></header>
+  const minimum = Math.min(minimumWidth, maximum);
+  const current = Math.max(minimum, Math.min(maximum, width ?? initialWidth));
+  return <Surface asChild variant="panel"><aside ref={setRef} hidden={hidden} aria-label={label} data-workspace-layer="inspector" data-purpose={purpose} style={resizeLabel ? { "--workspace-inspector-width": `${current}px` } as React.CSSProperties : undefined} className={cn("ui-workspace-inspector relative flex min-h-0 shrink-0 flex-col overflow-hidden", className)} onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
+    {resizeLabel && <WorkspaceResizeSeparator label={resizeLabel} value={current} minimum={minimum} maximum={maximum} onResize={setWidth} />}
+    <header className={cn("flex shrink-0 items-center justify-between gap-3 border-b border-border", purpose === "edit" ? "min-h-[88px] px-6 py-5" : "px-4 py-3")}><div className="min-w-0">{scope && <p className="text-xs text-muted-foreground">{scope}</p>}<h2 data-dock-title tabIndex={-1} className={cn("font-semibold outline-none", purpose === "edit" ? "text-lg" : "text-sm")}>{title}</h2></div><Button size="icon" variant="ghost" onClick={onClose} aria-label={closeLabel}><X aria-hidden className="size-4" /></Button></header>
     <div className={cn("ui-scrollbar min-h-0 flex-1 overflow-auto p-4", bodyClassName)}>{children}</div>
     {footer && <footer data-workspace-layer="inspector-footer" className="shrink-0 border-t border-border p-4">{footer}</footer>}
   </aside></Surface>;
@@ -89,10 +92,10 @@ WorkspaceInspector.displayName = "WorkspaceInspector";
 export function WorkspaceResizeSeparator({ label, value, minimum, maximum, onResize, edge = "start" }: { label: string; value: number; minimum: number; maximum: number; onResize: (value: number) => void; edge?: "start" | "end" }): React.JSX.Element {
   const gesture = React.useRef<{ x: number; value: number } | null>(null);
   const change = (next: number) => onResize(Math.max(minimum, Math.min(maximum, next)));
-  return <div role="separator" tabIndex={0} aria-label={label} aria-orientation="vertical" aria-valuemin={minimum} aria-valuemax={maximum} aria-valuenow={value} aria-valuetext={`${Math.round(value)} px`} className="ui-workspace-splitter" onPointerDown={event => {
+  return <div role="separator" tabIndex={0} data-edge={edge} aria-label={label} aria-orientation="vertical" aria-valuemin={minimum} aria-valuemax={maximum} aria-valuenow={value} aria-valuetext={`${Math.round(value)} px`} className="ui-workspace-splitter" onPointerDown={event => {
     if (event.button !== 0) return;
     event.preventDefault(); gesture.current = { x: event.clientX, value }; event.currentTarget.setPointerCapture(event.pointerId);
-  }} onPointerMove={event => { const start = gesture.current; if (start) change(start.value + (start.x - event.clientX) * (edge === "start" ? 1 : -1)); }} onPointerUp={() => { gesture.current = null; }} onPointerCancel={() => { gesture.current = null; }} onKeyDown={event => {
+  }} onPointerMove={event => { const start = gesture.current; if (start) change(start.value + (start.x - event.clientX) * (edge === "start" ? 1 : -1)); }} onPointerUp={() => { gesture.current = null; }} onPointerCancel={() => { gesture.current = null; }} onLostPointerCapture={() => { gesture.current = null; }} onKeyDown={event => {
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); change(value + (event.key === "ArrowLeft" ? 20 : -20) * (edge === "start" ? 1 : -1)); }
     if (event.key === "Home" || event.key === "End") { event.preventDefault(); change(event.key === "Home" ? minimum : maximum); }
   }}><span aria-hidden /></div>;

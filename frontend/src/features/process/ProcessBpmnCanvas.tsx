@@ -25,7 +25,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { onWorkspaceChanged } from "@/lib/workspaceEvents";
 import { provenanceKeys, useProcessProvenanceQuery } from "./api";
 import { EvidenceReviewPanel } from "./components/EvidenceReviewPanel";
-import { BpmnCanvasIdentity } from "./components/BpmnCanvasIdentity";
+import "./bpmn/canvasIdentity.css";
 
 type ProcessBpmnCanvasProps = {
   bpmnModelId: string;
@@ -221,7 +221,6 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         <div className="process-bpmn-stage">
         <BpmnCreationTools tools={creationTools} isReady={isReady} onActivate={activateTool} />
         <div className={`process-bpmn-canvas ${coloursEnabled ? "delir-canvas--colours" : ""}`} ref={containerRef}>
-          <BpmnCanvasIdentity />
           {/* Un processo appena creato non ha un modello: prima il canvas
               apriva su un diagramma finto che nessuno aveva descritto. Qui la
               tela resta vuota e dice da dove si parte — la palette bpmn-js
@@ -255,8 +254,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         </div>
         <Surface variant="floating" className="process-canvas-navigation" role="group" aria-label={t("canvas.zoomGroup")}>
           {coloursEnabled && <WorkspaceDisclosure label={t("canvas.colours")} contentClassName="process-canvas-legend-popover"><div className="process-bpmn-legend">{(["task", "automation", "gateway", "start", "end"] as const).map((kind) => <span key={kind}><i aria-hidden className={`process-element-swatch--${kind}`} />{t(`canvas.legend.${kind}`)}</span>)}</div></WorkspaceDisclosure>}
-          <Button variant="ghost" size="sm" onClick={zoomReadable} title={t("canvas.readableTitle")}>{t("canvas.readable")}</Button>
-          <Button variant="ghost" size="sm" onClick={zoomFit} title={t("canvas.fitTitle")}><Maximize2 aria-hidden />{t("canvas.fit")}</Button>
+          <Button variant="ghost" size="sm" disabled={!isReady} onClick={zoomReadable} aria-label={t("canvas.readableTitle")} title={t("canvas.readableTitle")}>{t("canvas.readable")}</Button>
+          <Button variant="ghost" size="sm" disabled={!isReady} onClick={zoomFit} aria-label={t("canvas.fitTitle")} title={t("canvas.fitTitle")}><Maximize2 aria-hidden />{t("canvas.fit")}</Button>
           <Button variant="ghost" size="icon-sm" onClick={zoomOut} aria-label={t("canvas.zoomOut")}><Minus aria-hidden /></Button>
           <Button variant="ghost" size="icon-sm" onClick={zoomIn} aria-label={t("canvas.zoomIn")}><Plus aria-hidden /></Button>
         </Surface>

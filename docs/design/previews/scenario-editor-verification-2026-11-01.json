@@ -1,0 +1,218 @@
+{
+  "date": "2026-11-01",
+  "data": "Synthetic pitch fixture on separate local API",
+  "scope": "Reusable scenario editor composition, section navigation, persistent actions, resizable editing inspector and compact focus layout",
+  "captures": [
+    {
+      "preview": "scenario-editor-desktop.png",
+      "sha256": "e82970ddbabbef6e1857a277708ea522e9eabb280cd7297926c7795eba38b218",
+      "evidence_id": "ev_fb6c5977daee40b040f279e78c708cdf217a6961785fbc4c23a5f0bdfbe7785a",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "cleanup": "terminated-owned-process",
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "preview": "scenario-editor-resources.png",
+      "sha256": "597bafd78c82f1dcf3603daf6d459524946eb82a6442b236d26ac49ceeb0dedd",
+      "evidence_id": "ev_0da8de2a33c3ee40ee8d65d2256ad9549eab7de6de62c9d188a30cf379398c64",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "cleanup": "terminated-owned-process",
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "choose-section",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "choose-resources",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle-resources",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "preview": "scenario-editor-mobile.png",
+      "sha256": "3498e41e7358c8bd24123c81d52bb0c132cb43353ff9b052f4f808ceafd1662c",
+      "evidence_id": "ev_f0513d59224da2574a20f317c0b36697e1e13191b6ee33f16c26cfa1b3ca22d4",
+      "completeness": {
+        "status": "complete",
+        "equality_eligible": true,
+        "missing_sections": [],
+        "truncated_sections": []
+      },
+      "cleanup": "terminated-owned-process",
+      "steps": [
+        {
+          "step_id": "scenario_start",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "ready",
+          "status": "completed",
+          "error": null
+        },
+        {
+          "step_id": "settle",
+          "status": "completed",
+          "error": null
+        }
+      ],
+      "pageErrors": []
+    }
+  ],
+  "browserVerification": [
+    {
+      "width": 1882,
+      "initial": {
+        "width": 600,
+        "top": 151,
+        "bottom": 843,
+        "headerHeight": 89,
+        "headerTop": 152,
+        "footerBottom": 842,
+        "bodyClient": 447,
+        "bodyScroll": 5172,
+        "documentWidth": 1882,
+        "viewport": 1882,
+        "scrollers": 1
+      },
+      "violations": [],
+      "errors": [],
+      "resize": {
+        "minimum": 480,
+        "maximum": 760
+      }
+    },
+    {
+      "width": 1440,
+      "initial": {
+        "width": 600,
+        "top": 151,
+        "bottom": 843,
+        "headerHeight": 89,
+        "headerTop": 152,
+        "footerBottom": 842,
+        "bodyClient": 447,
+        "bodyScroll": 5172,
+        "documentWidth": 1440,
+        "viewport": 1440,
+        "scrollers": 1
+      },
+      "violations": [],
+      "errors": []
+    },
+    {
+      "width": 1024,
+      "initial": {
+        "width": 886,
+        "top": 134,
+        "bottom": 921,
+        "headerHeight": 89,
+        "headerTop": 135,
+        "footerBottom": 920,
+        "bodyClient": 542,
+        "bodyScroll": 4731,
+        "documentWidth": 1024,
+        "viewport": 1024,
+        "scrollers": 1
+      },
+      "violations": [],
+      "errors": [],
+      "compactCanvasRestored": true
+    },
+    {
+      "width": 390,
+      "initial": {
+        "width": 360,
+        "top": 124,
+        "bottom": 821,
+        "headerHeight": 89,
+        "headerTop": 125,
+        "footerBottom": 820,
+        "bodyClient": 452,
+        "bodyScroll": 6337,
+        "documentWidth": 390,
+        "viewport": 390,
+        "scrollers": 1
+      },
+      "violations": [],
+      "errors": [],
+      "compactCanvasRestored": true
+    }
+  ],
+  "checks": {
+    "typecheck": "passed",
+    "targetedTests": {
+      "suites": 2,
+      "tests": 10,
+      "status": "passed"
+    },
+    "browserScenarios": 4,
+    "axeScans": 4,
+    "lint": "passed",
+    "build": {
+      "status": "passed",
+      "warning": "Existing process/simulation chunks exceed 500 kB."
+    },
+    "commands": [
+      "frontend: npm run typecheck",
+      "frontend: npm run lint",
+      "frontend: npm run build",
+      "frontend: npx vitest run src/features/process/simulation/SimulationConfigRail.test.tsx src/features/process/simulation/WhatIfComposer.ui.test.tsx",
+      "Playwright fixture scenarios at 1882, 1440, 1024 and 390px with axe"
+    ]
+  },
+  "constraints": [
+    "Scenario workspace API is unavailable in the fixture; local-draft status remains visible and expandable.",
+    "No simulation was started and no customer records were used."
+  ]
+}

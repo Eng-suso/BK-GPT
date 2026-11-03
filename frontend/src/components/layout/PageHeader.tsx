@@ -42,7 +42,7 @@ export function PageHeader({
   className,
 }: PageHeaderProps): React.JSX.Element {
   return (
-    <header className={cn("flex min-w-0 flex-col", compact ? "gap-2" : "gap-4", className)}>
+    <header className={cn("flex min-w-0 flex-col", compact ? "gap-2" : "gap-3", className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav aria-label="Breadcrumb">
           <ol className="flex min-w-0 items-center gap-1.5 overflow-hidden text-xs text-muted-foreground">
@@ -72,7 +72,7 @@ export function PageHeader({
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="min-w-0">
           <div className="flex items-baseline gap-2.5">
-            <h1 className={cn("font-semibold tracking-[-0.03em] text-foreground", compact ? "text-lg leading-6" : "text-2xl")}>
+            <h1 className={cn("font-semibold tracking-[-0.035em] text-foreground", compact ? "text-lg leading-6" : "text-2xl leading-tight sm:text-[28px]")}>
               {title}
             </h1>
             {count !== undefined && (
@@ -82,7 +82,7 @@ export function PageHeader({
             )}
           </div>
           {description && (
-            <p className="mt-1.5 max-w-xl text-body-sm leading-relaxed text-muted-foreground">
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
               {description}
             </p>
           )}

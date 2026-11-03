@@ -3,9 +3,11 @@ import { useSearchParams } from "react-router-dom";
 import { runWaitHint, runWaitTitle } from "./runQueue";
 import { useReplayEngine } from "./replay/useReplay";
 import { useTranslation } from "react-i18next";
-import { SlidersHorizontal, ListChecks, GitCompareArrows, Layers, Lightbulb, FileSpreadsheet, Columns3 } from "lucide-react";
+import { SlidersHorizontal, ListChecks, GitCompareArrows, Layers, Lightbulb, FileSpreadsheet, Columns3, ChevronDown, Maximize2 } from "lucide-react";
 import { CanvasWorkspaceShell, WorkspaceCommandBar, WorkspaceInspector } from "@/components/layout";
 import { Button } from "@/ui/button";
+import { SegmentedControl } from "@/ui/segmented-control";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/ui/dropdown-menu";
 import { EmptyState } from "@/components/feedback";
 import { DashboardWorkspace } from "./dashboard/DashboardWorkspace";
 import { ReplayInsightRail } from "./replay/ReplayInsightRail";
@@ -45,6 +47,8 @@ export function SimulationStudio(): React.JSX.Element {
   const [commandsHost, setCommandsHost] = React.useState<HTMLDivElement | null>(null);
   const [host, setHost] = React.useState<HTMLDivElement | null>(null);
   const triggerRef = React.useRef<HTMLElement | null>(null);
+  const analysisTrigger = React.useRef<HTMLButtonElement>(null);
+  const focusAnalysis = React.useRef(false);
   const dockRef = React.useRef<HTMLElement>(null);
   const view = analysisView ?? (panel === "compare" ? "compare" : panel === "heatmap" ? "heatmap" : panel === "overview" || panel === "insights" ? "final" : "replay");
   const aggregate = view !== "replay";
@@ -73,15 +77,22 @@ export function SimulationStudio(): React.JSX.Element {
   };
   const close = () => {
     openPanel?.(null);
-    if (triggerRef.current?.isConnected) triggerRef.current.focus({ preventScroll: true });
+    (triggerRef.current?.isConnected ? triggerRef.current : analysisTrigger.current)?.focus({ preventScroll: true });
   };
   const title = panel === "widget" ? t("simulation.studio.inspector") : panel === "activity" ? t("simulation.replay.nodeInspector") : t(`simulation.unified.tool.${panel}`);
   return <CanvasWorkspaceShell label={t("simulation.unified.title")} className="sim-studio" resizeLabel={t("simulation.workspaceHierarchy.resizeCanvas")} resizeHint={t("simulation.scene.keyboardHint")} bodyClassName={`sim-studio-body ${dockOpen ? "has-dock" : ""}`} stageClassName="sim-studio-board"
     commands={<WorkspaceCommandBar className="sim-studio-tools" label={t("simulation.unified.tools")}>
-      <div className="sim-studio-tool-actions"><Button size="sm" variant={view === "replay" ? "secondary" : "ghost"} aria-pressed={view === "replay"} onClick={() => setAnalysisView?.("replay")}>{t("simulation.scene.replay")}</Button><Button size="sm" variant={aggregate ? "secondary" : "ghost"} aria-pressed={aggregate} onClick={() => setAnalysisView?.("final")}>{t("simulation.workspaceHierarchy.final")}</Button>{tools.map(([name, Icon]) => <Button key={name} size="sm" variant={panel === name || view === name ? "secondary" : "ghost"} aria-pressed={panel === name || view === name} onClick={(event) => show(panel === name ? null : name, event.currentTarget)}><Icon aria-hidden className="size-4" />{t(`simulation.unified.tool.${name}`)}</Button>)}</div>
+      <div className="sim-studio-tool-actions items-center gap-3">
+        <SegmentedControl label={t("simulation.workspaceHierarchy.displayMode")} value={aggregate ? "final" : "replay"} onValueChange={value => setAnalysisView?.(value as "replay" | "final")} options={[{value:"replay",label:t("simulation.scene.replay")},{value:"final",label:t("simulation.workspaceHierarchy.final")}]} />
+        <DropdownMenu><DropdownMenuTrigger asChild><Button ref={analysisTrigger} size="sm" variant="outline">{panel ? title : t("simulation.workspaceHierarchy.analysis")}<ChevronDown aria-hidden className="size-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="start" onCloseAutoFocus={event => { if (focusAnalysis.current) { event.preventDefault(); focusAnalysis.current = false; requestAnimationFrame(() => dockRef.current?.querySelector<HTMLElement>("[data-dock-title]")?.focus({ preventScroll: true })); } }}>
+          <DropdownMenuItem onSelect={() => show(null)}><Maximize2 aria-hidden />{t("simulation.workspaceHierarchy.canvasOnly")}</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {tools.map(([name, Icon]) => <DropdownMenuItem key={name} onSelect={() => { focusAnalysis.current = true; show(name, analysisTrigger.current ?? undefined); }}><Icon aria-hidden />{t(`simulation.unified.tool.${name}`)}</DropdownMenuItem>)}
+        </DropdownMenuContent></DropdownMenu>
+      </div>
       <div className="sim-studio-dashboard-commands" ref={setCommandsHost} />
     </WorkspaceCommandBar>}
-    inspector={<WorkspaceInspector resizeLabel={t("simulation.workspaceHierarchy.resizeInspector")} initialWidth={panel === "compare" || panel === "eventLog" || panel === "scenarios" ? 480 : 400} bodyClassName="sim-studio-dock-body" ref={dockRef} className={`sim-studio-dock ${panel === "compare" ? "is-comparison" : ""}`} hidden={!dockOpen} label={t("simulation.unified.details")} title={title} scope={t(aggregate || panel === "overview" || panel === "insights" || panel === "compare" || panel === "scenarios" ? "simulation.unified.aggregateScope" : "simulation.unified.context")} closeLabel={t("simulation.unified.closePanel")} onClose={close}>
+    inspector={<WorkspaceInspector key={panel === "scenario" ? "scenario-editor" : "analysis"} purpose={panel === "scenario" ? "edit" : "inspect"} minimumWidth={panel === "scenario" ? 480 : 320} resizeLabel={t("simulation.workspaceHierarchy.resizeInspector")} minimumStageWidth={640} maximumWidth={panel === "scenario" ? 760 : 480} initialWidth={panel === "scenario" ? 600 : panel === "compare" || panel === "eventLog" || panel === "scenarios" ? 400 : 320} bodyClassName={panel === "scenario" ? "sim-studio-dock-body sim-studio-editor-body" : "sim-studio-dock-body"} ref={dockRef} className={`sim-studio-dock ${panel === "compare" ? "is-comparison" : ""}`} hidden={!dockOpen} label={t("simulation.unified.details")} title={panel === "scenario" ? t("simulation.scenario.editorTitle") : title} scope={panel === "scenario" ? t("simulation.scenario.editorScope") : t(aggregate || panel === "overview" || panel === "insights" || panel === "compare" || panel === "scenarios" ? "simulation.unified.aggregateScope" : "simulation.unified.context")} closeLabel={t("simulation.unified.closePanel")} onClose={close}>
       {panel === "compare" && <ComparePage compact embedded onDecorations={setDecorations} />}
       {panel === "scenario" && <ScenarioBuilderPage embedded onDecorations={setScenarioDecorations} />}
       {panel === "scenarios" && <ScenarioWorkspacePanel />}

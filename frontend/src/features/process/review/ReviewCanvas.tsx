@@ -9,7 +9,6 @@ import { InlineNotice } from "@/components/feedback/InlineNotice";
 import type { BpmnViewer } from "../simulation/canvas/bpmnViewer";
 import { fitCanvas } from "../bpmn/viewport";
 import { readCanvasElements } from "../bpmn/elements";
-import { BpmnCanvasIdentity } from "../components/BpmnCanvasIdentity";
 import type { ReviewNode } from "./reviewModel";
 
 import "bpmn-js/dist/assets/diagram-js.css";
@@ -93,7 +92,6 @@ export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, docum
 
   const zoom = (delta: number) => { const canvas = viewer.current?.get("canvas") as CanvasService | undefined; if (canvas) canvas.zoom(Math.min(3, Math.max(0.2, canvas.zoom() + delta))); };
   return <div className="review-canvas-stage delir-canvas--colours">
-    <BpmnCanvasIdentity />
     <div ref={host} className="review-canvas" aria-label={t("review.canvasLabel")} />
     {error && <div className="review-canvas-error"><InlineNotice tone="error" title={t("review.diagramError")} action={<Button size="sm" variant="outline" onClick={() => setRetry(value => value + 1)}>{t("review.retry")}</Button>} /></div>}
     {ready && renderAgent?.(anchor)}

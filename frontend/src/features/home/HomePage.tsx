@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { ArrowUpRight, Building2, FolderKanban, Workflow } from "lucide-react";
 
 import { PageHeader } from "@/components/layout";
 import { NavRow } from "@/components/data";
@@ -49,13 +50,14 @@ export function HomePage(): React.JSX.Element {
   );
 
   const metrics = [
-    { key: "clients", value: clients.length },
-    { key: "projects", value: projects.length },
-    { key: "processes", value: processCount },
+    { key: "clients", value: clients.length, icon: Building2 },
+    { key: "projects", value: projects.length, icon: FolderKanban },
+    { key: "processes", value: processCount, icon: Workflow },
   ];
 
   return (
-    <div className="flex h-full flex-col gap-5 overflow-auto px-7 py-6">
+    <div className="ui-scrollbar h-full overflow-auto px-4 py-6 sm:px-7 sm:py-8 lg:px-10">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-7">
       <PageHeader
         breadcrumbs={[{ label: t("nav.home") }]}
         title={t("nav.home")}
@@ -68,29 +70,32 @@ export function HomePage(): React.JSX.Element {
 
       {isError ? (
         <div className="flex flex-1 items-center justify-center ui-surface ui-surface-panel">
-          <ErrorState onRetry={() => void projectsQ.refetch()} />
+          <ErrorState onRetry={() => { void projectsQ.refetch(); void clientsQ.refetch(); }} />
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             {metrics.map((m) => (
               <div
                 key={m.key}
-                className="ui-surface ui-surface-panel p-4 "
+                className="ui-surface ui-surface-panel flex min-w-0 items-start justify-between gap-4 p-3 sm:p-5"
               >
-                <div className="text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+                <div>
+                <div className="text-xs font-medium text-muted-foreground sm:text-body-sm">
                   {t(`home.metrics.${m.key}`)}
                 </div>
-                <div className="mt-2 text-2xl font-semibold tabular-nums tracking-[-0.02em]">
+                <div className="mt-2 text-2xl font-semibold tabular-nums tracking-[-0.04em] sm:text-3xl">
                   {isLoading ? (
                     <Skeleton className="h-7 w-10" />
                   ) : (
                     m.value
                   )}
                 </div>
-                <div className="mt-1.5 text-micro text-muted-foreground">
+                <div className="mt-2 hidden text-xs leading-5 text-muted-foreground sm:block">
                   {t(`home.metrics.${m.key}Note`)}
                 </div>
+                </div>
+                <m.icon className="mt-0.5 hidden size-[18px] shrink-0 text-muted-foreground sm:block" strokeWidth={1.6} aria-hidden="true" />
               </div>
             ))}
           </div>
@@ -106,7 +111,7 @@ export function HomePage(): React.JSX.Element {
                 id: p.id,
                 to: ROUTES.projects.detail(p.id),
                 title: p.name,
-                meta: `${p.client} · ${p.phase}`,
+                meta: p.nextStep ? `${p.client} · ${p.nextStep}` : `${p.client} · ${p.phase}`,
                 tone: projectStatusTone(p.status),
                 status: p.status,
               }))}
@@ -129,6 +134,7 @@ export function HomePage(): React.JSX.Element {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }
@@ -158,13 +164,14 @@ function HomeList({
   items: HomeListItem[];
 }): React.JSX.Element {
   return (
-    <section className="flex flex-col ui-surface ui-surface-panel ">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h3 className="text-2xs font-semibold uppercase tracking-[0.055em] text-muted-foreground">
+    <section className="ui-surface ui-surface-panel min-w-0 overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+        <h2 className="text-sm font-semibold tracking-tight text-foreground">
           {title}
-        </h3>
-        <Link to={seeAllTo} className="text-xs font-medium text-primary hover:text-primary/85">
+        </h2>
+        <Link to={seeAllTo} className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-md text-xs font-medium text-primary outline-none hover:underline focus-visible:outline-2 focus-visible:outline-ring">
           {seeAllLabel}
+          <ArrowUpRight className="size-3.5" aria-hidden="true" />
         </Link>
       </div>
       {loading ? (

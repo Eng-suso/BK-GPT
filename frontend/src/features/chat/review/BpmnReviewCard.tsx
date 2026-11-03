@@ -6,7 +6,6 @@ import {
   Check,
   ClipboardCheck,
   Copy,
-  Gauge,
   GitBranch,
   History,
   HelpCircle,
@@ -18,8 +17,13 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/ui/button";
+import { Surface } from "@/ui/surface";
+import { InlineNotice } from "@/components/feedback/InlineNotice";
+import { Textarea } from "@/ui/textarea";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/ui/tabs";
 import {
   Dialog,
+  DialogActions,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -140,7 +144,7 @@ export function BpmnReviewSheet({
 }: BpmnReviewSheetProps) {
   const { t } = useTranslation("chat");
   const [copied, setCopied] = useState(false);
-  const [activeSection, setActiveSection] = useState<ReviewSection>("overview");
+  const [activeSection, setActiveSection] = useState<ReviewSection>(() => (review.open_questions ?? []).some(question => !question.answer) ? "validation" : "overview");
   const [isEditing, setIsEditing] = useState(false);
   const [draftState, setDraftState] = useState(() => ({
     reviewUpdatedAt: review.updated_at,
@@ -199,9 +203,9 @@ export function BpmnReviewSheet({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        variant="sheet"
         showCloseButton={false}
         className="bpmn-review-sheet-content"
-        overlayClassName="bpmn-review-sheet-overlay"
         aria-describedby="bpmn-review-sheet-description"
         onCloseAutoFocus={(event) => {
           event.preventDefault();
@@ -245,15 +249,17 @@ export function BpmnReviewSheet({
           </span>
         </div>
 
-        <nav className="bpmn-review-sheet-nav" aria-label={t("review.sectionsLabel")}>
-          <ReviewNavButton active={activeSection === "overview"} icon={<FileText />} label={t("review.navUnderstood")} onClick={() => setActiveSection("overview")} />
-          <ReviewNavButton active={activeSection === "structure"} icon={<GitBranch />} label={t("review.navDrawing")} onClick={() => setActiveSection("structure")} />
-          <ReviewNavButton active={activeSection === "validation"} icon={<HelpCircle />} label={t("review.navDecide")} count={unansweredCount + warnings.length} onClick={() => setActiveSection("validation")} />
-          <ReviewNavButton active={activeSection === "versions"} icon={<History />} label={t("review.navVersions")} count={versions.length} onClick={() => setActiveSection("versions")} />
-          <ReviewNavButton active={activeSection === "quality"} icon={<Gauge />} label={t("review.navQuality")} onClick={() => setActiveSection("quality")} />
-        </nav>
-
-        <div className="bpmn-review-sheet-body">
+        <Tabs value={activeSection} onValueChange={value => setActiveSection(value as ReviewSection)} className="bpmn-review-sections">
+          <div className="bpmn-review-sheet-nav">
+            <TabsList variant="navigation" aria-label={t("review.sectionsLabel")}>
+              <TabsTrigger value="overview">{t("review.navUnderstood")}</TabsTrigger>
+              <TabsTrigger value="structure">{t("review.navDrawing")}</TabsTrigger>
+              <TabsTrigger value="validation">{t("review.navDecide")}{unansweredCount > 0 && <span className="tabular-nums">{unansweredCount}</span>}</TabsTrigger>
+              <TabsTrigger value="versions">{t("review.navVersions")}</TabsTrigger>
+              <TabsTrigger value="quality">{t("review.navQuality")}</TabsTrigger>
+            </TabsList>
+          </div>
+          <TabsContent value={activeSection} className="bpmn-review-sheet-body">
           {activeSection === "overview" ? (
             <OverviewSection
               review={review}
@@ -280,11 +286,12 @@ export function BpmnReviewSheet({
           ) : null}
           {activeSection === "versions" ? <VersionsSection versions={versions} /> : null}
           {activeSection === "quality" ? <QualitySection qualityReport={qualityReport} /> : null}
-        </div>
+          </TabsContent>
+        </Tabs>
 
         <footer className="bpmn-review-sheet-footer">
           <p>{t("review.approvalHint")}</p>
-          <div className="bpmn-review-footer-actions">
+          <DialogActions>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t("review.later")}</Button>
             {isEditing ? <Button type="button" variant="secondary" onClick={() => { setDraftMarkdown(review.bpmn_brief); setIsEditing(false); }} disabled={isSaving}>{t("review.cancel")}</Button> : null}
             {isEditing ? <Button type="button" onClick={() => void savePlan()} disabled={!hasUnsavedPlan || isSaving}>
@@ -295,7 +302,7 @@ export function BpmnReviewSheet({
               <ClipboardCheck aria-hidden="true" />
               {isApproving ? t("review.generating") : hasUnsavedPlan ? t("review.saveFirst") : t("review.approve")}
             </Button>
-          </div>
+          </DialogActions>
         </footer>
       </DialogContent>
     </Dialog>
@@ -303,37 +310,6 @@ export function BpmnReviewSheet({
 }
 
 type ReviewSection = "overview" | "structure" | "validation" | "versions" | "quality";
-
-/**
- * Renders a navigation button with an active state and optional count badge.
- *
- * @param active - Whether the button represents the current section
- * @param icon - Icon displayed beside the label
- * @param label - Text displayed for the navigation item
- * @param count - Optional count shown in the badge
- * @param onClick - Called when the button is clicked
- */
-function ReviewNavButton({
-  active,
-  icon,
-  label,
-  count,
-  onClick,
-}: {
-  active: boolean;
-  icon: ReactNode;
-  label: string;
-  count?: number;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" className={cn("bpmn-review-nav-button", active && "is-active")} aria-current={active ? "page" : undefined} onClick={onClick}>
-      {icon}
-      <span>{label}</span>
-      {count ? <strong>{count}</strong> : null}
-    </button>
-  );
-}
 
 function OverviewSection({
   review,
@@ -359,40 +335,37 @@ function OverviewSection({
   const { t } = useTranslation("chat");
   return (
     <>
-      <section className="bpmn-review-overview-hero">
+      <Surface asChild variant="inset"><section className="bpmn-review-overview-hero">
         <div>
-          <span className="bpmn-review-overview-label">{t("review.overviewLabel")}</span>
-          <h3>Prima controlliamo il significato.<br />Poi disegniamo il BPMN.</h3>
-          <p>
-            Il documento sotto è la sintesi leggibile della conversazione: descrive il
-            flusso, le responsabilità e i punti in cui serve una decisione del cliente.
-          </p>
+          <span className="bpmn-review-overview-label">{t("modeling.planVersion", { version: review.version })}</span>
+          <h3>{t(isReady ? "review.summaryReady" : "review.summaryPending")}</h3>
+          <p>{t("review.summaryDescription")}</p>
         </div>
-        <div className={cn("bpmn-review-hero-score", isReady ? "is-ready" : "is-attention")}>
-          <span>{review.readiness_score}</span><small>/10</small>
-          <em>readiness</em>
+        <div className="bpmn-review-summary-metric">
+          <span>{t("review.readiness")}</span>
+          <strong>{review.readiness_score}<small> / {SCORE_MAX}</small></strong>
         </div>
-      </section>
+      </section></Surface>
       <div className="bpmn-review-overview-stats">
         <ReviewStat label={t("review.actors")} value={understanding.actors?.length || 0} />
         <ReviewStat label={t("review.lanes")} value={lanes?.length || 0} />
         <ReviewStat label={t("review.elements")} value={flowNodes?.length || 0} />
         <ReviewStat label={t("review.links")} value={sequenceFlows?.length || 0} />
       </div>
-      <section className="bpmn-review-document-card">
+      <Surface asChild variant="panel"><section className="bpmn-review-document-card">
         <div className="bpmn-review-document-header">
-          <div><FileText aria-hidden="true" /><div><span>{t("review.planDocument")}</span><strong>Process understanding.md</strong></div></div>
-          <span>Markdown</span>
+          <div><FileText aria-hidden="true" /><div><span>{t("review.planDocument")}</span><strong>{t("review.processSummary")}</strong></div></div>
+          <span>{t("modeling.planVersion", { version: review.version })}</span>
         </div>
         {isEditing ? (
           <label className="bpmn-review-editor">
-            <span>Modifica il contenuto Markdown del piano</span>
-            <textarea value={markdown} onChange={(event) => onMarkdownChange(event.target.value)} />
+            <span>{t("review.editContent")}</span>
+            <Textarea value={markdown} onChange={(event) => onMarkdownChange(event.target.value)} />
           </label>
         ) : (
           <div className="bpmn-review-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(markdown) }} />
         )}
-      </section>
+      </section></Surface>
     </>
   );
 }
@@ -646,15 +619,9 @@ function ReviewGroup({ title, items }: { title: string; items: string[] }) {
 }
 
 function ReviewIssue({ label, severity }: { label: string; severity: string }) {
-  return (
-    <div className="bpmn-review-issue">
-      <span className="bpmn-review-issue-marker" aria-hidden="true" />
-      <div>
-        <strong>{label}</strong>
-        <span>{humanize(severity)}</span>
-      </div>
-    </div>
-  );
+  const { t } = useTranslation("chat");
+  const description = severity === "blocking" ? t("review.blocking") : severity === "warning" ? t("review.warning") : severity;
+  return <InlineNotice tone="warning" title={label}>{description}</InlineNotice>;
 }
 
 function humanize(value: string) {

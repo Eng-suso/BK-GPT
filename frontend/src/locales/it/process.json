@@ -162,7 +162,16 @@
       "globalsTitle": "Parametri globali",
       "backedByInterview": "{{count}} elemento da intervista",
       "backedByInterview_other": "{{count}} elementi da intervista",
-      "ofTotal": "su {{total}}"
+      "ofTotal": "su {{total}}",
+      "editorTitle": "Configura scenario",
+      "editorScope": "Ipotesi della simulazione",
+      "editorDescription": "Imposta volumi, risorse e tempi del processo.",
+      "sectionLabel": "Sezione",
+      "readyHint": "Verifica le ipotesi prima di avviare.",
+      "incompleteHint": "Completa i parametri richiesti nelle sezioni.",
+      "localDraft": "Stai modificando una bozza locale",
+      "syncDetails": "Dettagli della sincronizzazione",
+      "tools": "Strumenti"
     },
     "output": {
       "eyebrow": "Risultati",
@@ -191,7 +200,7 @@
       "expand": "Espandi parametri",
       "globals": "Generale",
       "defaultDuration": "Durata default, min",
-      "defaultDurationMin": "Durata def., min",
+      "defaultDurationMin": "Durata predefinita (minuti)",
       "resources": "Risorse",
       "resourceOriginHint": "Le lane identificano i gruppi operativi; la pool ne indica il contesto. Capacità e costo sono ipotesi dello scenario da verificare.",
       "noResources": "Nessuna risorsa configurata",
@@ -1106,9 +1115,12 @@
       "center": "Centra processo",
       "applyFinalHeatmap": "Applica heatmap dell’intera esecuzione",
       "navigation": "Navigazione",
-      "gestureHint": "Spazio + trascina per muoverti; Ctrl/Cmd + rotella per zoomare",
+      "gestureHint": "Rotella o trackpad: scorri · Maiusc + rotella: spostamento orizzontale · Ctrl/Cmd + rotella o pinch sul trackpad: zoom · Spazio + trascina: sposta la tela",
       "resizeCanvas": "Ridimensiona area canvas",
-      "resizeInspector": "Ridimensiona pannello di dettagli"
+      "resizeInspector": "Ridimensiona pannello di dettagli",
+      "analysis": "Analisi",
+      "canvasOnly": "Mostra solo il canvas",
+      "displayMode": "Vista della simulazione"
     },
     "eventLog": {
       "intro": "Carica l'export di un sistema (CSV o XES): colonne, formati, qualità dei dati e KPI reali con lo stesso calcolo della simulazione.",

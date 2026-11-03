@@ -28,7 +28,7 @@
 :is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-start:not(.review-selected) .djs-visual > circle:first-child { fill: var(--domain-process-start-surface) !important; }
 :is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-end:not(.review-selected) .djs-visual > circle:first-child { fill: var(--domain-process-end-surface) !important; }
 
-:is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-task:where(:not(.review-selected, .review-upstream, .review-downstream, [class*="delir-provenance-"])) .djs-visual > rect:first-child { stroke: var(--domain-process-task-icon) !important; }
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-task:where(:not(.review-selected, .review-upstream, .review-downstream, [class*="delir-provenance-"])) .djs-visual > rect:first-child { stroke: var(--domain-process-task-border) !important; }
 
 :is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-automation:where(:not(.review-selected, .review-upstream, .review-downstream, [class*="delir-provenance-"])) .djs-visual > rect:first-child { stroke: var(--domain-process-automation-icon) !important; }
 

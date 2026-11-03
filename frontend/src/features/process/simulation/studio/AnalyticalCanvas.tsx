@@ -5,7 +5,7 @@ import { WorkspaceDisclosure, CanvasResizeHandle } from "@/components/layout";
 import { Surface } from "@/ui/surface";
 import { Button } from "@/ui/button";
 import type { CanvasRect } from "../dashboard/dashboardModel";
-import { bounds, fitCamera, PROCESS_ID, resizeRect, zoomCamera, freeInsertionRect, insertionRect, type Camera } from "./canvasGeometry";
+import { bounds, fitCamera, PROCESS_ID, resizeRect, zoomCamera, normalizeCanvasWheel, freeInsertionRect, insertionRect, type Camera } from "./canvasGeometry";
 
 import { PALETTE_DRAG_TYPE, parsePaletteItem, type PaletteItem } from "./canvasPaletteModel";
 
@@ -83,11 +83,12 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, lib
     const el = viewport.current;
     if (!el) return;
     const wheel = (event: WheelEvent) => {
-      if ((event.target as Element).closest("button,input,select,textarea,summary,.sim-data-table,.sim-note,.sim-studio-case")) return;
+      if ((event.target as Element).closest("button,input,select,textarea,summary,a,[contenteditable=true],.sim-data-table,.sim-note,.sim-studio-case")) return;
       event.preventDefault();
       const box = el.getBoundingClientRect();
-      if (event.ctrlKey || event.metaKey) setCamera(current => zoomCamera(current, Math.exp(-event.deltaY * 0.002), event.clientX - box.left, event.clientY - box.top));
-      else setCamera(current => ({ ...current, x: current.x - event.deltaX, y: current.y - event.deltaY }));
+      const delta = normalizeCanvasWheel(event, { width: el.clientWidth, height: el.clientHeight });
+      if (event.ctrlKey || event.metaKey) setCamera(current => zoomCamera(current, Math.exp(-delta.dy * 0.002), event.clientX - box.left, event.clientY - box.top));
+      else setCamera(current => ({ ...current, x: current.x - delta.dx, y: current.y - delta.dy }));
     };
     el.addEventListener("wheel", wheel, { passive: false });
     return () => el.removeEventListener("wheel", wheel);

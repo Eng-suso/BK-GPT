@@ -102,10 +102,10 @@ export function ProjectsListPage(): React.JSX.Element {
   const [editing, setEditing] = useState<Project | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [formSession, setFormSession] = useState(0);
-  // The detail panel only mounts at ≥1536px (the `panel` breakpoint); below
+  // The detail panel only mounts at ≥112rem (the `panel` breakpoint); below
   // that a row click opens the full detail page instead of selecting into a
   // panel nobody can see.
-  const hasPanel = useMediaQuery("(min-width: 1536px)");
+  const hasPanel = useMediaQuery("(min-width: 112rem)");
 
   const qs = useListQueryState(10);
 

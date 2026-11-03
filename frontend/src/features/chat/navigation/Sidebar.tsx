@@ -36,7 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       className={`sidebar ${isOpen ? "open" : ""}`}
       aria-label={t("sidebar.recent")}
     >
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-4 flex min-h-12 items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground">
           {t("sidebar.title")}
         </h2>
@@ -52,7 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </Button>
       </div>
 
-      <Button type="button" className="mb-4 w-full" onClick={() => onNewChat?.()}>
+      <Button type="button" variant="outline" className="mb-6 h-11 w-full" onClick={() => onNewChat?.()}>
         <Plus />
         {t("sidebar.newChat")}
       </Button>
@@ -68,7 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {sessions.length > 0 && (
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
           className="mt-3 w-full"
           onClick={() => onClearHistory?.()}

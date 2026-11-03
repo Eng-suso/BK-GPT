@@ -45,11 +45,22 @@
 
 /* Scenario is a full workspace, with bounded field widths and readable rows. */
 .sim-config-workspace { border: 0; border-radius: 0; container: scenario / inline-size; }
+.sim-config-workspace.ui-editor-workspace { container-name: editor scenario; container-type: inline-size; }
 .sim-config-body { width: 100%; max-width: 1280px; margin-inline: auto; padding: 0 24px 24px; }
 .sim-config-body > section { scroll-margin-top: 100px; padding-block: 24px; }
 .sim-config-body .eyebrow { font-size: var(--font-size-200); color: var(--foreground); }
 .sim-config-body input, .sim-config-body [role="combobox"] { min-height: 38px; font-size: var(--font-size-300); }
 .sim-config-body .sim-general-fields { max-width: 720px; }
+.ui-editor-body.sim-config-body { padding: 24px; }
+.ui-editor-body.sim-config-body > section { padding-block: 24px; scroll-margin-top: 0; }
+.ui-editor-body .sim-general-fields { gap: 20px; }
+.ui-editor-body.sim-config-body input, .ui-editor-body.sim-config-body select, .ui-editor-body.sim-config-body [role="combobox"] { min-height: 44px; }
+.ui-editor-body.sim-config-body label > span { font-size: var(--font-size-200); line-height: 1.5; }
+@container editor (max-width: 520px) {
+  .ui-editor-body .sim-general-fields > .grid, .ui-editor-body [data-sim-run-length] > .grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .ui-editor-body [data-sim-run-length] { grid-column: 1 / -1; }
+}
+@container editor (max-width: 480px) { .ui-editor-body.sim-config-body { padding: 16px; } }
 .sim-config-body .sim-task-row { padding: 16px; background: var(--card); }
 .sim-config-body .sim-task-name { min-width: 0; gap: 8px; }
 .sim-config-body .sim-task-name p { white-space: normal; }

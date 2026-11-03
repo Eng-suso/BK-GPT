@@ -847,7 +847,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           aria-label={t("composer.placeholder")}
           disabled={isLocked}
           autoComplete="off"
-          className="max-h-[180px] min-h-[42px] w-full resize-none border-none bg-transparent px-0.5 py-1 text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/90 disabled:opacity-60"
+          className="max-h-[180px] min-h-[42px] w-full resize-none border-none bg-transparent px-0.5 py-1 text-base leading-normal text-foreground outline-none placeholder:text-muted-foreground/90 disabled:opacity-60"
         />
         {audioStatus && (
           <div className="min-h-[18px] px-0.5 text-xs leading-normal text-muted-foreground">
@@ -864,7 +864,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 <Button
                   className="composer-add"
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   size="icon-sm"
                   disabled={isLocked || isRecording}
                   aria-label={t("composer.addLabel")}
@@ -924,18 +924,20 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <PostureSelector
-              scopeType={scope.type}
-              value={posture}
-              detected={(detectedPosture as ChatPosture | null) ?? null}
-              onChange={onPostureChange}
-              disabled={isBusy}
-            />
-            <ReasoningSelector
-              value={reasoningEffort}
-              onChange={onReasoningEffortChange}
-              disabled={isBusy}
-            />
+            <div className="composer-preferences">
+              <PostureSelector
+                scopeType={scope.type}
+                value={posture}
+                detected={(detectedPosture as ChatPosture | null) ?? null}
+                onChange={onPostureChange}
+                disabled={isBusy}
+              />
+              <ReasoningSelector
+                value={reasoningEffort}
+                onChange={onReasoningEffortChange}
+                disabled={isBusy}
+              />
+            </div>
           </div>
 
           <div className="composer-actions">
@@ -952,10 +954,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 size="sm"
                 onClick={handleVoiceClick}
                 disabled={isTranscribing}
+                aria-label={t("composer.stopHint")}
                 title={t("composer.stopHint")}
               >
                 <Square />
-                <span>{t("composer.stop")}</span>
+                <span className="composer-recording-stop-label">{t("composer.stop")}</span>
                 <span className="composer-stop-time">{formatDuration(elapsedSeconds)}</span>
               </Button>
             ) : (
@@ -975,8 +978,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             <Button
               className={cn("btn-send composer-submit-control", isBusy && "composer-agent-stop")}
               type={isBusy ? "button" : "submit"}
-              variant={isBusy ? "outline" : "default"}
-              size="sm"
+              variant="default"
+              size="icon"
               onClick={isBusy ? onStop : undefined}
               disabled={isBusy ? !onStop : isLocked || isRecording || uploading || !value.trim()}
               aria-label={isBusy ? t("composer.stopAgent") : t("composer.send")}
@@ -988,8 +991,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                     : t("composer.sendHint")
               }
             >
-              <span>{isBusy ? t("composer.stopAgent") : t("composer.send")}</span>
-              {isBusy ? <Square /> : <ArrowUp />}
+              {isBusy ? <Square aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}
             </Button>
           </div>
         </div>
