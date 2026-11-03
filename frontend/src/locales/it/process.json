@@ -1926,7 +1926,7 @@
     "save": "Salva",
     "saved": "Salvato",
     "unsaved": "Non salvato",
-    "inspectorLabel": "Ispettore nodo selezionato",
+    "inspectorLabel": "Proprietà elemento",
     "inspectorClose": "Chiudi ispettore",
     "inspectorNotes": "Note / Documentazione",
     "inspectorNotesPlaceholder": "Aggiungi dettagli o regole per questo nodo…",
@@ -2036,6 +2036,51 @@
         "collaboration": "Collaborazione",
         "artifact": "Artefatti"
       }
+    },
+    "interactions": {
+      "select": "Seleziona",
+      "selectionActions": "Azioni della selezione",
+      "selectionCount": "{{count}} elementi selezionati",
+      "selected": "Elemento selezionato",
+      "append": "Aggiungi passaggio",
+      "connect": "Collega elemento",
+      "replace": "Cambia tipo",
+      "more": "Altre azioni",
+      "history": "Modifiche al disegno",
+      "undo": "Annulla modifica",
+      "redo": "Ripeti modifica",
+      "zoomMenu": "Zoom {{value}}%",
+      "multipleHint": "Seleziona un solo elemento per modificarne le proprietà. Le azioni disponibili si applicano alla selezione.",
+      "section": "Sezione proprietà",
+      "identity": "Identificativi tecnici"
+    },
+    "context": {
+      "delete": "Elimina elemento",
+      "replace": "Cambia tipo",
+      "connect": "Collega elemento",
+      "association": "Collega con associazione",
+      "dataAssociation": "Collega dati in ingresso",
+      "task": "Aggiungi attività",
+      "receive": "Aggiungi attività di ricezione",
+      "end": "Aggiungi evento finale",
+      "gateway": "Aggiungi decisione",
+      "event": "Aggiungi evento intermedio",
+      "annotation": "Aggiungi nota",
+      "laneAbove": "Aggiungi corsia sopra",
+      "laneBelow": "Aggiungi corsia sotto",
+      "twoLanes": "Dividi in due corsie",
+      "threeLanes": "Dividi in tre corsie",
+      "message": "Aggiungi evento di messaggio",
+      "timer": "Aggiungi evento temporale",
+      "condition": "Aggiungi evento condizionale",
+      "signal": "Aggiungi evento di segnale",
+      "compensation": "Aggiungi attività di compensazione"
+    },
+    "navigation": {
+      "title": "Navigazione della tela",
+      "mouse": "Mouse · rotella per lo zoom",
+      "trackpad": "Trackpad · scorri per spostare",
+      "shortcuts": "V Seleziona · H Mano · Spazio Trascina"
     }
   },
   "review": {

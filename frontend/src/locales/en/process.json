@@ -1926,7 +1926,7 @@
     "save": "Save",
     "saved": "Saved",
     "unsaved": "Not saved",
-    "inspectorLabel": "Selected node inspector",
+    "inspectorLabel": "Element properties",
     "inspectorClose": "Close the inspector",
     "inspectorNotes": "Notes / Documentation",
     "inspectorNotesPlaceholder": "Add details or rules for this node…",
@@ -2036,6 +2036,51 @@
         "collaboration": "Collaboration",
         "artifact": "Artifacts"
       }
+    },
+    "interactions": {
+      "select": "Select",
+      "selectionActions": "Selection actions",
+      "selectionCount": "{{count}} elements selected",
+      "selected": "Selected element",
+      "append": "Add next step",
+      "connect": "Connect element",
+      "replace": "Change type",
+      "more": "More actions",
+      "history": "Diagram changes",
+      "undo": "Undo change",
+      "redo": "Redo change",
+      "zoomMenu": "Zoom {{value}}%",
+      "multipleHint": "Select one element to edit its properties. Available actions apply to the selection.",
+      "section": "Property section",
+      "identity": "Technical identifiers"
+    },
+    "context": {
+      "delete": "Delete element",
+      "replace": "Change type",
+      "connect": "Connect element",
+      "association": "Connect with association",
+      "dataAssociation": "Connect input data",
+      "task": "Add task",
+      "receive": "Add receive task",
+      "end": "Add end event",
+      "gateway": "Add gateway",
+      "event": "Add intermediate event",
+      "annotation": "Add note",
+      "laneAbove": "Add lane above",
+      "laneBelow": "Add lane below",
+      "twoLanes": "Divide into two lanes",
+      "threeLanes": "Divide into three lanes",
+      "message": "Add message event",
+      "timer": "Add timer event",
+      "condition": "Add conditional event",
+      "signal": "Add signal event",
+      "compensation": "Add compensation activity"
+    },
+    "navigation": {
+      "title": "Canvas navigation",
+      "mouse": "Mouse · wheel to zoom",
+      "trackpad": "Trackpad · scroll to pan",
+      "shortcuts": "V Select · H Hand · Space Drag"
     }
   },
   "review": {

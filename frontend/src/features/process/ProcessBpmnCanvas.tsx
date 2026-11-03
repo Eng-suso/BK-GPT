@@ -2,7 +2,7 @@ import React from "react";
 import { createPortal } from "react-dom";
 import type { RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { MessagesSquare, Upload, Maximize2, Plus, Minus } from "lucide-react";
+import { MessagesSquare, Upload, Maximize2, Plus, Minus, Undo2, Redo2, ChevronDown } from "lucide-react";
 
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
@@ -14,6 +14,9 @@ import { Button } from "@/ui/button";
 import { useElementWidth } from "@/lib/useElementWidth";
 import { Surface } from "@/ui/surface";
 import { WorkspaceDisclosure } from "@/components/layout/CanvasWorkspace";
+import { CanvasToolButton, CanvasToolGroup } from "@/components/canvas/CanvasTools";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/ui/dropdown-menu";
+import { BpmnSelectionActions } from "./components/BpmnSelectionActions";
 import { BpmnCreationTools } from "./components/BpmnCreationTools";
 import { BpmnElementNavigator } from "./components/BpmnElementNavigator";
 import { useBpmnCanvas } from "./bpmn/useBpmnCanvas";
@@ -26,6 +29,7 @@ import { onWorkspaceChanged } from "@/lib/workspaceEvents";
 import { provenanceKeys, useProcessProvenanceQuery } from "./api";
 import { EvidenceReviewPanel } from "./components/EvidenceReviewPanel";
 import "./bpmn/canvasIdentity.css";
+import "./bpmn/canvasUi.css";
 
 type ProcessBpmnCanvasProps = {
   bpmnModelId: string;
@@ -140,6 +144,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     zoomFit,
     zoomReadable,
     focusSourceRef,
+    canvasUi, selectTool, panTool, prepareTool, setNavigationMode, contextAction, undo, redo, zoomTo,
   } = useBpmnCanvas({
     bpmnModelId,
     processName,
@@ -153,7 +158,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     onInspectorChange?.(!isPropertiesOpen && inspectorTitle ? { title: inspectorTitle, closeLabel: isEvidenceOpen ? t("canvas.evidence.close") : t("canvas.inspectorClose"), close: () => { setIsEvidenceOpen(false); clearSelection(); } } : null);
   }, [onInspectorChange, isPropertiesOpen, inspectorTitle, isEvidenceOpen, clearSelection, t]);
   React.useEffect(() => () => onInspectorChange?.(null), [onInspectorChange]);
-  const propertyContent = selectedElement ? <BpmnNodeInspector embedded={Boolean(inspectorHost)} element={selectedElement} onNameChange={updateSelectedNodeName} onDocChange={updateSelectedNodeDoc} onMetadataChange={updateSelectedMetadata} onDelete={deleteSelectedElement} versions={versions} onAsk={onOpenDiscussion} onClose={clearSelection} /> : <p className="p-4 text-sm text-muted-foreground">{t("properties.vendor.noSelection")}</p>;
+  const propertyContent = selectedElement ? canvasUi.selectionCount > 1 ? <div className="p-6"><h3 className="text-base font-semibold">{t("canvas.interactions.selectionCount", { count: canvasUi.selectionCount })}</h3><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t("canvas.interactions.multipleHint")}</p></div> : <BpmnNodeInspector key={selectedElement.id} embedded={Boolean(inspectorHost)} element={selectedElement} onNameChange={updateSelectedNodeName} onDocChange={updateSelectedNodeDoc} onMetadataChange={updateSelectedMetadata} onDelete={deleteSelectedElement} versions={versions} onAsk={onOpenDiscussion} onClose={clearSelection} /> : <p className="p-4 text-sm text-muted-foreground">{t("properties.vendor.noSelection")}</p>;
   const inspectorContent = !isPropertiesOpen && (processId && isEvidenceOpen ? (
     <EvidenceReviewPanel embedded={Boolean(inspectorHost)} processId={processId} bpmnModelId={bpmnModelId} hasUnsavedChanges={hasUnsavedChanges} onLocate={focusSourceRef} onClose={() => setIsEvidenceOpen(false)} />
   ) : selectedElement ? (
@@ -205,6 +210,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
               }
             : undefined
         }
+        navigationMode={canvasUi.navigationMode}
+        onNavigationModeChange={setNavigationMode}
         onSave={save}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
@@ -219,7 +226,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
       <div className={`process-bpmn-body ${elementsOpen ? "process-bpmn-body--elements" : ""}`}>
         {elementsOpen && <BpmnElementNavigator elements={elements} selectedId={selectedElement?.id} isReady={isReady} onClose={closeElements} onSelect={(id) => { if (selectElement(id) && shellWidth < 820) closeElements(); }} />}
         <div className="process-bpmn-stage">
-        <BpmnCreationTools tools={creationTools} isReady={isReady} onActivate={activateTool} />
+        <BpmnCreationTools tools={creationTools} isReady={isReady} onActivate={(id, action, event) => { if (id === "hand-tool") panTool(); else { prepareTool(id); activateTool(id, action, event); } }} activeTool={canvasUi.activeTool} onSelectTool={selectTool} />
         <div className={`process-bpmn-canvas ${coloursEnabled ? "delir-canvas--colours" : ""}`} ref={containerRef}>
           {/* Un processo appena creato non ha un modello: prima il canvas
               apriva su un diagramma finto che nessuno aveva descritto. Qui la
@@ -252,11 +259,20 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             </div>
           )}
         </div>
-        <Surface variant="floating" className="process-canvas-navigation" role="group" aria-label={t("canvas.zoomGroup")}>
+        <BpmnSelectionActions actions={canvasUi.contextActions} count={canvasUi.selectionCount} name={selectedElement?.name} onAction={(id, event) => {
+          contextAction(id, event);
+          if (id === "delete" || id.startsWith("append.")) requestAnimationFrame(() => containerRef.current?.querySelector<SVGSVGElement>(".djs-container > svg")?.focus());
+        }} />
+        <CanvasToolGroup label={t("canvas.interactions.history")} className="process-canvas-history">
+          <CanvasToolButton label={t("canvas.interactions.undo")} disabled={!isReady || !canvasUi.canUndo} onClick={undo}><Undo2 aria-hidden /></CanvasToolButton>
+          <CanvasToolButton label={t("canvas.interactions.redo")} disabled={!isReady || !canvasUi.canRedo} onClick={redo}><Redo2 aria-hidden /></CanvasToolButton>
+        </CanvasToolGroup>
+        <Surface variant="toolbar" className="process-canvas-navigation" role="group" aria-label={t("canvas.zoomGroup")}>
           {coloursEnabled && <WorkspaceDisclosure label={t("canvas.colours")} contentClassName="process-canvas-legend-popover"><div className="process-bpmn-legend">{(["task", "automation", "gateway", "start", "end"] as const).map((kind) => <span key={kind}><i aria-hidden className={`process-element-swatch--${kind}`} />{t(`canvas.legend.${kind}`)}</span>)}</div></WorkspaceDisclosure>}
           <Button variant="ghost" size="sm" disabled={!isReady} onClick={zoomReadable} aria-label={t("canvas.readableTitle")} title={t("canvas.readableTitle")}>{t("canvas.readable")}</Button>
           <Button variant="ghost" size="sm" disabled={!isReady} onClick={zoomFit} aria-label={t("canvas.fitTitle")} title={t("canvas.fitTitle")}><Maximize2 aria-hidden />{t("canvas.fit")}</Button>
           <Button variant="ghost" size="icon-sm" onClick={zoomOut} aria-label={t("canvas.zoomOut")}><Minus aria-hidden /></Button>
+          <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" disabled={!isReady} className="min-h-11 tabular-nums" aria-label={t("canvas.interactions.zoomMenu", { value: canvasUi.zoomPercent })}>{canvasUi.zoomPercent}%<ChevronDown aria-hidden className="size-3" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">{[50, 100, 200].map(value => <DropdownMenuItem key={value} onSelect={() => zoomTo(value)}>{value}%</DropdownMenuItem>)}<DropdownMenuItem onSelect={zoomFit}>{t("canvas.fit")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
           <Button variant="ghost" size="icon-sm" onClick={zoomIn} aria-label={t("canvas.zoomIn")}><Plus aria-hidden /></Button>
         </Surface>
         </div>

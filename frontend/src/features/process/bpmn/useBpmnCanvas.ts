@@ -1,4 +1,5 @@
 import { canvasThemeOptions } from "./canvasTheme";
+import { useBpmnCanvasUi } from "./useBpmnCanvasUi";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import Modeler from "bpmn-js/lib/Modeler";
@@ -55,7 +56,7 @@ type UseBpmnCanvasArgs = {
   onBaseVersionChange?: (versionId: number | null) => void;
 };
 
-export type UseBpmnCanvas = {
+export type UseBpmnCanvas = ReturnType<typeof useBpmnCanvasUi> & {
   containerRef: RefObject<HTMLDivElement | null>;
   fileInputRef: RefObject<HTMLInputElement | null>;
   isReady: boolean;
@@ -143,6 +144,7 @@ export function useBpmnCanvas({
   const [hasConflict, setHasConflict] = useState(false);
   const [selectedElement, setSelectedElement] =
     useState<SelectedBpmnElement | null>(null);
+  const presentation = useBpmnCanvasUi(modelerRef, isReady);
 
   useEffect(() => {
     onCurrentXmlChangeRef.current = onCurrentXmlChange;
@@ -752,6 +754,7 @@ export function useBpmnCanvas({
   }, []);
 
   return {
+    ...presentation,
     creationTools,
     activateTool,
     elements,

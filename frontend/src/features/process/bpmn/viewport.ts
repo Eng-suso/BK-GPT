@@ -199,25 +199,22 @@ export function keepSequenceConnectionsDocked(modeler: BpmnModeler): void {
   const eventBus = modeler.get("eventBus") as BpmnEventBus;
   const elementRegistry = modeler.get("elementRegistry") as BpmnElementRegistry;
   const modeling = modeler.get("modeling") as BpmnModeling;
-  let scheduled = false;
+  let layingOut = false;
 
-  function scheduleRelayout() {
-    if (scheduled) return;
-
-    scheduled = true;
-    window.requestAnimationFrame(() => {
-      scheduled = false;
-      for (const connection of elementRegistry.filter(
-        isDockableSequenceConnection,
-      )) {
-        try {
-          modeling.layoutConnection(connection);
-        } catch {
-          // Transient invalid connections while the user drags the diagram —
-          // the next relayout frame fixes them; nothing actionable to log.
+  function relayoutConnections() {
+    if (layingOut) return;
+    // Run inside the move/resize command group. A deferred relayout adds one
+    // undo step per connection, making a single drag require many undos.
+    layingOut = true;
+    try {
+      for (const connection of elementRegistry.filter(isDockableSequenceConnection)) {
+        try { modeling.layoutConnection(connection); } catch {
+          // Preserve the existing tolerance for transient invalid connections.
         }
       }
-    });
+    } finally {
+      layingOut = false;
+    }
   }
 
   eventBus.on(
@@ -226,6 +223,6 @@ export function keepSequenceConnectionsDocked(modeler: BpmnModeler): void {
       "commandStack.elements.move.postExecuted",
       "commandStack.shape.resize.postExecuted",
     ],
-    scheduleRelayout,
+    relayoutConnections,
   );
 }

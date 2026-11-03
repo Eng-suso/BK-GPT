@@ -58,7 +58,8 @@ function ModelingProcessWorkspace({ project, process, view, propertiesOpen, onTo
   const availableChatWidth = Math.min(chatWidth, Math.max(320, width - 792));
   const bothFit = width >= availableChatWidth + 480 + 792;
   const showChat = chatOpen && (!propertiesOpen || bothFit);
-  const detailsOpen = Boolean(inspectorTitle) && (!showChat || bothFit);
+  // Compact canvases keep their full height; properties open explicitly.
+  const detailsOpen = inline && Boolean(inspectorTitle) && (!showChat || bothFit);
   const rightOpen = propertiesOpen || detailsOpen;
   const supportReplacesCanvas = !inline && (showChat || propertiesOpen);
   const lastTrigger = React.useRef<HTMLElement | null>(null);
@@ -92,7 +93,7 @@ function ModelingProcessWorkspace({ project, process, view, propertiesOpen, onTo
 
   return (
     <section ref={ref} className="process-workspace process-workspace--embedded" onKeyDown={(event) => {
-      if (event.key === "Escape" && supportReplacesCanvas) { event.preventDefault(); closeSupport(); }
+      if (event.key === "Escape" && !event.defaultPrevented && supportReplacesCanvas) { event.preventDefault(); closeSupport(); }
     }}>
       <div className={`process-workspace-grid process-view-${view}`}>
         {view === "canvas" ? (

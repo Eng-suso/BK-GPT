@@ -20,6 +20,8 @@ function renderToolbar(overrides: Partial<Parameters<typeof BpmnCanvasToolbar>[0
       fileInputRef={createRef<HTMLInputElement>()}
       canvasChat={{}}
       properties={{}}
+      navigationMode="mouse"
+      onNavigationModeChange={vi.fn()}
       onSave={onSave}
       onZoomIn={vi.fn()}
       onZoomOut={vi.fn()}
