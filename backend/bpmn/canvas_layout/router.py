@@ -100,6 +100,19 @@ def orthogonal_route(source_id, target_id, boxes, labels, previous=(), downward=
     origin = (xs.index(start[0]), ys.index(start[1]), 2)
     queue, distance, parent = [(0, origin)], {origin: 0}, {}
     goal = None
+    # A grid segment is open or closed, and touches earlier routes so many
+    # times, whatever direction the search reaches it from. Each one is
+    # reached from up to three directions and from both ends: computing it
+    # once per call kept the answer and took a dense real plan (19 steps, 29
+    # flows) from minutes to seconds.
+    segment_costs = {}
+    grid_index = _GridIndex([*obstacles, *ends], previous)
+
+    def segment_cost(u, v):
+        key = (u, v) if u <= v else (v, u)
+        if key not in segment_costs:
+            segment_costs[key] = grid_index.cost(key[0], key[1], alongside)
+        return segment_costs[key]
     while queue:
         value, current = heappop(queue)
         if value != distance[current]:
@@ -112,11 +125,11 @@ def orthogonal_route(source_id, target_id, boxes, labels, previous=(), downward=
             if not (0 <= nx < len(xs) and 0 <= ny < len(ys)):
                 continue
             u, v = (xs[x], ys[y]), (xs[nx], ys[ny])
-            if not (free(u, v, obstacles) and free(u, v, ends)):
-                continue
             # Grid segments end at obstacle corners; charge a crossing even
             # when it falls exactly on a grid vertex, before compression.
-            touches = sum(_grid_cross(u, v, w, z) + _overlap(u, v, w, z, alongside) * _OVERLAP_WEIGHT for other in previous for w, z in pairwise(other))
+            touches = segment_cost(u, v)
+            if touches is None:
+                continue
             next_value = value + abs(u[0]-v[0]) + abs(u[1]-v[1]) + touches * p.crossing_cost + (p.bend_cost if direction not in {2, next_direction} else 0)
             nxt = (nx, ny, next_direction)
             if next_value < distance.get(nxt, float("inf")):
@@ -133,6 +146,64 @@ def orthogonal_route(source_id, target_id, boxes, labels, previous=(), downward=
     path.append(start)
     routed = compress([a, *reversed(path), b])
     return min([best, routed], key=lambda path: (cost(path), path)) if best else routed
+
+
+class _GridIndex:
+    """The obstacles and earlier routes, pre-split for one grid search.
+
+    The grid search asks the same question for every segment between two
+    adjacent grid points: is it free of `boxes`, and how many times does it
+    touch `routes`? Asked through `segment_hits_box`, a crossing test and
+    `_overlap` that is three Python calls per pair, and a dense real plan
+    asked it some 250 million times. Here the same comparisons run inline on
+    plain tuples sorted once by orientation. A grid segment always has a
+    length, so only its two orthogonal cases exist; a degenerate earlier
+    segment (a point) never crosses nor overlaps anything and is left out.
+
+    A grid crossing counts also when the earlier route meets the segment
+    exactly at one of its ends: grid segments end at obstacle corners, and a
+    crossing there would vanish once the path is compressed.
+    `tests/bpmn/test_canvas_layout_port_stubs.py` keeps the per-pair formulas
+    this replaced and checks both give the same cost.
+    """
+
+    def __init__(self, boxes, routes):
+        self.boxes = [(box.x, box.right, box.y, box.bottom) for box in boxes]
+        self.horizontal, self.vertical = [], []
+        for route in routes:
+            for w, z in pairwise(route):
+                if w == z:
+                    continue
+                if w[1] == z[1]:
+                    self.horizontal.append((w[1], min(w[0], z[0]), max(w[0], z[0])))
+                elif w[0] == z[0]:
+                    self.vertical.append((w[0], min(w[1], z[1]), max(w[1], z[1])))
+
+    def cost(self, u, v, gap):
+        """`None` when the segment `u`-`v` is blocked, else its weighted contacts.
+
+        Same value as `segment_hits_box` over the boxes, and grid crossings
+        plus `_overlap * _OVERLAP_WEIGHT` summed over the routes.
+        """
+        if u[1] == v[1]:
+            y, x1, x2 = u[1], min(u[0], v[0]), max(u[0], v[0])
+            for bx, br, by, bb in self.boxes:
+                if by < y < bb and max(x1, bx) < min(x2, br):
+                    return None
+            crossings = sum(1 for x, y1, y2 in self.vertical if x1 <= x <= x2 and y1 < y < y2)
+            overlaps = sum(
+                1 for py, px1, px2 in self.horizontal if abs(y - py) <= gap and min(x2, px2) - max(x1, px1) > 0
+            )
+        else:
+            x, y1, y2 = u[0], min(u[1], v[1]), max(u[1], v[1])
+            for bx, br, by, bb in self.boxes:
+                if bx < x < br and max(y1, by) < min(y2, bb):
+                    return None
+            crossings = sum(1 for py, px1, px2 in self.horizontal if y1 <= py <= y2 and px1 < x < px2)
+            overlaps = sum(
+                1 for px, py1, py2 in self.vertical if abs(x - px) <= gap and min(y2, py2) - max(y1, py1) > 0
+            )
+        return crossings + overlaps * _OVERLAP_WEIGHT
 
 
 def _straight(a, b, out_normal, in_normal):
@@ -161,12 +232,4 @@ def _cross(a, b, c, d):
         return min(a[0], b[0]) < c[0] < max(a[0], b[0]) and min(c[1], d[1]) < a[1] < max(c[1], d[1])
     if a[0] == b[0] and c[1] == d[1]:
         return _cross(c, d, a, b)
-    return False
-
-
-def _grid_cross(a, b, c, d):
-    if a[1] == b[1] and c[0] == d[0]:
-        return min(a[0], b[0]) <= c[0] <= max(a[0], b[0]) and min(c[1], d[1]) < a[1] < max(c[1], d[1])
-    if a[0] == b[0] and c[1] == d[1]:
-        return min(a[1], b[1]) <= c[1] <= max(a[1], b[1]) and min(c[0], d[0]) < a[0] < max(c[0], d[0])
     return False

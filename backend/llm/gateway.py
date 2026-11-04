@@ -239,7 +239,17 @@ def run(
         )
         raise
 
-    runnable = client if output is None else client.with_structured_output(output, include_raw=True)
+    if output is not None:
+        return _run_structured(
+            task=task,
+            profile=profile,
+            client=client,
+            messages=messages,
+            output=output,
+            prompt_version=prompt_version,
+        )
+
+    runnable = client
 
     started = time.perf_counter()
     try:
@@ -260,20 +270,127 @@ def run(
         )
         raise
 
-    duration_ms = int((time.perf_counter() - started) * 1000)
+    record(
+        operation=operation,
+        task=task.value,
+        model=model,
+        outcome=Outcome.OK,
+        tokens=extract_tokens(result),
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        prompt_version=prompt_version,
+        reasoning_effort=profile.reasoning_effort,
+    )
+    return result
 
-    if output is None:
+
+# --- L'output strutturato con qualunque provider -----------------------------
+#
+# `with_structured_output` manda lo schema pydantic come `response_format`
+# json_schema. OpenAI lo accetta; gli altri endpoint compatibili accettano
+# ognuno un sottoinsieme diverso di JSON Schema. Gemini rifiuta con un 400
+# "invalid argument" lo schema di `ProcessUnderstandingResult` (28 KB, 35
+# sotto-modelli, `anyOf`), sia come `response_format` sia come tool, e anche
+# risolti i `$ref`. Ripulire lo schema per ciascun provider sarebbe una
+# rincorsa senza fine. La scala qui sotto regge con qualunque chiave:
+#
+#   1. schema nativo - quello di sempre, e l'unico che OpenAI vede;
+#   2. al primo 400, JSON libero (`json_object`, o testo dove nemmeno quello
+#      passa) con lo schema nel prompt, validato da pydantic qui;
+#   3. un JSON che non si valida si rimanda indietro una volta con l'errore.
+#
+# Il 400 sullo schema si paga una volta per provider e modello: poi si va
+# diritti al JSON libero. Il ricordo vale solo se il JSON libero ha funzionato,
+# cosi' un 400 per un'altra ragione (contesto troppo lungo) non lo inquina.
+
+_NATIVE_SCHEMA_REJECTED: set[tuple[str, str]] = set()
+
+#: Quante volte un JSON non valido torna al modello con l'errore. Una: due
+#: correzioni sbagliate di fila dicono che il modello non regge lo schema, e
+#: una terza chiamata costerebbe senza cambiare la risposta.
+_JSON_REPAIRS = 1
+
+
+def _provider_key() -> tuple[str, str]:
+    return (settings.openai_base_url or "", settings.openai_model or "")
+
+
+def reset_structured_output_memory() -> None:
+    """Dimentica quali provider rifiutano lo schema nativo. Per i test."""
+    _NATIVE_SCHEMA_REJECTED.clear()
+
+
+def _run_structured(
+    *,
+    task: LlmTask,
+    profile: TaskProfile,
+    client: Any,
+    messages: Any,
+    output: type[_Output],
+    prompt_version: str | None,
+) -> _Output:
+    """Un compito strutturato: schema nativo, e JSON libero dove non passa."""
+    key = _provider_key()
+    if key not in _NATIVE_SCHEMA_REJECTED:
+        try:
+            return _run_native_schema(
+                task=task,
+                profile=profile,
+                client=client,
+                messages=messages,
+                output=output,
+                prompt_version=prompt_version,
+            )
+        except openai.BadRequestError:
+            # La riga del 400 l'ha gia' lasciata `_run_native_schema`.
+            degradation_counters.bump(
+                "llm_structured_output", "native_schema_rejected", detail=key[1] or task.value
+            )
+
+    parsed = _run_free_json(
+        task=task,
+        profile=profile,
+        client=client,
+        messages=messages,
+        output=output,
+        prompt_version=prompt_version,
+    )
+    _NATIVE_SCHEMA_REJECTED.add(key)
+    return parsed
+
+
+def _run_native_schema(
+    *,
+    task: LlmTask,
+    profile: TaskProfile,
+    client: Any,
+    messages: Any,
+    output: type[_Output],
+    prompt_version: str | None,
+) -> _Output:
+    from backend.llm_streaming import stream_to_final
+
+    operation = current_operation()
+    model = profile.model
+    runnable = client.with_structured_output(output, include_raw=True)
+
+    started = time.perf_counter()
+    try:
+        result = stream_to_final(runnable, messages)
+    except BaseException as exc:
+        outcome, error_kind = _error_kind(exc)
         record(
             operation=operation,
             task=task.value,
             model=model,
-            outcome=Outcome.OK,
-            tokens=extract_tokens(result),
-            duration_ms=duration_ms,
+            outcome=outcome,
+            error_kind=error_kind,
+            duration_ms=int((time.perf_counter() - started) * 1000),
             prompt_version=prompt_version,
             reasoning_effort=profile.reasoning_effort,
         )
-        return result
+        raise
+
+    duration_ms = int((time.perf_counter() - started) * 1000)
 
     # `include_raw=True`: il grezzo porta i token, il parsato e' cio' che serve a
     # chi chiama. Senza questo, ogni chiamata strutturata - cioe' quasi tutte -
@@ -312,6 +429,144 @@ def run(
         reasoning_effort=profile.reasoning_effort,
     )
     return parsed
+
+
+def _as_message_list(messages: Any) -> list[Any]:
+    """I messaggi come lista, qualunque forma langchain accetti in ingresso."""
+    from langchain_core.messages import HumanMessage
+
+    if isinstance(messages, list):
+        return list(messages)
+    to_messages = getattr(messages, "to_messages", None)
+    if callable(to_messages):
+        return list(to_messages())
+    return [HumanMessage(content=str(messages))]
+
+
+def _schema_instruction(output: type[BaseModel]) -> str:
+    import json
+
+    schema = json.dumps(output.model_json_schema(), ensure_ascii=False)
+    return (
+        "Rispondi con un solo oggetto JSON valido, senza testo prima o dopo e senza "
+        "blocchi di codice. L'oggetto deve rispettare questo JSON Schema "
+        f"(i `$ref` rimandano a `$defs`):\n{schema}"
+    )
+
+
+def _json_payload(text: str) -> str:
+    """Il JSON dentro una risposta testuale: senza recinti ``` e senza contorno."""
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.split("\n", 1)[1] if "\n" in stripped else ""
+        stripped = stripped.rsplit("```", 1)[0]
+    start, end = stripped.find("{"), stripped.rfind("}")
+    if start != -1 and end > start:
+        return stripped[start : end + 1]
+    return stripped
+
+
+def _message_text(message: Any) -> str:
+    content = getattr(message, "content", message)
+    if isinstance(content, list):
+        # Alcuni provider rispondono a blocchi: si tiene solo il testo.
+        return "".join(
+            part.get("text", "") if isinstance(part, dict) else str(part) for part in content
+        )
+    return str(content or "")
+
+
+def _run_free_json(
+    *,
+    task: LlmTask,
+    profile: TaskProfile,
+    client: Any,
+    messages: Any,
+    output: type[_Output],
+    prompt_version: str | None,
+) -> _Output:
+    """Lo schema nel prompt e la validazione qui: il ripiego per ogni provider."""
+    from langchain_core.messages import AIMessage, HumanMessage
+    from pydantic import ValidationError
+
+    from backend.llm_streaming import stream_to_final
+
+    operation = current_operation()
+    model = profile.model
+    conversation = [*_as_message_list(messages), HumanMessage(content=_schema_instruction(output))]
+    runnable = client.bind(response_format={"type": "json_object"})
+    last_error: Exception | None = None
+
+    for attempt in range(_JSON_REPAIRS + 1):
+        started = time.perf_counter()
+        try:
+            try:
+                message = stream_to_final(runnable, conversation)
+            except openai.BadRequestError:
+                if runnable is client:
+                    raise
+                # Nemmeno `json_object`: resta il testo, e lo schema nel prompt.
+                runnable = client
+                message = stream_to_final(runnable, conversation)
+        except BaseException as exc:
+            outcome, error_kind = _error_kind(exc)
+            record(
+                operation=operation,
+                task=task.value,
+                model=model,
+                outcome=outcome,
+                error_kind=error_kind,
+                duration_ms=int((time.perf_counter() - started) * 1000),
+                prompt_version=prompt_version,
+                reasoning_effort=profile.reasoning_effort,
+            )
+            raise
+
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        tokens = extract_tokens(message)
+        text = _message_text(message)
+        try:
+            parsed = output.model_validate_json(_json_payload(text))
+        except ValidationError as exc:
+            last_error = exc
+            record(
+                operation=operation,
+                task=task.value,
+                model=model,
+                outcome=Outcome.ERROR,
+                tokens=tokens,
+                error_kind="invalid_structured_output",
+                duration_ms=duration_ms,
+                prompt_version=prompt_version,
+                reasoning_effort=profile.reasoning_effort,
+            )
+            if attempt < _JSON_REPAIRS:
+                conversation = [
+                    *conversation,
+                    AIMessage(content=text),
+                    HumanMessage(
+                        content=(
+                            "Il JSON non rispetta lo schema. Errori:\n"
+                            f"{str(exc)[:4000]}\n"
+                            "Rispondi di nuovo con il solo oggetto JSON corretto."
+                        )
+                    ),
+                ]
+            continue
+
+        record(
+            operation=operation,
+            task=task.value,
+            model=model,
+            outcome=Outcome.OK,
+            tokens=tokens,
+            duration_ms=duration_ms,
+            prompt_version=prompt_version,
+            reasoning_effort=profile.reasoning_effort,
+        )
+        return parsed
+
+    raise last_error or ValueError(f"{task.value}: risposta strutturata vuota")
 
 
 @lru_cache(maxsize=1)

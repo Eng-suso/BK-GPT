@@ -46,7 +46,7 @@ def branch_label(points, name, boxes, labels, routes, container=None, lane_bound
     raise ValueError(f"Nessuno spazio leggibile per l'etichetta del ramo: {name}.")
 
 
-def node_label(box, name, docked_sides, boxes, labels, container=None, lane_boundaries=(), turns=()):
+def node_label(box, name, docked_sides, boxes, labels, container=None, lane_boundaries=(), turns=(), stubs=()):
     """Place an event or gateway label beside its shape, clear of where its flows run.
 
     Below is the BPMN convention; when a flow docks there the label moves
@@ -55,6 +55,11 @@ def node_label(box, name, docked_sides, boxes, labels, container=None, lane_boun
     off both axes; they are a last resort. The first placement that stays
     inside the pool, off lane borders and clear of nodes and labels wins; a
     long name that fits nowhere on two lines is tried again, narrower.
+
+    `stubs` are the first stretches out of every docking port, of any shape.
+    A label on one of them walls the port in: the router cannot leave it and
+    the whole layout fails. A gateway label resting on the top port of a data
+    object just below it did exactly that on real extracted plans.
     """
     gap = 8
     sizes = [label_size(name)]
@@ -65,6 +70,9 @@ def node_label(box, name, docked_sides, boxes, labels, container=None, lane_boun
         for width, height in sizes
         for candidate in _node_label_candidates(box, width, height, gap, docked_sides, turns)
     ]
+    def blocks_a_port(candidate):
+        return any(segment_hits_box(a, b, candidate.expanded(4)) for a, b in stubs)
+
     for candidate in candidates:
         if container and not (container.x <= candidate.x and container.y <= candidate.y and container.right >= candidate.right and container.bottom >= candidate.bottom):
             continue
@@ -72,9 +80,13 @@ def node_label(box, name, docked_sides, boxes, labels, container=None, lane_boun
             continue
         if any(_crosses_lane_border(candidate, lane) for lane in lane_boundaries):
             continue
+        if blocks_a_port(candidate):
+            continue
         return candidate
-    # Crowded: keep at least the sides the flows dock on free.
-    return candidates[0]
+    # Crowded: keep at least the sides the flows dock on free, and never a
+    # port walled in - an overlapping label is a lint warning, a blocked port
+    # is a layout that cannot be drawn.
+    return next((candidate for candidate in candidates if not blocks_a_port(candidate)), candidates[0])
 
 
 _NARROW = 100

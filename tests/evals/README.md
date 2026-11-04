@@ -134,6 +134,21 @@ DELIR_TEST_LLM_API_KEY=ollama
 DELIR_TEST_LLM_MODEL=<un modello scaricato con ollama pull>
 ```
 
+Qualunque endpoint compatibile OpenAI va bene, anche cambiando provider a ogni
+chiave: se il provider rifiuta lo schema di risposta (Gemini rifiuta quello del
+piano, 28 KB), il gateway chiede JSON libero con lo schema nel prompt e lo valida
+lui (`backend/llm/gateway.py`, `_run_free_json`).
+
+Cosa sapere su Gemini gratuito (verificato il 31/10/2026):
+
+- `gemini-2.5-flash` non e' piu' disponibile alle chiavi nuove (404);
+  `gemini-3.5-flash-lite` funziona e ha una quota sua;
+- il piano gratuito concede 5 richieste al minuto e 20 al giorno **per
+  modello**; un giro del golden set ne usa circa 10. Finita la quota di un
+  modello, un altro ha la sua;
+- `MODEL_MAX_RETRIES=4` fa ritentare l'SDK sui 503 e 429 brevi rispettando
+  `retry-after` (il workflow notturno lo imposta gia').
+
 Senza modello dei test un eval col modello si salta, invece di ripiegare su
 OpenAI; pagarlo resta una scelta dichiarata (`DELIR_TEST_LLM_ALLOW_OPENAI=1`).
 Sul modello dei test gli embedding sono spenti: lo schema vuole i vettori a

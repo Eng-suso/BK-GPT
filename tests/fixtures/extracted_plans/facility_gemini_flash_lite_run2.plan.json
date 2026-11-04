@@ -1,0 +1,1461 @@
+{
+  "schema_version": "process_understanding.v1",
+  "language": "it",
+  "title": "Gestione segnalazioni tecniche e guasti impianti sede",
+  "objective": "Approvare interventi di manutenzione straordinaria sopra la soglia di 5.000 euro e monitorare il riepilogo mensile delle segnalazioni.",
+  "scope": "Valutazione e approvazione degli interventi di manutenzione straordinaria superiori a 5.000 euro da parte della Direzione e analisi del riepilogo mensile.",
+  "actors": [
+    {
+      "id": "actor_segnalatore",
+      "label": "Segnalatore (Personale interno)",
+      "kind": "person",
+      "source_evidence": [
+        "chi rileva un guasto tecnico compila il modulo standard"
+      ]
+    },
+    {
+      "id": "actor_laura_conti",
+      "label": "Laura Conti",
+      "kind": "person",
+      "source_evidence": [
+        "Laura Conti (Facility Manager)",
+        "Ce la porta Laura Conti come punto in riunione, con le due offerte allegate."
+      ]
+    },
+    {
+      "id": "actor_tecnico_sede",
+      "label": "Tecnico di sede",
+      "kind": "role",
+      "source_evidence": [
+        "lo assegno al nostro tecnico di sede"
+      ]
+    },
+    {
+      "id": "actor_zentrix",
+      "label": "Zentrix Impianti",
+      "kind": "external_party",
+      "source_evidence": [
+        "Zentrix Impianti",
+        "Zentrix Impianti e' il fornitore abituale con contratto quadro."
+      ]
+    },
+    {
+      "id": "actor_direzione",
+      "label": "Direzione",
+      "kind": "team",
+      "source_evidence": [
+        "portarle alla Direzione per l'approvazione",
+        "il nostro punto di contatto e' l'approvazione degli interventi sopra la soglia di 5.000 euro"
+      ]
+    },
+    {
+      "id": "actor_amministrazione",
+      "label": "Amministrazione",
+      "kind": "team",
+      "source_evidence": [
+        "Amministrazione se ne accorge alla fattura"
+      ]
+    },
+    {
+      "id": "actor_sistema_modulo",
+      "label": "Modulo standard di segnalazione e registro",
+      "kind": "system",
+      "source_evidence": [
+        "modulo standard di segnalazione",
+        "Il modulo standard genera una riga in un registro"
+      ]
+    },
+    {
+      "id": "actor_facility_manager",
+      "label": "Facility Manager",
+      "kind": "role",
+      "source_evidence": [
+        "Sotto quella cifra il Facility Manager procede in autonomia"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "event_guasto_rilevato",
+      "label": "Guasto tecnico rilevato",
+      "type": "start",
+      "direction": "catch",
+      "timing": null,
+      "definition": "none",
+      "condition": null,
+      "triggers": [],
+      "parallel_multiple": false,
+      "source_evidence": [
+        "chi rileva un guasto tecnico compila il modulo standard"
+      ]
+    },
+    {
+      "id": "event_segnalazione_chiusa",
+      "label": "Segnalazione chiusa",
+      "type": "end",
+      "direction": "throw",
+      "timing": null,
+      "definition": "none",
+      "condition": null,
+      "triggers": [],
+      "parallel_multiple": false,
+      "source_evidence": [
+        "La chiudo quando il tecnico o la ditta esterna mi conferma che l'intervento e' terminato"
+      ]
+    },
+    {
+      "id": "start_evento_richiesta",
+      "label": "Richiesta di approvazione intervento ricevuta in riunione",
+      "type": "start",
+      "direction": "catch",
+      "timing": null,
+      "definition": "message",
+      "condition": null,
+      "triggers": [],
+      "parallel_multiple": false,
+      "source_evidence": [
+        "Ce la porta Laura Conti come punto in riunione, con le due offerte allegate."
+      ]
+    },
+    {
+      "id": "end_intervento_approvato",
+      "label": "Intervento approvato",
+      "type": "end",
+      "direction": "throw",
+      "timing": null,
+      "definition": "none",
+      "condition": null,
+      "triggers": [],
+      "parallel_multiple": false,
+      "source_evidence": [
+        "approvazione degli interventi sopra la soglia di 5.000 euro"
+      ]
+    },
+    {
+      "id": "end_riepilogo_mensile",
+      "label": "Riepilogo mensile esaminato",
+      "type": "end",
+      "direction": "throw",
+      "timing": null,
+      "definition": "timer",
+      "condition": null,
+      "triggers": [],
+      "parallel_multiple": false,
+      "source_evidence": [
+        "vediamo solo il riepilogo mensile",
+        "Guardiamo il numero di segnalazioni, i tempi medi di chiusura e gli impianti ricorrenti."
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_compila_modulo",
+      "label": "Compilare il modulo standard di segnalazione",
+      "description": "Il segnalatore compila il form interno indicando piano, locale e gravità.",
+      "actor_ids": [
+        "actor_segnalatore",
+        "actor_sistema_modulo"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Dati del guasto"
+      ],
+      "outputs": [
+        "Segnalazione con numero progressivo",
+        "Riga nel registro con stato aperta"
+      ],
+      "source_evidence": [
+        "chi rileva un guasto tecnico compila il modulo standard, indica il piano, il locale e la gravita', e la segnalazione arriva a me con un numero progressivo"
+      ]
+    },
+    {
+      "id": "step_ricezione_segnalazione",
+      "label": "Ricevere e verificare la segnalazione",
+      "description": "La Facility Manager riceve la segnalazione e verifica la gravità e il tipo di intervento.",
+      "actor_ids": [
+        "actor_laura_conti"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Segnalazione"
+      ],
+      "outputs": [
+        "Valutazione gravità e tipologia"
+      ],
+      "source_evidence": [
+        "Verifico la gravita' e decido se e' un intervento interno o se serve una ditta esterna"
+      ]
+    },
+    {
+      "id": "step_assegna_interno",
+      "label": "Assegnare intervento al tecnico di sede",
+      "description": "L'intervento viene affidato al tecnico interno e lo stato passa ad assegnata.",
+      "actor_ids": [
+        "actor_laura_conti",
+        "actor_tecnico_sede"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Segnalazione"
+      ],
+      "outputs": [
+        "Intervento assegnato",
+        "Stato assegnata nel registro"
+      ],
+      "source_evidence": [
+        "Se e' interno lo assegno al nostro tecnico di sede"
+      ]
+    },
+    {
+      "id": "step_apri_richiesta_standard",
+      "label": "Aprire richiesta di intervento al fornitore abituale",
+      "description": "Viene aperta la richiesta verso Zentrix Impianti per interventi ordinari sotto soglia.",
+      "actor_ids": [
+        "actor_laura_conti",
+        "actor_zentrix"
+      ],
+      "type": "send_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Dettagli guasto"
+      ],
+      "outputs": [
+        "Richiesta intervento"
+      ],
+      "source_evidence": [
+        "Se serve una ditta esterna, apro una richiesta di intervento verso il fornitore abituale."
+      ]
+    },
+    {
+      "id": "step_raccogli_offerte",
+      "label": "Raccogliere due offerte",
+      "description": "Per interventi sopra i 5.000 euro, raccoglie obbligatoriamente due offerte.",
+      "actor_ids": [
+        "actor_laura_conti"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Richiesta intervento superiore a 5000 euro"
+      ],
+      "outputs": [
+        "Due offerte allegate"
+      ],
+      "source_evidence": [
+        "Sopra la soglia di 5.000 euro devo obbligatoriamente raccogliere due offerte e portarle alla Direzione per l'approvazione."
+      ]
+    },
+    {
+      "id": "step_approvazione_direzione",
+      "label": "Approvare la pratica in Direzione",
+      "description": "La Direzione valuta e approva la pratica durante la riunione settimanale.",
+      "actor_ids": [
+        "actor_direzione",
+        "actor_laura_conti"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Pratica con due offerte allegate"
+      ],
+      "outputs": [
+        "Approvazione Direzione"
+      ],
+      "source_evidence": [
+        "portarle alla Direzione per l'approvazione",
+        "La Direzione si riunisce settimanalmente"
+      ]
+    },
+    {
+      "id": "step_esecuzione_intervento",
+      "label": "Eseguire l'intervento tecnico",
+      "description": "Il tecnico interno o la ditta esterna eseguono la riparazione.",
+      "actor_ids": [
+        "actor_tecnico_sede",
+        "actor_zentrix"
+      ],
+      "type": "manual_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Intervento assegnato / richiesta"
+      ],
+      "outputs": [
+        "Rapporto di intervento"
+      ],
+      "source_evidence": [
+        "La chiudo quando il tecnico o la ditta esterna mi conferma che l'intervento e' terminato"
+      ]
+    },
+    {
+      "id": "step_verifica_chiusura",
+      "label": "Verificare e chiudere la segnalazione",
+      "description": "La Facility Manager verifica il completamento, allega il rapporto e chiude la riga.",
+      "actor_ids": [
+        "actor_laura_conti",
+        "actor_sistema_modulo"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Conferma termine",
+        "Rapporto di intervento"
+      ],
+      "outputs": [
+        "Segnalazione chiusa",
+        "Rapporto allegato"
+      ],
+      "source_evidence": [
+        "La chiudo quando il tecnico o la ditta esterna mi conferma che l'intervento e' terminato e io ho verificato di persona, oppure ho la conferma di chi aveva segnalato. Poi allego il rapporto di intervento e la riga si chiude."
+      ]
+    },
+    {
+      "id": "step_presentazione_richiesta",
+      "label": "Presentazione punto in riunione",
+      "description": "Laura Conti presenta il punto in riunione con le due offerte allegate.",
+      "actor_ids": [
+        "actor_laura_conti"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "richiesta di approvazione",
+        "offerte"
+      ],
+      "outputs": [
+        "punto in riunione con offerte"
+      ],
+      "source_evidence": [
+        "Ce la porta Laura Conti come punto in riunione, con le due offerte allegate."
+      ]
+    },
+    {
+      "id": "step_valutazione_offerte",
+      "label": "Verifica presenza offerte",
+      "description": "La Direzione verifica la presenza delle due offerte allegate.",
+      "actor_ids": [
+        "actor_direzione"
+      ],
+      "type": "business_rule_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "punto in riunione con offerte"
+      ],
+      "outputs": [
+        "esito verifica offerte"
+      ],
+      "source_evidence": [
+        "Se le due offerte non ci sono, il punto non viene discusso: e' una regola che ci siamo dati e la rispettiamo"
+      ]
+    },
+    {
+      "id": "step_discussione_intervento",
+      "label": "Discussione merito intervento",
+      "description": "La Direzione discute costo, urgenza e storico dell'impianto.",
+      "actor_ids": [
+        "actor_direzione"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "punto in riunione con offerte"
+      ],
+      "outputs": [
+        "valutazione intervento"
+      ],
+      "source_evidence": [
+        "Guardiamo il costo, l'urgenza e se l'intervento e' su un impianto che ci sta gia' dando problemi."
+      ]
+    },
+    {
+      "id": "step_decisione_approvazione",
+      "label": "Decisione di approvazione intervento",
+      "description": "La Direzione delibera sull'approvazione dell'intervento superiore a 5.000 euro.",
+      "actor_ids": [
+        "actor_direzione"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "valutazione intervento"
+      ],
+      "outputs": [
+        "esito approvazione"
+      ],
+      "source_evidence": [
+        "approvazione degli interventi sopra la soglia di 5.000 euro"
+      ]
+    },
+    {
+      "id": "step_analisi_riepilogo",
+      "label": "Analisi riepilogo mensile",
+      "description": "La Direzione esamina il riepilogo mensile di segnalazioni, tempi e impianti.",
+      "actor_ids": [
+        "actor_direzione"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "riepilogo mensile"
+      ],
+      "outputs": [
+        "report esaminato"
+      ],
+      "source_evidence": [
+        "Guardiamo il numero di segnalazioni, i tempi medi di chiusura e gli impianti ricorrenti."
+      ]
+    }
+  ],
+  "sequence": [
+    "step_compila_modulo",
+    "step_ricezione_segnalazione",
+    "decision_tipo_intervento",
+    "step_assegna_interno",
+    "decision_soglia_spesa",
+    "step_raccogli_offerte",
+    "step_approvazione_direzione",
+    "step_apri_richiesta_standard",
+    "step_esecuzione_intervento",
+    "step_verifica_chiusura",
+    "event_segnalazione_chiusa",
+    "step_analisi_riepilogo",
+    "step_presentazione_richiesta",
+    "step_valutazione_offerte",
+    "dec_presenza_offerte",
+    "step_discussione_intervento",
+    "step_decisione_approvazione"
+  ],
+  "decisions": [
+    {
+      "id": "decision_tipo_intervento",
+      "label": "Intervento interno o esterno?",
+      "question": "L'intervento è interno o serve una ditta esterna?",
+      "gateway_type": "exclusive",
+      "activation_condition": null,
+      "instantiate": false,
+      "event_gateway_type": "exclusive",
+      "outcomes": [
+        "Intervento interno",
+        "Intervento esterno"
+      ],
+      "outcome_details": [
+        {
+          "id": "out_interno",
+          "label": "Intervento interno",
+          "condition": "È un intervento gestibile internamente",
+          "target_ref": "step_assegna_interno",
+          "target_path_id": null,
+          "rejoins_at": null,
+          "ends_process": false,
+          "is_default": false,
+          "certainty": "explicit",
+          "source_evidence": [
+            "Se e' interno lo assegno al nostro tecnico di sede."
+          ]
+        },
+        {
+          "id": "out_esterno",
+          "label": "Intervento esterno",
+          "condition": "Serve una ditta esterna",
+          "target_ref": "decision_soglia_spesa",
+          "target_path_id": null,
+          "rejoins_at": null,
+          "ends_process": false,
+          "is_default": false,
+          "certainty": "explicit",
+          "source_evidence": [
+            "Se serve una ditta esterna, apro una richiesta di intervento verso il fornitore abituale."
+          ]
+        }
+      ],
+      "source_evidence": [
+        "Verifico la gravita' e decido se e' un intervento interno o se serve una ditta esterna."
+      ]
+    },
+    {
+      "id": "decision_soglia_spesa",
+      "label": "L'intervento supera i 5.000 euro?",
+      "question": "L'intervento supera la soglia di 5.000 euro?",
+      "gateway_type": "exclusive",
+      "activation_condition": null,
+      "instantiate": false,
+      "event_gateway_type": "exclusive",
+      "outcomes": [
+        "Sotto soglia (<= 5.000 euro)",
+        "Sopra soglia (> 5.000 euro)"
+      ],
+      "outcome_details": [
+        {
+          "id": "out_sotto_soglia",
+          "label": "Sotto soglia",
+          "condition": "Importo <= 5.000 euro",
+          "target_ref": "step_apri_richiesta_standard",
+          "target_path_id": null,
+          "rejoins_at": null,
+          "ends_process": false,
+          "is_default": false,
+          "certainty": "explicit",
+          "source_evidence": [
+            "Sotto quella cifra decido io e procedo con il fornitore abituale."
+          ]
+        },
+        {
+          "id": "out_sopra_soglia",
+          "label": "Sopra soglia",
+          "condition": "Importo > 5.000 euro",
+          "target_ref": "step_raccogli_offerte",
+          "target_path_id": null,
+          "rejoins_at": null,
+          "ends_process": false,
+          "is_default": false,
+          "certainty": "explicit",
+          "source_evidence": [
+            "Quando l'intervento supera la soglia di 5.000 euro. Sopra la soglia di 5.000 euro devo obbligatoriamente raccogliere due offerte e portarle alla Direzione per l'approvazione."
+          ]
+        }
+      ],
+      "source_evidence": [
+        "Quando l'intervento supera la soglia di 5.000 euro. Sopra la soglia di 5.000 euro devo obbligatoriamente raccogliere due offerte e portarle alla Direzione per l'approvazione. Sotto quella cifra decido io e procedo con il fornitore abituale."
+      ]
+    },
+    {
+      "id": "dec_presenza_offerte",
+      "label": "Le due offerte sono presenti?",
+      "question": "Sono presenti le due offerte allegate alla richiesta?",
+      "gateway_type": "exclusive",
+      "activation_condition": null,
+      "instantiate": false,
+      "event_gateway_type": "exclusive",
+      "outcomes": [
+        "Offerte presenti",
+        "Offerte mancanti"
+      ],
+      "outcome_details": [
+        {
+          "id": "out_offerte_presenti",
+          "label": "Offerte presenti",
+          "condition": "Le due offerte sono allegate",
+          "target_ref": "step_discussione_intervento",
+          "target_path_id": null,
+          "rejoins_at": null,
+          "ends_process": false,
+          "is_default": false,
+          "certainty": "explicit",
+          "source_evidence": [
+            "Se le due offerte non ci sono, il punto non viene discusso"
+          ]
+        },
+        {
+          "id": "out_offerte_mancanti",
+          "label": "Offerte mancanti",
+          "condition": "Le offerte non sono presenti",
+          "target_ref": "end_intervento_approvato",
+          "target_path_id": null,
+          "rejoins_at": null,
+          "ends_process": true,
+          "is_default": false,
+          "certainty": "explicit",
+          "source_evidence": [
+            "Se le due offerte non ci sono, il punto non viene discusso"
+          ]
+        }
+      ],
+      "source_evidence": [
+        "Se le due offerte non ci sono, il punto non viene discusso: e' una regola che ci siamo dati e la rispettiamo"
+      ]
+    }
+  ],
+  "handoffs": [
+    {
+      "id": "handoff_segnalatore_laura",
+      "from_actor_id": "actor_segnalatore",
+      "to_actor_id": "actor_laura_conti",
+      "artifact": "Modulo standard di segnalazione",
+      "trigger": "Invio form",
+      "source_evidence": [
+        "chi rileva un guasto tecnico compila il modulo standard... e la segnalazione arriva a me"
+      ]
+    },
+    {
+      "id": "handoff_laura_direzione",
+      "from_actor_id": "actor_laura_conti",
+      "to_actor_id": "actor_direzione",
+      "artifact": "punto in riunione con due offerte",
+      "trigger": "presentazione in riunione settimanale",
+      "source_evidence": [
+        "portarle alla Direzione per l'approvazione",
+        "La Direzione si riunisce settimanalmente",
+        "Ce la porta Laura Conti come punto in riunione, con le due offerte allegate."
+      ]
+    }
+  ],
+  "data_objects": [
+    {
+      "id": "doc_modulo_standard",
+      "label": "Modulo standard obbligatorio",
+      "kind": "form",
+      "source_evidence": [
+        "modulo standard di segnalazione",
+        "abbiamo introdotto il modulo standard obbligatorio"
+      ]
+    },
+    {
+      "id": "doc_registro",
+      "label": "Registro segnalazioni",
+      "kind": "record",
+      "source_evidence": [
+        "Il modulo standard genera una riga in un registro."
+      ]
+    },
+    {
+      "id": "doc_offerte",
+      "label": "Offerte",
+      "kind": "document",
+      "source_evidence": [
+        "Le due offerte devono essere allegate",
+        "con le due offerte allegate"
+      ]
+    },
+    {
+      "id": "doc_rapporto_intervento",
+      "label": "Rapporto di intervento",
+      "kind": "document",
+      "source_evidence": [
+        "Allego il rapporto di intervento"
+      ]
+    },
+    {
+      "id": "doc_fattura",
+      "label": "Fattura mensile fornitore",
+      "kind": "document",
+      "source_evidence": [
+        "Fattura mensilmente con il riepilogo degli interventi."
+      ]
+    },
+    {
+      "id": "doc_riepilogo_mensile",
+      "label": "Riepilogo mensile",
+      "kind": "record",
+      "source_evidence": [
+        "vediamo solo il riepilogo mensile"
+      ]
+    }
+  ],
+  "participants": [
+    {
+      "id": "part_segnalatore",
+      "label": "Segnalatore",
+      "actor_id": "actor_segnalatore",
+      "kind": "individual",
+      "responsibility": "initiator",
+      "bpmn_container": "pool",
+      "parent_pool_id": null,
+      "rationale": null,
+      "source_evidence": [
+        "chi rileva un guasto tecnico compila il modulo standard"
+      ]
+    },
+    {
+      "id": "part_facility",
+      "label": "Facility Management e Tecnici",
+      "actor_id": "actor_laura_conti",
+      "kind": "role",
+      "responsibility": "executor",
+      "bpmn_container": "pool",
+      "parent_pool_id": null,
+      "rationale": null,
+      "source_evidence": [
+        "Laura Conti (Facility Manager)"
+      ]
+    },
+    {
+      "id": "part_direzione",
+      "label": "Direzione",
+      "actor_id": "actor_direzione",
+      "kind": "organization",
+      "responsibility": "decision_owner",
+      "bpmn_container": "pool",
+      "parent_pool_id": null,
+      "rationale": null,
+      "source_evidence": [
+        "Direzione per l'approvazione",
+        "il nostro punto di contatto e' l'approvazione degli interventi sopra la soglia di 5.000 euro"
+      ]
+    },
+    {
+      "id": "part_zentrix",
+      "label": "Zentrix Impianti",
+      "actor_id": "actor_zentrix",
+      "kind": "organization",
+      "responsibility": "service_provider",
+      "bpmn_container": "black_box",
+      "parent_pool_id": null,
+      "rationale": null,
+      "source_evidence": [
+        "Zentrix Impianti",
+        "Zentrix Impianti e' il fornitore abituale con contratto quadro."
+      ]
+    },
+    {
+      "id": "part_laura_conti",
+      "label": "Laura Conti",
+      "actor_id": "actor_laura_conti",
+      "kind": "individual",
+      "responsibility": "initiator",
+      "bpmn_container": "lane",
+      "parent_pool_id": "part_direzione",
+      "rationale": null,
+      "source_evidence": [
+        "Ce la porta Laura Conti come punto in riunione"
+      ]
+    }
+  ],
+  "bpmn_topology": {
+    "pools": [
+      {
+        "id": "pool_azienda",
+        "label": "Gestione Segnalazioni Sede",
+        "participant_id": null,
+        "actor_ids": [],
+        "is_external": false,
+        "rendering_intent": "expanded",
+        "rationale": null
+      },
+      {
+        "id": "pool_zentrix",
+        "label": "Zentrix Impianti",
+        "participant_id": null,
+        "actor_ids": [],
+        "is_external": false,
+        "rendering_intent": "black_box",
+        "rationale": null
+      },
+      {
+        "id": "pool_direzione",
+        "label": "Direzione",
+        "participant_id": "part_direzione",
+        "actor_ids": [
+          "actor_direzione",
+          "actor_laura_conti"
+        ],
+        "is_external": false,
+        "rendering_intent": "expanded",
+        "rationale": null
+      }
+    ],
+    "lanes": [
+      {
+        "id": "lane_segnalatore",
+        "label": "Segnalatore",
+        "pool_id": "pool_azienda",
+        "participant_id": null,
+        "actor_ids": [
+          "actor_segnalatore"
+        ],
+        "role": null,
+        "rationale": null
+      },
+      {
+        "id": "lane_facility",
+        "label": "Facility Manager",
+        "pool_id": "pool_azienda",
+        "participant_id": null,
+        "actor_ids": [
+          "actor_laura_conti",
+          "actor_tecnico_sede"
+        ],
+        "role": null,
+        "rationale": null
+      },
+      {
+        "id": "lane_direzione",
+        "label": "Direzione",
+        "pool_id": "pool_direzione",
+        "participant_id": "part_direzione",
+        "actor_ids": [
+          "actor_direzione"
+        ],
+        "role": "Decision Owner",
+        "rationale": null
+      },
+      {
+        "id": "lane_laura",
+        "label": "Laura Conti",
+        "pool_id": "pool_direzione",
+        "participant_id": "part_laura_conti",
+        "actor_ids": [
+          "actor_laura_conti"
+        ],
+        "role": "Initiator",
+        "rationale": null
+      }
+    ],
+    "message_flows": [
+      {
+        "id": "msg_invio_segnalazione",
+        "label": "Invio modulo standard",
+        "from_participant_id": "part_segnalatore",
+        "to_participant_id": "part_facility",
+        "from_actor_id": null,
+        "to_actor_id": null,
+        "source_ref": null,
+        "target_ref": null,
+        "artifact": "Modulo standard",
+        "trigger": null,
+        "source_evidence": [
+          "chi rileva un guasto tecnico compila il modulo standard... e la segnalazione arriva a me"
+        ]
+      },
+      {
+        "id": "msg_richiesta_intervento",
+        "label": "Richiesta intervento",
+        "from_participant_id": "part_facility",
+        "to_participant_id": "part_zentrix",
+        "from_actor_id": null,
+        "to_actor_id": null,
+        "source_ref": null,
+        "target_ref": null,
+        "artifact": "Richiesta intervento",
+        "trigger": null,
+        "source_evidence": [
+          "apro una richiesta di intervento verso il fornitore abituale"
+        ]
+      },
+      {
+        "id": "msg_flow_richiesta",
+        "label": "Invio punto in riunione con offerte",
+        "from_participant_id": "part_laura_conti",
+        "to_participant_id": "part_direzione",
+        "from_actor_id": null,
+        "to_actor_id": null,
+        "source_ref": "step_presentazione_richiesta",
+        "target_ref": "start_evento_richiesta",
+        "artifact": "Offerte",
+        "trigger": null,
+        "source_evidence": [
+          "Ce la porta Laura Conti come punto in riunione, con le due offerte allegate."
+        ]
+      }
+    ],
+    "black_box_participant_ids": [
+      "part_zentrix"
+    ],
+    "out_of_scope_participant_ids": [],
+    "rationale": null
+  },
+  "document_requirements": [
+    {
+      "id": "req_offerte",
+      "label": "Due offerte allegate",
+      "data_object_id": "doc_offerte",
+      "required_when": "Per interventi sopra la soglia di 5.000 euro",
+      "provided_by_actor_id": "actor_laura_conti",
+      "received_by_actor_id": "actor_direzione",
+      "validation_owner_actor_id": "actor_direzione",
+      "mandatory": true,
+      "source_evidence": [
+        "Sopra la soglia di 5.000 euro devo obbligatoriamente raccogliere due offerte e portarle alla Direzione per l'approvazione.",
+        "Le due offerte devono essere allegate, senza quelle la pratica non viene nemmeno guardata.",
+        "con le due offerte allegate",
+        "Se le due offerte non ci sono, il punto non viene discusso"
+      ]
+    },
+    {
+      "id": "req_rapporto",
+      "label": "Rapporto di intervento",
+      "data_object_id": "doc_rapporto_intervento",
+      "required_when": "Completamento intervento",
+      "provided_by_actor_id": "actor_zentrix",
+      "received_by_actor_id": "actor_laura_conti",
+      "validation_owner_actor_id": "actor_laura_conti",
+      "mandatory": true,
+      "source_evidence": [
+        "Poi allego il rapporto di intervento e la riga si chiude."
+      ]
+    }
+  ],
+  "input_outputs": [
+    {
+      "step": "step_compila_modulo",
+      "input": [
+        "Dati guasto"
+      ],
+      "output": [
+        "Modulo standard compilato"
+      ]
+    },
+    {
+      "step": "step_raccogli_offerte",
+      "input": [
+        "Richiesta > 5000 euro"
+      ],
+      "output": [
+        "2 offerte allegate"
+      ]
+    },
+    {
+      "step": "step_presentazione_richiesta",
+      "input": [
+        "richiesta di approvazione"
+      ],
+      "output": [
+        "punto in riunione con offerte"
+      ]
+    }
+  ],
+  "exceptions": [
+    {
+      "id": "exc_guasto_critico",
+      "label": "Guasto tecnico su attività critica (es. ascensore o gruppo elettrogeno)",
+      "trigger": "Blocco di attività critica",
+      "handling": "Chiamata diretta al fornitore abituale e apertura successiva del modulo standard entro la giornata.",
+      "kind": "conditional",
+      "attached_to_step_id": "step_compila_modulo",
+      "interrupting": false,
+      "is_defined": true
+    }
+  ],
+  "controls": [
+    {
+      "id": "ctrl_allegati_direzione",
+      "label": "Controllo presenza offerte in Direzione",
+      "control_type": "document_completeness",
+      "checked_item": "Presenza di due offerte allegate",
+      "control_owner_actor_id": "actor_direzione",
+      "subject_ids": [
+        "step_approvazione_direzione"
+      ],
+      "pass_condition": "Le due offerte sono allegate",
+      "fail_condition": "Mancano le offerte",
+      "pass_target_ref": null,
+      "fail_target_ref": "step_raccogli_offerte",
+      "source_evidence": [
+        "Le due offerte devono essere allegate, senza quelle la pratica non viene nemmeno guardata."
+      ]
+    },
+    {
+      "id": "ctrl_centro_costo",
+      "label": "Controllo centro di costo in amministrazione",
+      "control_type": "compliance",
+      "checked_item": "Correttezza centro di costo rispetto a piano e locale",
+      "control_owner_actor_id": "actor_amministrazione",
+      "subject_ids": [],
+      "pass_condition": "Centro di costo corretto",
+      "fail_condition": "Centro di costo errato",
+      "pass_target_ref": null,
+      "fail_target_ref": null,
+      "source_evidence": [
+        "Se sbaglio, Amministrazione se ne accorge alla fattura e mi chiede di correggere."
+      ]
+    },
+    {
+      "id": "ctrl_presenza_offerte",
+      "label": "Controllo presenza offerte",
+      "control_type": "document_completeness",
+      "checked_item": "Presenza di due offerte allegate",
+      "control_owner_actor_id": "actor_direzione",
+      "subject_ids": [
+        "doc_offerte"
+      ],
+      "pass_condition": "Entrambe le offerte sono presenti",
+      "fail_condition": "Mancano una o entrambe le offerte",
+      "pass_target_ref": "step_discussione_intervento",
+      "fail_target_ref": "end_intervento_approvato",
+      "source_evidence": [
+        "Se le due offerte non ci sono, il punto non viene discusso: e' una regola che ci siamo dati e la rispettiamo"
+      ]
+    }
+  ],
+  "business_rules": [
+    "Il modulo standard è l'unico canale accettato per le segnalazioni.",
+    "Sopra la soglia di 5.000 euro è obbligatorio raccogliere due offerte e ottenere l'approvazione della Direzione.",
+    "Per i guasti bloccanti su attività critiche è consentito chiamare prima il fornitore e aprire il modulo standard entro la giornata.",
+    "La soglia per l'approvazione della Direzione e' di 5.000 euro.",
+    "Se le due offerte non ci sono, il punto non viene discusso in riunione.",
+    "Per gli interventi ordinari con il fornitore abituale Zentrix Impianti non si chiedono altre offerte, ma sopra i 5.000 euro la seconda offerta va comunque richiesta."
+  ],
+  "structured_business_rules": [
+    {
+      "id": "rule_soglia_approvazione",
+      "label": "Soglia di approvazione Direzione",
+      "condition": "Importo intervento > 5.000 euro",
+      "consequence": "L'intervento richiede l'approvazione della Direzione.",
+      "applies_to_ids": [
+        "decision_soglia_spesa",
+        "step_decisione_approvazione"
+      ],
+      "certainty": "explicit",
+      "source_evidence": [
+        "Quando l'intervento supera la soglia di 5.000 euro. Sopra la soglia di 5.000 euro devo obbligatoriamente raccogliere due offerte e portarle alla Direzione per l'approvazione.",
+        "approvazione degli interventi sopra la soglia di 5.000 euro"
+      ]
+    },
+    {
+      "id": "rule_emergenza_critica",
+      "label": "Gestione guasto critico",
+      "condition": "Guasto tecnico che blocca un'attività critica (es. ascensore o gruppo elettrogeno)",
+      "consequence": "Chiamata diretta al fornitore e apertura del modulo standard entro la giornata",
+      "applies_to_ids": [
+        "exc_guasto_critico"
+      ],
+      "certainty": "explicit",
+      "source_evidence": [
+        "Il caso tipico e' il guasto tecnico che blocca una attivita' critica... chiamo direttamente il fornitore abituale e apro il modulo standard dopo, ma entro la giornata."
+      ]
+    },
+    {
+      "id": "rule_offerte_obbligatorie",
+      "label": "Obbligo presenza offerte",
+      "condition": "Punto portato in riunione per approvazione",
+      "consequence": "La presenza di due offerte e' obbligatoria per la discussione.",
+      "applies_to_ids": [
+        "step_valutazione_offerte"
+      ],
+      "certainty": "explicit",
+      "source_evidence": [
+        "Se le due offerte non ci sono, il punto non viene discusso"
+      ]
+    }
+  ],
+  "assumptions": [
+    "Il registro delle segnalazioni è gestito tramite lo stesso sistema del modulo standard.",
+    "Gli interventi sotto i 5.000 euro gestiti dal Facility Manager seguono un flusso autonomo non dettagliato in questa intervista."
+  ],
+  "unknowns": [],
+  "narrative_focus": [
+    "Flusso standard di segnalazione guasti",
+    "Gestione della soglia di spesa dei 5000 euro",
+    "Eccezione per guasti critici",
+    "Approvazione interventi sopra 5.000 euro",
+    "Regola delle due offerte",
+    "Analisi riepilogo mensile"
+  ],
+  "boundaries": {
+    "trigger": "Segnalazione di un guasto tecnico da parte di un utente interno",
+    "start_event": "event_guasto_rilevato",
+    "success_end": "end_intervento_approvato",
+    "failure_ends": [],
+    "terminating_ends": [],
+    "in_scope": [
+      "Presentazione richiesta in riunione",
+      "Verifica presenza offerte",
+      "Discussione e approvazione intervento",
+      "Analisi riepilogo mensile"
+    ],
+    "out_of_scope": [
+      "Manutenzione preventiva",
+      "Interventi sotto la soglia di 5.000 euro gestiti dal Facility Manager"
+    ]
+  },
+  "main_success_path": [
+    "step_compila_modulo",
+    "step_ricezione_segnalazione",
+    "decision_tipo_intervento",
+    "step_assegna_interno",
+    "decision_soglia_spesa",
+    "step_apri_richiesta_standard",
+    "step_esecuzione_intervento",
+    "step_verifica_chiusura",
+    "event_segnalazione_chiusa",
+    "step_presentazione_richiesta",
+    "step_valutazione_offerte",
+    "dec_presenza_offerte",
+    "step_discussione_intervento",
+    "step_decisione_approvazione"
+  ],
+  "alternative_paths": [
+    {
+      "id": "path_sopra_soglia",
+      "label": "Percorso interventi superiori a 5000 euro",
+      "trigger_or_condition": "Intervento superiore a 5.000 euro",
+      "sequence": [
+        "step_raccogli_offerte",
+        "step_approvazione_direzione",
+        "step_apri_richiesta_standard",
+        "step_esecuzione_intervento",
+        "step_verifica_chiusura"
+      ],
+      "rejoins_at": "step_esecuzione_intervento",
+      "ends_at": "event_segnalazione_chiusa",
+      "is_confirmed": true
+    }
+  ],
+  "out_of_scope_alternatives": [],
+  "flow_edges": [
+    {
+      "id": "edge_1",
+      "source_id": "event_guasto_rilevato",
+      "target_id": "step_compila_modulo",
+      "label": "Un guasto viene rilevato",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "chi rileva un guasto tecnico compila il modulo standard"
+      ]
+    },
+    {
+      "id": "edge_2",
+      "source_id": "step_compila_modulo",
+      "target_id": "step_ricezione_segnalazione",
+      "label": "Invio segnalazione",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "la segnalazione arriva a me con un numero progressivo"
+      ]
+    },
+    {
+      "id": "edge_3",
+      "source_id": "step_ricezione_segnalazione",
+      "target_id": "decision_tipo_intervento",
+      "label": "Valutazione tipo intervento",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Verifico la gravita' e decido se e' un intervento interno o se serve una ditta esterna."
+      ]
+    },
+    {
+      "id": "edge_4",
+      "source_id": "decision_tipo_intervento",
+      "target_id": "step_assegna_interno",
+      "label": "Intervento interno",
+      "condition": "Intervento interno",
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Se e' interno lo assegno al nostro tecnico di sede."
+      ]
+    },
+    {
+      "id": "edge_5",
+      "source_id": "decision_tipo_intervento",
+      "target_id": "decision_soglia_spesa",
+      "label": "Intervento esterno",
+      "condition": "Serve ditta esterna",
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Se serve una ditta esterna, apro una richiesta di intervento verso il fornitore abituale."
+      ]
+    },
+    {
+      "id": "edge_6",
+      "source_id": "decision_soglia_spesa",
+      "target_id": "step_apri_richiesta_standard",
+      "label": "Sotto soglia (<= 5000 €)",
+      "condition": "Importo <= 5000 euro",
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Sotto quella cifra decido io e procedo con il fornitore abituale."
+      ]
+    },
+    {
+      "id": "edge_7",
+      "source_id": "decision_soglia_spesa",
+      "target_id": "step_raccogli_offerte",
+      "label": "Sopra soglia (> 5000 €)",
+      "condition": "Importo > 5000 euro",
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Quando l'intervento supera la soglia di 5.000 euro. Sopra la soglia di 5.000 euro devo obbligatoriamente raccogliere due offerte"
+      ]
+    },
+    {
+      "id": "edge_8",
+      "source_id": "step_raccogli_offerte",
+      "target_id": "step_approvazione_direzione",
+      "label": "Invio offerte in Direzione",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "portarle alla Direzione per l'approvazione."
+      ]
+    },
+    {
+      "id": "edge_9",
+      "source_id": "step_approvazione_direzione",
+      "target_id": "step_apri_richiesta_standard",
+      "label": "Approvazione ottenuta",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "La Direzione si riunisce settimanalmente, quindi se la pratica e' pronta... passa subito"
+      ]
+    },
+    {
+      "id": "edge_10",
+      "source_id": "step_apri_richiesta_standard",
+      "target_id": "step_esecuzione_intervento",
+      "label": "Richiesta aperta",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "apro una richiesta di intervento verso il fornitore abituale"
+      ]
+    },
+    {
+      "id": "edge_11",
+      "source_id": "step_assegna_interno",
+      "target_id": "step_esecuzione_intervento",
+      "label": "Assegnato al tecnico",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "lo assegno al nostro tecnico di sede"
+      ]
+    },
+    {
+      "id": "edge_12",
+      "source_id": "step_esecuzione_intervento",
+      "target_id": "step_verifica_chiusura",
+      "label": "Intervento terminato",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "La chiudo quando il tecnico o la ditta esterna mi conferma che l'intervento e' terminato"
+      ]
+    },
+    {
+      "id": "edge_13",
+      "source_id": "step_verifica_chiusura",
+      "target_id": "event_segnalazione_chiusa",
+      "label": "Segnalazione chiusa",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Poi allego il rapporto di intervento e la riga si chiude."
+      ]
+    },
+    {
+      "id": "edge_start_presentazione",
+      "source_id": "start_evento_richiesta",
+      "target_id": "step_presentazione_richiesta",
+      "label": "Ricezione punto in riunione",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Ce la porta Laura Conti come punto in riunione, con le due offerte allegate."
+      ]
+    },
+    {
+      "id": "edge_presentazione_valutazione",
+      "source_id": "step_presentazione_richiesta",
+      "target_id": "step_valutazione_offerte",
+      "label": "Passaggio offerte alla Direzione",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Ce la porta Laura Conti come punto in riunione, con le due offerte allegate."
+      ]
+    },
+    {
+      "id": "edge_valutazione_decisione_offerte",
+      "source_id": "step_valutazione_offerte",
+      "target_id": "dec_presenza_offerte",
+      "label": "Verifica completezza offerte",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Se le due offerte non ci sono, il punto non viene discusso"
+      ]
+    },
+    {
+      "id": "edge_offerte_presenti_discussione",
+      "source_id": "dec_presenza_offerte",
+      "target_id": "step_discussione_intervento",
+      "label": "Offerte presenti",
+      "condition": "Le due offerte sono presenti",
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Se le due offerte non ci sono, il punto non viene discusso"
+      ]
+    },
+    {
+      "id": "edge_offerte_mancanti_fine",
+      "source_id": "dec_presenza_offerte",
+      "target_id": "end_intervento_approvato",
+      "label": "Offerte mancanti",
+      "condition": "Le offerte non sono presenti",
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Se le due offerte non ci sono, il punto non viene discusso"
+      ]
+    },
+    {
+      "id": "edge_discussione_approvazione",
+      "source_id": "step_discussione_intervento",
+      "target_id": "step_decisione_approvazione",
+      "label": "Passaggio alla delibera",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Guardiamo il costo, l'urgenza e se l'intervento e' su un impianto che ci sta gia' dando problemi."
+      ]
+    },
+    {
+      "id": "edge_approvazione_fine",
+      "source_id": "step_decisione_approvazione",
+      "target_id": "end_intervento_approvato",
+      "label": "Intervento deliberato",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "approvazione degli interventi sopra la soglia di 5.000 euro"
+      ]
+    }
+  ],
+  "loops": [],
+  "actor_relationships": [
+    {
+      "actor_id": "actor_laura_conti",
+      "organization_id": null,
+      "relationship": "internal_role",
+      "bpmn_pool_candidate": false,
+      "bpmn_lane_candidate": true
+    },
+    {
+      "actor_id": "actor_tecnico_sede",
+      "organization_id": null,
+      "relationship": "internal_role",
+      "bpmn_pool_candidate": false,
+      "bpmn_lane_candidate": true
+    },
+    {
+      "actor_id": "actor_direzione",
+      "organization_id": null,
+      "relationship": "internal_role",
+      "bpmn_pool_candidate": true,
+      "bpmn_lane_candidate": true
+    },
+    {
+      "actor_id": "actor_zentrix",
+      "organization_id": null,
+      "relationship": "external_participant",
+      "bpmn_pool_candidate": true,
+      "bpmn_lane_candidate": false
+    },
+    {
+      "actor_id": "actor_segnalatore",
+      "organization_id": null,
+      "relationship": "internal_role",
+      "bpmn_pool_candidate": true,
+      "bpmn_lane_candidate": true
+    },
+    {
+      "actor_id": "actor_sistema_modulo",
+      "organization_id": null,
+      "relationship": "system",
+      "bpmn_pool_candidate": false,
+      "bpmn_lane_candidate": false
+    },
+    {
+      "actor_id": "actor_facility_manager",
+      "organization_id": null,
+      "relationship": "internal_role",
+      "bpmn_pool_candidate": false,
+      "bpmn_lane_candidate": false
+    }
+  ],
+  "bpmn_modeling_hints": [],
+  "consultant_findings": [
+    {
+      "id": "ordine_percorso_da_confermare",
+      "finding": "Le fonti non collegano all'inizio del processo 5 passaggi del percorso principale (\"Presentazione punto in riunione\", \"Verifica presenza offerte\", \"Le due offerte sono presenti?\", \"Discussione merito intervento\", \"Decisione di approvazione intervento\"): la loro posizione non si deduce da cio' che le voci raccontano, e sono in coda al percorso.",
+      "category": "scope",
+      "severity": "warning",
+      "recommendation": "Conferma dove si collocano nel processo, o quale passaggio li precede."
+    }
+  ],
+  "unified_elements": [],
+  "quality_report": null,
+  "confidence": {
+    "overall": "high",
+    "weak_points": []
+  }
+}

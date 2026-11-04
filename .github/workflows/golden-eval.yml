@@ -105,6 +105,10 @@ jobs:
         env:
           DELIR_GOLDEN_EVAL: "1"
           DELIR_LIVE_LLM: "1"
+          # In produzione l'estrazione non ritenta: la coda dietro la riprende.
+          # Qui una coda non c'e', e un modello gratuito risponde spesso 503 o
+          # 429 per pochi secondi: l'SDK ritenta rispettando `retry-after`.
+          MODEL_MAX_RETRIES: "4"
           DELIR_TEST_LLM_BASE_URL: ${{ vars.DELIR_TEST_LLM_BASE_URL }}
           DELIR_TEST_LLM_MODEL: ${{ vars.DELIR_TEST_LLM_MODEL }}
           DELIR_TEST_LLM_API_KEY: ${{ secrets.DELIR_TEST_LLM_API_KEY }}
