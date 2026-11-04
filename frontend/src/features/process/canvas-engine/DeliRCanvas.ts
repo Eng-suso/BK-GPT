@@ -1,6 +1,7 @@
 import Diagram from "diagram-js";
 import SelectionModule from "diagram-js/lib/features/selection";
 import { LaneCommand } from "./Lanes";
+import { DeleteSelectionCommand, deletionTargets } from "./DeleteSelection";
 import { laneChildren, partitionResize, validPartitionResize, type Bounds } from "./Partitions";
 import { getMinResizeBounds } from "diagram-js/lib/features/resize/ResizeUtil";
 import { connectionRule, canStartConnection, flowScope } from "./connectionRules";
@@ -215,6 +216,7 @@ export class DeliRCanvas {
             if(connection.source && connection.target && connection.waypoints?.length) connection.waypoints=docking.getCroppedWaypoints(connection);
         });
         commands.registerHandler("delir.lanes", LaneCommand);
+        commands.registerHandler("delir.deleteSelection", DeleteSelectionCommand);
         // Generic diagram-js resizing knows nothing about BPMN partitions.
         // Keep this relationship in reversible modeling commands, never CSS.
         type PartitionContext={shape:CanvasElement;newBounds:Bounds;hints?:Record<string,unknown>;delirPartitionPlan?:Map<CanvasElement,Bounds>};
@@ -367,7 +369,10 @@ export class DeliRCanvas {
         });
         const actions = this.diagram.get<{
             register: (id: string, callback: () => void) => void;
+            unregister: (id: string) => void;
         }>("editorActions");
+        actions.unregister("removeSelection");
+        actions.register("removeSelection",()=>this.deleteSelection());
         actions.register("selectAll", () => this.diagram.get<Selection>("selection").select(this.diagram.get<Registry>("elementRegistry").getAll().filter(el => el.id !== this.document?.rootId && !el.labelTarget)));
         // KeyboardBindings registers defaults before the public action above.
         this.diagram.get<CanvasService>("canvas").getContainer().querySelector("svg")?.addEventListener("keydown", event => { const key = (event as KeyboardEvent); if(key.key === "F2" && !key.defaultPrevented) { const selected=this.diagram.get<Selection>("selection").get(); if(selected.length === 1) { key.preventDefault(); bus.fire("element.dblclick",{element:selected[0]}); } } else if ((key.ctrlKey || key.metaKey) && key.key.toLowerCase() === "a") {
@@ -427,8 +432,10 @@ export class DeliRCanvas {
         if (!selected.length)
             return {};
         const entries: Record<string, CreationTool> = { delete: { id: "delete", title: i18n.t("process:canvas.context.delete") } };
-        if (selected.length > 1)
+        if (selected.length > 1) {
+            entries.delete.title=i18n.t("process:canvas.interactions.deleteSelection");
             return entries;
+        }
         const el = selected[0].labelTarget ?? selected[0];
         if (el.waypoints)
             return entries;
@@ -457,16 +464,13 @@ export class DeliRCanvas {
         if (!this.editable)
             return;
         if(id === "select-all") { this.diagram.get<{trigger:(id:string)=>void}>("editorActions").trigger("selectAll");return; }
+        if(id === "delete") {this.deleteSelection();return;}
         const selection = this.diagram.get<Selection>("selection"), selected = selection.get(), el = selected[0]?.labelTarget ?? selected[0];
         if (!el)
             return;
         const modeling = this.diagram.get<Modeling>("modeling"), factory = this.diagram.get<Factory>("elementFactory");
-        if(id.startsWith("lane.") || id === "delete" && el.type === "bpmn:Lane") {
-            this.diagram.get<Commands>("commandStack").execute("delir.lanes",{element:el,action:id === "delete" ? "remove" : id.slice(5)});return;
-        }
-        if (id === "delete") {
-            modeling.removeElements([...selected]);
-            return;
+        if(id.startsWith("lane.")) {
+            this.diagram.get<Commands>("commandStack").execute("delir.lanes",{element:el,action:id.slice(5)});return;
         }
         if (id === "connect" || id === "connect.drag") {
             this.diagram.get<{
@@ -488,6 +492,14 @@ export class DeliRCanvas {
             if (target)
                 modeling.updateProperties?.(el, { $type: target.type, eventDefinitions: target.eventDefinitionType ? [{ $type: target.eventDefinitionType }] : [] });
         }
+    }
+    private deleteSelection() {
+        const selection=this.diagram.get<Selection>("selection");
+        const elements=deletionTargets(selection.get(),this.diagram.get<Registry>("elementRegistry"));
+        if(!elements.length)return;
+        this.diagram.get<Commands>("commandStack").execute("delir.deleteSelection",{elements});
+        selection.select([]);
+        this.diagram.get<CanvasService>("canvas").focus();
     }
 }
 export default class DeliRModeler extends DeliRCanvas {

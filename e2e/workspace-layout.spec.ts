@@ -1107,6 +1107,37 @@ test("pool edges and lane dividers remain one continuous partition during resize
   await fit();await page.screenshot({path:info.outputPath("pool-partitions-desktop.png")});await page.setViewportSize({width:390,height:844});await fit();await page.screenshot({path:info.outputPath("pool-partitions-mobile.png")});expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)).toBe(false);const scan=await new AxeBuilder({page}).include("main").withTags(["wcag2a","wcag2aa","wcag22aa"]).analyze();expect(scan.violations).toEqual([]);
 });
 
+test("bulk deletion handles lanes and explicitly selected work in one undoable command",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8");let saved=source;
+  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Bulk deletion",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),node=(id:string)=>canvas.locator('.djs-element[data-element-id="'+id+'"]').first();await expect(node("TaskA")).toBeVisible();
+  await node("LaneA").click({position:{x:8,y:40}});await node("LaneB").click({position:{x:8,y:40},modifiers:["Shift"]});await node("TaskA").click({modifiers:["Shift"]});
+  await expect(page.getByRole("button",{name:"3 elementi selezionati",exact:true})).toBeVisible();await page.getByRole("button",{name:"Elimina selezione",exact:true}).click();
+  await expect(node("LaneA")).toHaveCount(0);await expect(node("LaneB")).toHaveCount(0);await expect(node("TaskA")).toHaveCount(0);await expect(node("TaskB")).toBeVisible();await expect(node("TaskC")).toBeVisible();await expect(canvas.locator(".djs-connection")).toHaveCount(1);
+  await page.getByRole("button",{name:"Salva",exact:true}).click();await info.attach("bulk-delete.xml",{body:Buffer.from(saved),contentType:"application/xml"});expect(saved).not.toContain('id="TaskA"');expect(saved).not.toContain('>TaskA<');expect(saved).not.toContain('sourceRef="TaskA"');
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(node("LaneA")).toBeVisible();await expect(node("LaneB")).toBeVisible();await expect(node("TaskA")).toBeVisible();await expect(canvas.locator(".djs-connection")).toHaveCount(2);await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);expect(errors).toEqual([]);
+});
+
+for(const method of ["toolbar","Delete","Backspace","context"] as const)test("bulk delete all via "+method+" removes nested pools, nodes and labels with exact undo",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8").replace('<bpmn:task id="TaskA"','<bpmn:startEvent id="Start_bulk" name="Richiesta ricevuta"/><bpmn:task id="TaskA"').replace('<bpmn:flowNodeRef>TaskA</bpmn:flowNodeRef>','<bpmn:flowNodeRef>Start_bulk</bpmn:flowNodeRef><bpmn:flowNodeRef>TaskA</bpmn:flowNodeRef>').replace('</bpmndi:BPMNPlane>','<bpmndi:BPMNShape id="Start_bulk_di" bpmnElement="Start_bulk"><dc:Bounds x="180" y="150" width="36" height="36"/><bpmndi:BPMNLabel><dc:Bounds x="150" y="192" width="96" height="32"/></bpmndi:BPMNLabel></bpmndi:BPMNShape></bpmndi:BPMNPlane>');let saved=source;
+  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Delete all",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),svg=canvas.locator(".djs-container > svg");await expect(canvas.locator('.djs-shape[data-element-id="TaskA"]')).toBeVisible();await svg.focus();await page.keyboard.press("Control+a");const shapes=await canvas.locator(".djs-shape").count(),connections=await canvas.locator(".djs-connection").count();
+  if(method==="toolbar")await page.getByRole("button",{name:"Elimina selezione",exact:true}).click();
+  else if(method==="context"){await canvas.locator('.djs-shape[data-element-id="TaskA"]').first().click({button:"right"});await page.getByRole("menu",{name:"Azioni della selezione"}).getByRole("menuitem",{name:"Elimina selezione",exact:true}).click();}
+  else{await page.getByRole("button",{name:/elementi selezionati/}).focus();await page.keyboard.press(method);}
+  await expect(canvas.locator(".djs-shape")).toHaveCount(0);await expect(canvas.locator(".djs-connection")).toHaveCount(0);await page.screenshot({path:info.outputPath("bulk-empty-"+method+".png")});await page.getByRole("button",{name:"Salva",exact:true}).click();await info.attach("bulk-empty-"+method+".xml",{body:Buffer.from(saved),contentType:"application/xml"});
+  const remaining=await page.evaluate(xml=>{const doc=new DOMParser().parseFromString(xml,"application/xml");return["participant","lane","task","sequenceFlow","messageFlow","startEvent"].map(tag=>doc.getElementsByTagNameNS("*",tag).length);},saved);expect(remaining).toEqual([0,0,0,0,0,0]);
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(canvas.locator(".djs-shape")).toHaveCount(shapes);await expect(canvas.locator(".djs-connection")).toHaveCount(connections);await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);expect(errors).toEqual([]);
+});
+
+test("Delete in a property field edits text without deleting the canvas selection",async({page})=>{
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");await canvas.locator('[data-element-id="Task_1"]').first().click();const input=page.getByRole("textbox",{name:"Nome",exact:true});await input.focus();await input.press("Control+a");await input.press("Backspace");await expect(input).toHaveValue("");await expect(canvas.locator(".djs-shape")).toHaveCount(18);await expect(canvas.locator(".djs-connection")).toHaveCount(17);
+});
+
 test("right click opens working object actions while right drag only pans",async({page},info)=>{
   await page.setViewportSize({width:1600,height:1000});await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),task=canvas.locator('.djs-shape[data-element-id="Task_1"]').first(),viewport=canvas.locator("g.viewport").first();await expect(task).toBeVisible();
   await task.click({button:"right"});const menu=page.getByRole("menu",{name:"Azioni della selezione"});await expect(menu).toBeVisible();await expect(task).toHaveClass(/selected/);await page.screenshot({path:info.outputPath("right-click-object.png")});

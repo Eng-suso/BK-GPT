@@ -1,0 +1,82 @@
+{
+  "stats": {
+    "startTime": "2026-11-04T21:02:04.803Z",
+    "duration": 27388.780000000002,
+    "expected": 7,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "name": "selection rectangle selects objects without moving the camera",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2292
+        }
+      ]
+    },
+    {
+      "name": "bulk deletion handles lanes and explicitly selected work in one undoable command",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3571
+        }
+      ]
+    },
+    {
+      "name": "bulk delete all via toolbar removes nested pools, nodes and labels with exact undo",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3928
+        }
+      ]
+    },
+    {
+      "name": "bulk delete all via Delete removes nested pools, nodes and labels with exact undo",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4834
+        }
+      ]
+    },
+    {
+      "name": "bulk delete all via Backspace removes nested pools, nodes and labels with exact undo",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4384
+        }
+      ]
+    },
+    {
+      "name": "bulk delete all via context removes nested pools, nodes and labels with exact undo",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3889
+        }
+      ]
+    },
+    {
+      "name": "Delete in a property field edits text without deleting the canvas selection",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2505
+        }
+      ]
+    }
+  ]
+}

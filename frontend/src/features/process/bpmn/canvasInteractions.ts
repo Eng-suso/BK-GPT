@@ -97,11 +97,18 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
   };
   const keyDown = (event: KeyboardEvent) => {
     const editing = event.target instanceof globalThis.Element && event.target.closest("input,textarea,select,[contenteditable=true],[role=menu],[role=listbox],[role=combobox],[role=dialog]");
-    if (editing || event.defaultPrevented || !(host.contains(document.activeElement) || hovered && shell?.contains(document.activeElement)) || event.ctrlKey || event.metaKey || event.altKey) return;
+    const deletionKey=event.key === "Delete" || event.key === "Backspace";
+    if (editing || event.defaultPrevented || !(host.contains(document.activeElement) || (hovered || deletionKey) && shell?.contains(document.activeElement)) || event.ctrlKey || event.metaKey || event.altKey) return;
     if(event.key === "ContextMenu" || event.shiftKey && event.key === "F10") {
       event.preventDefault();event.stopImmediatePropagation();rightGesture=false;
       const chosen=selection.get()[0],graphic=chosen ? host.querySelector(`[data-element-id="${CSS.escape(chosen.id)}"]`) : null;
       const rect=(graphic ?? host).getBoundingClientRect();showContext(graphic ?? svg,rect.left+rect.width/2,rect.top+rect.height/2);
+    }
+    else if (deletionKey && selection.get().length) {
+      event.preventDefault();event.stopImmediatePropagation();
+      dragging.cancel();manager.setActive(null);
+      (modeler.get("editorActions") as {trigger:(id:string)=>void}).trigger("removeSelection");
+      canvas.focus();changed();
     }
     else if (event.code === "Space") { event.preventDefault(); event.stopImmediatePropagation(); if (!space) { space = true; canvas.focus(); cursor(); changed(); } }
     else if (!event.repeat && event.key.toLowerCase() === "v") { event.preventDefault(); event.stopImmediatePropagation(); select(); }
