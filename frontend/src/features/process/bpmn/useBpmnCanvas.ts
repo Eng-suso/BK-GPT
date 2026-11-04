@@ -25,7 +25,6 @@ import {
   fitCanvas,
   frameCanvasForReading,
   hasDiagramContent,
-  keepSequenceConnectionsDocked,
 } from "./viewport";
 import { applyProvenanceMarkers, splitTraceability, withTraceability } from "./provenance";
 import { assertBpmnXml, downloadBpmn, loadInitialModel } from "./xml";
@@ -296,7 +295,6 @@ export function useBpmnCanvas({
 
         ownedModeler = modeler;
         modelerRef.current = modeler;
-        keepSequenceConnectionsDocked(modeler);
 
         const localDraft = readLocalBpmnDraft(bpmnModelId);
         let xml: string;
@@ -484,9 +482,11 @@ export function useBpmnCanvas({
       setIsSaving(false);
       window.setTimeout(() => {
         isSavingRef.current = false;
+        // Recheck gestures made during the save guard, including immediate undo.
+        scheduleUnsavedCheck();
       }, 250);
     }
-  }, [bpmnModelId, loadVersions]);
+  }, [bpmnModelId, loadVersions, scheduleUnsavedCheck]);
 
   // After a 409 the local edits are behind a newer saved version: the way
   // out is to load that version, dropping the local draft.

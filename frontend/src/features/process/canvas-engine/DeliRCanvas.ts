@@ -8,6 +8,9 @@ import OverlaysModule from "diagram-js/lib/features/overlays";
 import ModelingModule from "diagram-js/lib/features/modeling";
 import MoveModule from "diagram-js/lib/features/move";
 import CreateModule from "diagram-js/lib/features/create";
+import ConnectionPreviewModule from "diagram-js/lib/features/connection-preview";
+import CroppingConnectionDocking from "diagram-js/lib/layout/CroppingConnectionDocking";
+import { OrthogonalLayout } from "./Routing";
 import ConnectModule from "diagram-js/lib/features/connect";
 import GlobalConnectModule from "diagram-js/lib/features/global-connect";
 import LassoModule from "diagram-js/lib/features/lasso-tool";
@@ -90,21 +93,6 @@ class UpdateProperties {
             element.businessObject[key] = value;
     } element.type = context.oldType!; return this.changed(element); }
 }
-class OrthogonalLayout {
-    layoutConnection(connection: CanvasElement) {
-        const s = connection.source!, t = connection.target!;
-        if (!s || !t)
-            return connection.waypoints ?? [];
-        const horizontal = Math.abs(s.x + s.width / 2 - t.x - t.width / 2) >= Math.abs(s.y + s.height / 2 - t.y - t.height / 2);
-        if (horizontal) {
-            const forward = t.x > s.x;
-            const a = { x: forward ? s.x + s.width : s.x, y: s.y + s.height / 2 }, b = { x: forward ? t.x : t.x + t.width, y: t.y + t.height / 2 };
-            return Math.abs(a.y - b.y) < 1 ? [a, b] : [a, { x: (a.x + b.x) / 2, y: a.y }, { x: (a.x + b.x) / 2, y: b.y }, b];
-        }
-        const forward = t.y > s.y, a = { x: s.x + s.width / 2, y: forward ? s.y + s.height : s.y }, b = { x: t.x + t.width / 2, y: forward ? t.y : t.y + t.height };
-        return Math.abs(a.x - b.x) < 1 ? [a, b] : [a, { x: a.x, y: (a.y + b.y) / 2 }, { x: b.x, y: (a.y + b.y) / 2 }, b];
-    }
-}
 const basicTargets: Record<string, string> = { "create.task": "Task", "create.user-task": "UserTask", "create.service-task": "ServiceTask", "create.manual-task": "ManualTask", "create.script-task": "ScriptTask", "create.business-rule-task": "BusinessRuleTask", "create.send-task": "SendTask", "create.receive-task": "ReceiveTask", "create.start-event": "StartEvent", "create.end-event": "EndEvent", "create.intermediate-event": "IntermediateCatchEvent", "create.exclusive-gateway": "ExclusiveGateway", "create.parallel-gateway": "ParallelGateway", "create.participant-expanded": "Participant", "create.data-object": "DataObjectReference", "create.data-store": "DataStoreReference", "create.group": "Group" };
 const targets = new Map([...Object.entries(basicTargets).map(([id, type]) => [id, { type: "bpmn:" + type }]), ...enterpriseEntries.map(entry => [entry.id, entry.target])] as Array<[
     string,
@@ -128,8 +116,8 @@ export class DeliRCanvas {
     }) {
         this.editable = Boolean(options.editable);
         options.container.classList.add("delir-diagram");
-        const editModules = this.editable ? [ModelingModule, MoveModule, CreateModule, ConnectModule, GlobalConnectModule, LassoModule, SpaceModule, ResizeModule, BendpointsModule, HoverFixModule, CopyPasteModule, KeyboardModule, EditorActionsModule] : [];
-        this.diagram = new Diagram({ canvas: { container: options.container, deferUpdate: false }, modules: [SelectionModule, OutlineModule, OverlaysModule, ...editModules, { __init__: ["delirRenderer", "delirOutline"], delirOutline: ["type", DeliROutline], delirRenderer: ["type", DeliRRenderer], layouter: ["type", OrthogonalLayout] }] });
+        const editModules = this.editable ? [ModelingModule, MoveModule, CreateModule, ConnectModule, ConnectionPreviewModule, GlobalConnectModule, LassoModule, SpaceModule, ResizeModule, BendpointsModule, HoverFixModule, CopyPasteModule, KeyboardModule, EditorActionsModule] : [];
+        this.diagram = new Diagram({ canvas: { container: options.container, deferUpdate: false }, modules: [SelectionModule, OutlineModule, OverlaysModule, ...editModules, { __init__: ["delirRenderer", "delirOutline"], delirOutline: ["type", DeliROutline], delirRenderer: ["type", DeliRRenderer], layouter: ["type", OrthogonalLayout], connectionDocking: ["type", CroppingConnectionDocking] }] });
         const factory = this.diagram.get<Factory>("elementFactory"), original = factory.create.bind(factory);
         factory.create = (kind, attrs = {}) => {
             const type = String(attrs.type ?? (kind === "connection" ? "bpmn:SequenceFlow" : "bpmn:Task")), id = String(attrs.id ?? attrs.delirId ?? type.replace("bpmn:", "") + "_" + crypto.randomUUID().replaceAll("-", "").slice(0, 12));
@@ -189,6 +177,7 @@ export class DeliRCanvas {
             if (!source || !target)
                 throw new Error("Il collegamento " + record.id + " riferisce un elemento non rappresentato nel diagramma.");
             const connection = factory.createConnection({ id: record.id, type: record.type, businessObject: record.businessObject, di: record.di, waypoints: record.waypoints, source, target });
+            connection.waypoints = this.diagram.get<{getCroppedWaypoints:(connection:CanvasElement)=>Point[]}>("connectionDocking").getCroppedWaypoints(connection);
             canvas.addConnection(connection, connection.type === "bpmn:MessageFlow" ? root : flowScope(source.parent) ?? root);
         }
         for (const record of document.records) {
@@ -217,6 +206,11 @@ export class DeliRCanvas {
     private configureEditing() {
         const bus = this.diagram.get<Bus>("eventBus"), commands = this.diagram.get<Commands>("commandStack"), modeling = this.diagram.get<Modeling>("modeling");
         commands.registerHandler("delir.properties", UpdateProperties);
+        const docking=this.diagram.get<{getCroppedWaypoints:(connection:CanvasElement)=>Point[]}>("connectionDocking");
+        bus.on(["commandStack.connection.create.executed","commandStack.connection.layout.executed","commandStack.connection.updateWaypoints.executed"],1500,event=>{
+            const {connection}=(event as {context:{connection:CanvasElement}}).context;
+            if(connection.source && connection.target && connection.waypoints?.length) connection.waypoints=docking.getCroppedWaypoints(connection);
+        });
         commands.registerHandler("delir.lanes", LaneCommand);
         bus.on("commandStack.element.copy.canExecute", 2000, () => true);
         bus.on("commandStack.connection.start.canExecute", 2000, value => {
@@ -432,10 +426,10 @@ export class DeliRCanvas {
             modeling.removeElements([...selected]);
             return;
         }
-        if (id === "connect") {
+        if (id === "connect" || id === "connect.drag") {
             this.diagram.get<{
                 start: (event: Event, source: CanvasElement, autoActivate?: boolean) => void;
-            }>("connect").start(event, el, true);
+            }>("connect").start(event, el, id !== "connect.drag");
             return;
         }
         if (id.startsWith("append.")) {

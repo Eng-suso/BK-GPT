@@ -23,6 +23,8 @@ const SECTIONS = ["details", "rules", "data", "files", "history", "ai"] as const
 export function BpmnNodeInspector({ element, onNameChange, onDocChange, onMetadataChange, onDelete, onClose, onAsk, versions, embedded = false }: Props) {
   const { t, i18n } = useTranslation("process");
   const [section, setSection] = useState<string>("details");
+  const isContainer = element.type === "Participant" || element.type === "Lane";
+  const isConnection = /Flow$|Association$/.test(element.type);
   const typeTool = bpmnTypeTool[element.type];
   const typeName = typeTool ? t("canvas.tools." + typeTool) : element.type;
   const field = (name: Exclude<EnterpriseField, "required">, multiline = false) =>
@@ -47,10 +49,11 @@ export function BpmnNodeInspector({ element, onNameChange, onDocChange, onMetada
       <EditorBody>
         <div className="grid gap-5">
           {section === "details" && <>
+            {isContainer && <p className="text-sm leading-relaxed text-muted-foreground">{t(element.type === "Participant" ? "canvas.connectGesture.poolHint" : "canvas.connectGesture.laneHint")}</p>}
             <label className="ui-editor-field"><span>{t("properties.enterprise.name")}</span><Input value={element.name} onChange={event => onNameChange(event.target.value)} /></label>
-            {field("owner")}{field("office")}
+            {!isContainer && !isConnection && <>{field("owner")}{field("office")}</>}
             <label className="ui-editor-field"><span>{t("properties.enterprise.description")}</span><Textarea rows={4} value={element.documentation} onChange={event => onDocChange(event.target.value)} /></label>
-            <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" className="size-4 shrink-0 accent-primary" checked={element.metadata.required} onChange={event => onMetadataChange({ required: event.target.checked })} />{t("properties.enterprise.required")}</label>
+            {!isContainer && !isConnection && <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" className="size-4 shrink-0 accent-primary" checked={element.metadata.required} onChange={event => onMetadataChange({ required: event.target.checked })} />{t("properties.enterprise.required")}</label>}
             <p className="text-xs leading-relaxed text-muted-foreground">{t("properties.enterprise.saveHint")}</p>
             <details className="process-properties-technical"><summary>{t("canvas.interactions.identity")}</summary><dl><dt>ID</dt><dd>{element.id}</dd><dt>BPMN</dt><dd>{element.type}</dd></dl></details>
           </>}

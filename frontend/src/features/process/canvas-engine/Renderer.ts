@@ -10,6 +10,10 @@ export function shapePath(el: CanvasElement): string {
     }
     if (/Gateway$/.test(el.type))
         return "M" + (x + w / 2) + "," + y + "L" + (x + w) + "," + (y + h / 2) + "L" + (x + w / 2) + "," + (y + h) + "L" + x + "," + (y + h / 2) + "Z";
+    if (/Task$|Activity$|SubProcess$/.test(el.type)) {
+        const r=Math.min(12,w/2,h/2);
+        return "M"+(x+r)+","+y+"H"+(x+w-r)+"Q"+(x+w)+","+y+" "+(x+w)+","+(y+r)+"V"+(y+h-r)+"Q"+(x+w)+","+(y+h)+" "+(x+w-r)+","+(y+h)+"H"+(x+r)+"Q"+x+","+(y+h)+" "+x+","+(y+h-r)+"V"+(y+r)+"Q"+x+","+y+" "+(x+r)+","+y+"Z";
+    }
     return "M" + x + "," + y + "h" + w + "v" + h + "h-" + w + "Z";
 }
 function text(parent: SVGElement, value: string, x: number, y: number, width: number, fontSize = 14, anchor = "middle") {

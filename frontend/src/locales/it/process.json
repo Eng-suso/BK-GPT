@@ -2010,7 +2010,10 @@
         "subprocess-collapsed": "Sottoprocesso compresso",
         "lane": "Lane / corsia",
         "annotation": "Annotazione di testo"
-      }
+      },
+      "connection.sequence-flow": "Flusso di sequenza",
+      "connection.message-flow": "Flusso messaggio",
+      "connection.association": "Associazione"
     },
     "conflict": {
       "reloadLatest": "Carica l'ultima versione",
@@ -2094,6 +2097,15 @@
       "split-2": "Dividi in due lane",
       "split-3": "Dividi in tre lane",
       "remove": "Rimuovi lane, mantieni le attività"
+    },
+    "connectGesture": {
+      "actionHint": "Collega: trascina fino al bersaglio oppure fai clic e scegli un elemento",
+      "choose": "Scegli l’elemento da collegare · Esc annulla",
+      "confirm": "Fai clic per collegare",
+      "invalid": "Questi elementi non possono essere collegati in questa direzione",
+      "cancel": "Annulla collegamento",
+      "poolHint": "La pool rappresenta un partecipante e contiene il suo processo. Usa «Gestisci lane» per suddividere le responsabilità.",
+      "laneHint": "La lane suddivide le responsabilità nella stessa pool. Collega le attività al suo interno, non la lane."
     }
   },
   "review": {

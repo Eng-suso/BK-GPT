@@ -1,5 +1,9 @@
 # Canvas DeliR: motore, interazioni e collaborazione BPMN
-Data: 4 novembre 2026. PR #165. Sostituisce la precedente descrizione «motore invariato» per questa PR.
+Data: 4 novembre 2026. PR #165.
+
+Aggiornamento successivo: [collegamenti, REA e matrice estesa](canvas-connection-ux-2026-11-04.md). Le verifiche sotto descrivono il commit iniziale 06604881.
+
+Sostituisce la precedente descrizione «motore invariato» per questa PR.
 
 Il renderer e il modeler BPMN bpmn-js sono stati rimossi. DeliR possiede importazione XML, grafica SVG, regole BPMN, palette, azioni, rinomina e proprietà. Il toolkit generico diagram-js 15.22.0 fornisce grafica, eventi e command stack con licenza MIT; la licenza è distribuita in public/third-party. Nessun marchio viene nascosto via CSS.
 

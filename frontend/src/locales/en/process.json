@@ -2010,7 +2010,10 @@
         "subprocess-collapsed": "Collapsed subprocess",
         "lane": "Lane",
         "annotation": "Text annotation"
-      }
+      },
+      "connection.sequence-flow": "Sequence flow",
+      "connection.message-flow": "Message flow",
+      "connection.association": "Association"
     },
     "conflict": {
       "reloadLatest": "Load the latest version",
@@ -2094,6 +2097,15 @@
       "split-2": "Split into two lanes",
       "split-3": "Split into three lanes",
       "remove": "Remove lane, keep activities"
+    },
+    "connectGesture": {
+      "actionHint": "Connect: drag to a target, or click and choose an element",
+      "choose": "Choose a target element · Esc cancels",
+      "confirm": "Click to connect",
+      "invalid": "These elements cannot connect in this direction",
+      "cancel": "Cancel connection",
+      "poolHint": "A pool represents a participant and contains its process. Use Manage lanes to divide responsibilities.",
+      "laneHint": "A lane divides responsibilities within one pool. Connect the activities inside it, rather than the lane."
     }
   },
   "review": {

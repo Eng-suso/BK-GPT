@@ -31,6 +31,7 @@ import { provenanceKeys, useProcessProvenanceQuery } from "./api";
 import { EvidenceReviewPanel } from "./components/EvidenceReviewPanel";
 import "./bpmn/canvasIdentity.css";
 import "./bpmn/canvasUi.css";
+import { BpmnConnectionControl } from "./components/BpmnConnectionControl";
 
 type ProcessBpmnCanvasProps = {
   bpmnModelId: string;
@@ -181,7 +182,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
       : t("canvas.saved");
 
   return (
-    <section ref={shellRef} data-multiple-selection={canvasUi.isMultiple} className={`process-bpmn-shell ${coloursEnabled ? "process-bpmn--colours" : ""}`} aria-label="Canvas BPMN" onKeyDown={(event) => { if (event.key === "Escape" && elementsOpen) { event.preventDefault(); closeElements(); } }}>
+    <section ref={shellRef} data-multiple-selection={canvasUi.isMultiple} data-connecting={Boolean(canvasUi.connectionSourceId)} className={`process-bpmn-shell ${coloursEnabled ? "process-bpmn--colours" : ""}`} aria-label="Canvas BPMN" onKeyDown={(event) => { if (event.key === "Escape" && elementsOpen) { event.preventDefault(); closeElements(); } }}>
       <BpmnCanvasToolbar
         elements={{ isOpen: elementsOpen, onToggle: () => { setIsEvidenceOpen(false); setElementsOpen((prev) => !prev); } }}
         elementsButtonRef={elementsButtonRef}
@@ -229,6 +230,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         <div className="process-bpmn-stage">
         <BpmnCreationTools tools={creationTools} isReady={isReady} onActivate={(id, action, event) => { if (id === "hand-tool") panTool(); else { prepareTool(id); activateTool(id, action, event); } }} activeTool={canvasUi.activeTool} onSelectTool={selectTool} />
         <div className={`process-bpmn-canvas ${coloursEnabled ? "delir-canvas--colours" : ""}`} ref={containerRef}>
+          <BpmnConnectionControl host={containerRef} geometryKey={canvasUi.geometryKey} selectedId={canvasUi.selectionCount === 1 ? canvasUi.selectionItems[0]?.id : undefined} enabled={canvasUi.contextActions.some(action=>action.id === "connect")} connecting={Boolean(canvasUi.connectionSourceId)} targetState={canvasUi.connectionTargetState} onAction={contextAction} onCancel={selectTool} />
           {/* Un processo appena creato non ha un modello: prima il canvas
               apriva su un diagramma finto che nessuno aveva descritto. Qui la
               tela resta vuota e dice da dove si parte — la libreria DeliR

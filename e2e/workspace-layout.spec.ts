@@ -564,7 +564,7 @@ test("resource configuration waits for the BPMN before claiming the model is emp
   await page.goto(`${studio}/simulation/workspace?panel=scenario`);
   await requestSeen;
   const dock = page.locator(".sim-studio-dock");
-  await expect(dock.getByRole("heading", { name: "Costruttore scenario", exact: true })).toBeVisible();
+  await expect(dock.getByRole("heading", { name: "Configura scenario", exact: true })).toBeVisible();
   await expect(dock.getByText("Nessun BPMN da simulare. Genera o salva un modello nel canvas.", { exact: true })).toHaveCount(0);
   await expect(dock.getByText("Nessuna risorsa configurata", { exact: true })).toHaveCount(0);
   releaseModel();
@@ -703,13 +703,13 @@ for (const mobile of [false, true]) test(`selection actions use the existing BPM
   await page.getByRole('button',{name:'Annulla modifica',exact:true}).click();
   await expect(canvas.locator('.delir-type-task')).toHaveCount(18);
   await task.click();
-  await actions.getByRole('button',{name:'Collega elemento',exact:true}).click();
+  await page.getByRole('button',{name:'Collega elemento',exact:true}).click();
   await canvas.locator('[data-element-id="Task_3"]').first().click();
   await expect(canvas.locator('.djs-connection')).toHaveCount(18);
   await page.getByRole('button',{name:'Annulla modifica',exact:true}).click();
   await expect(canvas.locator('.djs-connection')).toHaveCount(17);
   await task.click();
-  await actions.getByRole('button',{name:'Collega elemento',exact:true}).click();
+  await page.getByRole('button',{name:'Collega elemento',exact:true}).click();
   await page.keyboard.press('Escape');
   await expect(canvas.locator('.djs-connection')).toHaveCount(17);
   await expect(task).toHaveClass(/selected/);
@@ -905,6 +905,9 @@ test("connections follow BPMN pool and lane boundaries and lane removal preserve
     await node(from).click();await page.getByRole("button",{name:"Collega elemento",exact:true}).click();
     const box=(await node(to).boundingBox())!;await page.mouse.move(box.x+box.width/2,box.y+box.height/2,{steps:12});await page.mouse.click(box.x+box.width/2,box.y+box.height/2);
   };
+  await node("TaskA").click();await page.getByRole("button",{name:"Collega elemento",exact:true}).click();
+  const laneBox=(await node("LaneB").boundingBox())!;await page.mouse.move(laneBox.x+8,laneBox.y+40,{steps:8});await expect(node("LaneB")).toHaveClass(/connect-not-ok/);
+  await page.mouse.click(laneBox.x+8,laneBox.y+40);await expect(canvas.locator(".djs-connection")).toHaveCount(0);
   await connect("TaskA","TaskB");await expect(canvas.locator(".djs-connection")).toHaveCount(1);
   await connect("TaskB","TaskC");await expect(canvas.locator(".djs-connection")).toHaveCount(2);
   await page.getByRole("button",{name:"Salva",exact:true}).click();
@@ -923,4 +926,87 @@ test("connections follow BPMN pool and lane boundaries and lane removal preserve
   await page.getByRole("button",{name:"Salva",exact:true}).click();
   await info.attach("collaboration.xml",{body:Buffer.from(saved),contentType:"application/xml"});
   expect(errors).toEqual([]);
+});
+
+for (const width of [1440,1920]) test("local connection control previews, clicks, drags and cancels at "+width,async({page})=>{
+  await page.setViewportSize({width,height:1000});const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),shell=page.locator(".process-bpmn-shell"),task=(id:string)=>canvas.locator('.djs-element[data-element-id="'+id+'"]').first();
+  await expect(task("Task_1")).toBeVisible();await task("Task_1").click();await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();
+  const control=page.getByRole("button",{name:"Collega elemento",exact:true});await expect(control).toBeVisible();
+  await expect.poll(async()=>{const a=(await control.boundingBox())!,b=(await task("Task_1").locator(".djs-visual > rect").first().boundingBox())!;return Math.abs(a.x-b.x-b.width);},{timeout:3000}).toBeLessThan(40);
+  for(const label of ["Ingrandisci","Riduci"]) {
+    await page.getByRole("button",{name:label,exact:true}).click();
+    await expect.poll(async()=>{const a=(await control.boundingBox())!,b=(await task("Task_1").locator(".djs-visual > rect").first().boundingBox())!;return Math.abs(a.x-b.x-b.width);}).toBeLessThan(40);
+  }
+  await page.getByRole("button",{name:"Chiudi ispettore",exact:true}).click();
+  await expect(control).toHaveCount(0);await task("Task_1").click();
+  await expect.poll(async()=>{const a=(await control.boundingBox())!,b=(await task("Task_1").locator(".djs-visual > rect").first().boundingBox())!;return Math.abs(a.x-b.x-b.width);}).toBeLessThan(40);
+  await control.click();await expect(shell).toHaveAttribute("data-connecting","true");
+  const target=(await task("Task_2").boundingBox())!;await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:10});
+  await expect(canvas.locator(".djs-dragger")).toBeVisible();await expect(task("Task_2")).toHaveClass(/connect-ok/);
+  await page.keyboard.press("Escape");await expect(canvas.locator(".djs-dragger")).toHaveCount(0);await expect(canvas.locator(".djs-connection")).toHaveCount(17);await expect(task("Task_1")).toHaveClass(/selected/);
+  await control.click();await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:10});await page.mouse.click(target.x+target.width/2,target.y+target.height/2);
+  await expect(canvas.locator(".djs-connection")).toHaveCount(18);
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(canvas.locator(".djs-connection")).toHaveCount(17);
+  await task("Task_1").click();const from=(await control.boundingBox())!,destination=(await task("Task_3").boundingBox())!;
+  await page.mouse.move(from.x+from.width/2,from.y+from.height/2);await page.mouse.down();await page.mouse.move(destination.x+destination.width/2,destination.y+destination.height/2,{steps:15});
+  await expect(canvas.locator(".djs-dragger")).toBeVisible();await page.mouse.up();await expect(canvas.locator(".djs-connection")).toHaveCount(18);
+  const connection=canvas.locator('.djs-connection[data-element-id^="SequenceFlow_"] .djs-visual > path').first();
+  const end=await connection.evaluate(path=>{const p=path as SVGPathElement,point=p.getPointAtLength(p.getTotalLength()),matrix=p.getScreenCTM()!;return{x:point.x*matrix.a+point.y*matrix.c+matrix.e,y:point.x*matrix.b+point.y*matrix.d+matrix.f};});
+  const bounds=(await task("Task_3").locator(".djs-visual > rect").first().boundingBox())!;
+  expect(Math.min(Math.abs(end.x-bounds.x),Math.abs(end.x-bounds.x-bounds.width),Math.abs(end.y-bounds.y),Math.abs(end.y-bounds.y-bounds.height))).toBeLessThan(2);
+  expect(errors).toEqual([]);
+});
+
+test.describe("touch connection gestures",()=>{
+  test.use({hasTouch:true,isMobile:true,viewport:{width:390,height:844}});
+  test("tap connects two elements and the cancel action restores selection",async({page})=>{
+    await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),task=canvas.locator('[data-element-id="Task_1"]').first();
+    await expect(task).toBeVisible();await task.tap();const control=page.getByRole("button",{name:"Collega elemento",exact:true});await expect(control).toBeVisible();await control.tap();
+    await expect(page.locator(".process-bpmn-shell")).toHaveAttribute("data-connecting","true");
+    await page.getByRole("button",{name:"Annulla collegamento",exact:true}).tap();await expect(task).toHaveClass(/selected/);await expect(canvas.locator(".djs-connection")).toHaveCount(17);
+    await control.tap();await canvas.locator('[data-element-id="Task_3"]').first().tap();await expect(canvas.locator(".djs-connection")).toHaveCount(18);
+  });
+});
+
+test("editing an endpoint keeps the arrow on the target boundary and undo restores the attachment",async({page})=>{
+  await page.setViewportSize({width:1600,height:1000});let saved=xml;
+  const source=xml.replace('<di:waypoint x="240" y="125" /><di:waypoint x="290" y="125" />','<di:waypoint x="160" y="125"/><di:waypoint x="270" y="125"/><di:waypoint x="270" y="260"/><di:waypoint x="370" y="260"/><di:waypoint x="370" y="125"/>');
+  saved=source;const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET, PUT, OPTIONS","access-control-allow-headers":"Content-Type"},json:{id:"layout-model",name:"Connections",process_id:"layout-process",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),path=canvas.locator('.djs-connection[data-element-id="Flow_0"] .djs-visual > path').first();
+  await expect(path).toBeVisible();await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
+  const point=async(fraction:number)=>path.evaluate((node,f)=>{const p=node as SVGPathElement,at=p.getPointAtLength(p.getTotalLength()*f),m=p.getScreenCTM()!;return{x:at.x*m.a+at.y*m.c+m.e,y:at.x*m.b+at.y*m.d+m.f};},fraction);
+  const originalPath=await path.getAttribute("d"),unrelated=canvas.locator('.djs-shape[data-element-id="Task_18"]').first(),unrelatedBox=(await unrelated.boundingBox())!;
+  await page.mouse.move(unrelatedBox.x+40,unrelatedBox.y+35);await page.mouse.down();await page.mouse.move(unrelatedBox.x+60,unrelatedBox.y+70,{steps:10});await page.mouse.up();
+  await expect(path).toHaveAttribute("d",originalPath!);await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
+  const p=await point(.5);await page.mouse.click(p.x,p.y);
+  await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();
+  await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+  const start=await point(1),task=canvas.locator('.djs-shape[data-element-id="Task_3"]').first(),box=(await task.boundingBox())!;
+  await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(box.x+box.width/2,box.y+box.height/2,{steps:15});await page.mouse.up();
+  await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeEnabled({timeout:5000});await page.getByRole("button",{name:"Salva",exact:true}).click();
+  expect(await page.evaluate(s=>new DOMParser().parseFromString(s,"application/xml").querySelector('[id="Flow_0"]')!.getAttribute("targetRef"),saved)).toBe("Task_3");
+  const end=await point(1),bounds=(await task.locator(".djs-visual > rect").first().boundingBox())!;
+  expect(Math.min(Math.abs(end.x-bounds.x),Math.abs(end.x-bounds.x-bounds.width),Math.abs(end.y-bounds.y),Math.abs(end.y-bounds.y-bounds.height))).toBeLessThan(2);
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await page.getByRole("button",{name:"Salva",exact:true}).click();
+  expect(await page.evaluate(s=>new DOMParser().parseFromString(s,"application/xml").querySelector('[id="Flow_0"]')!.getAttribute("targetRef"),saved)).toBe("Task_2");
+  await expect(path).toHaveAttribute("d",originalPath!);
+  expect(errors).toEqual([]);
+});
+
+
+test("large diagrams keep connection gestures reversible across 500 activities",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const nodes=Array.from({length:500},(_,i)=>({id:"Scale_"+i,x:80+(i%25)*180,y:80+Math.floor(i/25)*110}));
+  const source='<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" targetNamespace="urn:scale"><bpmn:process id="Scale">'+nodes.map(n=>'<bpmn:task id="'+n.id+'" name="Attività '+n.id+'"/>').join('')+'</bpmn:process><bpmndi:BPMNDiagram id="diagram"><bpmndi:BPMNPlane id="plane" bpmnElement="Scale">'+nodes.map(n=>'<bpmndi:BPMNShape id="'+n.id+'_di" bpmnElement="'+n.id+'"><dc:Bounds x="'+n.x+'" y="'+n.y+'" width="120" height="64"/></bpmndi:BPMNShape>').join('')+'</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>';
+  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",route=>route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Synthetic scale",xml:source,version_id:1}}));
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),node=(id:string)=>canvas.locator('.djs-shape[data-element-id="'+id+'"]').first();
+  await expect(canvas.locator('.djs-shape[data-delir-type="bpmn:Task"]')).toHaveCount(500);
+  await node("Scale_0").click();await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();
+  const before=Date.now();await page.getByRole("button",{name:"Collega elemento",exact:true}).click();const target=(await node("Scale_2").boundingBox())!;
+  await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:20});await expect(node("Scale_2")).toHaveClass(/connect-ok/);await expect(canvas.locator(".djs-dragger")).toBeVisible();
+  await info.attach("gesture-timing.json",{body:Buffer.from(JSON.stringify({activities:500,previewGestureWallMs:Date.now()-before,note:"Includes Playwright transport; observation, not a frame-rate benchmark."})),contentType:"application/json"});
+  await page.mouse.click(target.x+target.width/2,target.y+target.height/2);await expect(canvas.locator(".djs-connection")).toHaveCount(1);await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(canvas.locator(".djs-connection")).toHaveCount(0);await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();expect(errors).toEqual([]);
 });

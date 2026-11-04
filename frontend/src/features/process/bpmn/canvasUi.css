@@ -64,3 +64,14 @@
 .process-selection-summary { display:flex; flex-direction:column; gap:12px; padding:16px; min-height:0; }
 .process-selection-summary ul { min-height:0; overflow:auto; }
 .process-selection-popover { width:min(340px,calc(100vw - 24px)); max-height:min(440px,60dvh); overflow:auto; padding:0; }
+
+.process-node-connect { position:absolute; z-index:9; width:36px; height:36px; min-width:36px; border-radius:50%; background:var(--material-panel); border-color:var(--material-divider); box-shadow:var(--material-shadow); touch-action:none; }
+.process-connection-hint { position:absolute; z-index:10; top:12px; left:50%; transform:translateX(-50%); max-width:calc(100% - 24px); display:flex; align-items:center; gap:12px; padding:4px 8px 4px 14px; border-radius:var(--material-radius-control); background:var(--material-floating); box-shadow:var(--material-shadow); color:var(--color-text-secondary); font-size:var(--font-size-200); pointer-events:auto; }
+.process-bpmn-shell[data-connecting="true"] .djs-container :is(svg,.djs-element,.djs-hit) { cursor:crosshair !important; }
+.process-bpmn-shell[data-connecting="true"] .djs-dragger { pointer-events:none; }
+.process-bpmn-shell[data-connecting="true"] .djs-dragger path { stroke:var(--color-text-secondary); }
+.delir-diagram .djs-element.connect-ok .djs-outline { visibility:visible; stroke:var(--primary); stroke-width:2px; fill:none; filter:none; }
+.delir-diagram .djs-element.connect-not-ok .djs-outline { visibility:visible; stroke:var(--color-status-danger); stroke-width:2px; fill:none; filter:none; }
+@media(pointer:coarse) { .process-node-connect { width:44px; height:44px; } }
+
+@media(max-width:620px) { .process-connection-hint { top:72px; max-width:calc(100% - 16px); } }

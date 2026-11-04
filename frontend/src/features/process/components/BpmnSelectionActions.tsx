@@ -1,4 +1,4 @@
-import { MoreHorizontal, Plus, ArrowUpRight, Settings2, Trash2, X, ChevronDown } from "lucide-react";
+import { MoreHorizontal, Plus, Settings2, Trash2, X, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CanvasToolButton, CanvasToolGroup } from "@/components/canvas/CanvasTools";
 import { Button } from "@/ui/button";
@@ -29,7 +29,6 @@ export function BpmnSelectionActions({ actions, count, name, multiple, items, on
     </> : <>
     <span className="process-selection-label">{name || t("canvas.interactions.selected")}</span>
     {append.length > 0 && menu(append, t("canvas.interactions.append"), <Plus aria-hidden className="size-4" />)}
-    {actions.some(action => action.id === "connect") && <CanvasToolButton label={t("canvas.interactions.connect")} onClick={event => onAction("connect", event.nativeEvent)}><ArrowUpRight aria-hidden /></CanvasToolButton>}
     {lanes.length > 0 && menu(lanes, t("canvas.lanes.manage"), <Plus aria-hidden className="size-4" />)}
     {replacements.length > 0 && menu(replacements, t("canvas.interactions.replace"), <Settings2 aria-hidden className="size-4" />)}
     {remaining.length > 0 && menu(remaining, t("canvas.interactions.more"), <MoreHorizontal aria-hidden className="size-4" />)}
