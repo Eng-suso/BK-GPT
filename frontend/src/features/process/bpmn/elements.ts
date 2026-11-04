@@ -43,7 +43,7 @@ export function readCanvasElements(modeler: Pick<BpmnModeler, "get">): CanvasEle
   });
 }
 
-export type CreationTool = { id: string; title: string; className?: string; group?: string; separator?: boolean };
+export type CreationTool = { id: string; title: string; className?: string; group?: string; separator?: boolean; checked?:boolean };
 export type PaletteService = { getEntries: () => Record<string, Omit<CreationTool, "id">>; triggerEntry: (id: string, action: string, event: Event) => void };
 export function readCreationTools(modeler: BpmnModeler): CreationTool[] {
   const palette = modeler.get("palette") as PaletteService;

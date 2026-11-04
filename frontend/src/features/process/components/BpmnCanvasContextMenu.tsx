@@ -4,6 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import type { CreationTool } from "../bpmn/elements";
 import type { CanvasContextPoint } from "../bpmn/canvasInteractions";
 import { BpmnToolIcon } from "./BpmnToolIcon";
+import { BpmnTypeOptions } from "./BpmnTypeOptions";
 
 type Props = {
   point:CanvasContextPoint|null; host:RefObject<HTMLDivElement|null>; actions:CreationTool[];
@@ -24,14 +25,14 @@ export function BpmnCanvasContextMenu({point,host,actions,canUndo,canRedo,canSel
   const item=(action:CreationTool)=><DropdownMenuItem key={action.id} onSelect={()=>run(action.id)}><BpmnToolIcon id={action.id}/>{action.title}</DropdownMenuItem>;
   return <DropdownMenu open onOpenChange={open=>{if(!open)onClose();}} modal={false}>
     <DropdownMenuTrigger asChild><span aria-hidden="true" className="pointer-events-none fixed size-px opacity-0" style={{left:point.x,top:point.y}}/></DropdownMenuTrigger>
-    <DropdownMenuContent align="start" sideOffset={2} aria-label={t("canvas.interactions.selectionActions")} onCloseAutoFocus={event=>{event.preventDefault();host.current?.querySelector<SVGSVGElement>(".djs-container > svg")?.focus();}}>
+    <DropdownMenuContent tabIndex={0} align="start" sideOffset={2} aria-label={t("canvas.interactions.selectionActions")} onCloseAutoFocus={event=>{event.preventDefault();host.current?.querySelector<SVGSVGElement>(".djs-container > svg")?.focus();}}>
+      {replace.length>0&&<><BpmnTypeOptions actions={replace} onAction={id=>run(id)}/><DropdownMenuSeparator/></>}
       <DropdownMenuItem disabled={!canUndo} onSelect={()=>{onClose();onUndo();}}>{t("canvas.interactions.undo")}</DropdownMenuItem>
       <DropdownMenuItem disabled={!canRedo} onSelect={()=>{onClose();onRedo();}}>{t("canvas.interactions.redo")}</DropdownMenuItem>
       <DropdownMenuSeparator/>
       {actions.length ? <>
         {rest.map(item)}
         {append.length>0&&<DropdownMenuSub><DropdownMenuSubTrigger>{t("canvas.interactions.append")}</DropdownMenuSubTrigger><DropdownMenuSubContent>{append.map(item)}</DropdownMenuSubContent></DropdownMenuSub>}
-        {replace.length>0&&<DropdownMenuSub><DropdownMenuSubTrigger>{t("canvas.interactions.replace")}</DropdownMenuSubTrigger><DropdownMenuSubContent>{replace.map(item)}</DropdownMenuSubContent></DropdownMenuSub>}
         {actions.some(action=>action.id==="delete")&&<><DropdownMenuSeparator/><DropdownMenuItem className="text-destructive" onSelect={()=>run("delete")}><BpmnToolIcon id="delete"/>{actions.find(action=>action.id==="delete")!.title}</DropdownMenuItem></>}
       </> : <DropdownMenuItem onSelect={()=>{onClose();onCreate(mouseEvent());}}>{t("canvas.tools.create.task")}</DropdownMenuItem>}
       {i18n.exists("canvas.contextMenu.selectAll",{ns:"process"}) && <><DropdownMenuSeparator/>

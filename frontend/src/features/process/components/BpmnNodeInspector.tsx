@@ -26,7 +26,7 @@ export function BpmnNodeInspector({ element, onNameChange, onDocChange, onMetada
   const isContainer = element.type === "Participant" || element.type === "Lane";
   const isConnection = /Flow$|Association$/.test(element.type);
   const typeTool = bpmnTypeTool[element.type];
-  const typeName = typeTool ? t("canvas.tools." + typeTool) : element.type;
+  const typeName = typeTool === "create.task" ? t("canvas.legend.task") : typeTool ? t("canvas.tools." + typeTool) : element.type;
   const field = (name: Exclude<EnterpriseField, "required">, multiline = false) =>
     <label className="ui-editor-field" key={name}>
       <span>{t("properties.enterprise.fields." + name)}</span>

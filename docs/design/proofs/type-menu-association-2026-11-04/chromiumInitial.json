@@ -1,0 +1,52 @@
+{
+  "stats": {
+    "startTime": "2026-11-04T21:25:16.328Z",
+    "duration": 35511.68,
+    "expected": 4,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "name": "BPMN types show their own symbols directly on desktop",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 9332
+        }
+      ]
+    },
+    {
+      "name": "BPMN types show their own symbols directly on mobile",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 9636
+        }
+      ]
+    },
+    {
+      "name": "annotation associations stay visible inside a pool after movement and undo",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 6213
+        }
+      ]
+    },
+    {
+      "name": "right click opens working object actions while right drag only pans",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 8011
+        }
+      ]
+    }
+  ]
+}

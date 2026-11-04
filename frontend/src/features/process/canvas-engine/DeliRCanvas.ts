@@ -2,6 +2,7 @@ import Diagram from "diagram-js";
 import SelectionModule from "diagram-js/lib/features/selection";
 import { LaneCommand } from "./Lanes";
 import { DeleteSelectionCommand, deletionTargets } from "./DeleteSelection";
+import { ConnectionOrder } from "./ConnectionOrder";
 import { laneChildren, partitionResize, validPartitionResize, type Bounds } from "./Partitions";
 import { getMinResizeBounds } from "diagram-js/lib/features/resize/ResizeUtil";
 import { connectionRule, canStartConnection, flowScope } from "./connectionRules";
@@ -121,7 +122,7 @@ export class DeliRCanvas {
         this.editable = Boolean(options.editable);
         options.container.classList.add("delir-diagram");
         const editModules = this.editable ? [ModelingModule, MoveModule, CreateModule, ConnectModule, ConnectionPreviewModule, GlobalConnectModule, LassoModule, SpaceModule, ResizeModule, BendpointsModule, HoverFixModule, CopyPasteModule, KeyboardModule, EditorActionsModule] : [];
-        this.diagram = new Diagram({ canvas: { container: options.container, deferUpdate: false }, modules: [SelectionModule, OutlineModule, OverlaysModule, ...editModules, { __init__: ["delirRenderer", "delirOutline"], delirOutline: ["type", DeliROutline], delirRenderer: ["type", DeliRRenderer], resizeHandles: ["type", DeliRResizeHandles], layouter: ["type", OrthogonalLayout], connectionDocking: ["type", CroppingConnectionDocking] }] });
+        this.diagram = new Diagram({ canvas: { container: options.container, deferUpdate: false }, modules: [SelectionModule, OutlineModule, OverlaysModule, ...editModules, { __init__: ["delirRenderer", "delirOutline","delirConnectionOrder"], delirConnectionOrder:["type",ConnectionOrder], delirOutline: ["type", DeliROutline], delirRenderer: ["type", DeliRRenderer], resizeHandles: ["type", DeliRResizeHandles], layouter: ["type", OrthogonalLayout], connectionDocking: ["type", CroppingConnectionDocking] }] });
         const factory = this.diagram.get<Factory>("elementFactory"), original = factory.create.bind(factory);
         factory.create = (kind, attrs = {}) => {
             const type = String(attrs.type ?? (kind === "connection" ? "bpmn:SequenceFlow" : "bpmn:Task")), id = String(attrs.id ?? attrs.delirId ?? type.replace("bpmn:", "") + "_" + crypto.randomUUID().replaceAll("-", "").slice(0, 12));
@@ -456,7 +457,7 @@ export class DeliRCanvas {
             for (const [id, target] of targets)
                 if (family.test(target.type) && (!el.children?.some(child => !child.labelTarget) || target.type === el.type)) {
                     const action = "replace." + id;
-                    entries[action] = { id: action, title: i18n.t("process:canvas.tools." + id) };
+                    entries[action] = { id: action, title: i18n.t(id==="create.task" ? "process:canvas.legend.task" : "process:canvas.tools."+id),checked:target.type===el.type && (target.eventDefinitionType??"")===(el.businessObject.eventDefinitions?.[0]?.$type??"") };
                 }
         return entries;
     }
@@ -489,6 +490,7 @@ export class DeliRCanvas {
         }
         if (id.startsWith("replace.")) {
             const target = targets.get(id.slice(8));
+            if(target?.type===el.type && (target.eventDefinitionType??"")===(el.businessObject.eventDefinitions?.[0]?.$type??""))return;
             if (target)
                 modeling.updateProperties?.(el, { $type: target.type, eventDefinitions: target.eventDefinitionType ? [{ $type: target.eventDefinitionType }] : [] });
         }

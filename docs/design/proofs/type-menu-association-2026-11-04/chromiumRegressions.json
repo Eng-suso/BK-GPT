@@ -1,0 +1,72 @@
+{
+  "stats": {
+    "startTime": "2026-11-04T21:28:08.317Z",
+    "duration": 59457.892,
+    "expected": 6,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "name": "selection actions use the existing BPMN commands on desktop",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 11310
+        }
+      ]
+    },
+    {
+      "name": "selection actions use the existing BPMN commands on mobile",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 9443
+        }
+      ]
+    },
+    {
+      "name": "mouse tools keep selection, pan and node movement separate",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 10729
+        }
+      ]
+    },
+    {
+      "name": "connections follow BPMN pool and lane boundaries and lane removal preserves work",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 7551
+        }
+      ]
+    },
+    {
+      "name": "large diagrams keep connection gestures reversible across 500 activities",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 7848
+        }
+      ]
+    },
+    {
+      "name": "event type selection keeps distinct BPMN symbols and the original XML on undo",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 7477
+        }
+      ]
+    }
+  ]
+}
