@@ -2050,9 +2050,12 @@
       "undo": "Annulla modifica",
       "redo": "Ripeti modifica",
       "zoomMenu": "Zoom {{value}}%",
-      "multipleHint": "Seleziona un solo elemento per modificarne le proprietà. Le azioni disponibili si applicano alla selezione.",
+      "multipleHint": "Scegli un elemento per aprirne le proprietà.",
       "section": "Sezione proprietà",
-      "identity": "Identificativi tecnici"
+      "identity": "Identificativi tecnici",
+      "deleteSelection": "Elimina selezione",
+      "clearSelection": "Deseleziona tutto",
+      "connection": "Collegamento"
     },
     "context": {
       "delete": "Elimina elemento",

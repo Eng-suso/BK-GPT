@@ -202,7 +202,7 @@ export function SimulationLayout(): React.JSX.Element {
           }
         />
 
-        <div className="min-h-0 flex-1 p-2">
+        <div className="min-h-0 flex-1 p-[var(--layout-workspace-padding)]">
           <ReplaySession
             runId={runs.find((run) => run.id === activeRunId)?.status === "completed" ? activeRunId : null}
             enabled={true}

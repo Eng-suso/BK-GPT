@@ -2,10 +2,10 @@
    existing primitive scale in styles/tokens/semantic.css. */
 .process-review-workspace { position: relative; height: 100%; min-height: 0; min-width: 0; }
 .process-review-workspace [data-workspace-layer="body"] { position: relative; }
-.review-stage-content, .review-canvas-stage { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; border-radius: var(--material-radius-panel); }
+.review-stage-content, .review-canvas-stage { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; border-radius:var(--layout-workspace-radius); }
 .review-stage-content { display: flex; flex-direction: column; }
 .review-canvas-stage { flex: 1; }
-.review-canvas-stage { background: var(--color-surface-primary); border: var(--border-width-default) solid var(--color-border-subtle); }
+.review-canvas-stage { background:var(--color-surface-primary); border:0; }
 .review-canvas { position: absolute; inset: 0; }
 .review-canvas .djs-container { font-family: var(--font-family-geist); }
 .review-canvas .djs-label { font-family: var(--font-family-geist); fill: var(--color-text-primary); }

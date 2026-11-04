@@ -2050,9 +2050,12 @@
       "undo": "Undo change",
       "redo": "Redo change",
       "zoomMenu": "Zoom {{value}}%",
-      "multipleHint": "Select one element to edit its properties. Available actions apply to the selection.",
+      "multipleHint": "Choose an element to open its properties.",
       "section": "Property section",
-      "identity": "Technical identifiers"
+      "identity": "Technical identifiers",
+      "deleteSelection": "Delete selection",
+      "clearSelection": "Clear selection",
+      "connection": "Connection"
     },
     "context": {
       "delete": "Delete element",

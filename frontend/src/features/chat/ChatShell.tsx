@@ -338,7 +338,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
           </DialogContent>
         </Dialog>
 
-        <Surface asChild variant="panel"><section className="main">
+        <Surface asChild variant="workspace"><section className="main">
           <ChatHeader
             title={headerTitle}
             isDrawerOpen={isDrawerOpen}

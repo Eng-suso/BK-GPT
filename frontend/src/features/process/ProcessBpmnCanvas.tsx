@@ -16,6 +16,7 @@ import { Surface } from "@/ui/surface";
 import { WorkspaceDisclosure } from "@/components/layout/CanvasWorkspace";
 import { CanvasToolButton, CanvasToolGroup } from "@/components/canvas/CanvasTools";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/ui/dropdown-menu";
+import { BpmnSelectionSummary } from "./components/BpmnSelectionSummary";
 import { BpmnSelectionActions } from "./components/BpmnSelectionActions";
 import { BpmnCreationTools } from "./components/BpmnCreationTools";
 import { BpmnElementNavigator } from "./components/BpmnElementNavigator";
@@ -153,15 +154,15 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     onBaseVersionChange,
   });
 
-  const inspectorTitle = isEvidenceOpen ? t("canvas.evidence.title") : selectedElement ? t("canvas.inspectorLabel") : null;
+  const inspectorTitle = isEvidenceOpen ? t("canvas.evidence.title") : selectedElement && !canvasUi.isMultiple ? t("canvas.inspectorLabel") : null;
   React.useLayoutEffect(() => {
     onInspectorChange?.(!isPropertiesOpen && inspectorTitle ? { title: inspectorTitle, closeLabel: isEvidenceOpen ? t("canvas.evidence.close") : t("canvas.inspectorClose"), close: () => { setIsEvidenceOpen(false); clearSelection(); } } : null);
   }, [onInspectorChange, isPropertiesOpen, inspectorTitle, isEvidenceOpen, clearSelection, t]);
   React.useEffect(() => () => onInspectorChange?.(null), [onInspectorChange]);
-  const propertyContent = selectedElement ? canvasUi.selectionCount > 1 ? <div className="p-6"><h3 className="text-base font-semibold">{t("canvas.interactions.selectionCount", { count: canvasUi.selectionCount })}</h3><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t("canvas.interactions.multipleHint")}</p></div> : <BpmnNodeInspector key={selectedElement.id} embedded={Boolean(inspectorHost)} element={selectedElement} onNameChange={updateSelectedNodeName} onDocChange={updateSelectedNodeDoc} onMetadataChange={updateSelectedMetadata} onDelete={deleteSelectedElement} versions={versions} onAsk={onOpenDiscussion} onClose={clearSelection} /> : <p className="p-4 text-sm text-muted-foreground">{t("properties.vendor.noSelection")}</p>;
+  const propertyContent = selectedElement ? canvasUi.isMultiple ? <BpmnSelectionSummary items={canvasUi.selectionItems} onSelect={selectElement} /> : <BpmnNodeInspector key={selectedElement.id} embedded={Boolean(inspectorHost)} element={selectedElement} onNameChange={updateSelectedNodeName} onDocChange={updateSelectedNodeDoc} onMetadataChange={updateSelectedMetadata} onDelete={deleteSelectedElement} versions={versions} onAsk={onOpenDiscussion} onClose={clearSelection} /> : <p className="p-4 text-sm text-muted-foreground">{t("properties.vendor.noSelection")}</p>;
   const inspectorContent = !isPropertiesOpen && (processId && isEvidenceOpen ? (
     <EvidenceReviewPanel embedded={Boolean(inspectorHost)} processId={processId} bpmnModelId={bpmnModelId} hasUnsavedChanges={hasUnsavedChanges} onLocate={focusSourceRef} onClose={() => setIsEvidenceOpen(false)} />
-  ) : selectedElement ? (
+  ) : selectedElement && !canvasUi.isMultiple ? (
     propertyContent
   ) : null);
 
@@ -180,7 +181,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
       : t("canvas.saved");
 
   return (
-    <section ref={shellRef} className={`process-bpmn-shell ${coloursEnabled ? "process-bpmn--colours" : ""}`} aria-label="Canvas BPMN" onKeyDown={(event) => { if (event.key === "Escape" && elementsOpen) { event.preventDefault(); closeElements(); } }}>
+    <section ref={shellRef} data-multiple-selection={canvasUi.isMultiple} className={`process-bpmn-shell ${coloursEnabled ? "process-bpmn--colours" : ""}`} aria-label="Canvas BPMN" onKeyDown={(event) => { if (event.key === "Escape" && elementsOpen) { event.preventDefault(); closeElements(); } }}>
       <BpmnCanvasToolbar
         elements={{ isOpen: elementsOpen, onToggle: () => { setIsEvidenceOpen(false); setElementsOpen((prev) => !prev); } }}
         elementsButtonRef={elementsButtonRef}
@@ -259,7 +260,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             </div>
           )}
         </div>
-        <BpmnSelectionActions actions={canvasUi.contextActions} count={canvasUi.selectionCount} name={selectedElement?.name} onAction={(id, event) => {
+        <BpmnSelectionActions actions={canvasUi.contextActions} count={canvasUi.selectionCount} multiple={canvasUi.isMultiple} onClear={() => { clearSelection(); selectTool(); }} items={canvasUi.selectionItems} onSelect={selectElement} name={selectedElement?.name} onAction={(id, event) => {
           contextAction(id, event);
           if (id === "delete" || id.startsWith("append.")) requestAnimationFrame(() => containerRef.current?.querySelector<SVGSVGElement>(".djs-container > svg")?.focus());
         }} />

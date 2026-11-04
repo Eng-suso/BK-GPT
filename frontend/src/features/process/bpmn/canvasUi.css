@@ -1,5 +1,5 @@
 /* Canvas UI geometry. Shared materials and controls remain in the design system. */
-.process-bpmn-toolbar.ui-surface { margin:0; min-height:60px; border:0; border-bottom:1px solid var(--material-divider); border-radius:0; background:var(--material-toolbar); background-image:none; box-shadow:none; padding:8px 16px; }
+.process-bpmn-toolbar.ui-surface { margin:0; min-height:52px; border:0; border-bottom:1px solid var(--material-divider); border-radius:0; background:var(--material-toolbar); background-image:none; box-shadow:none; padding:4px 12px; }
 .process-bpmn-stage { grid-template-columns:72px minmax(0,1fr); }
 .process-bpmn-stage:has(.process-creation-tools--expanded) { grid-template-columns:288px minmax(0,1fr); }
 .process-canvas-toolbox:not(.process-creation-tools--expanded) { width:56px; margin:12px 8px; padding:4px; gap:4px; border-radius:var(--material-radius-control); background:var(--material-toolbar); box-shadow:var(--material-shadow); }
@@ -60,3 +60,11 @@
 .process-bpmn-canvas .djs-container[data-delir-cursor="pan"] :is(svg, .djs-element, .djs-hit) { cursor:grab !important; }
 .process-bpmn-canvas .djs-container[data-delir-cursor="panning"] :is(svg, .djs-element, .djs-hit) { cursor:grabbing !important; }
 .process-bpmn-canvas .djs-lasso-overlay { fill:var(--material-selected); stroke:var(--color-focus-ring); stroke-width:1px; stroke-dasharray:none; }
+
+/* Keep the group boundary clear without outlining every label and connector. */
+.process-bpmn-shell[data-multiple-selection="true"] .djs-element.selected .djs-outline { stroke-opacity:.35; stroke-width:1px; }
+.process-bpmn-shell[data-multiple-selection="true"] :is(.delir-selection-label,.delir-selection-container,.djs-connection).selected .djs-outline { display:none; }
+.process-bpmn-canvas .djs-selection-outline { stroke:var(--color-focus-ring); stroke-width:1.5px; }
+.process-selection-summary { display:flex; flex-direction:column; gap:12px; padding:16px; min-height:0; }
+.process-selection-summary ul { min-height:0; overflow:auto; }
+.process-selection-popover { width:min(340px,calc(100vw - 24px)); max-height:min(440px,60dvh); overflow:auto; padding:0; }

@@ -16,7 +16,12 @@ export function elementKind(type: string): ElementKind {
 export function readCanvasElements(modeler: Pick<BpmnModeler, "get">): CanvasElement[] {
   const registry = modeler.get("elementRegistry") as { getAll: () => RegistryShape[]; getGraphics?: (id: string) => SVGElement | undefined };
   const canvas = modeler.get("canvas") as { addMarker: (id: string, marker: string) => void; removeMarker: (id: string, marker: string) => void };
-  return registry.getAll().filter((el) => !el.labelTarget && el.type !== "label" && typeof el.x === "number").map((el) => {
+  const all = registry.getAll();
+  all.forEach(el => {
+    if (el.labelTarget || el.type === "label") canvas.addMarker(el.id, "delir-selection-label");
+    if (el.type === "bpmn:Lane" || el.type === "bpmn:Participant") canvas.addMarker(el.id, "delir-selection-container");
+  });
+  return all.filter((el) => !el.labelTarget && el.type !== "label" && typeof el.x === "number").map((el) => {
     const kind = elementKind(el.type);
     kinds.forEach((value) => canvas.removeMarker(el.id, `delir-type-${value}`));
     const customColour = ["bioc:fill", "bioc:stroke", "color:background-color", "color:border-color"].some((key) => el.di?.get?.(key) || el.di?.$attrs?.[key]);

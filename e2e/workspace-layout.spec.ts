@@ -762,7 +762,36 @@ test('selection rectangle selects objects without moving the camera', async ({pa
   await page.mouse.move(a.x-15,a.y-15);await page.mouse.down();await page.mouse.move(b.x+b.width+15,b.y+b.height+15,{steps:15});await page.mouse.up();
   await expect(first).toHaveClass(/selected/);await expect(second).toHaveClass(/selected/);await expect(viewport).toHaveAttribute('transform',camera!);
   await expect(page.locator('.process-enterprise-properties')).toHaveCount(0);
-  await expect(page.getByText('Seleziona un solo elemento per modificarne le proprietà. Le azioni disponibili si applicano alla selezione.',{exact:true})).toBeVisible();
+  await expect(page.locator('.ui-workspace-inspector')).toBeHidden();
+  const selected = page.getByRole('button',{name:/elementi selezionati/});
+  await expect(selected).toBeVisible();
+  await expect(page.getByRole('button',{name:'Elimina selezione',exact:true})).toBeVisible();
+  await selected.click();
+  await expect(page.getByText('Scegli un elemento per aprirne le proprietà.',{exact:true})).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(first).toHaveClass(/selected/);
+  await page.getByRole('button',{name:'Elimina selezione',exact:true}).click();
+  await expect(first).toHaveCount(0);await expect(second).toHaveCount(0);
+  await page.getByRole('button',{name:'Annulla modifica',exact:true}).click();
+  await expect(first).toBeVisible();await expect(second).toBeVisible();
+});
+
+test('selection list opens one element and clearing returns keyboard focus to the canvas', async ({page}) => {
+  await page.setViewportSize({width:1600,height:1000}); await page.goto(canvasView);
+  const canvas = page.locator('.process-bpmn-canvas'), svg = canvas.locator('.djs-container > svg');
+  await canvas.locator('[data-element-id="Task_1"]').first().waitFor();
+  await svg.focus(); await page.keyboard.press('Control+a');
+  await page.getByRole('button',{name:'35 elementi selezionati',exact:true}).click();
+  const list = page.getByRole('dialog',{name:'35 elementi selezionati',exact:true});
+  await expect(list.getByRole('button')).toHaveCount(35);
+  await list.getByRole('button',{name:/^Attività 1:.*Attività utente$/}).click();
+  await expect(page.getByRole('textbox',{name:'Nome',exact:true})).toBeVisible();
+  await expect(canvas.locator('[data-element-id="Task_2"]').first()).not.toHaveClass(/selected/);
+  await page.getByRole('button',{name:'Chiudi ispettore',exact:true}).click();
+  await svg.focus(); await page.keyboard.press('Control+a');
+  await page.getByRole('button',{name:'Deseleziona tutto',exact:true}).click();
+  await expect(canvas.locator('.djs-element.selected')).toHaveCount(0);
+  await expect(svg).toBeFocused();
 });
 
 test('mouse and trackpad wheel modes preserve the pointer anchor and model',async({page})=>{

@@ -316,7 +316,7 @@
   background-color: var(--color-surface-primary);
   background-image: radial-gradient(
     circle,
-    color-mix(in oklab, var(--color-text-muted) 22%, transparent) 1px,
+    var(--canvas-grid-color) 1px,
     transparent 1px
   );
   background-size: 22px 22px;

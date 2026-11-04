@@ -58,8 +58,8 @@
   width: 100%;
   height: 100%;
   background: transparent;
-  padding: 12px;
-  gap: var(--layout-history-gap);
+  padding:var(--layout-workspace-padding);
+  gap:var(--layout-history-gap);
 }
 
 .viewport-embedded .chat-shell-embedded { grid-template-columns: minmax(0, 1fr); }
@@ -2227,4 +2227,4 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
 .bpmn-review-editor textarea { min-height: 360px; resize: vertical; font-family: var(--font-family-geist-mono); line-height: 1.6; }
 @media (max-width: 540px) { .bpmn-review-overview-hero { padding: var(--space-400); } .bpmn-review-sheet-nav [data-slot="tabs-trigger"] { min-height: 40px; } }
 
-@media (max-width: 767px) { .viewport-embedded .shell { padding: 6px; gap: 8px; } .viewport { --chat-gutter: 16px; } .viewport .messages { padding-block: 24px; } }
+@media (max-width: 767px) { .viewport-embedded .shell { padding:var(--layout-workspace-padding); gap:var(--layout-history-gap); } .viewport { --chat-gutter: 16px; } .viewport .messages { padding-block: 24px; } }
