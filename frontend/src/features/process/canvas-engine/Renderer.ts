@@ -108,7 +108,10 @@ export class DeliRRenderer {
         }
         else if (/Participant|Lane/.test(t)) {
             body = node("rect", { width: w, height: h, ...common, "stroke-width": 1 }, gfx);
-            node("path", { d: "M30 0V" + h, stroke, "stroke-width": 1 }, gfx);
+            // The participant has a separate title band. A leaf lane label is
+            // inside its partition, without another separating vertical line
+            // (BPMN 2.0.2 §10.8). Nested lane borders provide their own divider.
+            if(t === "bpmn:Participant")node("path", { d: "M30 0V" + h, stroke, "stroke-width": 1 }, gfx);
             const label = text(gfx, el.businessObject.name ?? "", 0, 0, Math.max(100, h - 24), 13);
             label.setAttribute("transform", "translate(19," + h / 2 + ") rotate(-90)");
             return body;

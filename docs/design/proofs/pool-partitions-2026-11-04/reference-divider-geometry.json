@@ -1,0 +1,67 @@
+{
+  "actor": "Playwright",
+  "before": [
+    {
+      "id": "PoolA",
+      "transform": "matrix(1 0 0 1 100 100)",
+      "width": "890",
+      "height": "610"
+    },
+    {
+      "id": "Lane_e590bf165474",
+      "transform": "matrix(1 0 0 1 130 500)",
+      "width": "860",
+      "height": "210"
+    },
+    {
+      "id": "LaneB",
+      "transform": "matrix(1 0 0 1 130 300)",
+      "width": "860",
+      "height": "200"
+    },
+    {
+      "id": "LaneA",
+      "transform": "matrix(1 0 0 1 130 100)",
+      "width": "860",
+      "height": "200"
+    },
+    {
+      "id": "PoolB",
+      "transform": "matrix(1 0 0 1 100 794)",
+      "width": "800",
+      "height": "220"
+    }
+  ],
+  "after": [
+    {
+      "id": "PoolA",
+      "transform": "matrix(1 0 0 1 100 100)",
+      "width": "890",
+      "height": "610"
+    },
+    {
+      "id": "Lane_e590bf165474",
+      "transform": "matrix(1 0 0 1 130 500)",
+      "width": "860",
+      "height": "210"
+    },
+    {
+      "id": "LaneB",
+      "transform": "matrix(1 0 0 1 130 350)",
+      "width": "860",
+      "height": "150"
+    },
+    {
+      "id": "LaneA",
+      "transform": "matrix(1 0 0 1 130 100)",
+      "width": "860",
+      "height": "250"
+    },
+    {
+      "id": "PoolB",
+      "transform": "matrix(1 0 0 1 100 794)",
+      "width": "800",
+      "height": "220"
+    }
+  ]
+}

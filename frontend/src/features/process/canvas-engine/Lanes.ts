@@ -1,4 +1,5 @@
 import type { CanvasElement, Factory, Point, Registry } from "./types";
+import { partitionResize } from "./Partitions";
 
 type Modeling = {
   createShape:(shape:CanvasElement,position:Point,parent:CanvasElement,hints?:Record<string,unknown>)=>CanvasElement;
@@ -27,10 +28,14 @@ export class LaneCommand {
       x:Math.min(...envelope.map(lane=>lane.x)),y:Math.min(...envelope.map(lane=>lane.y)),
       width:Math.max(...envelope.map(lane=>lane.x+lane.width))-Math.min(...envelope.map(lane=>lane.x)),
       height:Math.max(...envelope.map(lane=>lane.y+lane.height))-Math.min(...envelope.map(lane=>lane.y)),
-    } : parent;
+    } : {x:parent.x,y:parent.y,width:parent.width,height:parent.height};
     const inset = rootLanes ? 0 : 30;
     const box = (shape:CanvasElement,overrides:Partial<CanvasElement>) => this.modeling.resizeShape(shape,{x:shape.x,y:shape.y,width:shape.width,height:shape.height,...overrides},undefined,{delirLanes:true});
     const move = (shape:CanvasElement,delta:Point,target?:CanvasElement) => this.modeling.moveShape(shape,delta,target,undefined,{delirLanes:true});
+    if(lanes.length && !rootLanes)for(const [shape,next] of partitionResize(parent,bounds,parent,adopted)) {
+      if(shape===adopted)continue;
+      if(shape.x!==next.x||shape.y!==next.y||shape.width!==next.width||shape.height!==next.height)box(shape,next);
+    }
     const newLane = (y:number,height:number) => {
       const shape=this.factory.createShape({type:"bpmn:Lane",width:bounds.width-inset,height});
       return this.modeling.createShape(shape,{x:bounds.x+inset+shape.width/2,y:y+height/2},parent,{delirLanes:true});

@@ -29,7 +29,7 @@ export function readCanvasElements(modeler: Pick<BpmnModeler, "get">): CanvasEle
     if (el.type === "bpmn:Lane" || el.type === "bpmn:Participant") {
       const visual = registry.getGraphics?.(el.id)?.querySelector(".djs-visual");
       visual?.querySelector(".delir-role-band")?.remove();
-      if (!customColour && visual && el.height) {
+      if (!customColour && visual && el.height && el.type === "bpmn:Participant") {
         const band = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         band.setAttribute("class", "delir-role-band");
         band.setAttribute("width", "30");

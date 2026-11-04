@@ -1,6 +1,8 @@
 import Diagram from "diagram-js";
 import SelectionModule from "diagram-js/lib/features/selection";
 import { LaneCommand } from "./Lanes";
+import { laneChildren, partitionResize, validPartitionResize, type Bounds } from "./Partitions";
+import { getMinResizeBounds } from "diagram-js/lib/features/resize/ResizeUtil";
 import { connectionRule, canStartConnection, flowScope } from "./connectionRules";
 import { DeliROutline } from "./Outline";
 import OutlineModule from "diagram-js/lib/features/outline";
@@ -213,6 +215,36 @@ export class DeliRCanvas {
             if(connection.source && connection.target && connection.waypoints?.length) connection.waypoints=docking.getCroppedWaypoints(connection);
         });
         commands.registerHandler("delir.lanes", LaneCommand);
+        // Generic diagram-js resizing knows nothing about BPMN partitions.
+        // Keep this relationship in reversible modeling commands, never CSS.
+        type PartitionContext={shape:CanvasElement;newBounds:Bounds;hints?:Record<string,unknown>;delirPartitionPlan?:Map<CanvasElement,Bounds>};
+        const partitionShape=(shape:CanvasElement)=>shape.type === "bpmn:Lane" || laneChildren(shape).length>0;
+        bus.on("commandStack.shape.resize.preExecute",2000,value=>{
+            const context=(value as {context:PartitionContext}).context;
+            if(partitionShape(context.shape)&&!context.hints?.delirLanes)context.delirPartitionPlan=partitionResize(context.shape,context.newBounds);
+        });
+        bus.on("commandStack.shape.resize.postExecuted",2000,value=>{
+            const {delirPartitionPlan}=(value as {context:PartitionContext}).context;
+            const resizeModeling=this.diagram.get<{resizeShape:(shape:CanvasElement,bounds:Bounds,min?:unknown,hints?:Record<string,unknown>)=>void}>("modeling");
+            for(const [element,box] of delirPartitionPlan ?? [])if(element.x!==box.x||element.y!==box.y||element.width!==box.width||element.height!==box.height)resizeModeling.resizeShape(element,box,undefined,{delirLanes:true});
+        });
+        bus.on("resize.start",1500,value=>{
+            const context=(value as {context:{shape:CanvasElement;direction:string;minBounds?:Bounds}}).context;
+            if(!partitionShape(context.shape))return;
+            const work:CanvasElement[]=[];
+            const collect=(owner:CanvasElement)=>{for(const child of owner.children??[])if(child.type === "bpmn:Lane")collect(child);else if(!child.waypoints){work.push(child);for(const label of child.children??[])if(label.labelTarget)work.push(label);}};
+            collect(context.shape);
+            const content=work.length ? {x:Math.min(...work.map(child=>child.x))-8,y:Math.min(...work.map(child=>child.y))-8,width:Math.max(...work.map(child=>child.x+child.width))-Math.min(...work.map(child=>child.x))+16,height:Math.max(...work.map(child=>child.y+child.height))-Math.min(...work.map(child=>child.y))+16} : undefined;
+            context.minBounds=getMinResizeBounds(context.direction,context.shape,{width:100,height:Math.max(1,laneChildren(context.shape).length)*60},content);
+        });
+        bus.on("shape.move.start",1400,value=>{
+            const context=(value as {context:{shape:CanvasElement;shapes:CanvasElement[];validatedShapes:CanvasElement[]}}).context;
+            if(context.shape.type!=="bpmn:Lane")return;
+            let owner=context.shape;
+            while(owner.parent?.type === "bpmn:Lane" || owner.parent?.type === "bpmn:Participant")owner=owner.parent;
+            context.shapes=context.validatedShapes=owner.type === "bpmn:Lane" && owner.parent ? laneChildren(owner.parent) : [owner];
+            context.shape=owner;
+        });
         bus.on("commandStack.element.copy.canExecute", 2000, () => true);
         bus.on("commandStack.connection.start.canExecute", 2000, value => {
             const source = (value as { context: { source?: CanvasElement } }).context.source;
@@ -250,7 +282,10 @@ export class DeliRCanvas {
                 };
             };
         }).context; if (shape.labelTarget || !/Participant$|Lane$|SubProcess$|Group$|TextAnnotation$/.test(shape.type))
-            return false; return !newBounds || newBounds.width >= 100 && newBounds.height >= 60; });
+            return false;
+            if((event as {context:{hints?:{delirLanes?:boolean}}}).context.hints?.delirLanes)return true;
+            if(newBounds && partitionShape(shape))return validPartitionResize(partitionResize(shape,newBounds as Bounds));
+            return !newBounds || newBounds.width >= 100 && newBounds.height >= 60; });
         bus.on("commandStack.elements.move.canExecute", 2000, event => { const { target, shapes } = (event as {
             context: {
                 target?: CanvasElement;
@@ -299,9 +334,14 @@ export class DeliRCanvas {
                 target?: CanvasElement;
             };
         }).context; const shape = (event as {context:{shape?:CanvasElement}}).context.shape;
-            if(shape?.type === "bpmn:Lane") return target?.type === "bpmn:Participant" || target?.type === "bpmn:Process";
+            if(shape?.type === "bpmn:Lane") return target?.type === "bpmn:Participant" || target?.type === "bpmn:Lane" || target?.type === "bpmn:Process" && laneChildren(target).length>0;
             if(shape?.type === "bpmn:Participant") return target?.type === "bpmn:Process" || target?.type === "bpmn:Collaboration";
             return target && /Process$|Collaboration$|Participant$|Lane$|SubProcess$/.test(target.type) ? true : false; });
+        bus.on("commandStack.shape.create.preExecute",2000,event=>{
+            const context=(event as {context:{shape:CanvasElement;parent:CanvasElement}}).context;
+            // Dropping on a lane inserts a sibling in its owning partition set.
+            if(context.shape.type === "bpmn:Lane" && context.parent?.type === "bpmn:Lane")context.parent=context.parent.parent!;
+        });
         bus.on("commandStack.shape.create.postExecuted",2000,event=>{
             const {shape,parent,hints}=(event as {context:{shape:CanvasElement;parent:CanvasElement;hints?:Record<string,unknown>}}).context;
             if(shape.type === "bpmn:Lane" && (parent?.type === "bpmn:Participant" || parent?.type === "bpmn:Process") && !hints?.delirLanes) commands.execute("delir.lanes",{element:parent,action:"adopt",lane:shape});

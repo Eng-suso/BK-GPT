@@ -1064,6 +1064,49 @@ test("lanes without a participant support direct insertion, removal and exact un
 });
 
 
+test("palette lanes partition their pool even when dropped over an existing lane",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source='<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="urn:pool-palette"><bpmn:process id="Process"/></bpmn:definitions>';let saved=source;
+  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Pool creation",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");await page.getByRole("button",{name:"Apri libreria BPMN",exact:true}).click();const library=page.getByRole("navigation",{name:"Strumenti BPMN"});
+  const area=(await canvas.boundingBox())!;await library.getByRole("button",{name:/^Lane(?: \/ corsia)?$/}).first().click();await page.mouse.move(area.x+area.width*.55,area.y+area.height*.20,{steps:10});await page.mouse.click(area.x+area.width*.55,area.y+area.height*.20);await page.keyboard.press("Escape");await expect(canvas.locator('.djs-shape[data-delir-type="bpmn:Lane"]')).toHaveCount(0);await library.getByRole("button",{name:"Pool o partecipante",exact:true}).first().click();await page.mouse.click(area.x+area.width*.55,area.y+area.height*.20);
+  const pool=canvas.locator('.djs-shape[data-delir-type="bpmn:Participant"]').first();await expect(pool).toBeVisible();
+  for(const count of [1,2,3]){
+    await library.getByRole("button",{name:/^Lane(?: \/ corsia)?$/}).first().click();const target=count===1?pool:canvas.locator('.djs-shape[data-delir-type="bpmn:Lane"]').last(),box=(await target.locator('.djs-visual > rect').first().boundingBox())!;await page.mouse.click(box.x+box.width*.6,box.y+box.height*.5);await expect(canvas.locator('.djs-shape[data-delir-type="bpmn:Lane"]')).toHaveCount(count);
+    const g=await canvas.evaluate(host=>{const geometry=(el:Element)=>{const rect=el.querySelector('.djs-visual > rect')!,m=(el as SVGGraphicsElement).transform.baseVal.consolidate()!.matrix;return{x:m.e,y:m.f,width:Number(rect.getAttribute('width')),height:Number(rect.getAttribute('height'))};};return{pool:geometry(host.querySelector('.djs-shape[data-delir-type="bpmn:Participant"]')!),lanes:Array.from(host.querySelectorAll('.djs-shape[data-delir-type="bpmn:Lane"]')).map(geometry).sort((a,b)=>a.y-b.y)};});expect(g.lanes[0].y).toBe(g.pool.y);expect(g.lanes.at(-1)!.y+g.lanes.at(-1)!.height).toBe(g.pool.y+g.pool.height);for(let i=0;i<count;i++){expect(g.lanes[i].x).toBe(g.pool.x+30);expect(g.lanes[i].width).toBe(g.pool.width-30);if(i)expect(g.lanes[i].y).toBe(g.lanes[i-1].y+g.lanes[i-1].height);}
+  }
+  await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();await page.screenshot({path:info.outputPath("palette-pool-partitions.png")});await page.getByRole("button",{name:"Salva",exact:true}).click();await info.attach("palette-pool-partitions.xml",{body:Buffer.from(saved),contentType:"application/xml"});
+  const semantics=await page.evaluate(xml=>{const doc=new DOMParser().parseFromString(xml,"application/xml"),pool=doc.getElementsByTagNameNS("*","participant")[0],process=doc.getElementById(pool.getAttribute("processRef")!);return{poolCount:doc.getElementsByTagNameNS("*","participant").length,laneCount:process?.getElementsByTagNameNS("*","lane").length};},saved);expect(semantics).toEqual({poolCount:1,laneCount:3});expect(errors).toEqual([]);
+});
+
+test("pool edges and lane dividers remain one continuous partition during resize and movement",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8");let saved=source;
+  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Pool partitions",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");
+  const node=(id:string)=>canvas.locator('.djs-shape[data-element-id="'+id+'"]').first();
+  const geometry=()=>canvas.locator('.djs-shape').evaluateAll(els=>Object.fromEntries(els.map(el=>{
+    const rect=el.querySelector('.djs-visual > rect'),matrix=(el as SVGGraphicsElement).transform.baseVal.consolidate()?.matrix;
+    return[el.getAttribute('data-element-id'),{x:matrix?.e??0,y:matrix?.f??0,width:Number(rect?.getAttribute('width')),height:Number(rect?.getAttribute('height'))}];})));
+  const fit=async()=>{await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));};
+  const continuous=async()=>{const g=await geometry(),pool=g.PoolA;const lanes=Object.entries(g).filter(([id])=>id.startsWith("Lane")).map(([,box])=>box).sort((a,b)=>a.y-b.y);expect(lanes[0].y).toBe(pool.y);expect(lanes.at(-1)!.y+lanes.at(-1)!.height).toBe(pool.y+pool.height);for(let i=0;i<lanes.length;i++){expect(lanes[i].x).toBe(pool.x+30);expect(lanes[i].width).toBe(pool.width-30);if(i)expect(lanes[i].y).toBe(lanes[i-1].y+lanes[i-1].height);}};
+  const dragHandle=async(id:string,direction:string,dx:number,dy:number)=>{const body=(await node(id).locator(".djs-visual > rect").first().boundingBox())!;await page.mouse.click(body.x+8,body.y+40);await expect(node(id)).toHaveClass(/selected/);const box=(await canvas.locator('.delir-resizer.djs-resizer-'+direction+'[data-resize-element="'+id+'"] .djs-resizer-hit').boundingBox())!;await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+dx,box.y+box.height/2+dy,{steps:16});await page.mouse.up();};
+  await expect(node("PoolA")).toBeVisible();await fit();const initial=await geometry();
+  for(const [direction,dx,dy] of [["se",70,45],["nw",-35,-25]] as const){
+    await dragHandle("PoolA",direction,dx,dy);await continuous();const g=await geometry();expect(g.PoolA.width).toBeGreaterThan(initial.PoolA.width+20);expect(g.PoolA.height).toBeGreaterThan(initial.PoolA.height+15);
+    await page.screenshot({path:info.outputPath("pool-resize-"+direction+".png")});await page.getByRole("button",{name:"Salva",exact:true}).click();await info.attach("pool-resize-"+direction+".xml",{body:Buffer.from(saved),contentType:"application/xml"});
+    await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);await fit();
+  }
+  await dragHandle("LaneA","s",0,20);await continuous();const divided=await geometry();expect(divided.PoolA).toEqual(initial.PoolA);expect(divided.LaneA.height).toBeGreaterThan(initial.LaneA.height);expect(divided.LaneB.y).toBeGreaterThan(initial.LaneB.y);expect(divided.LaneB.y+divided.LaneB.height).toBe(initial.LaneB.y+initial.LaneB.height);
+  await page.screenshot({path:info.outputPath("lane-divider.png")});await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();
+  const header=(await node("LaneB").locator(".djs-visual > rect").first().boundingBox())!;await page.mouse.move(header.x+8,header.y+40);await page.mouse.down();await page.mouse.move(header.x+48,header.y+75,{steps:15});await page.mouse.up();
+  await continuous();const moved=await geometry(),dx=moved.PoolA.x-initial.PoolA.x,dy=moved.PoolA.y-initial.PoolA.y;expect(Math.abs(dx)+Math.abs(dy)).toBeGreaterThan(10);for(const id of ["LaneA","LaneB","TaskA","TaskB"]){expect(moved[id].x-initial[id].x).toBe(dx);expect(moved[id].y-initial[id].y).toBe(dy);}
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();expect(await geometry()).toEqual(initial);expect(errors).toEqual([]);
+  await fit();await page.screenshot({path:info.outputPath("pool-partitions-desktop.png")});await page.setViewportSize({width:390,height:844});await fit();await page.screenshot({path:info.outputPath("pool-partitions-mobile.png")});expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)).toBe(false);const scan=await new AxeBuilder({page}).include("main").withTags(["wcag2a","wcag2aa","wcag22aa"]).analyze();expect(scan.violations).toEqual([]);
+});
+
 test("right click opens working object actions while right drag only pans",async({page},info)=>{
   await page.setViewportSize({width:1600,height:1000});await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),task=canvas.locator('.djs-shape[data-element-id="Task_1"]').first(),viewport=canvas.locator("g.viewport").first();await expect(task).toBeVisible();
   await task.click({button:"right"});const menu=page.getByRole("menu",{name:"Azioni della selezione"});await expect(menu).toBeVisible();await expect(task).toHaveClass(/selected/);await page.screenshot({path:info.outputPath("right-click-object.png")});
