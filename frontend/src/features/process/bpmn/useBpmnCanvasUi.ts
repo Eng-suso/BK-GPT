@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { BpmnModeler } from "./types";
-import { bindCanvasInteractions, type CanvasNavigationMode } from "./canvasInteractions";
+import { bindCanvasInteractions, type CanvasNavigationMode, type CanvasContextPoint } from "./canvasInteractions";
 import type { CreationTool } from "./elements";
 
 export type SelectionItem = { id: string; name: string; type: string };
@@ -15,6 +15,7 @@ const toolIds: Record<string, string> = { hand: "hand-tool", lasso: "lasso-tool"
 /** Observes presentation state and forwards existing modeler commands. No XML conversion. */
 export function useBpmnCanvasUi(modelerRef: RefObject<BpmnModeler | null>, ready: boolean) {
   const [state, setState] = useState(initial);
+  const [contextMenu,setContextMenu]=useState<CanvasContextPoint|null>(null);
   const interactions = useRef<ReturnType<typeof bindCanvasInteractions> | null>(null);
   const requestedTool = useRef("select");
   useEffect(() => {
@@ -41,7 +42,7 @@ export function useBpmnCanvasUi(modelerRef: RefObject<BpmnModeler | null>, ready
       const next: UiState = { geometryKey, connectionSourceId:connection?.start?.id ?? null, connectionTargetState:connection?.hover ? connection.canExecute ? "valid" : "invalid" : null, navigationMode: interactions.current?.navigationMode ?? "mouse", zoomPercent: Math.round((modeler.get("canvas") as { zoom: () => number }).zoom() * 100), activeTool: interactions.current?.isPanning ? "hand-tool" : drag?.prefix === "create" ? requestedTool.current : tool ? toolIds[tool] ?? tool : "select", canUndo: commands.canUndo(), canRedo: commands.canRedo(), selectionCount: items.length, isMultiple: selection.length > 1, selectionItems: items, contextActions: (interactions.current?.isPanning || drag?.active ? [] : Object.entries(entries)).map(([id, entry]) => ({ id, title: entry.title, className: entry.className, group: entry.group })) };
       setState(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
     };
-    const controls = bindCanvasInteractions(modeler, refresh);
+    const controls = bindCanvasInteractions(modeler, refresh, setContextMenu);
     interactions.current = controls;
     bus.on(events, refresh);
     refresh();
@@ -57,5 +58,6 @@ export function useBpmnCanvasUi(modelerRef: RefObject<BpmnModeler | null>, ready
   const undo = useCallback(() => { (modelerRef.current?.get("commandStack") as Commands | undefined)?.undo(); interactions.current?.focus(); }, [modelerRef]);
   const redo = useCallback(() => { (modelerRef.current?.get("commandStack") as Commands | undefined)?.redo(); interactions.current?.focus(); }, [modelerRef]);
   const zoomTo = useCallback((percent: number) => (modelerRef.current?.get("canvas") as { zoom: (scale: number) => void } | undefined)?.zoom(Math.min(4, Math.max(.2, percent / 100))), [modelerRef]);
-  return { canvasUi: ready ? state : initial, selectTool, panTool, prepareTool, setNavigationMode, contextAction, undo, redo, zoomTo };
+  const closeContextMenu=useCallback(()=>setContextMenu(null),[]);
+  return { contextMenu,closeContextMenu,canvasUi: ready ? state : initial, selectTool, panTool, prepareTool, setNavigationMode, contextAction, undo, redo, zoomTo };
 }

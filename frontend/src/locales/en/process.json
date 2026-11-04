@@ -2098,6 +2098,8 @@
       "split-3": "Split into three lanes",
       "remove": "Remove lane, keep activities"
     },
+    "contextMenu": {"title": "Canvas menu", "selectAll": "Select all"},
+    "resizeHint": "Drag to resize",
     "connectGesture": {
       "actionHint": "Connect: drag to a target, or click and choose an element",
       "choose": "Choose a target element · Esc cancels",

@@ -15,6 +15,7 @@ import { WorkspaceDisclosure } from "@/components/layout/CanvasWorkspace";
 import { CanvasToolButton, CanvasToolGroup } from "@/components/canvas/CanvasTools";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/ui/dropdown-menu";
 import { BpmnSelectionSummary } from "./components/BpmnSelectionSummary";
+import { BpmnCanvasContextMenu } from "./components/BpmnCanvasContextMenu";
 import { BpmnSelectionActions } from "./components/BpmnSelectionActions";
 import { BpmnCreationTools } from "./components/BpmnCreationTools";
 import { BpmnElementNavigator } from "./components/BpmnElementNavigator";
@@ -147,7 +148,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     zoomFit,
     zoomReadable,
     focusSourceRef,
-    canvasUi, selectTool, panTool, prepareTool, setNavigationMode, contextAction, undo, redo, zoomTo,
+    canvasUi, contextMenu,closeContextMenu,selectTool, panTool, prepareTool, setNavigationMode, contextAction, undo, redo, zoomTo,
   } = useBpmnCanvas({
     bpmnModelId,
     processName,
@@ -230,7 +231,12 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         <div className="process-bpmn-stage">
         <BpmnCreationTools tools={creationTools} isReady={isReady} onActivate={(id, action, event) => { if (id === "hand-tool") panTool(); else { prepareTool(id); activateTool(id, action, event); } }} activeTool={canvasUi.activeTool} onSelectTool={selectTool} />
         <div className={`process-bpmn-canvas ${coloursEnabled ? "delir-canvas--colours" : ""}`} ref={containerRef}>
-          <BpmnConnectionControl host={containerRef} geometryKey={canvasUi.geometryKey} selectedId={canvasUi.selectionCount === 1 ? canvasUi.selectionItems[0]?.id : undefined} enabled={canvasUi.contextActions.some(action=>action.id === "connect")} connecting={Boolean(canvasUi.connectionSourceId)} targetState={canvasUi.connectionTargetState} onAction={contextAction} onCancel={selectTool} />
+          <BpmnConnectionControl host={containerRef} geometryKey={canvasUi.geometryKey} selectedId={canvasUi.selectionCount === 1 ? canvasUi.selectionItems[0]?.id : undefined} enabled={!contextMenu && canvasUi.contextActions.some(action=>action.id === "connect")} connecting={Boolean(canvasUi.connectionSourceId)} targetState={canvasUi.connectionTargetState} onAction={contextAction} onCancel={selectTool} />
+          <BpmnSelectionActions host={containerRef} geometryKey={canvasUi.geometryKey} actions={contextMenu ? [] : canvasUi.contextActions} count={canvasUi.selectionCount} multiple={canvasUi.isMultiple} onClear={() => { clearSelection(); selectTool(); }} items={canvasUi.selectionItems} onSelect={selectElement} name={selectedElement?.name} onAction={(id,event) => {
+            contextAction(id,event);
+            if(id === "delete" || id.startsWith("append.")) requestAnimationFrame(()=>containerRef.current?.querySelector<SVGSVGElement>(".djs-container > svg")?.focus());
+          }}/>
+          <BpmnCanvasContextMenu point={contextMenu} host={containerRef} actions={canvasUi.contextActions} canUndo={canvasUi.canUndo} canRedo={canvasUi.canRedo} canSelectAll={!isEmptyModel} onClose={closeContextMenu} onUndo={undo} onRedo={redo} onAction={contextAction} onCreate={event=>{prepareTool("create.task");activateTool("create.task","click",event);}}/>
           {/* Un processo appena creato non ha un modello: prima il canvas
               apriva su un diagramma finto che nessuno aveva descritto. Qui la
               tela resta vuota e dice da dove si parte — la libreria DeliR
@@ -263,10 +269,6 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           )}
         </div>
         {renameTarget && <BpmnInlineRename key={renameTarget.id} target={renameTarget} host={containerRef} onCommit={commitRename} onCancel={cancelRename} onDone={selectTool} onSave={save} />}
-        <BpmnSelectionActions actions={canvasUi.contextActions} count={canvasUi.selectionCount} multiple={canvasUi.isMultiple} onClear={() => { clearSelection(); selectTool(); }} items={canvasUi.selectionItems} onSelect={selectElement} name={selectedElement?.name} onAction={(id, event) => {
-          contextAction(id, event);
-          if (id === "delete" || id.startsWith("append.")) requestAnimationFrame(() => containerRef.current?.querySelector<SVGSVGElement>(".djs-container > svg")?.focus());
-        }} />
         <CanvasToolGroup label={t("canvas.interactions.history")} className="process-canvas-history">
           <CanvasToolButton label={t("canvas.interactions.undo")} disabled={!isReady || !canvasUi.canUndo} onClick={undo}><Undo2 aria-hidden /></CanvasToolButton>
           <CanvasToolButton label={t("canvas.interactions.redo")} disabled={!isReady || !canvasUi.canRedo} onClick={redo}><Redo2 aria-hidden /></CanvasToolButton>

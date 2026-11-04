@@ -49,12 +49,11 @@ export function BpmnNodeInspector({ element, onNameChange, onDocChange, onMetada
       <EditorBody>
         <div className="grid gap-5">
           {section === "details" && <>
-            {isContainer && <p className="text-sm leading-relaxed text-muted-foreground">{t(element.type === "Participant" ? "canvas.connectGesture.poolHint" : "canvas.connectGesture.laneHint")}</p>}
             <label className="ui-editor-field"><span>{t("properties.enterprise.name")}</span><Input value={element.name} onChange={event => onNameChange(event.target.value)} /></label>
             {!isContainer && !isConnection && <>{field("owner")}{field("office")}</>}
             <label className="ui-editor-field"><span>{t("properties.enterprise.description")}</span><Textarea rows={4} value={element.documentation} onChange={event => onDocChange(event.target.value)} /></label>
             {!isContainer && !isConnection && <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" className="size-4 shrink-0 accent-primary" checked={element.metadata.required} onChange={event => onMetadataChange({ required: event.target.checked })} />{t("properties.enterprise.required")}</label>}
-            <p className="text-xs leading-relaxed text-muted-foreground">{t("properties.enterprise.saveHint")}</p>
+            {!isContainer && !isConnection && <p className="text-xs leading-relaxed text-muted-foreground">{t("properties.enterprise.saveHint")}</p>}
             <details className="process-properties-technical"><summary>{t("canvas.interactions.identity")}</summary><dl><dt>ID</dt><dd>{element.id}</dd><dt>BPMN</dt><dd>{element.type}</dd></dl></details>
           </>}
           {section === "rules" && <>{field("rules", true)}{field("risks", true)}{field("sop", true)}</>}
@@ -64,7 +63,7 @@ export function BpmnNodeInspector({ element, onNameChange, onDocChange, onMetada
           {section === "ai" && <><p className="text-sm leading-relaxed text-muted-foreground">{t("properties.enterprise.aiHint")}</p>{onAsk && <Button variant="outline" onClick={onAsk}><MessagesSquare aria-hidden />{t("properties.enterprise.ask")}</Button>}</>}
         </div>
       </EditorBody>
-      <EditorActions><Button variant="ghost" className="min-h-11 text-destructive" onClick={onDelete}><Trash2 aria-hidden />{t("properties.enterprise.delete")}</Button></EditorActions>
+      {!isContainer && <EditorActions><Button variant="ghost" className="min-h-11 text-destructive" onClick={onDelete}><Trash2 aria-hidden />{t("properties.enterprise.delete")}</Button></EditorActions>}
     </EditorWorkspace>
   </aside></Surface>;
 }

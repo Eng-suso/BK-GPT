@@ -16,6 +16,7 @@ import GlobalConnectModule from "diagram-js/lib/features/global-connect";
 import LassoModule from "diagram-js/lib/features/lasso-tool";
 import SpaceModule from "diagram-js/lib/features/space-tool";
 import ResizeModule from "diagram-js/lib/features/resize";
+import { DeliRResizeHandles } from "./ResizeHandles";
 import BendpointsModule from "diagram-js/lib/features/bendpoints";
 import HoverFixModule from "diagram-js/lib/features/hover-fix";
 import KeyboardModule from "diagram-js/lib/features/keyboard";
@@ -117,7 +118,7 @@ export class DeliRCanvas {
         this.editable = Boolean(options.editable);
         options.container.classList.add("delir-diagram");
         const editModules = this.editable ? [ModelingModule, MoveModule, CreateModule, ConnectModule, ConnectionPreviewModule, GlobalConnectModule, LassoModule, SpaceModule, ResizeModule, BendpointsModule, HoverFixModule, CopyPasteModule, KeyboardModule, EditorActionsModule] : [];
-        this.diagram = new Diagram({ canvas: { container: options.container, deferUpdate: false }, modules: [SelectionModule, OutlineModule, OverlaysModule, ...editModules, { __init__: ["delirRenderer", "delirOutline"], delirOutline: ["type", DeliROutline], delirRenderer: ["type", DeliRRenderer], layouter: ["type", OrthogonalLayout], connectionDocking: ["type", CroppingConnectionDocking] }] });
+        this.diagram = new Diagram({ canvas: { container: options.container, deferUpdate: false }, modules: [SelectionModule, OutlineModule, OverlaysModule, ...editModules, { __init__: ["delirRenderer", "delirOutline"], delirOutline: ["type", DeliROutline], delirRenderer: ["type", DeliRRenderer], resizeHandles: ["type", DeliRResizeHandles], layouter: ["type", OrthogonalLayout], connectionDocking: ["type", CroppingConnectionDocking] }] });
         const factory = this.diagram.get<Factory>("elementFactory"), original = factory.create.bind(factory);
         factory.create = (kind, attrs = {}) => {
             const type = String(attrs.type ?? (kind === "connection" ? "bpmn:SequenceFlow" : "bpmn:Task")), id = String(attrs.id ?? attrs.delirId ?? type.replace("bpmn:", "") + "_" + crypto.randomUUID().replaceAll("-", "").slice(0, 12));
@@ -298,12 +299,12 @@ export class DeliRCanvas {
                 target?: CanvasElement;
             };
         }).context; const shape = (event as {context:{shape?:CanvasElement}}).context.shape;
-            if(shape?.type === "bpmn:Lane") return target?.type === "bpmn:Participant";
+            if(shape?.type === "bpmn:Lane") return target?.type === "bpmn:Participant" || target?.type === "bpmn:Process";
             if(shape?.type === "bpmn:Participant") return target?.type === "bpmn:Process" || target?.type === "bpmn:Collaboration";
             return target && /Process$|Collaboration$|Participant$|Lane$|SubProcess$/.test(target.type) ? true : false; });
         bus.on("commandStack.shape.create.postExecuted",2000,event=>{
             const {shape,parent,hints}=(event as {context:{shape:CanvasElement;parent:CanvasElement;hints?:Record<string,unknown>}}).context;
-            if(shape.type === "bpmn:Lane" && parent?.type === "bpmn:Participant" && !hints?.delirLanes) commands.execute("delir.lanes",{element:parent,action:"adopt",lane:shape});
+            if(shape.type === "bpmn:Lane" && (parent?.type === "bpmn:Participant" || parent?.type === "bpmn:Process") && !hints?.delirLanes) commands.execute("delir.lanes",{element:parent,action:"adopt",lane:shape});
         });
         bus.on("copyPaste.copyElement", 1500, event => { const { descriptor, element } = (event as {
             descriptor: Record<string, unknown>;
@@ -415,6 +416,7 @@ export class DeliRCanvas {
     private contextAction(id: string, event: Event) {
         if (!this.editable)
             return;
+        if(id === "select-all") { this.diagram.get<{trigger:(id:string)=>void}>("editorActions").trigger("selectAll");return; }
         const selection = this.diagram.get<Selection>("selection"), selected = selection.get(), el = selected[0]?.labelTarget ?? selected[0];
         if (!el)
             return;

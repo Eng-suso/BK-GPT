@@ -721,7 +721,7 @@ for (const mobile of [false, true]) test(`selection actions use the existing BPM
   await expect(canvas.locator('.djs-connection')).toHaveCount(17);
   if (!mobile) {
     if (!await task.evaluate(el=>el.classList.contains('selected'))) await task.click();
-    await actions.getByRole('button',{name:'Cambia tipo',exact:true}).click();
+    await actions.getByRole('button',{name:'Altre azioni',exact:true}).click();await page.getByRole('menuitem',{name:'Cambia tipo',exact:true}).hover();
     await expect(page.getByRole('menuitem',{name:'Attività di servizio',exact:true})).toBeVisible();
     await page.keyboard.press('Escape');
   }
@@ -917,7 +917,7 @@ test("connections follow BPMN pool and lane boundaries and lane removal preserve
   },saved);
   expect(graph).toEqual(expect.arrayContaining([{type:"sequenceFlow",parent:"ProcessA",source:"TaskA",target:"TaskB"},{type:"messageFlow",parent:"Collaboration",source:"TaskB",target:"TaskC"}]));
   await node("LaneB").click({position:{x:8,y:40}});
-  await page.getByRole("button",{name:"Gestisci lane",exact:true}).click();await page.getByRole("menuitem",{name:"Aggiungi lane sotto",exact:true}).click();
+  await page.getByRole("button",{name:"Aggiungi lane sotto",exact:true}).click();
   await expect(canvas.locator('.djs-element[data-delir-type="bpmn:Lane"]')).toHaveCount(3);
   await node("LaneB").click({position:{x:8,y:40}});await page.getByRole("button",{name:"Altre azioni",exact:true}).click();
   await page.getByRole("menuitem",{name:"Rimuovi lane, mantieni le attività",exact:true}).click();
@@ -1009,4 +1009,68 @@ test("large diagrams keep connection gestures reversible across 500 activities",
   await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:20});await expect(node("Scale_2")).toHaveClass(/connect-ok/);await expect(canvas.locator(".djs-dragger")).toBeVisible();
   await info.attach("gesture-timing.json",{body:Buffer.from(JSON.stringify({activities:500,previewGestureWallMs:Date.now()-before,note:"Includes Playwright transport; observation, not a frame-rate benchmark."})),contentType:"application/json"});
   await page.mouse.click(target.x+target.width/2,target.y+target.height/2);await expect(canvas.locator(".djs-connection")).toHaveCount(1);await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(canvas.locator(".djs-connection")).toHaveCount(0);await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();expect(errors).toEqual([]);
+});
+
+
+for (const touch of [false,true]) test.describe("container resize grips "+(touch?"touch":"mouse"),()=>{
+  test.use({hasTouch:touch,isMobile:touch,viewport:{width:1600,height:1000}});
+  test("stay discreet at every zoom and preserve resize undo",async({page},info)=>{
+    const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8");let saved=source;
+    const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+    await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET, PUT, OPTIONS","access-control-allow-headers":"Content-Type"},json:{id:"layout-model",process_id:"layout-process",name:"Container resize",xml:saved,version_id:1}});});
+    await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),lane=canvas.locator('.djs-shape[data-element-id="LaneB"]').first();
+    await expect(lane).toBeVisible();await lane.click({position:{x:8,y:40}});
+    const handles=canvas.locator('.delir-resizer[data-resize-element="LaneB"]');await expect(handles).toHaveCount(8);
+    await expect(handles.locator("circle.djs-resizer-visual")).toHaveCount(4);
+    const hitStyle=await handles.first().locator(".djs-resizer-hit").evaluate(node=>({fill:getComputedStyle(node).fill,stroke:getComputedStyle(node).stroke}));expect(hitStyle).toEqual({fill:"none",stroke:"none"});
+    await page.screenshot({path:info.outputPath("lane-selected.png")});
+    const gripPixels=Math.round((await handles.locator("circle.djs-resizer-visual").first().boundingBox())!.width);expect(gripPixels).toBeGreaterThanOrEqual(7);expect(gripPixels).toBeLessThanOrEqual(9);
+    for(const zoom of [50,100,200]) {
+      await page.getByRole("button",{name:/^Zoom \d+%$/}).click();await page.getByRole("menuitem",{name:zoom+"%",exact:true}).click();
+      await expect.poll(async()=>Math.round((await handles.locator("circle.djs-resizer-visual").first().boundingBox())!.width)).toBe(gripPixels);
+      expect(Math.round(await handles.first().locator(".djs-resizer-hit").evaluate(node=>{const el=node as SVGGraphicsElement,matrix=el.getScreenCTM()!;return el.getBBox().width*Math.hypot(matrix.a,matrix.b);}))).toBe(touch?44:24);
+    }
+    await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();
+    await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+    const body=lane.locator(".djs-visual > rect").first(),before=(await body.boundingBox())!,grip=(await handles.filter({has:page.locator("rect.djs-resizer-visual")}).filter({hasNot:page.locator("circle")}).count());expect(grip).toBe(4);
+    const handle=canvas.locator('.delir-resizer.djs-resizer-se[data-resize-element="LaneB"] .djs-resizer-hit'),start=(await handle.boundingBox())!;
+    await page.mouse.move(start.x+start.width/2,start.y+start.height/2);await page.mouse.down();await page.mouse.move(start.x+start.width/2+50,start.y+start.height/2+35,{steps:15});await page.mouse.up();
+    await expect.poll(async()=>(await body.boundingBox())!.width).toBeGreaterThan(before.width+20);
+    await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect.poll(async()=>Math.round((await body.boundingBox())!.width)).toBe(Math.round(before.width));await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();expect(saved).toBe(source);expect(errors).toEqual([]);
+  });
+});
+
+
+test("lanes without a participant support direct insertion, removal and exact undo",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source='<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" targetNamespace="urn:lane-process"><bpmn:process id="Process"><bpmn:laneSet id="Roles"><bpmn:lane id="Role" name="Operations"><bpmn:flowNodeRef>Work</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet><bpmn:task id="Work" name="Verifica richiesta"/></bpmn:process><bpmndi:BPMNDiagram id="Diagram"><bpmndi:BPMNPlane id="Plane" bpmnElement="Process"><bpmndi:BPMNShape id="Role_di" bpmnElement="Role"><dc:Bounds x="100" y="100" width="700" height="300"/></bpmndi:BPMNShape><bpmndi:BPMNShape id="Work_di" bpmnElement="Work"><dc:Bounds x="230" y="170" width="160" height="88"/></bpmndi:BPMNShape></bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>';
+  let saved=source;const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET, PUT, OPTIONS","access-control-allow-headers":"Content-Type"},json:{id:"layout-model",process_id:"layout-process",name:"Unpooled lanes",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),lane=canvas.locator('.djs-shape[data-element-id="Role"]').first();await expect(lane).toBeVisible();await lane.click({position:{x:8,y:40}});
+  const actions=page.getByRole("group",{name:"Azioni della selezione"});await expect(page.getByRole("button",{name:"Gestisci lane",exact:true})).toHaveCount(0);expect((await actions.boundingBox())!.width).toBeLessThan(180);await expect(actions.locator(".process-selection-label")).toHaveCount(0);
+  await page.screenshot({path:info.outputPath("unpooled-lane-selected.png")});
+  for(const label of ["Aggiungi lane sotto","Aggiungi lane sopra"]) {
+    if(label === "Aggiungi lane sotto"){await lane.click({button:"right",position:{x:8,y:40}});await page.getByRole("menu",{name:"Azioni della selezione"}).getByRole("menuitem",{name:label,exact:true}).click();}else await page.getByRole("button",{name:label,exact:true}).click();await expect(canvas.locator('.djs-shape[data-delir-type="bpmn:Lane"]')).toHaveCount(2);
+    await page.getByRole("button",{name:"Salva",exact:true}).click();
+    const graph=await page.evaluate(xml=>{const doc=new DOMParser().parseFromString(xml,"application/xml");return{lanes:doc.getElementsByTagNameNS("*","lane").length,pools:doc.getElementsByTagNameNS("*","participant").length,reference:doc.getElementsByTagNameNS("*","flowNodeRef")[0]?.textContent};},saved);expect(graph).toEqual({lanes:2,pools:0,reference:"Work"});if(label === "Aggiungi lane sotto")await info.attach("unpooled-lanes.xml",{body:Buffer.from(saved),contentType:"application/xml"});
+    await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);
+  }
+  for(const [label,count] of [["Dividi in due lane",2],["Dividi in tre lane",3]] as const) {
+    await lane.click({position:{x:8,y:40}});await page.getByRole("button",{name:"Altre azioni",exact:true}).click();await page.getByRole("menuitem",{name:label,exact:true}).click();await expect(canvas.locator('.djs-shape[data-delir-type="bpmn:Lane"]')).toHaveCount(count);
+    const placement=await canvas.locator('.djs-shape[data-element-id="Work"]').evaluate(el=>{const parent=el.closest('.djs-children')!.parentElement!.querySelector(':scope > .djs-element > .djs-visual > rect')!,child=el.querySelector('.djs-visual > rect')!;const a=child.getBoundingClientRect(),b=parent.getBoundingClientRect();return{top:a.top,bottom:a.bottom,parentTop:b.top,parentBottom:b.bottom};});expect(placement.top).toBeGreaterThan(placement.parentTop);expect(placement.bottom).toBeLessThan(placement.parentBottom);
+    await page.getByRole("button",{name:"Salva",exact:true}).click();await info.attach("split-"+count+".xml",{body:Buffer.from(saved),contentType:"application/xml"});await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);
+  }
+  await lane.click({position:{x:8,y:40}});await page.getByRole("button",{name:"Altre azioni",exact:true}).click();await page.getByRole("menuitem",{name:"Rimuovi lane, mantieni le attività",exact:true}).click();await expect(lane).toHaveCount(0);await expect(canvas.locator('.djs-shape[data-element-id="Work"]')).toBeVisible();await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(lane).toBeVisible();await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();expect(errors).toEqual([]);
+});
+
+
+test("right click opens working object actions while right drag only pans",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),task=canvas.locator('.djs-shape[data-element-id="Task_1"]').first(),viewport=canvas.locator("g.viewport").first();await expect(task).toBeVisible();
+  await task.click({button:"right"});const menu=page.getByRole("menu",{name:"Azioni della selezione"});await expect(menu).toBeVisible();await expect(task).toHaveClass(/selected/);await page.screenshot({path:info.outputPath("right-click-object.png")});
+  await menu.getByRole("menuitem",{name:"Collega elemento",exact:true}).click();await expect(page.locator(".process-bpmn-shell")).toHaveAttribute("data-connecting","true");await canvas.locator('.djs-shape[data-element-id="Task_3"]').first().click();await expect(canvas.locator(".djs-connection")).toHaveCount(18);await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(canvas.locator(".djs-connection")).toHaveCount(17);
+  await task.click({button:"right"});await menu.getByRole("menuitem",{name:"Cambia tipo",exact:true}).hover();await page.getByRole("menuitem",{name:"Attività di servizio",exact:true}).click();await expect(task).toHaveAttribute("data-delir-type","bpmn:ServiceTask");await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(task).toHaveAttribute("data-delir-type","bpmn:UserTask");
+  await task.click({button:"right"});await page.keyboard.press("Escape");await expect(menu).toHaveCount(0);
+  await canvas.locator(".djs-container > svg").focus();await page.keyboard.press("Shift+F10");await expect(menu).toBeVisible();await expect(task).toHaveClass(/selected/);await page.keyboard.press("Escape");
+  const box=(await canvas.boundingBox())!,x=box.x+box.width/2,y=box.y+90,before=await viewport.getAttribute("transform");await page.mouse.move(x,y);await page.mouse.down({button:"right"});await page.mouse.move(x+80,y+45,{steps:12});await page.mouse.up({button:"right"});await expect(viewport).not.toHaveAttribute("transform",before!);await expect(menu).toHaveCount(0);
+  await page.mouse.click(x,y,{button:"right"});await expect(menu).toBeVisible();await menu.getByRole("menuitem",{name:"Seleziona tutto",exact:true}).click();await expect(page.getByRole("button",{name:"35 elementi selezionati",exact:true})).toBeVisible();await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
 });

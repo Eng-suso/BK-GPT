@@ -2098,6 +2098,8 @@
       "split-3": "Dividi in tre lane",
       "remove": "Rimuovi lane, mantieni le attività"
     },
+    "contextMenu": {"title": "Menu del canvas", "selectAll": "Seleziona tutto"},
+    "resizeHint": "Trascina per ridimensionare",
     "connectGesture": {
       "actionHint": "Collega: trascina fino al bersaglio oppure fai clic e scegli un elemento",
       "choose": "Scegli l’elemento da collegare · Esc annulla",

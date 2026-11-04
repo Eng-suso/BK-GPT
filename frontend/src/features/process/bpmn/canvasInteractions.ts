@@ -1,19 +1,21 @@
 import type { BpmnModeler } from "./types";
 
 export type CanvasNavigationMode = "mouse" | "trackpad";
-type Element = { id: string };
+type Element = { id:string; labelTarget?:Element };
+export type CanvasContextPoint = {x:number;y:number};
 type DiagramEvent = { element: Element; originalEvent: MouseEvent };
 type Bus = { on: (name: string, priority: number, handler: (event: DiagramEvent) => unknown) => void; off: (name: string, handler: (event: DiagramEvent) => unknown) => void };
 const preferenceKey = "delir:canvas:navigation";
 
 /** Viewport and selection policy only. BPMN mutations remain native modeler commands. */
-export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void) {
+export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void, openContext?: (point:CanvasContextPoint)=>void) {
   const canvas = modeler.get("canvas") as { getContainer: () => HTMLElement; getRootElement: () => Element; focus: () => void; scroll: (delta: {dx:number;dy:number}) => void; zoom: (scale?: number, position?: {x:number;y:number}) => number };
   const host = canvas.getContainer();
   const svg = host.querySelector("svg")!;
   const dragging = modeler.get("dragging") as { cancel: () => void };
   const manager = modeler.get("toolManager") as { _active?: string; setActive: (tool: null) => void };
-  const selection = modeler.get("selection") as { get: () => Element[] };
+  const selection = modeler.get("selection") as { get: () => Element[]; select:(elements:Element[]|Element)=>void };
+  const registry=modeler.get("elementRegistry") as {get:(id:string)=>Element|undefined};
   const lasso = modeler.get("lassoTool") as { activateLasso: (event: MouseEvent) => void };
   const bus = modeler.get("eventBus") as Bus;
   const shell = host.closest(".process-bpmn-shell");
@@ -22,7 +24,8 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
   let space = false;
   let mode: CanvasNavigationMode = "mouse";
   try { if (localStorage.getItem(preferenceKey) === "trackpad") mode = "trackpad"; } catch { /* A restricted browser still supports session preferences. */ }
-  let gesture: {id:number;x:number;y:number;moved:boolean} | null = null;
+  let gesture: {id:number;x:number;y:number;originX:number;originY:number;button:number;target:EventTarget|null;moved:boolean} | null = null;
+  let rightGesture=false;
   let frame = 0;
   let dx = 0, dy = 0, zoomDelta = 0;
   let anchor = {x:0,y:0};
@@ -49,26 +52,40 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
   };
   const select = () => { stopGesture(); dragging.cancel(); manager.setActive(null); hand = false; space = false; cursor(); canvas.focus(); changed(); };
   const pan = () => { stopGesture(); dragging.cancel(); manager.setActive(null); hand = true; cursor(); canvas.focus(); changed(); };
+  const showContext=(target:EventTarget|null,x:number,y:number)=>{
+    dragging.cancel();manager.setActive(null);hand=false;space=false;
+    const graphic=target instanceof globalThis.Element ? target.closest("[data-element-id],[data-resize-element]") : null;
+    const id=graphic?.getAttribute("data-element-id") ?? graphic?.getAttribute("data-resize-element");
+    const hit=id ? registry.get(id) : undefined,element=hit?.labelTarget??hit;
+    if(element && element.id!==canvas.getRootElement().id){if(!selection.get().includes(element))selection.select(element);}else selection.select([]);
+    cursor();changed();openContext?.({x,y});
+  };
   const pointerDown = (event: PointerEvent) => {
     if (event.pointerType === "touch" && !hand || isOverlay(event.target) || !(event.target instanceof SVGElement)) return;
     if (!(event.button === 1 || event.button === 2 || event.button === 0 && (hand || space))) return;
     event.preventDefault(); event.stopImmediatePropagation();
     if (frame) { cancelAnimationFrame(frame); flush(); }
-    canvas.focus(); gesture = {id:event.pointerId,x:event.clientX,y:event.clientY,moved:false}; svg.setPointerCapture(event.pointerId); cursor(); changed();
+    canvas.focus(); rightGesture=event.button===2; gesture = {id:event.pointerId,x:event.clientX,y:event.clientY,originX:event.clientX,originY:event.clientY,button:event.button,target:event.target,moved:false}; svg.setPointerCapture(event.pointerId); cursor(); changed();
   };
   const pointerMove = (event: PointerEvent) => {
     if (!gesture || gesture.id !== event.pointerId) return;
     event.preventDefault(); event.stopImmediatePropagation();
+    if(!gesture.moved && Math.hypot(event.clientX-gesture.originX,event.clientY-gesture.originY)<3)return;
     const nextX = event.clientX - gesture.x, nextY = event.clientY - gesture.y;
     if (nextX || nextY) { dx += nextX; dy += nextY; gesture.moved = true; gesture.x = event.clientX; gesture.y = event.clientY; schedule(); }
   };
   const pointerEnter = () => { hovered = true; };
   const pointerLeave = () => { hovered = false; };
   const lostCapture = () => { if (gesture) stopGesture(); };
-  const pointerEnd = (event: PointerEvent) => { if (gesture?.id === event.pointerId) { event.preventDefault(); event.stopImmediatePropagation(); stopGesture(); } };
+  const pointerEnd = (event: PointerEvent) => { if (gesture?.id === event.pointerId) { const previous=gesture;event.preventDefault(); event.stopImmediatePropagation(); stopGesture();if(previous.button===2 && !previous.moved && event.type === "pointerup")showContext(previous.target,event.clientX,event.clientY); } };
   const mouseDuringPan = (event: MouseEvent) => { if (gesture) { event.preventDefault(); event.stopImmediatePropagation(); } };
   const click = (event: MouseEvent) => { if (swallowClick || hand || space) { swallowClick = false; event.preventDefault(); event.stopImmediatePropagation(); } };
-  const contextMenu = (event: MouseEvent) => { if (!isOverlay(event.target)) event.preventDefault(); };
+  const contextMenu = (event: MouseEvent) => { if(isOverlay(event.target))return;event.preventDefault();if(rightGesture){rightGesture=false;return;}if(!gesture){
+      const chosen=selection.get()[0];
+      const graphic=event.button===0 && chosen ? host.querySelector(`[data-element-id="${CSS.escape(chosen.id)}"]`) : null;
+      const rect=graphic?.getBoundingClientRect();
+      showContext(graphic ?? event.target,rect ? rect.left+rect.width/2 : event.clientX,rect ? rect.top+rect.height/2 : event.clientY);
+    } };
   const wheel = (event: WheelEvent) => {
     if (isOverlay(event.target)) { event.stopPropagation(); return; }
     event.preventDefault(); event.stopImmediatePropagation();
@@ -81,7 +98,12 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
   const keyDown = (event: KeyboardEvent) => {
     const editing = event.target instanceof globalThis.Element && event.target.closest("input,textarea,select,[contenteditable=true],[role=menu],[role=listbox],[role=combobox],[role=dialog]");
     if (editing || event.defaultPrevented || !(host.contains(document.activeElement) || hovered && shell?.contains(document.activeElement)) || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (event.code === "Space") { event.preventDefault(); event.stopImmediatePropagation(); if (!space) { space = true; canvas.focus(); cursor(); changed(); } }
+    if(event.key === "ContextMenu" || event.shiftKey && event.key === "F10") {
+      event.preventDefault();event.stopImmediatePropagation();rightGesture=false;
+      const chosen=selection.get()[0],graphic=chosen ? host.querySelector(`[data-element-id="${CSS.escape(chosen.id)}"]`) : null;
+      const rect=(graphic ?? host).getBoundingClientRect();showContext(graphic ?? svg,rect.left+rect.width/2,rect.top+rect.height/2);
+    }
+    else if (event.code === "Space") { event.preventDefault(); event.stopImmediatePropagation(); if (!space) { space = true; canvas.focus(); cursor(); changed(); } }
     else if (!event.repeat && event.key.toLowerCase() === "v") { event.preventDefault(); event.stopImmediatePropagation(); select(); }
     else if (!event.repeat && event.key.toLowerCase() === "h") { event.preventDefault(); event.stopImmediatePropagation(); pan(); }
     else if (event.key === "Escape" && (hand || space)) { event.preventDefault(); event.stopImmediatePropagation(); select(); }

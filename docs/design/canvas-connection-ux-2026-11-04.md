@@ -2,6 +2,8 @@
 
 4 novembre 2026 · PR #165 · seguito del motore introdotto in 06604881.
 
+Aggiornamento successivo: [menu destro, lane e selezione più discreta](canvas-context-ux-2026-11-04.md).
+
 ## Problema e risultato
 
 Il collegamento precedente non mostrava l'anteprima e poteva terminare al centro di un'attività. Il comando era lontano dal nodo. Ora selezionare un simbolo rende disponibile un solo comando vicino alla sua forma: si può trascinarlo sul bersaglio oppure fare clic e poi scegliere il bersaglio. La linea segue il puntatore; il bersaglio indica se il collegamento è ammesso. Esc o il pulsante di annullamento ripristinano la selezione senza creare una linea.
