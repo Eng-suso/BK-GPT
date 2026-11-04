@@ -148,7 +148,7 @@ test("product-generated diagram keeps the DeliR identity in the editable canvas"
   const canvas = page.locator(".process-bpmn-canvas");
   await expect(canvas.locator('[data-element-id="Verify"]')).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Strumenti BPMN" })).toBeVisible();
-  await expect(canvas.locator(".bjs-powered-by")).toBeVisible();
+  await expect(canvas.locator(".bjs-powered-by")).toHaveCount(0);
   await expect(canvas.locator(".delir-role-band")).toHaveCount(5);
   await expect(canvas.locator(".djs-connection")).toHaveCount(11);
   await expect(canvas.locator('[data-element-id="Request_Document"]')).toBeVisible();
@@ -722,7 +722,7 @@ for (const mobile of [false, true]) test(`selection actions use the existing BPM
   if (!mobile) {
     if (!await task.evaluate(el=>el.classList.contains('selected'))) await task.click();
     await actions.getByRole('button',{name:'Cambia tipo',exact:true}).click();
-    await expect(canvas.locator('.djs-popup')).toBeVisible();
+    await expect(page.getByRole('menuitem',{name:'Attività di servizio',exact:true})).toBeVisible();
     await page.keyboard.press('Escape');
   }
   await page.screenshot({path:info.outputPath('selection-actions.png'),animations:'disabled'});
@@ -805,4 +805,122 @@ test('mouse and trackpad wheel modes preserve the pointer anchor and model',asyn
   const panBefore=await world(),camera=await viewport.getAttribute('transform');await page.mouse.move(point.x,point.y);await page.mouse.wheel(35,80);await expect(viewport).not.toHaveAttribute('transform',camera!);expect((await world()).scale).toBeCloseTo(panBefore.scale,5);
   const pinchBefore=await world();await page.keyboard.down('Control');await page.mouse.wheel(0,-60);await page.keyboard.up('Control');await expect.poll(async()=>(await world()).scale).toBeGreaterThan(pinchBefore.scale);
   await expect(task).toHaveAttribute('transform',node!);await page.reload();await page.getByRole('button',{name:'Importa, esporta, cronologia',exact:true}).click();await expect(page.getByRole('menuitemradio',{name:'Trackpad · scorri per spostare',exact:true})).toHaveAttribute('aria-checked','true');
+});
+
+
+test("inline rename commits, cancels, undoes and saves the BPMN name",async({page})=>{
+ await page.setViewportSize({width:1600,height:1000});const writes:string[]=[];
+ await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")writes.push(route.request().postDataJSON().xml);await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Model",xml:writes.at(-1)??xml,version_id:1}});});
+ await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),task=canvas.locator('[data-element-id="Task_1"]').first();
+ await expect(task).toBeVisible();await task.dblclick();const form=page.getByRole("form",{name:"Rinomina elemento"}),input=form.getByRole("textbox",{name:"Nome",exact:true});
+ await input.fill("Cancelled");await input.press("Escape");await expect(form).toBeHidden();await expect(task).toContainText(tasks[0].name);
+ await task.dblclick();await input.fill("Rinominato nel canvas");await input.press("Enter");await expect(task).toContainText("Rinominato nel canvas");
+ await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(task).toContainText(tasks[0].name);
+ await task.dblclick();await input.fill("Salvataggio da tastiera");await input.press("Control+s");await expect.poll(()=>writes.length).toBe(1);
+ expect(await page.evaluate(source=>new DOMParser().parseFromString(source,"application/xml").getElementById("Task_1")!.getAttribute("name"),writes[0])).toBe("Salvataggio da tastiera");
+});
+
+test("clipboard keeps copied tasks independent with new IDs and valid BPMN references",async({page})=>{
+ const pageErrors:string[]=[];page.on("pageerror",error=>pageErrors.push(error.message));
+ await page.setViewportSize({width:1600,height:1000});let savedXml=xml;
+ await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")savedXml=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Model",xml:savedXml,version_id:1}});});
+ await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),svg=canvas.locator(".djs-container > svg");
+ await canvas.locator('[data-element-id="Task_1"]').first().click();await page.keyboard.down("Shift");await canvas.locator('[data-element-id="Task_2"]').first().click();await page.keyboard.up("Shift");
+ await expect(canvas.locator(".djs-shape.selected")).toHaveCount(2);
+ await svg.focus();await page.keyboard.press("Control+c");const bounds=(await canvas.boundingBox())!,point={x:bounds.x+bounds.width*.65,y:bounds.y+bounds.height*.82};
+ await page.mouse.move(point.x,point.y);await page.keyboard.press("Control+v");await page.mouse.click(point.x,point.y);
+ expect(pageErrors).toEqual([]);
+ await expect(canvas.locator(".delir-type-task")).toHaveCount(20);await expect(canvas.locator(".djs-connection")).toHaveCount(18);
+ await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(canvas.locator(".delir-type-task")).toHaveCount(18);
+ await page.getByRole("button",{name:"Ripeti modifica",exact:true}).click();await expect(canvas.locator(".delir-type-task")).toHaveCount(20);
+ await page.getByRole("button",{name:"Salva",exact:true}).click();
+ await expect.poll(()=>savedXml!==xml).toBe(true);
+ const result=await page.evaluate(source=>{const doc=new DOMParser().parseFromString(source,"application/xml"),nodes=Array.from(doc.getElementsByTagNameNS("http://www.omg.org/spec/BPMN/20100524/MODEL","userTask")),flows=Array.from(doc.getElementsByTagNameNS("http://www.omg.org/spec/BPMN/20100524/MODEL","sequenceFlow"));return{error:!!doc.querySelector("parsererror"),ids:nodes.map(n=>n.id),flows:flows.map(f=>({id:f.id,source:f.getAttribute("sourceRef"),target:f.getAttribute("targetRef")})),original:doc.getElementById("Task_1")!.getAttribute("name")};},savedXml);
+ expect(result.error).toBe(false);expect(result.ids).toHaveLength(20);expect(new Set(result.ids).size).toBe(20);expect(result.original).toBe(tasks[0].name);
+ for(const flow of result.flows){expect(result.ids).toContain(flow.source);expect(result.ids).toContain(flow.target);}
+ await expect(canvas.locator(".bjs-powered-by")).toHaveCount(0);
+});
+
+test("semantic selection keeps symbols clear and edits event labels below their shape", async ({page}) => {
+  await page.setViewportSize({width:1600,height:1000});
+  const symbols = [
+    {id:"Start",type:"startEvent",x:80,y:160,width:36,height:36},
+    {id:"Gateway",type:"exclusiveGateway",x:280,y:150,width:50,height:50},
+    {id:"End",type:"endEvent",x:480,y:160,width:36,height:36},
+    {id:"Task",type:"userTask",x:650,y:140,width:160,height:88}
+  ];
+  const source = '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" targetNamespace="urn:test"><bpmn:process id="Process">'+symbols.map(n=>'<bpmn:'+n.type+' id="'+n.id+'"/>').join('')+'</bpmn:process><bpmndi:BPMNDiagram id="diagram"><bpmndi:BPMNPlane id="plane" bpmnElement="Process">'+symbols.map(n=>'<bpmndi:BPMNShape id="'+n.id+'_di" bpmnElement="'+n.id+'"><dc:Bounds x="'+n.x+'" y="'+n.y+'" width="'+n.width+'" height="'+n.height+'"/></bpmndi:BPMNShape>').join('')+'</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>';
+  let saved=source;const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Synthetic model",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");
+  for(const [id,kind] of [["Start","start"],["Gateway","gateway"],["End","end"],["Task","task"]]){
+    const node=canvas.locator('.djs-element[data-element-id="'+id+'"]').first();
+    await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();
+    await node.click();await expect(node.locator(".djs-outline")).toHaveAttribute("data-selection-kind",kind);
+    await expect(canvas.locator(".djs-resizer")).toHaveCount(0);
+  }
+  await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();
+  const start=canvas.locator('.djs-element[data-element-id="Start"]').first();await start.dblclick();
+  const editor=page.getByRole("form",{name:"Rinomina elemento"}).getByRole("textbox",{name:"Nome",exact:true});
+  const shape=await start.locator(".djs-visual > circle").first().boundingBox(), editing=await editor.boundingBox();
+  expect(editing!.y).toBeGreaterThan(shape!.y+shape!.height-1);
+  await editor.fill("Richiesta ricevuta");await editor.press("Enter");
+  await expect(canvas.locator('[data-delir-label-for="Start"]')).toContainText("Richiesta ricevuta");
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();
+  await expect(canvas.locator('[data-delir-label-for="Start"]')).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
+  expect(saved).toBe(source);expect(errors).toEqual([]);
+});
+
+test("canvas chat reserves readable space for conversation, actions and composer",async({page})=>{
+  await page.setViewportSize({width:1600,height:1000});await page.goto(canvasView);
+  await page.getByRole("button",{name:"Chat canvas",exact:true}).click();
+  const chat=page.locator(".process-studio-chat");await expect(chat).toBeVisible();
+  expect((await chat.boundingBox())!.width).toBeGreaterThanOrEqual(360);
+  const copy=chat.locator(".ui-action-prompt-copy");
+  if(await copy.count())expect((await copy.boundingBox())!.width).toBeGreaterThan(240);
+  const input=chat.getByRole("textbox",{name:"Scrivi un messaggio…",exact:true});
+  await expect(input).toBeVisible();
+  const controls=chat.locator(".composer-bottom-bar button");
+  const boxes=await controls.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width};}));
+  const bounds=(await chat.boundingBox())!;
+  for(const box of boxes){expect(box.x).toBeGreaterThanOrEqual(bounds.x);expect(box.right).toBeLessThanOrEqual(bounds.x+bounds.width+1);expect(box.width).toBeGreaterThanOrEqual(24);}
+  const scan=await new AxeBuilder({page}).include(".process-studio-chat").analyze();expect(scan.violations).toEqual([]);
+});
+
+test("connections follow BPMN pool and lane boundaries and lane removal preserves work",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const shapes=[
+    ["PoolA",100,100,800,400],["LaneA",130,100,770,200],["LaneB",130,300,770,200],
+    ["TaskA",260,150,160,88],["TaskB",550,350,160,88],
+    ["PoolB",100,650,800,220],["TaskC",260,710,160,88]
+  ];
+  let saved='<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="urn:collaboration"><bpmn:process id="ProcessA"><bpmn:laneSet id="Roles"><bpmn:lane id="LaneA" name="Operations"><bpmn:flowNodeRef>TaskA</bpmn:flowNodeRef></bpmn:lane><bpmn:lane id="LaneB" name="Finance"><bpmn:flowNodeRef>TaskB</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet><bpmn:task id="TaskA" name="Prepare"/><bpmn:task id="TaskB" name="Approve"/></bpmn:process><bpmn:process id="ProcessB"><bpmn:task id="TaskC" name="Receive"/></bpmn:process><bpmn:collaboration id="Collaboration"><bpmn:participant id="PoolA" name="Company" processRef="ProcessA"/><bpmn:participant id="PoolB" name="Partner" processRef="ProcessB"/></bpmn:collaboration><bpmndi:BPMNDiagram id="Diagram"><bpmndi:BPMNPlane id="Plane" bpmnElement="Collaboration">'+shapes.map(([id,x,y,w,h])=>'<bpmndi:BPMNShape id="'+id+'_di" bpmnElement="'+id+'" isHorizontal="true"><dc:Bounds x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'"/></bpmndi:BPMNShape>').join('')+'</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>';
+  const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Collaboration",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");
+  const node=(id:string)=>canvas.locator('.djs-element[data-element-id="'+id+'"]').first();
+  await expect(node("TaskA")).toBeVisible();
+  const connect=async(from:string,to:string)=>{
+    await node(from).click();await page.getByRole("button",{name:"Collega elemento",exact:true}).click();
+    const box=(await node(to).boundingBox())!;await page.mouse.move(box.x+box.width/2,box.y+box.height/2,{steps:12});await page.mouse.click(box.x+box.width/2,box.y+box.height/2);
+  };
+  await connect("TaskA","TaskB");await expect(canvas.locator(".djs-connection")).toHaveCount(1);
+  await connect("TaskB","TaskC");await expect(canvas.locator(".djs-connection")).toHaveCount(2);
+  await page.getByRole("button",{name:"Salva",exact:true}).click();
+  const graph=await page.evaluate(source=>{
+    const doc=new DOMParser().parseFromString(source,"application/xml");
+    return Array.from(doc.getElementsByTagNameNS("*","sequenceFlow")).map(n=>({type:n.localName,parent:n.parentElement?.id,source:n.getAttribute("sourceRef"),target:n.getAttribute("targetRef")})).concat(Array.from(doc.getElementsByTagNameNS("*","messageFlow")).map(n=>({type:n.localName,parent:n.parentElement?.id,source:n.getAttribute("sourceRef"),target:n.getAttribute("targetRef")})));
+  },saved);
+  expect(graph).toEqual(expect.arrayContaining([{type:"sequenceFlow",parent:"ProcessA",source:"TaskA",target:"TaskB"},{type:"messageFlow",parent:"Collaboration",source:"TaskB",target:"TaskC"}]));
+  await node("LaneB").click({position:{x:8,y:40}});
+  await page.getByRole("button",{name:"Gestisci lane",exact:true}).click();await page.getByRole("menuitem",{name:"Aggiungi lane sotto",exact:true}).click();
+  await expect(canvas.locator('.djs-element[data-delir-type="bpmn:Lane"]')).toHaveCount(3);
+  await node("LaneB").click({position:{x:8,y:40}});await page.getByRole("button",{name:"Altre azioni",exact:true}).click();
+  await page.getByRole("menuitem",{name:"Rimuovi lane, mantieni le attività",exact:true}).click();
+  await expect(node("LaneB")).toHaveCount(0);await expect(node("TaskB")).toBeVisible();await expect(canvas.locator(".djs-connection")).toHaveCount(2);
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(node("LaneB")).toBeVisible();await expect(canvas.locator(".djs-connection")).toHaveCount(2);
+  await page.getByRole("button",{name:"Salva",exact:true}).click();
+  await info.attach("collaboration.xml",{body:Buffer.from(saved),contentType:"application/xml"});
+  expect(errors).toEqual([]);
 });

@@ -2055,7 +2055,8 @@
       "identity": "Identificativi tecnici",
       "deleteSelection": "Elimina selezione",
       "clearSelection": "Deseleziona tutto",
-      "connection": "Collegamento"
+      "connection": "Collegamento",
+      "rename": "Rinomina elemento"
     },
     "context": {
       "delete": "Elimina elemento",
@@ -2068,7 +2069,7 @@
       "end": "Aggiungi evento finale",
       "gateway": "Aggiungi decisione",
       "event": "Aggiungi evento intermedio",
-      "annotation": "Aggiungi nota",
+      "annotation": "Aggiungi annotazione",
       "laneAbove": "Aggiungi corsia sopra",
       "laneBelow": "Aggiungi corsia sotto",
       "twoLanes": "Dividi in due corsie",
@@ -2077,13 +2078,22 @@
       "timer": "Aggiungi evento temporale",
       "condition": "Aggiungi evento condizionale",
       "signal": "Aggiungi evento di segnale",
-      "compensation": "Aggiungi attività di compensazione"
+      "compensation": "Aggiungi attività di compensazione",
+      "intermediate": "Aggiungi evento intermedio"
     },
     "navigation": {
       "title": "Navigazione della tela",
       "mouse": "Mouse · rotella per lo zoom",
       "trackpad": "Trackpad · scorri per spostare",
       "shortcuts": "V Seleziona · H Mano · Spazio Trascina"
+    },
+    "lanes": {
+      "manage": "Gestisci lane",
+      "add-above": "Aggiungi lane sopra",
+      "add-below": "Aggiungi lane sotto",
+      "split-2": "Dividi in due lane",
+      "split-3": "Dividi in tre lane",
+      "remove": "Rimuovi lane, mantieni le attività"
     }
   },
   "review": {

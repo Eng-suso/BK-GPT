@@ -4,10 +4,8 @@ import type { RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { MessagesSquare, Upload, Maximize2, Plus, Minus, Undo2, Redo2, ChevronDown } from "lucide-react";
 
-import "bpmn-js/dist/assets/diagram-js.css";
-import "bpmn-js/dist/assets/bpmn-js.css";
-import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
-import "@bpmn-io/properties-panel/dist/assets/properties-panel.css";
+import "diagram-js/assets/diagram-js.css";
+import "@/features/process/canvas-engine/canvas.css";
 
 import type { StatusTone } from "@/components/status";
 import { Button } from "@/ui/button";
@@ -22,6 +20,8 @@ import { BpmnCreationTools } from "./components/BpmnCreationTools";
 import { BpmnElementNavigator } from "./components/BpmnElementNavigator";
 import { useBpmnCanvas } from "./bpmn/useBpmnCanvas";
 import { BpmnCanvasToolbar } from "./components/BpmnCanvasToolbar";
+import { BpmnInlineRename } from "./components/BpmnInlineRename";
+import { BpmnTechnicalProperties } from "./components/BpmnTechnicalProperties";
 import { BpmnNodeInspector } from "./components/BpmnNodeInspector";
 import { BpmnVersionHistory } from "./components/BpmnVersionHistory";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/ui/dialog";
@@ -37,7 +37,7 @@ type ProcessBpmnCanvasProps = {
   /** Il processo del disegno: serve al confronto con le fonti. */
   processId?: string;
   processName: string;
-  propertiesPanelRef: RefObject<HTMLDivElement | null>;
+  technicalPropertiesHost: HTMLDivElement | null;
   enterprisePropertiesHost?: RefObject<HTMLDivElement | null>;
   inspectorHost?: RefObject<HTMLDivElement | null>;
   onInspectorChange?: (inspector: { title: string; closeLabel: string; close: () => void } | null) => void;
@@ -54,7 +54,7 @@ type ProcessBpmnCanvasProps = {
 };
 
 /**
- * Thin shell around the BPMN canvas: `useBpmnCanvas` owns the bpmn-js lifecycle,
+ * Thin shell around the BPMN canvas: `useBpmnCanvas` owns the DeliR canvas lifecycle,
  * persistence and version history; this component wires that state to the
  * toolbar, canvas host, node inspector and history panel.
  */
@@ -62,7 +62,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   bpmnModelId,
   processId,
   processName,
-  propertiesPanelRef,
+  technicalPropertiesHost,
   enterprisePropertiesHost,
   inspectorHost,
   onInspectorChange,
@@ -129,6 +129,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     isHistoryOpen,
     setIsHistoryOpen,
     selectedElement,
+    renameTarget,commitRename,cancelRename,
     clearSelection,
     updateSelectedNodeName,
     updateSelectedNodeDoc,
@@ -149,7 +150,6 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   } = useBpmnCanvas({
     bpmnModelId,
     processName,
-    propertiesPanelRef,
     onCurrentXmlChange,
     onBaseVersionChange,
   });
@@ -231,7 +231,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         <div className={`process-bpmn-canvas ${coloursEnabled ? "delir-canvas--colours" : ""}`} ref={containerRef}>
           {/* Un processo appena creato non ha un modello: prima il canvas
               apriva su un diagramma finto che nessuno aveva descritto. Qui la
-              tela resta vuota e dice da dove si parte — la palette bpmn-js
+              tela resta vuota e dice da dove si parte — la libreria DeliR
               rimane raggiungibile a sinistra. */}
           {isReady && isEmptyModel && !error && (
             <div className="process-bpmn-blank">
@@ -260,6 +260,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             </div>
           )}
         </div>
+        {renameTarget && <BpmnInlineRename key={renameTarget.id} target={renameTarget} host={containerRef} onCommit={commitRename} onCancel={cancelRename} onDone={selectTool} onSave={save} />}
         <BpmnSelectionActions actions={canvasUi.contextActions} count={canvasUi.selectionCount} multiple={canvasUi.isMultiple} onClear={() => { clearSelection(); selectTool(); }} items={canvasUi.selectionItems} onSelect={selectElement} name={selectedElement?.name} onAction={(id, event) => {
           contextAction(id, event);
           if (id === "delete" || id.startsWith("append.")) requestAnimationFrame(() => containerRef.current?.querySelector<SVGSVGElement>(".djs-container > svg")?.focus());
@@ -279,6 +280,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         </div>
         {inspectorContent && (inspectorHost?.current ? createPortal(inspectorContent, inspectorHost.current) : inspectorContent)}
         {isPropertiesOpen && enterprisePropertiesHost?.current && createPortal(propertyContent, enterprisePropertiesHost.current)}
+        {isPropertiesOpen && technicalPropertiesHost && createPortal(<BpmnTechnicalProperties element={canvasUi.isMultiple ? null : selectedElement} onNameChange={updateSelectedNodeName} />, technicalPropertiesHost)}
       </div>
 
       <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>

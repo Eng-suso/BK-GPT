@@ -1,15 +1,8 @@
-import { canvasThemeOptions } from "./canvasTheme";
 import { useBpmnCanvasUi } from "./useBpmnCanvasUi";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import Modeler from "bpmn-js/lib/Modeler";
-import { translateBpmnLabel } from "./translate";
-import { enterpriseModdle, readSelectedElement, type EnterpriseMetadata } from "./enterprise";
-import { enterprisePaletteModule } from "./enterprisePalette";
-import {
-  BpmnPropertiesPanelModule,
-  BpmnPropertiesProviderModule,
-} from "bpmn-js-properties-panel";
+import Modeler from "../canvas-engine/DeliRCanvas";
+import { readSelectedElement, type EnterpriseMetadata } from "./enterprise";
 
 import { readCanvasElements, readCreationTools, type CanvasElement, type CreationTool, type PaletteService } from "./elements";
 import { HttpError, httpErrorMessage } from "@/lib/http";
@@ -50,7 +43,6 @@ import type {
 type UseBpmnCanvasArgs = {
   bpmnModelId: string;
   processName: string;
-  propertiesPanelRef: RefObject<HTMLDivElement | null>;
   onCurrentXmlChange?: (xml: string) => void;
   /** The saved version the canvas XML comes from, for the canvas chat. */
   onBaseVersionChange?: (versionId: number | null) => void;
@@ -76,6 +68,9 @@ export type UseBpmnCanvas = ReturnType<typeof useBpmnCanvasUi> & {
   isHistoryOpen: boolean;
   setIsHistoryOpen: (updater: boolean | ((prev: boolean) => boolean)) => void;
   selectedElement: SelectedBpmnElement | null;
+  renameTarget: {id:string;name:string} | null;
+  commitRename: (id:string,name:string)=>void;
+  cancelRename: ()=>void;
   clearSelection: () => void;
   updateSelectedNodeName: (name: string) => void;
   updateSelectedNodeDoc: (doc: string) => void;
@@ -103,7 +98,6 @@ export type UseBpmnCanvas = ReturnType<typeof useBpmnCanvasUi> & {
 export function useBpmnCanvas({
   bpmnModelId,
   processName,
-  propertiesPanelRef,
   onCurrentXmlChange,
   onBaseVersionChange,
 }: UseBpmnCanvasArgs): UseBpmnCanvas {
@@ -144,6 +138,7 @@ export function useBpmnCanvas({
   const [hasConflict, setHasConflict] = useState(false);
   const [selectedElement, setSelectedElement] =
     useState<SelectedBpmnElement | null>(null);
+  const [renameTarget,setRenameTarget]=useState<{id:string;name:string}|null>(null);
   const presentation = useBpmnCanvasUi(modelerRef, isReady);
 
   useEffect(() => {
@@ -287,6 +282,7 @@ export function useBpmnCanvas({
     focusedElementIdRef.current = null;
     setVersions([]);
     setSelectedElement(null);
+    setRenameTarget(null);
     setElements([]);
     setCreationTools([]);
     setError(null);
@@ -295,18 +291,7 @@ export function useBpmnCanvas({
         if (!isMounted || !containerRef.current) return;
 
         const modeler = new Modeler({
-          moddleExtensions: { delir: enterpriseModdle },
           container: containerRef.current,
-          ...canvasThemeOptions(containerRef.current),
-          propertiesPanel: propertiesPanelRef.current
-            ? { parent: propertiesPanelRef.current }
-            : undefined,
-          additionalModules: [
-            enterprisePaletteModule,
-            BpmnPropertiesPanelModule,
-            BpmnPropertiesProviderModule,
-            { translate: ["value", translateBpmnLabel] },
-          ],
         }) as BpmnModeler;
 
         ownedModeler = modeler;
@@ -357,6 +342,11 @@ export function useBpmnCanvas({
           setSelectedElement(readSelectedElement(selected));
         });
 
+        eventBus.on("element.dblclick",(event?:unknown)=>{
+          const selected=(event as {element?:BpmnElementSelection&{labelTarget?:BpmnElementSelection}}).element;
+          const element=selected?.labelTarget??selected;
+          if(element?.businessObject&&!["bpmn:Process","bpmn:Collaboration"].includes(element.type))setRenameTarget({id:element.id,name:element.businessObject.name??""});
+        });
         scheduleCanvasFit();
 
         if (isMounted) {
@@ -392,7 +382,6 @@ export function useBpmnCanvas({
     bpmnModelId,
     processName,
     reloadKey,
-    propertiesPanelRef,
     loadVersions,
     scheduleUnsavedCheck,
     scheduleCanvasFit,
@@ -625,6 +614,15 @@ export function useBpmnCanvas({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [save]);
 
+  const commitRename=useCallback((id:string,name:string)=>{
+    const modeler=modelerRef.current;
+    if(modeler){const element=(modeler.get("elementRegistry") as BpmnElementRegistry).get?.(id) as BpmnElementSelection|undefined;
+      if(element&&element.businessObject?.name!==name)(modeler.get("modeling") as BpmnModeling).updateProperties(element,{name});
+    }
+    setRenameTarget(null);
+  },[]);
+  const cancelRename=useCallback(()=>setRenameTarget(null),[]);
+
   const updateSelectedNodeName = useCallback(
     (newName: string) => {
       if (!modelerRef.current || !selectedElement) return;
@@ -773,6 +771,7 @@ export function useBpmnCanvas({
     isHistoryOpen,
     setIsHistoryOpen,
     selectedElement,
+    renameTarget,commitRename,cancelRename,
     clearSelection,
     updateSelectedNodeName,
     updateSelectedNodeDoc,

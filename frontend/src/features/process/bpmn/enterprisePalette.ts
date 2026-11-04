@@ -1,4 +1,3 @@
-import { i18n } from "@/lib/i18n";
 
 type Target = { type: string; eventDefinitionType?: string; isExpanded?: boolean };
 type Entry = { id: string; group: string; icon: string; target: Target };
@@ -28,18 +27,3 @@ enterpriseEntries.push(
   { id: "create.lane", group: "collaboration", icon: "bpmn-icon-lane", target: { type: "bpmn:Lane" } },
   { id: "create.annotation", group: "artifact", icon: "bpmn-icon-text-annotation", target: { type: "bpmn:TextAnnotation" } },
 );
-
-type Palette = { registerProvider: (provider: unknown) => void };
-type Create = { start: (event: Event, shape: unknown) => void };
-type Factory = { createShape: (target: Target) => unknown };
-class EnterprisePaletteProvider {
-  static $inject = ["palette", "create", "elementFactory"];
-  constructor(palette: Palette, private create: Create, private factory: Factory) { palette.registerProvider(this); }
-  getPaletteEntries() {
-    return Object.fromEntries(enterpriseEntries.map(entry => {
-      const activate = (event: Event) => this.create.start(event, this.factory.createShape({ ...entry.target }));
-      return [entry.id, { group: entry.group, className: entry.icon, title: i18n.t(`process:canvas.tools.${entry.id}`), action: { click: activate, dragstart: activate } }];
-    }));
-  }
-}
-export const enterprisePaletteModule = { __init__: ["enterprisePaletteProvider"], enterprisePaletteProvider: ["type", EnterprisePaletteProvider] };

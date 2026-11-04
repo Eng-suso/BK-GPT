@@ -1350,9 +1350,6 @@
 
 }
 
-body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
-  visibility: hidden;
-}
 
 /* BPMN review: a compact handoff in chat that opens a dedicated decision
    surface. The sheet is intentionally glassy only at this moment of review;
@@ -2228,3 +2225,17 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
 @media (max-width: 540px) { .bpmn-review-overview-hero { padding: var(--space-400); } .bpmn-review-sheet-nav [data-slot="tabs-trigger"] { min-height: 40px; } }
 
 @media (max-width: 767px) { .viewport-embedded .shell { padding:var(--layout-workspace-padding); gap:var(--layout-history-gap); } .viewport { --chat-gutter: 16px; } .viewport .messages { padding-block: 24px; } }
+
+/* Docked chat uses its available width, not the browser width. */
+.chat-workspace-slot { container:action-prompt / inline-size; padding:8px 16px; border-block-start:1px solid var(--material-divider); max-height:min(220px,30dvh); overflow:auto; }
+.embedded-chat-panel--canvas { container:canvas-chat / inline-size; }
+.embedded-chat-panel--canvas .welcome { padding-block:16px; }
+.embedded-chat-panel--canvas .welcome > div:first-child { display:none; }
+.embedded-chat-panel--canvas .welcome .ui-button { border:0; background:none; box-shadow:none; border-radius:8px; }
+.embedded-chat-panel--canvas .chat-workspace-slot .ui-action-prompt { padding:4px 0; }
+@container composer-wrap (max-width:400px) {
+ .composer-preferences { flex-wrap:wrap; gap:0; }
+ .composer-preferences .chat-mode-trigger { flex:1 1 100%; min-height:32px; }
+ .composer-bottom-bar { column-gap:4px; row-gap:4px; }
+ .chat-autonomy-trigger { flex:1 1 auto; justify-content:flex-start; }
+}

@@ -24,8 +24,6 @@
 .process-bpmn-canvas .djs-popup .entry { min-height:40px; border-radius:var(--material-radius-control); font-size:var(--font-size-200); padding:8px 12px; }
 .process-bpmn-canvas .djs-popup .entry:hover { background:var(--material-selected); }
 .process-bpmn-canvas .djs-popup input { background:var(--material-inset); color:var(--foreground); min-height:40px; border-radius:var(--material-radius-control); }
-.process-bpmn-canvas .djs-element.selected .djs-outline { stroke:var(--color-focus-ring); stroke-width:2px; stroke-dasharray:none; }
-.process-bpmn-canvas .djs-element.hover:not(.selected) .djs-outline { stroke:var(--color-focus-ring); stroke-opacity:.45; stroke-width:1.5px; }
 .process-bpmn-canvas .djs-resizer { fill:var(--color-surface-primary); stroke:var(--color-focus-ring); }
 .process-bpmn-canvas .djs-segment-dragger .djs-segment-dragger-visual { fill:var(--color-focus-ring); stroke:var(--color-surface-primary); }
 @container process-canvas (max-width:820px) {
@@ -62,9 +60,7 @@
 .process-bpmn-canvas .djs-lasso-overlay { fill:var(--material-selected); stroke:var(--color-focus-ring); stroke-width:1px; stroke-dasharray:none; }
 
 /* Keep the group boundary clear without outlining every label and connector. */
-.process-bpmn-shell[data-multiple-selection="true"] .djs-element.selected .djs-outline { stroke-opacity:.35; stroke-width:1px; }
 .process-bpmn-shell[data-multiple-selection="true"] :is(.delir-selection-label,.delir-selection-container,.djs-connection).selected .djs-outline { display:none; }
-.process-bpmn-canvas .djs-selection-outline { stroke:var(--color-focus-ring); stroke-width:1.5px; }
 .process-selection-summary { display:flex; flex-direction:column; gap:12px; padding:16px; min-height:0; }
 .process-selection-summary ul { min-height:0; overflow:auto; }
 .process-selection-popover { width:min(340px,calc(100vw - 24px)); max-height:min(440px,60dvh); overflow:auto; padding:0; }

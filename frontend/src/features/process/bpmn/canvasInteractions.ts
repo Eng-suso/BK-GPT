@@ -50,7 +50,7 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
   const select = () => { stopGesture(); dragging.cancel(); manager.setActive(null); hand = false; space = false; cursor(); canvas.focus(); changed(); };
   const pan = () => { stopGesture(); dragging.cancel(); manager.setActive(null); hand = true; cursor(); canvas.focus(); changed(); };
   const pointerDown = (event: PointerEvent) => {
-    if (event.pointerType === "touch" || isOverlay(event.target) || !(event.target instanceof SVGElement)) return;
+    if (event.pointerType === "touch" && !hand || isOverlay(event.target) || !(event.target instanceof SVGElement)) return;
     if (!(event.button === 1 || event.button === 2 || event.button === 0 && (hand || space))) return;
     event.preventDefault(); event.stopImmediatePropagation();
     if (frame) { cancelAnimationFrame(frame); flush(); }

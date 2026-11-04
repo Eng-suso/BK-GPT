@@ -2055,7 +2055,8 @@
       "identity": "Technical identifiers",
       "deleteSelection": "Delete selection",
       "clearSelection": "Clear selection",
-      "connection": "Connection"
+      "connection": "Connection",
+      "rename": "Rename element"
     },
     "context": {
       "delete": "Delete element",
@@ -2068,7 +2069,7 @@
       "end": "Add end event",
       "gateway": "Add gateway",
       "event": "Add intermediate event",
-      "annotation": "Add note",
+      "annotation": "Add annotation",
       "laneAbove": "Add lane above",
       "laneBelow": "Add lane below",
       "twoLanes": "Divide into two lanes",
@@ -2077,13 +2078,22 @@
       "timer": "Add timer event",
       "condition": "Add conditional event",
       "signal": "Add signal event",
-      "compensation": "Add compensation activity"
+      "compensation": "Add compensation activity",
+      "intermediate": "Append intermediate event"
     },
     "navigation": {
       "title": "Canvas navigation",
       "mouse": "Mouse · wheel to zoom",
       "trackpad": "Trackpad · scroll to pan",
       "shortcuts": "V Select · H Hand · Space Drag"
+    },
+    "lanes": {
+      "manage": "Manage lanes",
+      "add-above": "Add lane above",
+      "add-below": "Add lane below",
+      "split-2": "Split into two lanes",
+      "split-3": "Split into three lanes",
+      "remove": "Remove lane, keep activities"
     }
   },
   "review": {

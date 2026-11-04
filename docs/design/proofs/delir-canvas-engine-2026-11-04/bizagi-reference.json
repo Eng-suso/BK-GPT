@@ -1,0 +1,293 @@
+{
+  "evidence_id": "ev_5f2d7c2ab155bf2b1525950f1f079192232a542a4948071a122d322e6c150459",
+  "subject": null,
+  "provider": {
+    "id": "rea-playwright-browser-scenario",
+    "name": "REA Playwright browser scenario capture provider",
+    "version": "1"
+  },
+  "analysis_profile": null,
+  "predicate_type": "rea.browser-scenario-capture",
+  "operation": "capture_browser_scenario",
+  "parameters": {
+    "browser": {
+      "mode": "launch",
+      "executable_path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "headless": true
+    },
+    "start_url": {
+      "url": "https://help.bizagi.com/platform/en/creating_a_process.htm",
+      "query": []
+    },
+    "environment": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "device_scale_factor": 1
+      },
+      "locale": "en-US",
+      "timezone": "UTC",
+      "color_scheme": "light",
+      "reduced_motion": "reduce",
+      "service_workers": "block"
+    },
+    "actions": [
+      {
+        "step_id": "ready",
+        "timeout_ms": 30000,
+        "action": "wait_for",
+        "locator": {
+          "kind": "css",
+          "selector": "body"
+        },
+        "state": "visible"
+      }
+    ],
+    "storage": {
+      "cookies": [],
+      "local_storage": [],
+      "session_storage": []
+    },
+    "secrets": [],
+    "capture": {
+      "after_each_step": [],
+      "at_end": [
+        "screenshot",
+        "dom",
+        "accessibility",
+        "url"
+      ],
+      "events": [
+        "page-errors"
+      ],
+      "network": {
+        "request_body": false,
+        "response_body": false,
+        "header_values": false
+      },
+      "limits": {
+        "max_events": 10000,
+        "max_event_allocation_bytes": 4194304,
+        "max_total_event_allocation_bytes": 16777216,
+        "max_network_transactions": 1024,
+        "max_network_body_bytes": 65536,
+        "max_network_body_allocation_bytes": 1048576,
+        "max_network_header_allocation_bytes": 1048576,
+        "max_network_metadata_allocation_bytes": 1048576
+      }
+    },
+    "scenario_sha256": "c2ad01db7f4978efab5280f837dc1f9d425f2ecf687f8db5849743dd03440b5a"
+  },
+  "raw_result": null,
+  "normalized_result": {
+    "browser": {
+      "mode": "launch",
+      "process_ownership": "provider-owned",
+      "cleanup": "terminated-owned-process",
+      "product": "Chromium",
+      "version": "156.0.8078.80"
+    },
+    "scenario": {
+      "start_origin": "https://help.bizagi.com",
+      "action_count": 1,
+      "secret_references": [],
+      "network_content": {
+        "request_body": false,
+        "response_body": false,
+        "header_values": false
+      },
+      "event_families": [
+        "page-errors"
+      ],
+      "limits": {
+        "max_events": 10000,
+        "max_event_allocation_bytes": 4194304,
+        "max_total_event_allocation_bytes": 16777216,
+        "max_network_transactions": 1024,
+        "max_network_body_bytes": 65536,
+        "max_network_body_allocation_bytes": 1048576,
+        "max_network_header_allocation_bytes": 1048576,
+        "max_network_metadata_allocation_bytes": 1048576
+      }
+    },
+    "duration_ms": 35028,
+    "steps": [
+      {
+        "step_index": 0,
+        "step_id": "scenario_start",
+        "action": "goto_start",
+        "elapsed_ms": 3994,
+        "before_url": {
+          "url": "about:blank",
+          "origin": null,
+          "query_parameter_names": [],
+          "redacted": false
+        },
+        "after_url": {
+          "url": "https://help.bizagi.com/platform/en/index.html?creating_a_process.htm",
+          "origin": "https://help.bizagi.com",
+          "query_parameter_names": [
+            "creating_a_process.htm"
+          ],
+          "redacted": false
+        },
+        "event_sequence_start": 1,
+        "event_sequence_end": 0,
+        "artifacts": {
+          "screenshot": {
+            "state": "not_requested"
+          },
+          "dom": {
+            "state": "not_requested"
+          },
+          "accessibility": {
+            "state": "not_requested"
+          },
+          "url": {
+            "state": "not_requested"
+          },
+          "history": {
+            "state": "not_requested"
+          },
+          "storage": {
+            "state": "not_requested"
+          }
+        },
+        "completeness": {
+          "status": "complete",
+          "equality_eligible": true,
+          "missing_sections": [],
+          "truncated_sections": []
+        },
+        "status": "completed",
+        "error": null
+      },
+      {
+        "step_index": 1,
+        "step_id": "ready",
+        "action": "wait_for",
+        "elapsed_ms": 30260,
+        "before_url": {
+          "url": "https://help.bizagi.com/platform/en/index.html?creating_a_process.htm",
+          "origin": "https://help.bizagi.com",
+          "query_parameter_names": [
+            "creating_a_process.htm"
+          ],
+          "redacted": false
+        },
+        "after_url": {
+          "url": "https://help.bizagi.com/platform/en/index.html?creating_a_process.htm",
+          "origin": "https://help.bizagi.com",
+          "query_parameter_names": [
+            "creating_a_process.htm"
+          ],
+          "redacted": false
+        },
+        "event_sequence_start": 1,
+        "event_sequence_end": 0,
+        "artifacts": {
+          "screenshot": {
+            "state": "captured",
+            "value": {
+              "sha256": "97243646391280f431e11fb40107df5f946db718a009e69ad040e04836e70cd9",
+              "bytes": 172397,
+              "media_type": "image/png",
+              "export_note": "Final screenshot exported.",
+              "file": "docs/design/proofs/delir-canvas-engine-2026-11-04/bizagi-reference.png"
+            }
+          },
+          "dom": {
+            "state": "captured",
+            "value": {
+              "sha256": "9737b1c2404e3204170d644c56fb2b549b2795fd808ae8092ae32160272b2106",
+              "bytes": 75909,
+              "export_note": "Text omitted; public receipt retains original digest."
+            }
+          },
+          "accessibility": {
+            "state": "captured",
+            "value": {
+              "sha256": "0c0ead51619c1c0e441bca3ad33b47bcdfb09674bec5ecabfe1c047c671addfb",
+              "bytes": 859,
+              "export_note": "Text omitted; public receipt retains original digest."
+            }
+          },
+          "url": {
+            "state": "captured",
+            "value": {
+              "url": "https://help.bizagi.com/platform/en/index.html?creating_a_process.htm",
+              "origin": "https://help.bizagi.com",
+              "query_parameter_names": [
+                "creating_a_process.htm"
+              ],
+              "redacted": false
+            }
+          },
+          "history": {
+            "state": "not_requested"
+          },
+          "storage": {
+            "state": "not_requested"
+          }
+        },
+        "completeness": {
+          "status": "incomplete",
+          "equality_eligible": false,
+          "missing_sections": [
+            "action"
+          ],
+          "truncated_sections": []
+        },
+        "status": "failed",
+        "error": "Analysis operation timed out after 30000ms: capture_browser_scenario"
+      }
+    ],
+    "events": {
+      "retained": 0,
+      "dropped": 0,
+      "items": [],
+      "omissions": {
+        "by_kind": [],
+        "network_transactions": [],
+        "network_transaction_range": null
+      }
+    },
+    "completeness": {
+      "status": "incomplete",
+      "equality_eligible": false,
+      "missing_sections": [
+        "action"
+      ],
+      "truncated_sections": []
+    },
+    "limitations": [
+      "Event sequence records provider receipt order; simultaneous browser causality is not inferred.",
+      "Network content is retained only when selected; Playwright response-body bytes are API results and are not guaranteed to match wire bytes.",
+      "Request bytes are limited to what Playwright exposes; not_exposed does not establish body absence or multipart file coverage.",
+      "Network content reads settle within 5 seconds each and the observer does not request bodies from unfinished responses.",
+      "Playwright scenario events do not expose request initiator stacks; receipt order does not prove causality.",
+      "Storage values are hashed only after declared-secret redaction."
+    ]
+  },
+  "confidence": "observed",
+  "authority": "controlled-replay",
+  "environment": {
+    "id": "Chromium@156.0.8078.80",
+    "platform": "unknown",
+    "architecture": "unknown",
+    "isolation": "process"
+  },
+  "limitations": [
+    "Artifact identity is unavailable for this observation.",
+    "Event sequence records provider receipt order; simultaneous browser causality is not inferred.",
+    "Network content is retained only when selected; Playwright response-body bytes are API results and are not guaranteed to match wire bytes.",
+    "Request bytes are limited to what Playwright exposes; not_exposed does not establish body absence or multipart file coverage.",
+    "Network content reads settle within 5 seconds each and the observer does not request bodies from unfinished responses.",
+    "Playwright scenario events do not expose request initiator stacks; receipt order does not prove causality.",
+    "Storage values are hashed only after declared-secret redaction.",
+    "Browser host platform and architecture were not observed."
+  ],
+  "relationship_coverage": null,
+  "locations": [],
+  "evidence_links": []
+}

@@ -80,7 +80,7 @@ export function readableViewbox(
   };
 }
 
-/** Element types bpmn-js keeps in the registry even for an empty diagram. */
+/** Structural element types kept in the registry even for an empty diagram. */
 const STRUCTURAL_TYPES = new Set([
   "bpmn:Definitions",
   "bpmn:Process",
@@ -95,7 +95,7 @@ const STRUCTURAL_TYPES = new Set([
  * failed to load": an empty model is a valid, expected state for a process that
  * has only just been recorded.
  *
- * @param modeler - The mounted bpmn-js modeler
+ * @param modeler - The mounted DeliR modeler
  * @returns `true` when at least one diagram element exists
  */
 export function hasDiagramContent(modeler: BpmnModeler): boolean {

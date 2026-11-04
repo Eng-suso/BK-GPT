@@ -397,7 +397,7 @@
 }
 
 .process-studio-chat .embedded-chat-body {
-  padding: var(--space-300) var(--space-400);
+  padding: 12px 16px;
 }
 
 .process-studio-chat .embedded-chat-panel .composer-wrap {
@@ -756,3 +756,5 @@
 }
 
 @media (max-width: 620px) { .process-stage-badge { display: none; } }
+
+.embedded-chat-panel:has(> .chat-workspace-slot) { grid-template-rows:auto minmax(0,1fr) auto auto; }

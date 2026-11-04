@@ -205,9 +205,9 @@
   .ui-action-prompt-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--material-selected); color: var(--primary); }
   .ui-action-prompt-copy { min-width: 0; }
   .ui-action-prompt-copy > p { font-size: var(--font-size-200); font-weight: var(--font-weight-semibold); line-height: 1.4; }
-  .ui-action-prompt-copy > div { margin-top: 3px; color: var(--color-text-secondary); font-size: var(--font-size-100); line-height: 1.5; overflow-wrap: anywhere; }
+  .ui-action-prompt-copy > div { margin-top: 3px; color: var(--color-text-secondary); font-size: var(--font-size-100); line-height: 1.5; overflow-wrap: break-word; }
   .ui-action-prompt-meta { display: block; margin-bottom: 3px; color: var(--color-text-secondary); font-size: var(--font-size-100); }
-  @media (max-width: 540px) {
+  @container action-prompt (max-width: 540px) {
     .ui-action-prompt { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 12px; }
     .ui-action-prompt-icon { display: none; }
     .ui-action-prompt-action { grid-row: 2; }

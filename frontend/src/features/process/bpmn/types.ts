@@ -1,4 +1,4 @@
-/** Minimal structural types over the parts of bpmn-js this feature touches. */
+/** Minimal structural types over the DeliR services this feature touches. */
 
 export type BpmnModeler = {
   importXML: (xml: string) => Promise<unknown>;

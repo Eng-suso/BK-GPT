@@ -6,7 +6,7 @@ import { loadProcessTranslations } from "@/lib/i18n";
  * Le schermate del prodotto, caricate quando servono.
  *
  * Erano tutte importate in cima al router, quindi il primo caricamento portava
- * giù l'intero prodotto: `bpmn-js` con il pannello proprietà e la token
+ * giù l'intero prodotto: il canvas DeliR con il pannello proprietà e la token
  * simulation, `recharts`, `react-markdown`. Chi apriva Clienti scaricava il
  * canvas BPMN prima di vedere una riga della tabella.
  *

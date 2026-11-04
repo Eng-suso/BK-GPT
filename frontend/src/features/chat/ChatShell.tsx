@@ -210,7 +210,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
 
   if (chrome === "panel") {
     return (
-      <section className="embedded-chat-panel" aria-label={t("header.contextual")}>
+      <section className={`embedded-chat-panel ${scope?.type === "canvas" ? "embedded-chat-panel--canvas" : ""}`} aria-label={t("header.contextual")}>
         <header className="embedded-chat-header ui-surface-toolbar flex min-h-[var(--inspector-header-height)] items-center justify-between gap-3 border-b border-border px-4 py-2.5">
           <div className="flex min-w-0 flex-col gap-1">
             <ThreadSwitcher
@@ -288,7 +288,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
         </div>
 
         {workspaceSlot ? (
-          <div className="chat-workspace-slot shrink-0 px-4 py-3">
+          <div className="chat-workspace-slot shrink-0">
             {workspaceSlot}
           </div>
         ) : null}
@@ -361,7 +361,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
           </div>
 
           {workspaceSlot ? (
-            <div className="chat-workspace-slot shrink-0 px-4 py-3">
+            <div className="chat-workspace-slot shrink-0">
               {workspaceSlot}
             </div>
           ) : null}

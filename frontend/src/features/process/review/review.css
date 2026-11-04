@@ -170,7 +170,6 @@
 
 .review-chat-header > .review-mascot { flex: none; width: var(--space-800); height: var(--space-800); margin-top: var(--space-100); }
 .review-chat-heading { flex: 1; }
-.review-canvas .bjs-powered-by { right: auto !important; left: var(--space-400) !important; bottom: var(--space-400) !important; }
 
 .review-chat-resize { position: absolute; top: 0; left: 0; z-index: 2; width: var(--space-600); height: var(--space-600); cursor: nwse-resize; touch-action: none; }
 .review-agent-chat:hover > .review-chat-resize, .review-agent-chat:focus-within > .review-chat-resize { opacity: 1; pointer-events: auto; }

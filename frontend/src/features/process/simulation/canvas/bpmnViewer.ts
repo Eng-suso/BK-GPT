@@ -1,4 +1,4 @@
-/** Minimal structural types for the bpmn-js `NavigatedViewer` services the
+/** Minimal structural types for the DeliR read-only viewer services the
  * simulation canvas + token layer touch. Kept here so both share one contract. */
 
 export type BpmnViewer = {

@@ -1,0 +1,28 @@
+/* Selection is a soft aura around the actual BPMN geometry. The keyboard
+   focus indicator is separate, so hover never impersonates persistent selection. */
+.delir-diagram { --element-selected-outline-stroke-color:var(--primary); --element-hover-outline-stroke-color:var(--primary); }
+.delir-diagram .djs-element.selected .djs-outline,
+.process-bpmn-shell[data-multiple-selection="true"] .delir-diagram .djs-element.selected .djs-outline {
+ stroke:color-mix(in srgb,var(--delir-selection-accent,var(--primary)) 38%,transparent); stroke-width:3px; stroke-opacity:1; fill:none; filter:blur(1px); pointer-events:none;
+}
+.delir-diagram .djs-element.hover:not(.selected) .djs-outline {
+ stroke:var(--canvas-hover-aura); stroke-width:2px; stroke-opacity:1; filter:blur(1px); fill:none; pointer-events:none;
+}
+.delir-diagram .djs-selection-outline { stroke:color-mix(in srgb,var(--primary) 18%,transparent); stroke-width:4px; fill:color-mix(in srgb,var(--primary) 2%,transparent); filter:blur(1.5px); pointer-events:none; }
+.delir-diagram .djs-connection.selected .djs-visual > path:first-child { filter:drop-shadow(0 0 2px color-mix(in srgb,var(--primary) 24%,transparent)); }
+.delir-diagram .delir-node-label { pointer-events:none; user-select:none; }
+@media(forced-colors:active){
+ .delir-diagram .djs-element.selected .djs-outline,.delir-diagram .djs-selection-outline { stroke:Highlight;stroke-width:2px;filter:none;fill:none; }
+}
+
+.process-inline-rename { position:absolute;z-index:15; }
+
+.process-inline-rename { padding:0; background:none; border:0; box-shadow:none; }
+.process-inline-rename-text { display:block; box-sizing:border-box; width:100%; min-height:1.3em; margin:0; padding:0; border:0; border-radius:0; outline:none; resize:none; overflow:hidden; font-family:var(--font-family-geist,sans-serif); font-size:inherit; line-height:1.3; text-align:center; color:var(--color-text-primary); background:var(--color-surface-primary); box-shadow:0 1px 0 color-mix(in srgb,var(--primary) 18%,transparent); }
+.delir-node-label[data-delir-editing="true"] { visibility:hidden; }
+.delir-diagram [data-delir-cursor="panning"] .djs-element.hover:not(.selected) .djs-outline { display:none; }
+
+.delir-dashed-flow { animation:delir-dash-flow 1.6s linear infinite; }
+.delir-dashed-flow--association { --delir-dash-offset:-14; }
+@keyframes delir-dash-flow { to { stroke-dashoffset:var(--delir-dash-offset,-26); } }
+@media(prefers-reduced-motion:reduce) { .delir-dashed-flow { animation:none; } }

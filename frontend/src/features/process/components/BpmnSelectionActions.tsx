@@ -17,7 +17,9 @@ export function BpmnSelectionActions({ actions, count, name, multiple, items, on
   const [selectionOpen, setSelectionOpen] = useState(false);
   if (!count || !actions.length) return null;
   const append = actions.filter(action => action.id.startsWith("append."));
-  const remaining = actions.filter(action => !action.id.startsWith("append.") && !["connect", "replace"].includes(action.id));
+  const lanes = actions.filter(action => action.id.startsWith("lane."));
+  const replacements = actions.filter(action => action.id.startsWith("replace."));
+  const remaining = actions.filter(action => !action.id.startsWith("append.") && !action.id.startsWith("replace.") && !action.id.startsWith("lane.") && !["connect", "replace"].includes(action.id));
   const menu = (items: CreationTool[], label: string, icon: ReactNode) => <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" className="min-h-11 gap-2" aria-label={label}>{icon}<span className="process-selection-action-text">{label}</span></Button></DropdownMenuTrigger><DropdownMenuContent align="start" onCloseAutoFocus={event => { if (actionTaken.current) { event.preventDefault(); actionTaken.current = false; } }}>{items.map(action => <DropdownMenuItem key={action.id} onClick={event => { actionTaken.current = true; onAction(action.id, event.nativeEvent); }} className={action.id === "delete" ? "text-destructive" : undefined}><BpmnToolIcon id={action.id} />{action.title}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>;
   return <CanvasToolGroup label={t("canvas.interactions.selectionActions")} className="process-selection-actions">
     {multiple ? <>
@@ -28,7 +30,8 @@ export function BpmnSelectionActions({ actions, count, name, multiple, items, on
     <span className="process-selection-label">{name || t("canvas.interactions.selected")}</span>
     {append.length > 0 && menu(append, t("canvas.interactions.append"), <Plus aria-hidden className="size-4" />)}
     {actions.some(action => action.id === "connect") && <CanvasToolButton label={t("canvas.interactions.connect")} onClick={event => onAction("connect", event.nativeEvent)}><ArrowUpRight aria-hidden /></CanvasToolButton>}
-    {actions.some(action => action.id === "replace") && <CanvasToolButton label={t("canvas.interactions.replace")} onClick={event => onAction("replace", event.nativeEvent)}><Settings2 aria-hidden /></CanvasToolButton>}
+    {lanes.length > 0 && menu(lanes, t("canvas.lanes.manage"), <Plus aria-hidden className="size-4" />)}
+    {replacements.length > 0 && menu(replacements, t("canvas.interactions.replace"), <Settings2 aria-hidden className="size-4" />)}
     {remaining.length > 0 && menu(remaining, t("canvas.interactions.more"), <MoreHorizontal aria-hidden className="size-4" />)}
     </>}
   </CanvasToolGroup>;
