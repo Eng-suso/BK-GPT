@@ -115,6 +115,7 @@ export class BpmnDocument {
         const shapes = new Map(activePlane ? [...all(activePlane, NS.bpmndi, "BPMNShape"), ...all(activePlane, NS.bpmndi, "BPMNEdge")].map(el => [el.getAttribute("bpmnElement"), el]) : []);
         const live = elements.filter(el => !el.labelTarget && el.type !== "label" && el.type.startsWith("bpmn:") && el.id !== this.rootId);
         const liveIds = new Set(live.map(el => el.id));
+        const originalParents = new Map(this.records.map(record => [record.id, record.parentId ?? this.rootId]));
         // Remove only objects actually imported by this editor. Untouched semantic
         // objects without DI and vendor extensions are not pruned.
         for (const id of this.originalIds)
@@ -344,6 +345,18 @@ export class BpmnDocument {
                 for (const key of ["x", "y", "width", "height"] as const)
                     attr(bounds, key, label[key]);
             }
+        }
+        // Existing nodes need the same ownership update as newly created nodes.
+        // Do this after creating every participant/process, regardless of registry
+        // iteration order. Move the original XML node, retaining opaque payloads.
+        for (const el of live) {
+            if (!el.parent || /Participant$|Lane$|MessageFlow$/.test(el.type)) continue;
+            if (originalParents.get(el.id) === el.parent.id) continue;
+            const node = nodes.get(el.id);
+            let owner = el.parent;
+            while (owner.type === "bpmn:Lane" && owner.parent) owner = owner.parent;
+            const destination = owner.type === "bpmn:SubProcess" ? nodes.get(owner.id) : processFor(el);
+            if (node && destination && node.parentElement !== destination) destination.append(node);
         }
         const laneByNode = new Map(live.filter(el => el.parent?.type === "bpmn:Lane" && !el.waypoints && !["bpmn:Lane", "bpmn:Participant"].includes(el.type)).map(el => [el.id, el.parent!.id]));
         for (const lane of all(doc, NS.bpmn, "lane"))

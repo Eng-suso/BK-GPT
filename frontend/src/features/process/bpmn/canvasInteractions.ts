@@ -12,7 +12,7 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
   const canvas = modeler.get("canvas") as { getContainer: () => HTMLElement; getRootElement: () => Element; focus: () => void; scroll: (delta: {dx:number;dy:number}) => void; zoom: (scale?: number, position?: {x:number;y:number}) => number };
   const host = canvas.getContainer();
   const svg = host.querySelector("svg")!;
-  const dragging = modeler.get("dragging") as { cancel: () => void };
+  const dragging = modeler.get("dragging") as { cancel: () => void; context?: () => {active:boolean;prefix:string}|null };
   const manager = modeler.get("toolManager") as { _active?: string; setActive: (tool: null) => void };
   const selection = modeler.get("selection") as { get: () => Element[]; select:(elements:Element[]|Element)=>void };
   const registry=modeler.get("elementRegistry") as {get:(id:string)=>Element|undefined};
@@ -116,7 +116,16 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
     else if (event.key === "Escape" && (hand || space)) { event.preventDefault(); event.stopImmediatePropagation(); select(); }
   };
   const keyUp = (event: KeyboardEvent) => { if (event.code === "Space" && space) { event.preventDefault(); event.stopImmediatePropagation(); space = false; cursor(); changed(); } };
-  const blur = () => { stopGesture(); space = false; cursor(); changed(); };
+  const blur = () => { stopGesture(); dragging.cancel(); manager.setActive(null); space = false; cursor(); changed(); };
+  // A mouseup outside the browser may never reach diagram-js. On re-entry a
+  // released primary button must cancel a move, not keep the shape in hand.
+  // Click-to-place creation/connection tools intentionally remain active.
+  const recoverMove = (event:MouseEvent) => {
+    const context=dragging.context?.();
+    if(context?.active && context.prefix === "shape.move" && !(event.buttons & 1)) dragging.cancel();
+  };
+  const pointerCancel = () => { blur(); };
+  const visibility = () => { if(document.hidden)blur(); };
   const keepSelection = (event: DiagramEvent) => {
     const mouse = event.originalEvent, selected = selection.get();
     if (!hand && !space && !manager._active && mouse.button === 0 && !mouse.shiftKey && !mouse.ctrlKey && !mouse.metaKey && selected.length === 1 && selected[0] === event.element) return false;
@@ -132,6 +141,8 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
   host.addEventListener("pointermove",pointerMove,true);
   host.addEventListener("pointerup",pointerEnd,true);
   host.addEventListener("pointercancel",pointerEnd,true);
+  host.addEventListener("pointercancel",pointerCancel,true);
+  host.addEventListener("mousemove",recoverMove,true);
   host.addEventListener("click",click,true);
   host.addEventListener("contextmenu",contextMenu);
   host.addEventListener("wheel",wheel,{capture:true,passive:false});
@@ -139,6 +150,7 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
   document.addEventListener("keydown",keyDown,true);
   document.addEventListener("keyup",keyUp,true);
   window.addEventListener("blur",blur);
+  document.addEventListener("visibilitychange",visibility);
   bus.on("element.click",2000,keepSelection);
   bus.on("element.mousedown",2000,startMarquee);
   cursor();
@@ -156,6 +168,7 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
       clearTimeout(clickReset);
       host.removeEventListener("pointerenter",pointerEnter);host.removeEventListener("pointerleave",pointerLeave);svg.removeEventListener("lostpointercapture",lostCapture);
       host.removeEventListener("pointerdown",pointerDown,true);host.removeEventListener("pointermove",pointerMove,true);host.removeEventListener("pointerup",pointerEnd,true);host.removeEventListener("pointercancel",pointerEnd,true);host.removeEventListener("click",click,true);host.removeEventListener("contextmenu",contextMenu);host.removeEventListener("wheel",wheel,true);
+      host.removeEventListener("pointercancel",pointerCancel,true);host.removeEventListener("mousemove",recoverMove,true);document.removeEventListener("visibilitychange",visibility);
       document.removeEventListener("mousemove",mouseDuringPan,true);document.removeEventListener("keydown",keyDown,true);document.removeEventListener("keyup",keyUp,true);window.removeEventListener("blur",blur);
       bus.off("element.click",keepSelection);bus.off("element.mousedown",startMarquee);delete host.dataset.delirCursor;
     }

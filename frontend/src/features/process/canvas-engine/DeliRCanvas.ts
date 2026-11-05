@@ -6,6 +6,7 @@ import { ConnectionOrder } from "./ConnectionOrder";
 import { laneChildren, partitionResize, validPartitionResize, type Bounds } from "./Partitions";
 import { getMinResizeBounds } from "diagram-js/lib/features/resize/ResizeUtil";
 import { connectionRule, canStartConnection, flowScope } from "./connectionRules";
+import { canMoveElements } from "./moveRules";
 import { DeliROutline } from "./Outline";
 import OutlineModule from "diagram-js/lib/features/outline";
 import OverlaysModule from "diagram-js/lib/features/overlays";
@@ -289,21 +290,13 @@ export class DeliRCanvas {
             if((event as {context:{hints?:{delirLanes?:boolean}}}).context.hints?.delirLanes)return true;
             if(newBounds && partitionShape(shape))return validPartitionResize(partitionResize(shape,newBounds as Bounds));
             return !newBounds || newBounds.width >= 100 && newBounds.height >= 60; });
-        bus.on("commandStack.elements.move.canExecute", 2000, event => { const { target, shapes } = (event as {
+        bus.on("commandStack.elements.move.canExecute", 2000, event => { const { target, shapes, delta } = (event as {
             context: {
                 target?: CanvasElement;
                 shapes?: CanvasElement[];
+                delta?: Point;
             };
-        }).context; if (!target)
-            return true; if (!/Process$|Collaboration$|Participant$|Lane$|SubProcess$/.test(target.type))
-            return false;
-            const scope = (element: CanvasElement | undefined) => { while (element && !/Process$|Collaboration$|Participant$|SubProcess$/.test(element.type)) element = element.parent; return element; };
-            if (shapes?.some(shape => !shape.labelTarget && !/TextAnnotation$|Group$/.test(shape.type) && scope(shape.parent) !== scope(target))) return false;
-            return !shapes?.some(shape => { let parent: CanvasElement | undefined = target; while (parent) {
-            if (parent === shape)
-                return true;
-            parent = parent.parent;
-        } return false; }); });
+        }).context; return canMoveElements(shapes ?? [],target,this.diagram.get<Registry>("elementRegistry").getAll(),delta); });
         bus.on(["commandStack.connection.delete.preExecute","commandStack.shape.delete.preExecute"],2000,value=>{
             const context=(value as {context:{connection?:CanvasElement;shape?:CanvasElement}}).context;
             const owner=context.connection??context.shape;

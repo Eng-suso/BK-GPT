@@ -106,4 +106,19 @@ describe("DeliR BPMN document contract", () => {
         expect(() => new BpmnDocument("<broken")).toThrow();
         expect(() => new BpmnDocument("<definitions/>")).toThrow();
     });
+    it("transfers existing nodes and internal flows into a pool process without losing payloads",()=>{
+        const {doc,elements}=importDocument();
+        const root={id:"process",type:"bpmn:Process"} as CanvasElement;
+        const pool:CanvasElement={id:"Pool",type:"bpmn:Participant",parent:root,businessObject:businessObject("bpmn:Participant",{id:"Pool"}),x:0,y:0,width:600,height:400};
+        for(const el of elements)el.parent=pool;
+        const saved=parse(doc.serialize([...elements,pool]));
+        const processId=saved.getElementById("Pool")!.getAttribute("processRef")!;
+        for(const id of ["start","task","flow"])expect(saved.getElementById(id)!.parentElement!.id).toBe(processId);
+        expect(saved.getElementsByTagNameNS("urn:vendor","item")[0].textContent).toBe("opaque data");
+        expect(saved.getElementsByTagNameNS(NS.bpmn,"conditionExpression")[0].textContent).toBe("amount > 10 && approved");
+        const reloaded=new BpmnDocument(new XMLSerializer().serializeToString(saved));
+        expect(reloaded.records.filter(r=>r.id!=="Pool").every(r=>r.parentId==="Pool")).toBe(true);
+        for(const el of elements)delete el.parent;
+        expect(doc.serialize(elements)).toBe(xml);
+    });
 });

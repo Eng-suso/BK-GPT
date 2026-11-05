@@ -42,6 +42,49 @@ test.beforeEach(async ({ page }) => { await fixture(page); });
 // Aprire un processo porta alla discussione: il canvas si chiede, con `?view=canvas`.
 const canvasView = `${studio}?view=canvas`;
 
+test("selected subgraph drops into a pool and releases after valid and rejected moves",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source='<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="urn:move"><bpmn:process id="Loose"><bpmn:startEvent id="Start"/><bpmn:task id="Work" name="Verifica"/><bpmn:endEvent id="End"/><bpmn:sequenceFlow id="First" sourceRef="Start" targetRef="Work"/><bpmn:sequenceFlow id="Last" sourceRef="Work" targetRef="End"/></bpmn:process><bpmn:process id="Inside"/><bpmn:collaboration id="Collaboration"><bpmn:participant id="Pool" name="Operations" processRef="Inside"/></bpmn:collaboration><bpmndi:BPMNDiagram id="diagram"><bpmndi:BPMNPlane id="plane" bpmnElement="Collaboration"><bpmndi:BPMNShape id="Start_di" bpmnElement="Start"><dc:Bounds x="160" y="100" width="36" height="36"/></bpmndi:BPMNShape><bpmndi:BPMNShape id="Work_di" bpmnElement="Work"><dc:Bounds x="300" y="86" width="120" height="64"/></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_di" bpmnElement="End"><dc:Bounds x="520" y="100" width="36" height="36"/></bpmndi:BPMNShape><bpmndi:BPMNShape id="Pool_di" bpmnElement="Pool" isHorizontal="true"><dc:Bounds x="100" y="300" width="900" height="350"/></bpmndi:BPMNShape><bpmndi:BPMNEdge id="First_di" bpmnElement="First"><di:waypoint x="196" y="118"/><di:waypoint x="300" y="118"/></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Last_di" bpmnElement="Last"><di:waypoint x="420" y="118"/><di:waypoint x="520" y="118"/></bpmndi:BPMNEdge></bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>';
+  let saved=source;const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET, PUT, OPTIONS","access-control-allow-headers":"Content-Type"},json:{id:"layout-model",process_id:"layout-process",name:"Drop regression",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),node=(id:string)=>canvas.locator('.djs-shape[data-element-id="'+id+'"]').first();
+  await expect(node("Work")).toBeVisible();
+  const fit=async()=>{await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();await page.evaluate(()=>new Promise<void>(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r()))));};
+  await fit();
+  const workBefore=await node("Work").getAttribute("transform");
+  // Losing browser focus while moving cancels the preview and leaves the next
+  // drag usable, even when the OS never sends the original mouseup.
+  const initial=(await node("Work").locator(".djs-visual > rect").first().boundingBox())!;
+  await page.mouse.move(initial.x+40,initial.y+30);await page.mouse.down();await page.mouse.move(initial.x+80,initial.y+50,{steps:8});await expect(canvas.locator(".djs-dragger")).toHaveCount(1);
+  await page.evaluate(()=>window.dispatchEvent(new Event("blur")));await expect(canvas.locator(".djs-dragger")).toHaveCount(0);await page.mouse.up();await expect(node("Work")).toHaveAttribute("transform",workBefore!);
+  await page.mouse.move(initial.x+40,initial.y+30);await page.mouse.down();await page.mouse.move(initial.x+80,initial.y+50,{steps:8});await expect(canvas.locator(".djs-dragger")).toHaveCount(1);
+  await canvas.locator(".djs-container").dispatchEvent("mousemove",{buttons:0,clientX:initial.x+80,clientY:initial.y+50});await expect(canvas.locator(".djs-dragger")).toHaveCount(0);await page.mouse.up();await expect(node("Work")).toHaveAttribute("transform",workBefore!);
+  const dragIntoPool=async()=>{const a=(await node("Work").locator(".djs-visual > rect").first().boundingBox())!,pool=(await node("Pool").locator(".djs-visual > rect").first().boundingBox())!;await page.mouse.move(a.x+a.width/2,a.y+a.height/2);await page.mouse.down();await page.mouse.move(a.x+a.width/2,pool.y+pool.height/2,{steps:24});await page.mouse.up();};
+  // A partial connected selection cannot cross the process boundary.
+  await dragIntoPool();await expect(canvas.locator(".djs-dragger")).toHaveCount(0);await expect(node("Work")).toHaveAttribute("transform",workBefore!);await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
+  // Marquee selects the full connected graph, without selecting the pool.
+  await fit();const a=(await node("Start").boundingBox())!,b=(await node("End").boundingBox())!;
+  await page.mouse.move(a.x-24,a.y-30);await page.mouse.down();await page.mouse.move(b.x+b.width+24,b.y+b.height+35,{steps:20});await page.mouse.up();await expect(canvas.locator(".djs-shape.selected")).toHaveCount(3);
+  await dragIntoPool();await expect(canvas.locator(".djs-dragger")).toHaveCount(0);await expect(node("Work")).not.toHaveAttribute("transform",workBefore!);
+  const after=await node("Work").getAttribute("transform");await page.mouse.move(900,250,{steps:10});await expect(node("Work")).toHaveAttribute("transform",after!);
+  await page.getByRole("button",{name:"Salva",exact:true}).click();
+  expect(await page.evaluate(s=>{const d=new DOMParser().parseFromString(s,"application/xml");return ["Start","Work","End","First","Last"].map(id=>d.querySelector('[id="'+id+'"]')!.parentElement!.id);},saved)).toEqual(Array(5).fill("Inside"));
+  await info.attach("adopted-pool.xml",{body:Buffer.from(saved),contentType:"application/xml"});await page.screenshot({path:info.outputPath("adopted-pool.png")});
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(node("Work")).toHaveAttribute("transform",workBefore!);await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);
+  await page.mouse.click(1400,200);
+  for(const [index,id] of ["Start","Work","End"].entries()) {
+    const bounds=(await node(id).boundingBox())!;
+    if(index)await page.keyboard.down("Shift");
+    await page.mouse.click(bounds.x+bounds.width/2,bounds.y+bounds.height/2);
+    if(index)await page.keyboard.up("Shift");
+  }
+  await expect(canvas.locator(".djs-shape.selected")).toHaveCount(3);await expect(canvas.locator(".djs-connection.selected")).toHaveCount(0);
+  await dragIntoPool();await expect(canvas.locator(".djs-dragger")).toHaveCount(0);await page.getByRole("button",{name:"Salva",exact:true}).click();
+  expect(await page.evaluate(s=>{const d=new DOMParser().parseFromString(s,"application/xml");return ["Start","Work","End","First","Last"].map(id=>d.querySelector('[id="'+id+'"]')!.parentElement!.id);},saved)).toEqual(Array(5).fill("Inside"));
+  await page.reload();await expect(node("Work")).not.toHaveAttribute("transform",workBefore!);await expect(node("Work")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 for (const mobile of [false, true]) test(`enterprise library and properties round-trip on ${mobile ? "mobile" : "desktop"}`, async ({ page }, info) => {
   test.setTimeout(90_000);
   await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1600, height: 1000 });
