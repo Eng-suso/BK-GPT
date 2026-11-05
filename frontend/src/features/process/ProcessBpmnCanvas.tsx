@@ -2,22 +2,27 @@ import React from "react";
 import { createPortal } from "react-dom";
 import type { RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { MessagesSquare, Upload, Maximize2, Plus, Minus } from "lucide-react";
+import { MessagesSquare, Upload, Maximize2, Plus, Minus, Undo2, Redo2, ChevronDown } from "lucide-react";
 
-import "bpmn-js/dist/assets/diagram-js.css";
-import "bpmn-js/dist/assets/bpmn-js.css";
-import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
-import "@bpmn-io/properties-panel/dist/assets/properties-panel.css";
+import "diagram-js/assets/diagram-js.css";
+import "@/features/process/canvas-engine/canvas.css";
 
 import type { StatusTone } from "@/components/status";
 import { Button } from "@/ui/button";
 import { useElementWidth } from "@/lib/useElementWidth";
 import { Surface } from "@/ui/surface";
 import { WorkspaceDisclosure } from "@/components/layout/CanvasWorkspace";
+import { CanvasToolButton, CanvasToolGroup } from "@/components/canvas/CanvasTools";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/ui/dropdown-menu";
+import { BpmnSelectionSummary } from "./components/BpmnSelectionSummary";
+import { BpmnCanvasContextMenu } from "./components/BpmnCanvasContextMenu";
+import { BpmnSelectionActions } from "./components/BpmnSelectionActions";
 import { BpmnCreationTools } from "./components/BpmnCreationTools";
 import { BpmnElementNavigator } from "./components/BpmnElementNavigator";
 import { useBpmnCanvas } from "./bpmn/useBpmnCanvas";
 import { BpmnCanvasToolbar } from "./components/BpmnCanvasToolbar";
+import { BpmnInlineRename } from "./components/BpmnInlineRename";
+import { BpmnTechnicalProperties } from "./components/BpmnTechnicalProperties";
 import { BpmnNodeInspector } from "./components/BpmnNodeInspector";
 import { BpmnVersionHistory } from "./components/BpmnVersionHistory";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/ui/dialog";
@@ -26,13 +31,15 @@ import { onWorkspaceChanged } from "@/lib/workspaceEvents";
 import { provenanceKeys, useProcessProvenanceQuery } from "./api";
 import { EvidenceReviewPanel } from "./components/EvidenceReviewPanel";
 import "./bpmn/canvasIdentity.css";
+import "./bpmn/canvasUi.css";
+import { BpmnConnectionControl } from "./components/BpmnConnectionControl";
 
 type ProcessBpmnCanvasProps = {
   bpmnModelId: string;
   /** Il processo del disegno: serve al confronto con le fonti. */
   processId?: string;
   processName: string;
-  propertiesPanelRef: RefObject<HTMLDivElement | null>;
+  technicalPropertiesHost: HTMLDivElement | null;
   enterprisePropertiesHost?: RefObject<HTMLDivElement | null>;
   inspectorHost?: RefObject<HTMLDivElement | null>;
   onInspectorChange?: (inspector: { title: string; closeLabel: string; close: () => void } | null) => void;
@@ -49,7 +56,7 @@ type ProcessBpmnCanvasProps = {
 };
 
 /**
- * Thin shell around the BPMN canvas: `useBpmnCanvas` owns the bpmn-js lifecycle,
+ * Thin shell around the BPMN canvas: `useBpmnCanvas` owns the DeliR canvas lifecycle,
  * persistence and version history; this component wires that state to the
  * toolbar, canvas host, node inspector and history panel.
  */
@@ -57,7 +64,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   bpmnModelId,
   processId,
   processName,
-  propertiesPanelRef,
+  technicalPropertiesHost,
   enterprisePropertiesHost,
   inspectorHost,
   onInspectorChange,
@@ -124,6 +131,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     isHistoryOpen,
     setIsHistoryOpen,
     selectedElement,
+    renameTarget,commitRename,cancelRename,
     clearSelection,
     updateSelectedNodeName,
     updateSelectedNodeDoc,
@@ -140,23 +148,23 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     zoomFit,
     zoomReadable,
     focusSourceRef,
+    canvasUi, contextMenu,closeContextMenu,selectTool, panTool, prepareTool, setNavigationMode, contextAction, undo, redo, zoomTo,
   } = useBpmnCanvas({
     bpmnModelId,
     processName,
-    propertiesPanelRef,
     onCurrentXmlChange,
     onBaseVersionChange,
   });
 
-  const inspectorTitle = isEvidenceOpen ? t("canvas.evidence.title") : selectedElement ? t("canvas.inspectorLabel") : null;
+  const inspectorTitle = isEvidenceOpen ? t("canvas.evidence.title") : selectedElement && !canvasUi.isMultiple ? t("canvas.inspectorLabel") : null;
   React.useLayoutEffect(() => {
     onInspectorChange?.(!isPropertiesOpen && inspectorTitle ? { title: inspectorTitle, closeLabel: isEvidenceOpen ? t("canvas.evidence.close") : t("canvas.inspectorClose"), close: () => { setIsEvidenceOpen(false); clearSelection(); } } : null);
   }, [onInspectorChange, isPropertiesOpen, inspectorTitle, isEvidenceOpen, clearSelection, t]);
   React.useEffect(() => () => onInspectorChange?.(null), [onInspectorChange]);
-  const propertyContent = selectedElement ? <BpmnNodeInspector embedded={Boolean(inspectorHost)} element={selectedElement} onNameChange={updateSelectedNodeName} onDocChange={updateSelectedNodeDoc} onMetadataChange={updateSelectedMetadata} onDelete={deleteSelectedElement} versions={versions} onAsk={onOpenDiscussion} onClose={clearSelection} /> : <p className="p-4 text-sm text-muted-foreground">{t("properties.vendor.noSelection")}</p>;
+  const propertyContent = selectedElement ? canvasUi.isMultiple ? <BpmnSelectionSummary items={canvasUi.selectionItems} onSelect={selectElement} /> : <BpmnNodeInspector key={selectedElement.id} embedded={Boolean(inspectorHost)} element={selectedElement} onNameChange={updateSelectedNodeName} onDocChange={updateSelectedNodeDoc} onMetadataChange={updateSelectedMetadata} onDelete={deleteSelectedElement} versions={versions} onAsk={onOpenDiscussion} onClose={clearSelection} /> : <p className="p-4 text-sm text-muted-foreground">{t("properties.vendor.noSelection")}</p>;
   const inspectorContent = !isPropertiesOpen && (processId && isEvidenceOpen ? (
     <EvidenceReviewPanel embedded={Boolean(inspectorHost)} processId={processId} bpmnModelId={bpmnModelId} hasUnsavedChanges={hasUnsavedChanges} onLocate={focusSourceRef} onClose={() => setIsEvidenceOpen(false)} />
-  ) : selectedElement ? (
+  ) : selectedElement && !canvasUi.isMultiple ? (
     propertyContent
   ) : null);
 
@@ -175,7 +183,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
       : t("canvas.saved");
 
   return (
-    <section ref={shellRef} className={`process-bpmn-shell ${coloursEnabled ? "process-bpmn--colours" : ""}`} aria-label="Canvas BPMN" onKeyDown={(event) => { if (event.key === "Escape" && elementsOpen) { event.preventDefault(); closeElements(); } }}>
+    <section ref={shellRef} data-multiple-selection={canvasUi.isMultiple} data-connecting={Boolean(canvasUi.connectionSourceId)} className={`process-bpmn-shell ${coloursEnabled ? "process-bpmn--colours" : ""}`} aria-label="Canvas BPMN" onKeyDown={(event) => { if (event.key === "Escape" && elementsOpen) { event.preventDefault(); closeElements(); } }}>
       <BpmnCanvasToolbar
         elements={{ isOpen: elementsOpen, onToggle: () => { setIsEvidenceOpen(false); setElementsOpen((prev) => !prev); } }}
         elementsButtonRef={elementsButtonRef}
@@ -205,6 +213,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
               }
             : undefined
         }
+        navigationMode={canvasUi.navigationMode}
+        onNavigationModeChange={setNavigationMode}
         onSave={save}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
@@ -219,11 +229,17 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
       <div className={`process-bpmn-body ${elementsOpen ? "process-bpmn-body--elements" : ""}`}>
         {elementsOpen && <BpmnElementNavigator elements={elements} selectedId={selectedElement?.id} isReady={isReady} onClose={closeElements} onSelect={(id) => { if (selectElement(id) && shellWidth < 820) closeElements(); }} />}
         <div className="process-bpmn-stage">
-        <BpmnCreationTools tools={creationTools} isReady={isReady} onActivate={activateTool} />
+        <BpmnCreationTools tools={creationTools} isReady={isReady} onActivate={(id, action, event) => { if (id === "hand-tool") panTool(); else { prepareTool(id); activateTool(id, action, event); } }} activeTool={canvasUi.activeTool} onSelectTool={selectTool} />
         <div className={`process-bpmn-canvas ${coloursEnabled ? "delir-canvas--colours" : ""}`} ref={containerRef}>
+          <BpmnConnectionControl host={containerRef} geometryKey={canvasUi.geometryKey} selectedId={canvasUi.selectionCount === 1 ? canvasUi.selectionItems[0]?.id : undefined} enabled={!contextMenu && canvasUi.contextActions.some(action=>action.id === "connect")} connecting={Boolean(canvasUi.connectionSourceId)} targetState={canvasUi.connectionTargetState} onAction={contextAction} onCancel={selectTool} />
+          <BpmnSelectionActions host={containerRef} geometryKey={canvasUi.geometryKey} actions={contextMenu ? [] : canvasUi.contextActions} count={canvasUi.selectionCount} multiple={canvasUi.isMultiple} onClear={() => { clearSelection(); selectTool(); }} items={canvasUi.selectionItems} onSelect={selectElement} name={selectedElement?.name} onAction={(id,event) => {
+            contextAction(id,event);
+            if(id === "delete" || id.startsWith("append.")) requestAnimationFrame(()=>containerRef.current?.querySelector<SVGSVGElement>(".djs-container > svg")?.focus());
+          }}/>
+          <BpmnCanvasContextMenu point={contextMenu} host={containerRef} actions={canvasUi.contextActions} canUndo={canvasUi.canUndo} canRedo={canvasUi.canRedo} canSelectAll={!isEmptyModel} onClose={closeContextMenu} onUndo={undo} onRedo={redo} onAction={contextAction} onCreate={event=>{prepareTool("create.task");activateTool("create.task","click",event);}}/>
           {/* Un processo appena creato non ha un modello: prima il canvas
               apriva su un diagramma finto che nessuno aveva descritto. Qui la
-              tela resta vuota e dice da dove si parte — la palette bpmn-js
+              tela resta vuota e dice da dove si parte — la libreria DeliR
               rimane raggiungibile a sinistra. */}
           {isReady && isEmptyModel && !error && (
             <div className="process-bpmn-blank">
@@ -252,16 +268,23 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             </div>
           )}
         </div>
-        <Surface variant="floating" className="process-canvas-navigation" role="group" aria-label={t("canvas.zoomGroup")}>
+        {renameTarget && <BpmnInlineRename key={renameTarget.id} target={renameTarget} host={containerRef} geometryKey={canvasUi.geometryKey} onCommit={commitRename} onCancel={cancelRename} onDone={selectTool} onSave={save} />}
+        <CanvasToolGroup label={t("canvas.interactions.history")} className="process-canvas-history">
+          <CanvasToolButton label={t("canvas.interactions.undo")} disabled={!isReady || !canvasUi.canUndo} onClick={undo}><Undo2 aria-hidden /></CanvasToolButton>
+          <CanvasToolButton label={t("canvas.interactions.redo")} disabled={!isReady || !canvasUi.canRedo} onClick={redo}><Redo2 aria-hidden /></CanvasToolButton>
+        </CanvasToolGroup>
+        <Surface variant="toolbar" className="process-canvas-navigation" role="group" aria-label={t("canvas.zoomGroup")}>
           {coloursEnabled && <WorkspaceDisclosure label={t("canvas.colours")} contentClassName="process-canvas-legend-popover"><div className="process-bpmn-legend">{(["task", "automation", "gateway", "start", "end"] as const).map((kind) => <span key={kind}><i aria-hidden className={`process-element-swatch--${kind}`} />{t(`canvas.legend.${kind}`)}</span>)}</div></WorkspaceDisclosure>}
           <Button variant="ghost" size="sm" disabled={!isReady} onClick={zoomReadable} aria-label={t("canvas.readableTitle")} title={t("canvas.readableTitle")}>{t("canvas.readable")}</Button>
           <Button variant="ghost" size="sm" disabled={!isReady} onClick={zoomFit} aria-label={t("canvas.fitTitle")} title={t("canvas.fitTitle")}><Maximize2 aria-hidden />{t("canvas.fit")}</Button>
           <Button variant="ghost" size="icon-sm" onClick={zoomOut} aria-label={t("canvas.zoomOut")}><Minus aria-hidden /></Button>
+          <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" disabled={!isReady} className="min-h-11 tabular-nums" aria-label={t("canvas.interactions.zoomMenu", { value: canvasUi.zoomPercent })}>{canvasUi.zoomPercent}%<ChevronDown aria-hidden className="size-3" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">{[50, 100, 200].map(value => <DropdownMenuItem key={value} onSelect={() => zoomTo(value)}>{value}%</DropdownMenuItem>)}<DropdownMenuItem onSelect={zoomFit}>{t("canvas.fit")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
           <Button variant="ghost" size="icon-sm" onClick={zoomIn} aria-label={t("canvas.zoomIn")}><Plus aria-hidden /></Button>
         </Surface>
         </div>
         {inspectorContent && (inspectorHost?.current ? createPortal(inspectorContent, inspectorHost.current) : inspectorContent)}
         {isPropertiesOpen && enterprisePropertiesHost?.current && createPortal(propertyContent, enterprisePropertiesHost.current)}
+        {isPropertiesOpen && technicalPropertiesHost && createPortal(<BpmnTechnicalProperties element={canvasUi.isMultiple ? null : selectedElement} onNameChange={updateSelectedNodeName} />, technicalPropertiesHost)}
       </div>
 
       <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>

@@ -17,8 +17,8 @@ export function WorkspaceContextBar({ title, navigation, primaryActions, actions
 }
 
 /** A labelled command group, without implying toolbar arrow-key behavior. */
-export function WorkspaceCommandBar({ label, children, className, material = "floating" }: { label: string; children: Slot; className?: string; material?: "toolbar" | "floating" }): React.JSX.Element {
-  return <Surface asChild variant={material}><div data-workspace-layer="commands" role="group" aria-label={label} className={cn("flex shrink-0 flex-wrap items-center gap-2 rounded-full px-2 py-1.5", className)}>{children}</div></Surface>;
+export function WorkspaceCommandBar({ label, children, className, material = "toolbar" }: { label: string; children: Slot; className?: string; material?: "toolbar" | "floating" }): React.JSX.Element {
+  return <Surface asChild variant={material}><div data-workspace-layer="commands" role="group" aria-label={label} className={cn("flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-3 py-1.5", className)}>{children}</div></Surface>;
 }
 
 /** The stage owns available height. Inspectors and playback never stack above it. */
@@ -34,7 +34,7 @@ export function CanvasWorkspaceShell({ label, commands, children, inspector, pla
     const observer = new ResizeObserver(() => {
       const panel = element.querySelector<HTMLElement>('[data-workspace-layer="inspector"]');
       const panelWidth = panel?.offsetWidth ?? 0;
-      setAvailable({ width: Math.max(1, element.clientWidth - panelWidth - (panelWidth ? 12 : 0)), height: element.clientHeight });
+      setAvailable({ width: Math.max(1, element.clientWidth - panelWidth - (panelWidth ? Number.parseFloat(getComputedStyle(element).columnGap) || 0 : 0)), height: element.clientHeight });
     });
     observer.observe(element);
     const panel = element.querySelector<HTMLElement>('[data-workspace-layer="inspector"]');
@@ -43,8 +43,8 @@ export function CanvasWorkspaceShell({ label, commands, children, inspector, pla
   }, []);
   const clamp = (next: { width: number; height: number }) => ({ width: Math.max(Math.min(480, available.width), Math.min(available.width, next.width)), height: Math.max(Math.min(280, available.height), Math.min(available.height, next.height)) });
   const current = size ? clamp(size) : available;
-  return <section data-workspace-layer="workspace" aria-label={label} className={cn("ui-scrollbar flex h-full min-h-0 min-w-0 flex-col gap-2", className)}>
-    <h2 className="sr-only">{label}</h2>{commands}<div ref={body} data-workspace-layer="body" className={cn("flex min-h-0 min-w-0 flex-1 gap-3", bodyClassName)}>
+  return <section data-workspace-layer="workspace" aria-label={label} className={cn("ui-scrollbar flex h-full min-h-0 min-w-0 flex-col gap-[var(--layout-pane-gap)]", className)}>
+    <h2 className="sr-only">{label}</h2>{commands}<div ref={body} data-workspace-layer="body" className={cn("flex min-h-0 min-w-0 flex-1 gap-[var(--layout-pane-gap)]", bodyClassName)}>
       <div ref={stage} data-workspace-layer="stage" className={cn("ui-workspace-stage relative flex min-h-0 min-w-0 flex-1 flex-col", stageClassName)} style={size ? { flex: `0 0 ${current.width}px`, height: current.height, alignSelf: "flex-start" } : undefined}>{children}
         {resizeLabel && <CanvasResizeHandle className="ui-workspace-stage-resize max-[1199px]:hidden" label={resizeLabel} hint={resizeHint} aria-description={`${Math.round(current.width)} × ${Math.round(current.height)} px`} onPointerDown={event => {
           if (event.button !== 0 || !stage.current) return;
@@ -79,7 +79,7 @@ export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string;
   }, [minimumStageWidth, maximumWidth]);
   const minimum = Math.min(minimumWidth, maximum);
   const current = Math.max(minimum, Math.min(maximum, width ?? initialWidth));
-  return <Surface asChild variant="panel"><aside ref={setRef} hidden={hidden} aria-label={label} data-workspace-layer="inspector" data-purpose={purpose} style={resizeLabel ? { "--workspace-inspector-width": `${current}px` } as React.CSSProperties : undefined} className={cn("ui-workspace-inspector relative flex min-h-0 shrink-0 flex-col overflow-hidden", className)} onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
+  return <Surface asChild variant="workspace"><aside ref={setRef} hidden={hidden} aria-label={label} data-workspace-layer="inspector" data-purpose={purpose} style={resizeLabel ? { "--workspace-inspector-width": `${current}px` } as React.CSSProperties : undefined} className={cn("ui-workspace-inspector relative flex min-h-0 shrink-0 flex-col overflow-hidden", className)} onKeyDown={event => { if (event.key === "Escape" && !event.defaultPrevented) { event.stopPropagation(); onClose(); } }}>
     {resizeLabel && <WorkspaceResizeSeparator label={resizeLabel} value={current} minimum={minimum} maximum={maximum} onResize={setWidth} />}
     <header className={cn("flex shrink-0 items-center justify-between gap-3 border-b border-border", purpose === "edit" ? "min-h-[88px] px-6 py-5" : "px-4 py-3")}><div className="min-w-0">{scope && <p className="text-xs text-muted-foreground">{scope}</p>}<h2 data-dock-title tabIndex={-1} className={cn("font-semibold outline-none", purpose === "edit" ? "text-lg" : "text-sm")}>{title}</h2></div><Button size="icon" variant="ghost" onClick={onClose} aria-label={closeLabel}><X aria-hidden className="size-4" /></Button></header>
     <div className={cn("ui-scrollbar min-h-0 flex-1 overflow-auto p-4", bodyClassName)}>{children}</div>

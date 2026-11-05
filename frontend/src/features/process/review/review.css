@@ -2,10 +2,10 @@
    existing primitive scale in styles/tokens/semantic.css. */
 .process-review-workspace { position: relative; height: 100%; min-height: 0; min-width: 0; }
 .process-review-workspace [data-workspace-layer="body"] { position: relative; }
-.review-stage-content, .review-canvas-stage { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; border-radius: var(--material-radius-panel); }
+.review-stage-content, .review-canvas-stage { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; border-radius:var(--layout-workspace-radius); }
 .review-stage-content { display: flex; flex-direction: column; }
 .review-canvas-stage { flex: 1; }
-.review-canvas-stage { background: var(--color-surface-primary); border: var(--border-width-default) solid var(--color-border-subtle); }
+.review-canvas-stage { background:var(--color-surface-primary); border:0; }
 .review-canvas { position: absolute; inset: 0; }
 .review-canvas .djs-container { font-family: var(--font-family-geist); }
 .review-canvas .djs-label { font-family: var(--font-family-geist); fill: var(--color-text-primary); }
@@ -170,7 +170,6 @@
 
 .review-chat-header > .review-mascot { flex: none; width: var(--space-800); height: var(--space-800); margin-top: var(--space-100); }
 .review-chat-heading { flex: 1; }
-.review-canvas .bjs-powered-by { right: auto !important; left: var(--space-400) !important; bottom: var(--space-400) !important; }
 
 .review-chat-resize { position: absolute; top: 0; left: 0; z-index: 2; width: var(--space-600); height: var(--space-600); cursor: nwse-resize; touch-action: none; }
 .review-agent-chat:hover > .review-chat-resize, .review-agent-chat:focus-within > .review-chat-resize { opacity: 1; pointer-events: auto; }

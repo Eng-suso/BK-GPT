@@ -1926,7 +1926,7 @@
     "save": "Save",
     "saved": "Saved",
     "unsaved": "Not saved",
-    "inspectorLabel": "Selected node inspector",
+    "inspectorLabel": "Element properties",
     "inspectorClose": "Close the inspector",
     "inspectorNotes": "Notes / Documentation",
     "inspectorNotesPlaceholder": "Add details or rules for this node…",
@@ -2010,7 +2010,10 @@
         "subprocess-collapsed": "Collapsed subprocess",
         "lane": "Lane",
         "annotation": "Text annotation"
-      }
+      },
+      "connection.sequence-flow": "Sequence flow",
+      "connection.message-flow": "Message flow",
+      "connection.association": "Association"
     },
     "conflict": {
       "reloadLatest": "Load the latest version",
@@ -2036,6 +2039,75 @@
         "collaboration": "Collaboration",
         "artifact": "Artifacts"
       }
+    },
+    "interactions": {
+      "select": "Select",
+      "selectionActions": "Selection actions",
+      "selectionCount": "{{count}} elements selected",
+      "selected": "Selected element",
+      "append": "Add next step",
+      "connect": "Connect element",
+      "replace": "Change type",
+      "more": "More actions",
+      "history": "Diagram changes",
+      "undo": "Undo change",
+      "redo": "Redo change",
+      "zoomMenu": "Zoom {{value}}%",
+      "multipleHint": "Choose an element to open its properties.",
+      "section": "Property section",
+      "identity": "Technical identifiers",
+      "deleteSelection": "Delete selection",
+      "clearSelection": "Clear selection",
+      "connection": "Connection",
+      "rename": "Rename element"
+    },
+    "context": {
+      "delete": "Delete element",
+      "replace": "Change type",
+      "connect": "Connect element",
+      "association": "Connect with association",
+      "dataAssociation": "Connect input data",
+      "task": "Add task",
+      "receive": "Add receive task",
+      "end": "Add end event",
+      "gateway": "Add gateway",
+      "event": "Add intermediate event",
+      "annotation": "Add annotation",
+      "laneAbove": "Add lane above",
+      "laneBelow": "Add lane below",
+      "twoLanes": "Divide into two lanes",
+      "threeLanes": "Divide into three lanes",
+      "message": "Add message event",
+      "timer": "Add timer event",
+      "condition": "Add conditional event",
+      "signal": "Add signal event",
+      "compensation": "Add compensation activity",
+      "intermediate": "Append intermediate event"
+    },
+    "navigation": {
+      "title": "Canvas navigation",
+      "mouse": "Mouse · wheel to zoom",
+      "trackpad": "Trackpad · scroll to pan",
+      "shortcuts": "V Select · H Hand · Space Drag"
+    },
+    "lanes": {
+      "manage": "Manage lanes",
+      "add-above": "Add lane above",
+      "add-below": "Add lane below",
+      "split-2": "Split into two lanes",
+      "split-3": "Split into three lanes",
+      "remove": "Remove lane, keep activities"
+    },
+    "contextMenu": {"title": "Canvas menu", "selectAll": "Select all"},
+    "resizeHint": "Drag to resize",
+    "connectGesture": {
+      "actionHint": "Connect: drag to a target, or click and choose an element",
+      "choose": "Choose a target element · Esc cancels",
+      "confirm": "Click to connect",
+      "invalid": "These elements cannot connect in this direction",
+      "cancel": "Cancel connection",
+      "poolHint": "A pool represents a participant and contains its process. Use Manage lanes to divide responsibilities.",
+      "laneHint": "A lane divides responsibilities within one pool. Connect the activities inside it, rather than the lane."
     }
   },
   "review": {

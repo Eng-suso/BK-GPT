@@ -1,0 +1,82 @@
+{
+  "date": "2026-11-03",
+  "method": "REA controlled browser scenarios, official sources and direct Miro UI observation",
+  "captures": [
+    {
+      "name": "figjam",
+      "evidence_id": "ev_3ab0bae17754d30f112b9bfa9bc84db29d152b34ca3f65b3e0788d47577277b3",
+      "url": "https://www.figma.com/figjam/",
+      "captureStatus": "complete",
+      "cleanup": "terminated-owned-process",
+      "screenshotDigest": "29ffa0be924061d42bd61aa55dbbe5c02e2f01710d7bc470020acb3bd6a65df1",
+      "scope": "Public product page; not an authenticated editor",
+      "pageErrors": 0
+    },
+    {
+      "name": "miro-enterprise",
+      "evidence_id": "ev_099e4f4ab13fb8b591b5ef61489d65c360fa15778eeeb9dbdf40e5c3c051f58d",
+      "url": "https://miro.com/enterprise/",
+      "captureStatus": "complete",
+      "cleanup": "terminated-owned-process",
+      "screenshotDigest": "c21b233a3902ba1d95e1700e14f7b6c40e7c4dd9436880a3be7ae7060f9bc690",
+      "scope": "Public product page; not an authenticated editor",
+      "pageErrors": 0
+    },
+    {
+      "name": "linear-ui",
+      "evidence_id": "ev_0268e3ceeadd8f8c9196441cfeb6ad14de6d492945034db777bdb4c419fb7a79",
+      "url": "https://linear.app/changelog/2026-03-12-ui-refresh",
+      "captureStatus": "complete",
+      "cleanup": "terminated-owned-process",
+      "screenshotDigest": "d3013805ab4f3ad0cfdf0911710cd12f915432d3c01fbbb06026ccc1f6f2a87f",
+      "scope": "Public changelog and official product imagery",
+      "pageErrors": 0
+    },
+    {
+      "name": "canva-whiteboard",
+      "evidence_id": "ev_85ab36af6f3e03fec81942c450b06f41db4830dc2b22f4336578ac4f2efe9ea7",
+      "url": "https://www.canva.com/online-whiteboard/",
+      "captureStatus": "complete",
+      "cleanup": "terminated-owned-process",
+      "screenshotDigest": "09e9a5e7cbf7c87f3baf3dab9b650531e3f09fb4bc3e3a2e1e259d0570ed2a58",
+      "scope": "Automation challenge; editor not observed",
+      "pageErrors": 0
+    },
+    {
+      "name": "n8n-preview",
+      "evidence_id": "ev_5e7e7c05d12e6941a899f1941eb31e1ad2fe2170161d46eeb2faaab693c7671a",
+      "url": "https://n8n.io/workflows/6270-build-your-first-ai-agent/",
+      "captureStatus": "complete",
+      "cleanup": "terminated-owned-process",
+      "screenshotDigest": "bec7c7ddc049cc52b9a3a08c0820f0feeded71b95f034a56d1b59fb5e5d51290",
+      "scope": "Public template page; embedded canvas not observed",
+      "pageErrors": 0
+    },
+    {
+      "name": "lucid-swimlanes",
+      "evidence_id": "ev_08e340b0d14e291cfcf3dd431735474dbc45579335c03a3e46c0b6eabe6b66a4",
+      "url": "https://help.lucid.co/hc/en-us/articles/16266057248660-Add-and-format-swim-lanes-in-Lucidchart",
+      "captureStatus": "complete",
+      "cleanup": "terminated-owned-process",
+      "screenshotDigest": "1426c56976e22a5e1ca87ac1ca5d023fc790b3b449a2d3b46c3f7623b3373ffc",
+      "scope": "Public documentation; not an authenticated editor",
+      "pageErrors": 1
+    }
+  ],
+  "liveObservation": {
+    "product": "Miro",
+    "method": "Authenticated browser UI via CUA",
+    "observed": [
+      "Creation toolbar",
+      "Zoom/navigation menu",
+      "Frames sidebar",
+      "Present control"
+    ],
+    "coverage": "Current user board on Free plan, not enterprise administration",
+    "privateBoardContentStored": false
+  },
+  "notes": [
+    "A complete technical capture does not establish that the product editor was reached.",
+    "No source code, runtime engine or UI has been replaced in this research step."
+  ]
+}

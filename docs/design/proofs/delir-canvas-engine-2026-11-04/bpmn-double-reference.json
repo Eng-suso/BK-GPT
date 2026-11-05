@@ -1,0 +1,481 @@
+{
+  "evidence_id": "ev_fcd1bdea6c8586f10b3998027bf771e384838af044dd0a582d249cc5eafe7b39",
+  "subject": null,
+  "provider": {
+    "id": "rea-playwright-browser-scenario",
+    "name": "REA Playwright browser scenario capture provider",
+    "version": "1"
+  },
+  "analysis_profile": null,
+  "predicate_type": "rea.browser-scenario-capture",
+  "operation": "capture_browser_scenario",
+  "parameters": {
+    "browser": {
+      "mode": "launch",
+      "executable_path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "headless": true
+    },
+    "start_url": {
+      "url": "https://demo.bpmn.io/new",
+      "query": []
+    },
+    "environment": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "device_scale_factor": 1
+      },
+      "locale": "en-US",
+      "timezone": "UTC",
+      "color_scheme": "light",
+      "reduced_motion": "reduce",
+      "service_workers": "block"
+    },
+    "actions": [
+      {
+        "step_id": "ready",
+        "timeout_ms": 30000,
+        "action": "wait_for",
+        "locator": {
+          "kind": "css",
+          "selector": ".djs-shape[data-element-id]"
+        },
+        "state": "visible"
+      },
+      {
+        "step_id": "reject-cookies",
+        "action": "click",
+        "locator": {
+          "kind": "css",
+          "selector": ".osano-cm-denyAll"
+        },
+        "button": "left",
+        "click_count": 1
+      },
+      {
+        "step_id": "rename-start",
+        "action": "click",
+        "locator": {
+          "kind": "css",
+          "selector": ".djs-shape[data-element-id]"
+        },
+        "button": "left",
+        "click_count": 2
+      },
+      {
+        "step_id": "edit-label",
+        "timeout_ms": 2000,
+        "action": "wait_for",
+        "locator": {
+          "kind": "css",
+          "selector": ".djs-direct-editing-content"
+        },
+        "state": "visible"
+      }
+    ],
+    "storage": {
+      "cookies": [],
+      "local_storage": [],
+      "session_storage": []
+    },
+    "secrets": [],
+    "capture": {
+      "after_each_step": [
+        "screenshot"
+      ],
+      "at_end": [
+        "screenshot",
+        "dom",
+        "accessibility",
+        "url"
+      ],
+      "events": [
+        "page-errors"
+      ],
+      "network": {
+        "request_body": false,
+        "response_body": false,
+        "header_values": false
+      },
+      "limits": {
+        "max_events": 10000,
+        "max_event_allocation_bytes": 4194304,
+        "max_total_event_allocation_bytes": 16777216,
+        "max_network_transactions": 1024,
+        "max_network_body_bytes": 65536,
+        "max_network_body_allocation_bytes": 1048576,
+        "max_network_header_allocation_bytes": 1048576,
+        "max_network_metadata_allocation_bytes": 1048576
+      }
+    },
+    "scenario_sha256": "9e2d82de2d7a56342d18ec536961b8bc54245211092594cce21a2773c64aae4f"
+  },
+  "raw_result": null,
+  "normalized_result": {
+    "browser": {
+      "mode": "launch",
+      "process_ownership": "provider-owned",
+      "cleanup": "terminated-owned-process",
+      "product": "Chromium",
+      "version": "156.0.8078.80"
+    },
+    "scenario": {
+      "start_origin": "https://demo.bpmn.io",
+      "action_count": 4,
+      "secret_references": [],
+      "network_content": {
+        "request_body": false,
+        "response_body": false,
+        "header_values": false
+      },
+      "event_families": [
+        "page-errors"
+      ],
+      "limits": {
+        "max_events": 10000,
+        "max_event_allocation_bytes": 4194304,
+        "max_total_event_allocation_bytes": 16777216,
+        "max_network_transactions": 1024,
+        "max_network_body_bytes": 65536,
+        "max_network_body_allocation_bytes": 1048576,
+        "max_network_header_allocation_bytes": 1048576,
+        "max_network_metadata_allocation_bytes": 1048576
+      }
+    },
+    "duration_ms": 5098,
+    "steps": [
+      {
+        "step_index": 0,
+        "step_id": "scenario_start",
+        "action": "goto_start",
+        "elapsed_ms": 2985,
+        "before_url": {
+          "url": "about:blank",
+          "origin": null,
+          "query_parameter_names": [],
+          "redacted": false
+        },
+        "after_url": {
+          "url": "https://demo.bpmn.io/new",
+          "origin": "https://demo.bpmn.io",
+          "query_parameter_names": [],
+          "redacted": false
+        },
+        "event_sequence_start": 1,
+        "event_sequence_end": 0,
+        "artifacts": {
+          "screenshot": {
+            "state": "captured",
+            "value": {
+              "sha256": "5b88e6c63b50e9c6edda9a095e5a87c2061500a11ac5f6d013325ed8e202dc6c",
+              "bytes": 28700,
+              "media_type": "image/png",
+              "export_note": "Digest retained; intermediate screenshot not exported."
+            }
+          },
+          "dom": {
+            "state": "not_requested"
+          },
+          "accessibility": {
+            "state": "not_requested"
+          },
+          "url": {
+            "state": "not_requested"
+          },
+          "history": {
+            "state": "not_requested"
+          },
+          "storage": {
+            "state": "not_requested"
+          }
+        },
+        "completeness": {
+          "status": "complete",
+          "equality_eligible": true,
+          "missing_sections": [],
+          "truncated_sections": []
+        },
+        "status": "completed",
+        "error": null
+      },
+      {
+        "step_index": 1,
+        "step_id": "ready",
+        "action": "wait_for",
+        "elapsed_ms": 249,
+        "before_url": {
+          "url": "https://demo.bpmn.io/new",
+          "origin": "https://demo.bpmn.io",
+          "query_parameter_names": [],
+          "redacted": false
+        },
+        "after_url": {
+          "url": "https://demo.bpmn.io/new",
+          "origin": "https://demo.bpmn.io",
+          "query_parameter_names": [],
+          "redacted": false
+        },
+        "event_sequence_start": 1,
+        "event_sequence_end": 0,
+        "artifacts": {
+          "screenshot": {
+            "state": "captured",
+            "value": {
+              "sha256": "677854312bad7beaa7351225ab62ebe192e5bbceec497b23b2ff6feb77330122",
+              "bytes": 55515,
+              "media_type": "image/png",
+              "export_note": "Digest retained; intermediate screenshot not exported."
+            }
+          },
+          "dom": {
+            "state": "not_requested"
+          },
+          "accessibility": {
+            "state": "not_requested"
+          },
+          "url": {
+            "state": "not_requested"
+          },
+          "history": {
+            "state": "not_requested"
+          },
+          "storage": {
+            "state": "not_requested"
+          }
+        },
+        "completeness": {
+          "status": "complete",
+          "equality_eligible": true,
+          "missing_sections": [],
+          "truncated_sections": []
+        },
+        "status": "completed",
+        "error": null
+      },
+      {
+        "step_index": 2,
+        "step_id": "reject-cookies",
+        "action": "click",
+        "elapsed_ms": 361,
+        "before_url": {
+          "url": "https://demo.bpmn.io/new",
+          "origin": "https://demo.bpmn.io",
+          "query_parameter_names": [],
+          "redacted": false
+        },
+        "after_url": {
+          "url": "https://demo.bpmn.io/new",
+          "origin": "https://demo.bpmn.io",
+          "query_parameter_names": [],
+          "redacted": false
+        },
+        "event_sequence_start": 1,
+        "event_sequence_end": 0,
+        "artifacts": {
+          "screenshot": {
+            "state": "captured",
+            "value": {
+              "sha256": "5b88e6c63b50e9c6edda9a095e5a87c2061500a11ac5f6d013325ed8e202dc6c",
+              "bytes": 28700,
+              "media_type": "image/png",
+              "export_note": "Digest retained; intermediate screenshot not exported."
+            }
+          },
+          "dom": {
+            "state": "not_requested"
+          },
+          "accessibility": {
+            "state": "not_requested"
+          },
+          "url": {
+            "state": "not_requested"
+          },
+          "history": {
+            "state": "not_requested"
+          },
+          "storage": {
+            "state": "not_requested"
+          }
+        },
+        "completeness": {
+          "status": "complete",
+          "equality_eligible": true,
+          "missing_sections": [],
+          "truncated_sections": []
+        },
+        "status": "completed",
+        "error": null
+      },
+      {
+        "step_index": 3,
+        "step_id": "rename-start",
+        "action": "click",
+        "elapsed_ms": 165,
+        "before_url": {
+          "url": "https://demo.bpmn.io/new",
+          "origin": "https://demo.bpmn.io",
+          "query_parameter_names": [],
+          "redacted": false
+        },
+        "after_url": {
+          "url": "https://demo.bpmn.io/new",
+          "origin": "https://demo.bpmn.io",
+          "query_parameter_names": [],
+          "redacted": false
+        },
+        "event_sequence_start": 1,
+        "event_sequence_end": 0,
+        "artifacts": {
+          "screenshot": {
+            "state": "captured",
+            "value": {
+              "sha256": "5cb5c0ca33beb4c9a5ce51e97e1abe42991919696ccf0e0fa03aa8495dcdea7c",
+              "bytes": 28784,
+              "media_type": "image/png",
+              "export_note": "Digest retained; intermediate screenshot not exported."
+            }
+          },
+          "dom": {
+            "state": "not_requested"
+          },
+          "accessibility": {
+            "state": "not_requested"
+          },
+          "url": {
+            "state": "not_requested"
+          },
+          "history": {
+            "state": "not_requested"
+          },
+          "storage": {
+            "state": "not_requested"
+          }
+        },
+        "completeness": {
+          "status": "complete",
+          "equality_eligible": true,
+          "missing_sections": [],
+          "truncated_sections": []
+        },
+        "status": "completed",
+        "error": null
+      },
+      {
+        "step_index": 4,
+        "step_id": "edit-label",
+        "action": "wait_for",
+        "elapsed_ms": 146,
+        "before_url": {
+          "url": "https://demo.bpmn.io/new",
+          "origin": "https://demo.bpmn.io",
+          "query_parameter_names": [],
+          "redacted": false
+        },
+        "after_url": {
+          "url": "https://demo.bpmn.io/new",
+          "origin": "https://demo.bpmn.io",
+          "query_parameter_names": [],
+          "redacted": false
+        },
+        "event_sequence_start": 1,
+        "event_sequence_end": 0,
+        "artifacts": {
+          "screenshot": {
+            "state": "captured",
+            "value": {
+              "sha256": "5cb5c0ca33beb4c9a5ce51e97e1abe42991919696ccf0e0fa03aa8495dcdea7c",
+              "bytes": 28784,
+              "media_type": "image/png",
+              "export_note": "Final screenshot exported.",
+              "file": "docs/design/proofs/delir-canvas-engine-2026-11-04/bpmn-double-reference.png"
+            }
+          },
+          "dom": {
+            "state": "captured",
+            "value": {
+              "sha256": "09e4b28b4114f0abd19f37bc9a45955d72fa60acdb6946f17c2780e4bb95556e",
+              "bytes": 267396,
+              "export_note": "Text omitted; public receipt retains original digest."
+            }
+          },
+          "accessibility": {
+            "state": "captured",
+            "value": {
+              "sha256": "e31163498b2049140f98e82722ee09e55512c069e2e8ed7e81d985672a0acc78",
+              "bytes": 1626,
+              "export_note": "Text omitted; public receipt retains original digest."
+            }
+          },
+          "url": {
+            "state": "captured",
+            "value": {
+              "url": "https://demo.bpmn.io/new",
+              "origin": "https://demo.bpmn.io",
+              "query_parameter_names": [],
+              "redacted": false
+            }
+          },
+          "history": {
+            "state": "not_requested"
+          },
+          "storage": {
+            "state": "not_requested"
+          }
+        },
+        "completeness": {
+          "status": "complete",
+          "equality_eligible": true,
+          "missing_sections": [],
+          "truncated_sections": []
+        },
+        "status": "completed",
+        "error": null
+      }
+    ],
+    "events": {
+      "retained": 0,
+      "dropped": 0,
+      "items": [],
+      "omissions": {
+        "by_kind": [],
+        "network_transactions": [],
+        "network_transaction_range": null
+      }
+    },
+    "completeness": {
+      "status": "complete",
+      "equality_eligible": true,
+      "missing_sections": [],
+      "truncated_sections": []
+    },
+    "limitations": [
+      "Event sequence records provider receipt order; simultaneous browser causality is not inferred.",
+      "Network content is retained only when selected; Playwright response-body bytes are API results and are not guaranteed to match wire bytes.",
+      "Request bytes are limited to what Playwright exposes; not_exposed does not establish body absence or multipart file coverage.",
+      "Network content reads settle within 5 seconds each and the observer does not request bodies from unfinished responses.",
+      "Playwright scenario events do not expose request initiator stacks; receipt order does not prove causality.",
+      "Storage values are hashed only after declared-secret redaction."
+    ]
+  },
+  "confidence": "observed",
+  "authority": "controlled-replay",
+  "environment": {
+    "id": "Chromium@156.0.8078.80",
+    "platform": "unknown",
+    "architecture": "unknown",
+    "isolation": "process"
+  },
+  "limitations": [
+    "Artifact identity is unavailable for this observation.",
+    "Event sequence records provider receipt order; simultaneous browser causality is not inferred.",
+    "Network content is retained only when selected; Playwright response-body bytes are API results and are not guaranteed to match wire bytes.",
+    "Request bytes are limited to what Playwright exposes; not_exposed does not establish body absence or multipart file coverage.",
+    "Network content reads settle within 5 seconds each and the observer does not request bodies from unfinished responses.",
+    "Playwright scenario events do not expose request initiator stacks; receipt order does not prove causality.",
+    "Storage values are hashed only after declared-secret redaction.",
+    "Browser host platform and architecture were not observed."
+  ],
+  "relationship_coverage": null,
+  "locations": [],
+  "evidence_links": []
+}

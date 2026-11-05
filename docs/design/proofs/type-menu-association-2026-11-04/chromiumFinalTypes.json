@@ -1,0 +1,32 @@
+{
+  "stats": {
+    "startTime": "2026-11-04T21:33:21.769Z",
+    "duration": 50941.46,
+    "expected": 2,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "name": "BPMN types show their own symbols directly on desktop",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 9384
+        }
+      ]
+    },
+    {
+      "name": "BPMN types show their own symbols directly on mobile",
+      "project": "chromium",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 14313
+        }
+      ]
+    }
+  ]
+}

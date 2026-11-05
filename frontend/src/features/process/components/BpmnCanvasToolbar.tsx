@@ -13,6 +13,8 @@ import {
   Save,
   ShieldCheck,
   Upload,
+  MousePointer2,
+  Hand,
 } from "lucide-react";
 
 import { WorkspaceCommandBar } from "@/components/layout/CanvasWorkspace";
@@ -23,8 +25,12 @@ import {
   DropdownMenuItem,
   DropdownMenuCheckboxItem,
   DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
+import type { CanvasNavigationMode } from "../bpmn/canvasInteractions";
 import { StatusIndicator, type StatusTone } from "@/components/status";
 
 type PanelToggle = {
@@ -55,6 +61,8 @@ type BpmnCanvasToolbarProps = {
   canvasChat: PanelToggle;
   properties: PanelToggle;
   evidence?: EvidenceToggle;
+  navigationMode: CanvasNavigationMode;
+  onNavigationModeChange: (mode: CanvasNavigationMode) => void;
   onSave: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -89,6 +97,8 @@ export function BpmnCanvasToolbar({
   canvasChat,
   properties,
   evidence,
+  navigationMode,
+  onNavigationModeChange,
   onSave,
   onZoomIn,
   onZoomOut,
@@ -102,7 +112,7 @@ export function BpmnCanvasToolbar({
   const { t } = useTranslation("process");
 
   return (
-    <WorkspaceCommandBar label={t("canvas.toolbarLabel")} className="process-bpmn-toolbar">
+    <WorkspaceCommandBar label={t("canvas.toolbarLabel")} material="toolbar" className="process-bpmn-toolbar">
       <div className="bpmn-toolbar-context flex min-w-0 items-center gap-3">
         <h2 className="sr-only">{t("canvas.toolbarLabel")}</h2>
         {elements?.onToggle && <Button ref={elementsButtonRef} variant={elements.isOpen ? "secondary" : "outline"} size="sm" onClick={elements.onToggle} aria-pressed={elements.isOpen} aria-label={t("canvas.elements.title")}><ListTree aria-hidden /><span className="bpmn-toolbar-label">{t("canvas.elements.title")}</span><span aria-hidden className="bpmn-toolbar-label text-xs tabular-nums text-muted-foreground">{elementCount}</span></Button>}
@@ -188,6 +198,13 @@ export function BpmnCanvasToolbar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuLabel>{t("canvas.navigation.title")}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={navigationMode} onValueChange={value => onNavigationModeChange(value as CanvasNavigationMode)}>
+              <DropdownMenuRadioItem value="mouse"><MousePointer2 aria-hidden />{t("canvas.navigation.mouse")}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="trackpad"><Hand aria-hidden />{t("canvas.navigation.trackpad")}</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuLabel className="font-normal text-muted-foreground">{t("canvas.navigation.shortcuts")}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
             {onToggleColours && <><DropdownMenuCheckboxItem checked={coloursEnabled} onCheckedChange={onToggleColours}>{t("canvas.colours")}</DropdownMenuCheckboxItem><DropdownMenuSeparator /></>}
             <DropdownMenuItem disabled={!isReady} onClick={onZoomReadable}>
               Leggi il processo dall'inizio

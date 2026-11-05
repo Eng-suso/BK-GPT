@@ -42,6 +42,90 @@ test.beforeEach(async ({ page }) => { await fixture(page); });
 // Aprire un processo porta alla discussione: il canvas si chiede, con `?view=canvas`.
 const canvasView = `${studio}?view=canvas`;
 
+test("pool backgrounds never hide loose process lanes and their work",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8").replace('processRef="ProcessA"','processRef="Empty"').replace('<bpmn:collaboration','<bpmn:process id="Empty"/><bpmn:collaboration');
+  await page.route("**/v1/workspace/bpmn-models/layout-model",route=>route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Overlapping containers",xml:source,version_id:1}}));
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");
+  const hit=()=>canvas.locator('.djs-shape[data-element-id="TaskA"] .djs-visual > rect').first().evaluate(el=>{const b=el.getBoundingClientRect();return document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)?.closest('[data-element-id]')?.getAttribute('data-element-id');});
+  await expect(canvas.locator('.djs-shape[data-element-id="TaskA"]').first()).toBeVisible();await expect.poll(hit).toBe("TaskA");
+  for(let i=0;i<5;i++){await page.getByRole("button",{name:"Apri libreria BPMN",exact:true}).click();await expect.poll(hit).toBe("TaskA");await page.getByRole("button",{name:"Chiudi libreria BPMN",exact:true}).click();await expect.poll(hit).toBe("TaskA");}
+  await page.screenshot({path:info.outputPath("loose-lanes-visible.png")});await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
+});
+
+test("repeated canvas cycles preserve camera, label editors, connections and XML",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});await page.addInitScript(()=>localStorage.setItem("delir-language","en"));
+  const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8");let saved=source;
+  const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET, PUT, OPTIONS","access-control-allow-headers":"Content-Type"},json:{id:"layout-model",process_id:"layout-process",name:"Repeated canvas",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),node=(id:string)=>canvas.locator('.djs-shape[data-element-id="'+id+'"]').first();await expect(node("TaskA")).toBeVisible();
+  await page.getByRole("button",{name:"Centre and fit the diagram",exact:true}).click();await page.evaluate(()=>new Promise<void>(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r()))));
+  const paths=()=>canvas.locator(".djs-connection .djs-visual > path:first-child").evaluateAll(es=>es.map(e=>e.getAttribute("d"))),originalPaths=await paths();
+  const camera=canvas.locator("g.viewport").first(),originalCamera=await camera.getAttribute("transform");
+  for(let i=0;i<5;i++){
+    await page.getByRole("button",{name:"Open BPMN library",exact:true}).click();const library=page.getByRole("navigation",{name:"BPMN tools"});await expect(library.getByRole("button",{name:"Start event · timer",exact:true})).toBeVisible();
+    const eventCategory=library.locator("details").filter({has:page.locator("summary").filter({hasText:/^Events/})});await expect(eventCategory.getByRole("button",{name:"Start event · timer",exact:true})).toBeVisible();
+    const dataCategory=library.locator("details").filter({has:page.locator("summary").filter({hasText:/^Data/})});await expect(dataCategory.locator(".process-library-entry")).toHaveCount(2);
+    await page.getByRole("button",{name:"Close BPMN library",exact:true}).click();
+    for(const label of ["Elements","Properties"]){await page.getByRole("button",{name:label,exact:true}).click();await page.getByRole("button",{name:label,exact:true}).click();}
+    await expect(camera).toHaveAttribute("transform",originalCamera!);expect(await paths()).toEqual(originalPaths);
+  }
+  for(let i=0;i<5;i++){
+    const label=(await node("LaneA").locator(".djs-visual text").first().boundingBox())!;await page.mouse.dblclick(label.x+label.width/2,label.y+label.height/2);
+    const editor=page.locator(".process-inline-rename textarea");await expect(editor).toBeVisible();const bounds=(await editor.boundingBox())!;expect(bounds.width).toBeLessThanOrEqual(240);expect(bounds.height).toBeLessThan(60);
+    await editor.fill("Discarded "+i);await editor.press("Escape");await expect(editor).toHaveCount(0);await expect(canvas.locator('[data-delir-editing="true"]')).toHaveCount(0);await expect(page.getByRole("button",{name:"Save",exact:true})).toBeDisabled();
+  }
+  for(let i=0;i<5;i++){
+    const before=await node("TaskA").getAttribute("transform"),body=(await node("TaskA").locator(".djs-visual > rect").first().boundingBox())!;
+    await page.mouse.move(body.x+body.width/2,body.y+body.height/2);await page.mouse.down();await page.mouse.move(body.x+body.width/2+16,body.y+body.height/2+10,{steps:8});await page.mouse.up();await expect(canvas.locator(".djs-dragger")).toHaveCount(0);
+    await page.getByRole("button",{name:"Undo change",exact:true}).click();await expect(node("TaskA")).toHaveAttribute("transform",before!);expect(await paths()).toEqual(originalPaths);await expect(page.getByRole("button",{name:"Save",exact:true})).toBeDisabled();
+  }
+  await page.screenshot({path:info.outputPath("repeated-canvas.png")});expect(saved).toBe(source);expect(errors).toEqual([]);
+});
+
+test("selected subgraph drops into a pool and releases after valid and rejected moves",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source='<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="urn:move"><bpmn:process id="Loose"><bpmn:startEvent id="Start"/><bpmn:task id="Work" name="Verifica"/><bpmn:endEvent id="End"/><bpmn:sequenceFlow id="First" sourceRef="Start" targetRef="Work"/><bpmn:sequenceFlow id="Last" sourceRef="Work" targetRef="End"/></bpmn:process><bpmn:process id="Inside"/><bpmn:collaboration id="Collaboration"><bpmn:participant id="Pool" name="Operations" processRef="Inside"/></bpmn:collaboration><bpmndi:BPMNDiagram id="diagram"><bpmndi:BPMNPlane id="plane" bpmnElement="Collaboration"><bpmndi:BPMNShape id="Start_di" bpmnElement="Start"><dc:Bounds x="160" y="100" width="36" height="36"/></bpmndi:BPMNShape><bpmndi:BPMNShape id="Work_di" bpmnElement="Work"><dc:Bounds x="300" y="86" width="120" height="64"/></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_di" bpmnElement="End"><dc:Bounds x="520" y="100" width="36" height="36"/></bpmndi:BPMNShape><bpmndi:BPMNShape id="Pool_di" bpmnElement="Pool" isHorizontal="true"><dc:Bounds x="100" y="300" width="900" height="350"/></bpmndi:BPMNShape><bpmndi:BPMNEdge id="First_di" bpmnElement="First"><di:waypoint x="196" y="118"/><di:waypoint x="300" y="118"/></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Last_di" bpmnElement="Last"><di:waypoint x="420" y="118"/><di:waypoint x="520" y="118"/></bpmndi:BPMNEdge></bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>';
+  let saved=source;const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET, PUT, OPTIONS","access-control-allow-headers":"Content-Type"},json:{id:"layout-model",process_id:"layout-process",name:"Drop regression",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),node=(id:string)=>canvas.locator('.djs-shape[data-element-id="'+id+'"]').first();
+  await expect(node("Work")).toBeVisible();
+  const fit=async()=>{await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();await page.evaluate(()=>new Promise<void>(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r()))));};
+  await fit();
+  const workBefore=await node("Work").getAttribute("transform");
+  // Losing browser focus while moving cancels the preview and leaves the next
+  // drag usable, even when the OS never sends the original mouseup.
+  const initial=(await node("Work").locator(".djs-visual > rect").first().boundingBox())!;
+  await page.mouse.move(initial.x+40,initial.y+30);await page.mouse.down();await page.mouse.move(initial.x+80,initial.y+50,{steps:8});await expect(canvas.locator(".djs-dragger")).toHaveCount(1);
+  await page.evaluate(()=>window.dispatchEvent(new Event("blur")));await expect(canvas.locator(".djs-dragger")).toHaveCount(0);await page.mouse.up();await expect(node("Work")).toHaveAttribute("transform",workBefore!);
+  await page.mouse.move(initial.x+40,initial.y+30);await page.mouse.down();await page.mouse.move(initial.x+80,initial.y+50,{steps:8});await expect(canvas.locator(".djs-dragger")).toHaveCount(1);
+  await canvas.locator(".djs-container").dispatchEvent("mousemove",{buttons:0,clientX:initial.x+80,clientY:initial.y+50});await expect(canvas.locator(".djs-dragger")).toHaveCount(0);await page.mouse.up();await expect(node("Work")).toHaveAttribute("transform",workBefore!);
+  const dragIntoPool=async()=>{const a=(await node("Work").locator(".djs-visual > rect").first().boundingBox())!,pool=(await node("Pool").locator(".djs-visual > rect").first().boundingBox())!;await page.mouse.move(a.x+a.width/2,a.y+a.height/2);await page.mouse.down();await page.mouse.move(a.x+a.width/2,pool.y+pool.height/2,{steps:24});await page.mouse.up();};
+  // A partial connected selection cannot cross the process boundary.
+  await dragIntoPool();await expect(canvas.locator(".djs-dragger")).toHaveCount(0);await expect(node("Work")).toHaveAttribute("transform",workBefore!);await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
+  // Marquee selects the full connected graph, without selecting the pool.
+  await fit();const a=(await node("Start").boundingBox())!,b=(await node("End").boundingBox())!;
+  await page.mouse.move(a.x-24,a.y-30);await page.mouse.down();await page.mouse.move(b.x+b.width+24,b.y+b.height+35,{steps:20});await page.mouse.up();await expect(canvas.locator(".djs-shape.selected")).toHaveCount(3);
+  await dragIntoPool();await expect(canvas.locator(".djs-dragger")).toHaveCount(0);await expect(node("Work")).not.toHaveAttribute("transform",workBefore!);
+  const after=await node("Work").getAttribute("transform");await page.mouse.move(900,250,{steps:10});await expect(node("Work")).toHaveAttribute("transform",after!);
+  await page.getByRole("button",{name:"Salva",exact:true}).click();
+  expect(await page.evaluate(s=>{const d=new DOMParser().parseFromString(s,"application/xml");return ["Start","Work","End","First","Last"].map(id=>d.querySelector('[id="'+id+'"]')!.parentElement!.id);},saved)).toEqual(Array(5).fill("Inside"));
+  await info.attach("adopted-pool.xml",{body:Buffer.from(saved),contentType:"application/xml"});await page.screenshot({path:info.outputPath("adopted-pool.png")});
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(node("Work")).toHaveAttribute("transform",workBefore!);await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);
+  await page.mouse.click(1400,200);
+  for(const [index,id] of ["Start","Work","End"].entries()) {
+    const bounds=(await node(id).boundingBox())!;
+    if(index)await page.keyboard.down("Shift");
+    await page.mouse.click(bounds.x+bounds.width/2,bounds.y+bounds.height/2);
+    if(index)await page.keyboard.up("Shift");
+  }
+  await expect(canvas.locator(".djs-shape.selected")).toHaveCount(3);await expect(canvas.locator(".djs-connection.selected")).toHaveCount(0);
+  await dragIntoPool();await expect(canvas.locator(".djs-dragger")).toHaveCount(0);await page.getByRole("button",{name:"Salva",exact:true}).click();
+  expect(await page.evaluate(s=>{const d=new DOMParser().parseFromString(s,"application/xml");return ["Start","Work","End","First","Last"].map(id=>d.querySelector('[id="'+id+'"]')!.parentElement!.id);},saved)).toEqual(Array(5).fill("Inside"));
+  await page.reload();await expect(node("Work")).not.toHaveAttribute("transform",workBefore!);await expect(node("Work")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 for (const mobile of [false, true]) test(`enterprise library and properties round-trip on ${mobile ? "mobile" : "desktop"}`, async ({ page }, info) => {
   test.setTimeout(90_000);
   await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1600, height: 1000 });
@@ -67,23 +151,33 @@ for (const mobile of [false, true]) test(`enterprise library and properties roun
   await expect(page.getByRole("button", { name: "Apri libreria BPMN", exact: true })).toBeFocused();
   await canvas.locator('[data-element-id="Task_1"]').first().click();
   const inspector = page.locator(".process-enterprise-properties");
-  if (mobile) await page.getByRole("button", { name: "Proprietà", exact: true }).click();
+  if (mobile) { await page.getByRole("button", { name: "Proprietà", exact: true }).click(); await expect(canvas).toBeHidden(); }
   await inspector.getByRole("textbox", { name: "Responsabile attività", exact: true }).fill("Operations");
   await inspector.getByRole("textbox", { name: "Ufficio competente", exact: true }).fill("Acquisti");
   await inspector.getByRole("checkbox").check();
-  await inspector.getByRole("tab", { name: "Regole", exact: true }).click();
+  await inspector.getByRole("combobox", { name: "Sezione proprietà" }).click();
+  await page.keyboard.press("Escape");
+  await expect(inspector.getByRole("combobox", { name: "Sezione proprietà" })).toBeFocused();
+  if (mobile) await expect(canvas).toBeHidden();
+  await inspector.getByRole("combobox", { name: "Sezione proprietà" }).click();
+  await page.getByRole("option", { name: "Regole", exact: true }).click();
   await inspector.getByRole("textbox", { name: "Note sulle regole", exact: true }).fill("Approvazione sopra soglia");
   await inspector.getByRole("textbox", { name: "Rischi e mitigazioni", exact: true }).fill("Dati incompleti: controllo preventivo");
   await inspector.getByRole("textbox", { name: "Riferimenti SOP", exact: true }).fill("SOP-ACQ-01");
-  await inspector.getByRole("tab", { name: "Dati", exact: true }).click();
+  await inspector.getByRole("combobox", { name: "Sezione proprietà" }).click();
+  await page.getByRole("option", { name: "Dati", exact: true }).click();
   await inspector.getByRole("textbox", { name: "Input", exact: true }).fill("Richiesta");
-  await inspector.getByRole("tab", { name: "File", exact: true }).click();
+  await inspector.getByRole("combobox", { name: "Sezione proprietà" }).click();
+  await page.getByRole("option", { name: "File", exact: true }).click();
   await inspector.getByRole("textbox", { name: "Riferimenti documentali", exact: true }).fill("Procedura acquisti");
-  await inspector.getByRole("tab", { name: "Cronologia", exact: true }).click();
+  await inspector.getByRole("combobox", { name: "Sezione proprietà" }).click();
+  await page.getByRole("option", { name: "Cronologia", exact: true }).click();
   await expect(inspector).toContainText("Nessuna versione salvata disponibile");
-  await inspector.getByRole("tab", { name: "AI", exact: true }).click();
+  await inspector.getByRole("combobox", { name: "Sezione proprietà" }).click();
+  await page.getByRole("option", { name: "AI", exact: true }).click();
   await expect(inspector.getByRole("button", { name: "Chiedi a DeliR" })).toBeVisible();
-  await inspector.getByRole("tab", { name: "Dettagli", exact: true }).click();
+  await inspector.getByRole("combobox", { name: "Sezione proprietà" }).click();
+  await page.getByRole("option", { name: "Dettagli", exact: true }).click();
   await page.screenshot({ path: info.outputPath(`enterprise-properties-${mobile}.png`) });
   expect((await new AxeBuilder({ page }).include(".process-workspace").analyze()).violations).toEqual([]);
   if (mobile) await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
@@ -97,12 +191,13 @@ for (const mobile of [false, true]) test(`enterprise library and properties roun
   expect(savedXml).toContain('delir:required="true"');
   await page.reload();
   await canvas.locator('[data-element-id="Task_1"]').first().click();
+  if (mobile) { await page.getByRole("button", { name: "Proprietà", exact: true }).click(); await expect(canvas).toBeHidden(); }
   await expect(inspector.getByRole("textbox", { name: "Responsabile attività", exact: true })).toHaveValue("Operations");
   await expect(inspector.getByRole("checkbox")).toBeChecked();
   await inspector.getByRole("button", { name: "Elimina elemento", exact: true }).click();
   await expect(canvas.locator('[data-element-id="Task_1"]')).toHaveCount(0);
-  await canvas.click({ position: { x: 30, y: 30 } });
-  await page.keyboard.press("Control+z");
+  if (mobile) await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
+  await page.getByRole("button", { name: "Annulla modifica", exact: true }).click();
   await expect(canvas.locator('[data-element-id="Task_1"]').first()).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -136,7 +231,8 @@ test("product-generated diagram keeps the DeliR identity in the editable canvas"
   await page.goto(canvasView);
   const canvas = page.locator(".process-bpmn-canvas");
   await expect(canvas.locator('[data-element-id="Verify"]')).toBeVisible();
-  await expect(canvas.locator(".delir-canvas-identity").getByRole("img", { name: "DeliR" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Strumenti BPMN" })).toBeVisible();
+  await expect(canvas.locator(".bjs-powered-by")).toHaveCount(0);
   await expect(canvas.locator(".delir-role-band")).toHaveCount(5);
   await expect(canvas.locator(".djs-connection")).toHaveCount(11);
   await expect(canvas.locator('[data-element-id="Request_Document"]')).toBeVisible();
@@ -421,11 +517,13 @@ test("process chrome and element navigation remain accessible without overlap on
   await page.getByRole("button", { name: /Attività 18:/ }).click();
   await expect(page.locator(".process-bpmn-canvas")).toBeVisible();
   await expect(page.getByRole("button", { name: "Elementi", exact: true })).toBeFocused();
+  await page.getByRole("button", { name: "Proprietà", exact: true }).click();
+  await expect(page.locator(".process-bpmn-canvas")).toBeHidden();
   await expect(page.getByRole("textbox", { name: "Nome" })).toHaveValue(tasks[17].name);
   await testInfo.attach("Process mobile", { body: await page.screenshot({ path: process.env.DELIR_UI_PROOF_DIR ? join(process.env.DELIR_UI_PROOF_DIR, "process-mobile.png") : undefined }), contentType: "image/png" });
-  const diagramBox = (await page.locator(".process-bpmn-canvas").boundingBox())!;
-  const inspectorBox = (await page.locator(".process-bpmn-node-inspector").boundingBox())!;
-  expect(diagramBox.y + diagramBox.height).toBeLessThanOrEqual(inspectorBox.y + 1);
+  await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
+  await expect(page.locator(".process-bpmn-canvas")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Proprietà", exact: true })).toBeFocused();
   const controls = page.locator(".process-bpmn-toolbar button, .process-studio-header button");
   const overflow = await controls.evaluateAll((els) => els.filter((el) => { const box = el.getBoundingClientRect(); return box.width && (box.right > innerWidth + 1 || box.left < 0); }).length);
   expect(overflow).toBe(0);
@@ -439,7 +537,7 @@ test("reserved BPMN tools create elements through the modeler without covering i
   await page.goto(canvasView);
   const canvas = page.locator(".process-bpmn-canvas");
   await expect(canvas.locator('[data-element-id="Task_7"]').first()).toBeVisible();
-  await page.getByRole("button", { name: "Centra", exact: true }).click();
+  await page.getByRole("button", { name: "Centra e adatta diagramma", exact: true }).click();
   const first = (await canvas.locator('[data-element-id="Task_1"]').first().boundingBox())!;
   const nextRow = (await canvas.locator('[data-element-id="Task_7"]').first().boundingBox())!;
   const surface = (await canvas.boundingBox())!;
@@ -550,7 +648,7 @@ test("resource configuration waits for the BPMN before claiming the model is emp
   await page.goto(`${studio}/simulation/workspace?panel=scenario`);
   await requestSeen;
   const dock = page.locator(".sim-studio-dock");
-  await expect(dock.getByRole("heading", { name: "Costruttore scenario", exact: true })).toBeVisible();
+  await expect(dock.getByRole("heading", { name: "Configura scenario", exact: true })).toBeVisible();
   await expect(dock.getByText("Nessun BPMN da simulare. Genera o salva un modello nel canvas.", { exact: true })).toHaveCount(0);
   await expect(dock.getByText("Nessuna risorsa configurata", { exact: true })).toHaveCount(0);
   releaseModel();
@@ -566,7 +664,8 @@ for (const width of [1440, 1920]) {
     const viewport = canvas.locator(".viewport");
     await expect(page.getByRole("button", { name: "Elementi", exact: true })).toBeEnabled();
     const header = await page.locator(".process-studio-header").boundingBox();
-    expect(header!.height).toBeLessThanOrEqual(64);
+    // One context row accommodates 44 px controls and shared vertical padding.
+    expect(header!.height).toBeLessThanOrEqual(72);
     await expect.poll(async () => (await canvas.boundingBox())!.height).toBeGreaterThan(760);
     await page.getByRole("button", { name: "Dettagli", exact: true }).click();
     await expect(page.getByText("Team Operations", { exact: true })).toBeVisible();
@@ -578,11 +677,13 @@ for (const width of [1440, 1920]) {
     }).length)).toBe(0);
     const originalCamera = await viewport.getAttribute("transform");
     const diagramBox = (await canvas.boundingBox())!;
+    await page.getByRole("button", { name: "Sposta la tela", exact: true }).click();
     await page.mouse.move(diagramBox.x + 20, diagramBox.y + 20);
     await page.mouse.down();
     await page.mouse.move(diagramBox.x + 60, diagramBox.y + 50, { steps: 5 });
     await page.mouse.up();
     await expect(viewport).not.toHaveAttribute("transform", originalCamera!);
+    await page.getByRole("button", { name: "Seleziona", exact: true }).click();
     await canvas.locator('[data-element-id="Task_1"]').first().click();
     await page.getByRole("textbox", { name: "Nome" }).fill("Bozza da conservare");
     const inspector = page.locator(".process-studio-properties");
@@ -606,7 +707,7 @@ for (const width of [1440, 1920]) {
     expect((await canvas.boundingBox())!.width).toBeGreaterThanOrEqual(720);
     await expect(viewport).toHaveAttribute("transform", camera!);
     // Explicit centering uses the current stage bounds after the inspector resize.
-    await page.getByRole("button", { name: "Centra", exact: true }).click();
+    await page.getByRole("button", { name: "Centra e adatta diagramma", exact: true }).click();
     await expect.poll(async () => canvas.locator(".djs-shape").evaluateAll(nodes => nodes.filter(node => {
       const rect = node.getBoundingClientRect(), bounds = node.closest(".process-bpmn-canvas")!.getBoundingClientRect();
       return rect.width > 0 && (rect.left < bounds.left - 1 || rect.right > bounds.right + 1 || rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1);
@@ -616,3 +717,548 @@ for (const width of [1440, 1920]) {
     await page.screenshot({ path: testInfo.outputPath(`process-canvas-hierarchy-${width}.png`) });
   });
 }
+
+
+for (const mobile of [false, true]) test(`DeliR canvas controls keep XML and the edit-save-reopen workflow on ${mobile ? "mobile" : "desktop"}`, async ({ page }, info) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize(mobile ? { width:390, height:844 } : { width:1600, height:1000 });
+  let savedXml = xml;
+  const writes: string[] = [];
+  await page.route("**/v1/workspace/bpmn-models/layout-model", async route => {
+    if (route.request().method() === "PUT") { savedXml = route.request().postDataJSON().xml; writes.push(savedXml); }
+    await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Model",xml:savedXml,version_id:1}});
+  });
+  await page.goto(canvasView);
+  const canvas = page.locator(".process-bpmn-canvas");
+  await expect(canvas.locator('[data-element-id="Task_1"]').first()).toBeVisible();
+  const before = xml;
+  await page.getByRole("button", {name:/^Zoom [0-9]+%$/}).click();
+  await page.getByRole("menuitem", {name:"100%",exact:true}).click();
+  await expect(page.getByRole("button", {name:"Zoom 100%"})).toBeVisible();
+  await page.getByRole("button", {name:"Sposta la tela",exact:true}).click();
+  await expect(page.getByRole("button", {name:"Sposta la tela",exact:true})).toHaveAttribute("aria-pressed","true");
+  await page.getByRole("button", {name:"Seleziona",exact:true}).click();
+  await expect(page.getByRole("button", {name:"Seleziona",exact:true})).toHaveAttribute("aria-pressed","true");
+  await page.getByRole("button", {name:"Centra e adatta diagramma",exact:true}).click();
+  expect(writes).toEqual([]); expect(savedXml).toBe(before);
+  await canvas.locator('[data-element-id="Task_1"]').first().click();
+  const selection = page.getByRole("group", {name:"Azioni della selezione"});
+  await expect(selection).toBeVisible();
+  await expect(canvas.locator(".djs-context-pad.open")).toBeHidden();
+  if (mobile) await page.getByRole("button", {name:"Proprietà",exact:true}).click();
+  const inspector = page.locator(".process-enterprise-properties");
+  const name = inspector.getByRole("textbox", {name:"Nome",exact:true});
+  await expect(name).toHaveValue(tasks[0].name);
+  await name.fill("Verifica documenti");
+  if (mobile) await page.getByRole("button", {name:"Chiudi i pannelli",exact:true}).click();
+  await page.getByRole("button", {name:"Annulla modifica",exact:true}).click();
+  await expect(canvas.locator('[data-element-id="Task_1"]')).toContainText(tasks[0].name);
+  await page.getByRole("button", {name:"Ripeti modifica",exact:true}).click();
+  await expect(canvas.locator('[data-element-id="Task_1"]')).toContainText("Verifica documenti");
+  await page.getByRole("button", {name:"Salva",exact:true}).click();
+  await expect.poll(()=>writes.length).toBe(1);
+  const summary = await page.evaluate(source=>{const doc=new DOMParser().parseFromString(source,"application/xml");return {error:doc.querySelector("parsererror")?.textContent,tasks:doc.getElementsByTagNameNS("http://www.omg.org/spec/BPMN/20100524/MODEL","userTask").length,flows:Array.from(doc.getElementsByTagNameNS("http://www.omg.org/spec/BPMN/20100524/MODEL","sequenceFlow")).map(el=>({id:el.id,from:el.getAttribute("sourceRef"),to:el.getAttribute("targetRef")})),name:doc.querySelector('[id="Task_1"]')?.getAttribute("name")}},savedXml);
+  expect(summary.error).toBeUndefined();expect(summary.tasks).toBe(18);expect(summary.flows).toHaveLength(17);expect(summary.flows[0]).toEqual({id:"Flow_0",from:"Task_1",to:"Task_2"});expect(summary.name).toBe("Verifica documenti");
+  await page.reload();
+  await expect(canvas.locator('[data-element-id="Task_1"]')).toContainText("Verifica documenti");
+  expect(savedXml).toContain('targetNamespace="https://example.test/layout"');
+  expect((await new AxeBuilder({page}).include(".process-workspace").withTags(["wcag2a","wcag2aa","wcag22aa"]).analyze()).violations).toEqual([]);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
+  await page.screenshot({path:info.outputPath("canvas-ui.png"),animations:"disabled"});
+});
+
+for (const mobile of [false, true]) test(`selection actions use the existing BPMN commands on ${mobile ? "mobile" : "desktop"}`, async ({page}, info) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize(mobile ? {width:390,height:844} : {width:1600,height:1000});
+  await page.goto(canvasView);
+  const canvas=page.locator('.process-bpmn-canvas');
+  const task=canvas.locator('[data-element-id="Task_1"]').first();
+  await task.click();
+  const actions=page.getByRole('group',{name:'Azioni della selezione'});
+  await expect(actions).toBeVisible();
+  await actions.getByRole('button',{name:'Aggiungi passaggio',exact:true}).click();
+  // Escape closes the child menu and returns focus without discarding selection.
+  await page.keyboard.press('Escape');
+  await expect(actions.getByRole('button',{name:'Aggiungi passaggio',exact:true})).toBeFocused();
+  await expect(task).toHaveClass(/selected/);
+  await actions.getByRole('button',{name:'Aggiungi passaggio',exact:true}).click();
+  await page.getByRole('menuitem',{name:'Aggiungi attività',exact:true}).click();
+  await expect(canvas.locator('.delir-type-task')).toHaveCount(19);
+  await page.getByRole('button',{name:'Annulla modifica',exact:true}).click();
+  await expect(canvas.locator('.delir-type-task')).toHaveCount(18);
+  await task.click();
+  await page.getByRole('button',{name:'Collega elemento',exact:true}).click();
+  await canvas.locator('[data-element-id="Task_3"]').first().click();
+  await expect(canvas.locator('.djs-connection')).toHaveCount(18);
+  await page.getByRole('button',{name:'Annulla modifica',exact:true}).click();
+  await expect(canvas.locator('.djs-connection')).toHaveCount(17);
+  await task.click();
+  await page.getByRole('button',{name:'Collega elemento',exact:true}).click();
+  await page.keyboard.press('Escape');
+  await expect(canvas.locator('.djs-connection')).toHaveCount(17);
+  await expect(task).toHaveClass(/selected/);
+  await actions.getByRole('button',{name:'Altre azioni',exact:true}).click();
+  await page.getByRole('menuitem',{name:'Elimina elemento',exact:true}).click();
+  await expect(task).toHaveCount(0);
+  await page.getByRole('button',{name:'Annulla modifica',exact:true}).click();
+  await expect(task).toBeVisible();
+  await expect(canvas.locator('.djs-connection')).toHaveCount(17);
+  if (!mobile) {
+    if (!await task.evaluate(el=>el.classList.contains('selected'))) await task.click();
+    await actions.getByRole('button',{name:'Cambia tipo',exact:true}).click();
+    await expect(page.getByRole('menuitemradio',{name:'Attività di servizio',exact:true})).toBeVisible();
+    await page.keyboard.press('Escape');
+  }
+  await page.screenshot({path:info.outputPath('selection-actions.png'),animations:'disabled'});
+  expect((await new AxeBuilder({page}).include('.process-workspace').withTags(['wcag2a','wcag2aa','wcag22aa']).analyze()).violations).toEqual([]);
+});
+
+
+test('mouse tools keep selection, pan and node movement separate', async ({page}) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({width:1600,height:1000}); await page.goto(canvasView);
+  const canvas=page.locator('.process-bpmn-canvas'), viewport=canvas.locator('.viewport');
+  const task=canvas.locator('[data-element-id="Task_1"]').first();
+  const pan=page.getByRole('button',{name:'Sposta la tela',exact:true});
+  const select=page.getByRole('button',{name:'Seleziona',exact:true});
+  const drag=async(from:{x:number;y:number},to:{x:number;y:number},button:'left'|'middle'|'right'='left')=>{await page.mouse.move(from.x,from.y);await page.mouse.down({button});await page.mouse.move(to.x,to.y,{steps:12});await page.mouse.up({button});};
+  const moveNode=async(button:'left'|'middle'|'right'='left')=>{const b=(await task.boundingBox())!;await drag({x:b.x+b.width/2,y:b.y+b.height/2},{x:b.x+b.width/2+60,y:b.y+b.height/2+30},button);};
+  await task.click(); const initialNode=await task.getAttribute('transform');
+  await task.click(); await expect(task).toHaveClass(/selected/);
+  await pan.click(); let camera=await viewport.getAttribute('transform'); await moveNode();
+  await expect(viewport).not.toHaveAttribute('transform',camera!); await expect(task).toHaveAttribute('transform',initialNode!);await expect(pan).toHaveAttribute('aria-pressed','true');
+  camera=await viewport.getAttribute('transform');await moveNode(); await expect(viewport).not.toHaveAttribute('transform',camera!);await expect(task).toHaveAttribute('transform',initialNode!);
+  await page.keyboard.press('v');await expect(select).toHaveAttribute('aria-pressed','true');
+  camera=await viewport.getAttribute('transform'); await page.keyboard.down('Space');await moveNode();await page.keyboard.up('Space');
+  await expect(viewport).not.toHaveAttribute('transform',camera!);await expect(task).toHaveAttribute('transform',initialNode!);await expect(select).toHaveAttribute('aria-pressed','true');
+  for (const button of ['middle','right'] as const) { camera=await viewport.getAttribute('transform');await moveNode(button);await expect(viewport).not.toHaveAttribute('transform',camera!);await expect(task).toHaveAttribute('transform',initialNode!); }
+  camera=await viewport.getAttribute('transform');await moveNode();await expect(task).not.toHaveAttribute('transform',initialNode!);await expect(viewport).toHaveAttribute('transform',camera!);
+  await page.getByRole('button',{name:'Annulla modifica',exact:true}).click();await expect(task).toHaveAttribute('transform',initialNode!);
+  await select.click();await page.keyboard.press('h');await expect(pan).toHaveAttribute('aria-pressed','true');await page.keyboard.press('Escape');await expect(select).toHaveAttribute('aria-pressed','true');
+});
+
+test('selection rectangle selects objects without moving the camera', async ({page})=>{
+  await page.setViewportSize({width:1600,height:1000});await page.goto(canvasView);
+  const canvas=page.locator('.process-bpmn-canvas'), viewport=canvas.locator('.viewport');
+  await page.getByRole('button',{name:'Centra e adatta diagramma',exact:true}).click();
+  const first=canvas.locator('[data-element-id="Task_1"]').first(),second=canvas.locator('[data-element-id="Task_2"]').first();
+  const a=(await first.boundingBox())!,b=(await second.boundingBox())!;const camera=await viewport.getAttribute('transform');
+  await page.mouse.move(a.x-15,a.y-15);await page.mouse.down();await page.mouse.move(b.x+b.width+15,b.y+b.height+15,{steps:15});await page.mouse.up();
+  await expect(first).toHaveClass(/selected/);await expect(second).toHaveClass(/selected/);await expect(viewport).toHaveAttribute('transform',camera!);
+  await expect(page.locator('.process-enterprise-properties')).toHaveCount(0);
+  await expect(page.locator('.ui-workspace-inspector')).toBeHidden();
+  const selected = page.getByRole('button',{name:/elementi selezionati/});
+  await expect(selected).toBeVisible();
+  await expect(page.getByRole('button',{name:'Elimina selezione',exact:true})).toBeVisible();
+  await selected.click();
+  await expect(page.getByText('Scegli un elemento per aprirne le proprietà.',{exact:true})).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(first).toHaveClass(/selected/);
+  await page.getByRole('button',{name:'Elimina selezione',exact:true}).click();
+  await expect(first).toHaveCount(0);await expect(second).toHaveCount(0);
+  await page.getByRole('button',{name:'Annulla modifica',exact:true}).click();
+  await expect(first).toBeVisible();await expect(second).toBeVisible();
+});
+
+test('selection list opens one element and clearing returns keyboard focus to the canvas', async ({page}) => {
+  await page.setViewportSize({width:1600,height:1000}); await page.goto(canvasView);
+  const canvas = page.locator('.process-bpmn-canvas'), svg = canvas.locator('.djs-container > svg');
+  await canvas.locator('[data-element-id="Task_1"]').first().waitFor();
+  await svg.focus(); await page.keyboard.press('Control+a');
+  await page.getByRole('button',{name:'35 elementi selezionati',exact:true}).click();
+  const list = page.getByRole('dialog',{name:'35 elementi selezionati',exact:true});
+  await expect(list.getByRole('button')).toHaveCount(35);
+  await list.getByRole('button',{name:/^Attività 1:.*Attività utente$/}).click();
+  await expect(page.getByRole('textbox',{name:'Nome',exact:true})).toBeVisible();
+  await expect(canvas.locator('[data-element-id="Task_2"]').first()).not.toHaveClass(/selected/);
+  await page.getByRole('button',{name:'Chiudi ispettore',exact:true}).click();
+  await svg.focus(); await page.keyboard.press('Control+a');
+  await page.getByRole('button',{name:'Deseleziona tutto',exact:true}).click();
+  await expect(canvas.locator('.djs-element.selected')).toHaveCount(0);
+  await expect(svg).toBeFocused();
+});
+
+test('mouse and trackpad wheel modes preserve the pointer anchor and model',async({page})=>{
+  test.setTimeout(90_000);await page.setViewportSize({width:1600,height:1000});await page.goto(canvasView);
+  const canvas=page.locator('.process-bpmn-canvas'), viewport=canvas.locator('.viewport'), task=canvas.locator('[data-element-id="Task_1"]').first();
+  await expect(task).toBeVisible();const node=await task.getAttribute('transform');const box=(await canvas.boundingBox())!;const point={x:box.x+box.width*.6,y:box.y+box.height*.65};
+  const world=()=>page.evaluate(p=>{const matrix=document.querySelector<SVGGElement>('.process-bpmn-canvas .viewport')!.getScreenCTM()!;const local=new DOMPoint(p.x,p.y).matrixTransform(matrix.inverse());return {x:local.x,y:local.y,scale:matrix.a};},point);
+  const before=await world();await page.mouse.move(point.x,point.y);await page.mouse.wheel(0,-100);await expect.poll(async()=>(await world()).scale).toBeGreaterThan(before.scale);
+  const after=await world();expect(Math.abs(after.x-before.x)).toBeLessThan(1);expect(Math.abs(after.y-before.y)).toBeLessThan(1);await expect(task).toHaveAttribute('transform',node!);
+  await page.getByRole('button',{name:'Importa, esporta, cronologia',exact:true}).click();await page.getByRole('menuitemradio',{name:'Trackpad · scorri per spostare',exact:true}).click();
+  const panBefore=await world(),camera=await viewport.getAttribute('transform');await page.mouse.move(point.x,point.y);await page.mouse.wheel(35,80);await expect(viewport).not.toHaveAttribute('transform',camera!);expect((await world()).scale).toBeCloseTo(panBefore.scale,5);
+  const pinchBefore=await world();await page.keyboard.down('Control');await page.mouse.wheel(0,-60);await page.keyboard.up('Control');await expect.poll(async()=>(await world()).scale).toBeGreaterThan(pinchBefore.scale);
+  await expect(task).toHaveAttribute('transform',node!);await page.reload();await page.getByRole('button',{name:'Importa, esporta, cronologia',exact:true}).click();await expect(page.getByRole('menuitemradio',{name:'Trackpad · scorri per spostare',exact:true})).toHaveAttribute('aria-checked','true');
+});
+
+
+test("inline rename commits, cancels, undoes and saves the BPMN name",async({page})=>{
+ await page.setViewportSize({width:1600,height:1000});const writes:string[]=[];
+ await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")writes.push(route.request().postDataJSON().xml);await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Model",xml:writes.at(-1)??xml,version_id:1}});});
+ await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),task=canvas.locator('[data-element-id="Task_1"]').first();
+ await expect(task).toBeVisible();await task.dblclick();const form=page.getByRole("form",{name:"Rinomina elemento"}),input=form.getByRole("textbox",{name:"Nome",exact:true});
+ await input.fill("Cancelled");await input.press("Escape");await expect(form).toBeHidden();await expect(task).toContainText(tasks[0].name);
+ await task.dblclick();await input.fill("Rinominato nel canvas");await input.press("Enter");await expect(task).toContainText("Rinominato nel canvas");
+ await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(task).toContainText(tasks[0].name);
+ await task.dblclick();await input.fill("Salvataggio da tastiera");await input.press("Control+s");await expect.poll(()=>writes.length).toBe(1);
+ expect(await page.evaluate(source=>new DOMParser().parseFromString(source,"application/xml").getElementById("Task_1")!.getAttribute("name"),writes[0])).toBe("Salvataggio da tastiera");
+});
+
+test("clipboard keeps copied tasks independent with new IDs and valid BPMN references",async({page})=>{
+ const pageErrors:string[]=[];page.on("pageerror",error=>pageErrors.push(error.message));
+ await page.setViewportSize({width:1600,height:1000});let savedXml=xml;
+ await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")savedXml=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Model",xml:savedXml,version_id:1}});});
+ await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),svg=canvas.locator(".djs-container > svg");
+ await canvas.locator('[data-element-id="Task_1"]').first().click();await page.keyboard.down("Shift");await canvas.locator('[data-element-id="Task_2"]').first().click();await page.keyboard.up("Shift");
+ await expect(canvas.locator(".djs-shape.selected")).toHaveCount(2);
+ await svg.focus();await page.keyboard.press("Control+c");const bounds=(await canvas.boundingBox())!,point={x:bounds.x+bounds.width*.65,y:bounds.y+bounds.height*.82};
+ await page.mouse.move(point.x,point.y);await page.keyboard.press("Control+v");await page.mouse.click(point.x,point.y);
+ expect(pageErrors).toEqual([]);
+ await expect(canvas.locator(".delir-type-task")).toHaveCount(20);await expect(canvas.locator(".djs-connection")).toHaveCount(18);
+ await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(canvas.locator(".delir-type-task")).toHaveCount(18);
+ await page.getByRole("button",{name:"Ripeti modifica",exact:true}).click();await expect(canvas.locator(".delir-type-task")).toHaveCount(20);
+ await page.getByRole("button",{name:"Salva",exact:true}).click();
+ await expect.poll(()=>savedXml!==xml).toBe(true);
+ const result=await page.evaluate(source=>{const doc=new DOMParser().parseFromString(source,"application/xml"),nodes=Array.from(doc.getElementsByTagNameNS("http://www.omg.org/spec/BPMN/20100524/MODEL","userTask")),flows=Array.from(doc.getElementsByTagNameNS("http://www.omg.org/spec/BPMN/20100524/MODEL","sequenceFlow"));return{error:!!doc.querySelector("parsererror"),ids:nodes.map(n=>n.id),flows:flows.map(f=>({id:f.id,source:f.getAttribute("sourceRef"),target:f.getAttribute("targetRef")})),original:doc.getElementById("Task_1")!.getAttribute("name")};},savedXml);
+ expect(result.error).toBe(false);expect(result.ids).toHaveLength(20);expect(new Set(result.ids).size).toBe(20);expect(result.original).toBe(tasks[0].name);
+ for(const flow of result.flows){expect(result.ids).toContain(flow.source);expect(result.ids).toContain(flow.target);}
+ await expect(canvas.locator(".bjs-powered-by")).toHaveCount(0);
+});
+
+test("semantic selection keeps symbols clear and edits event labels below their shape", async ({page}) => {
+  await page.setViewportSize({width:1600,height:1000});
+  const symbols = [
+    {id:"Start",type:"startEvent",x:80,y:160,width:36,height:36},
+    {id:"Gateway",type:"exclusiveGateway",x:280,y:150,width:50,height:50},
+    {id:"End",type:"endEvent",x:480,y:160,width:36,height:36},
+    {id:"Task",type:"userTask",x:650,y:140,width:160,height:88}
+  ];
+  const source = '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" targetNamespace="urn:test"><bpmn:process id="Process">'+symbols.map(n=>'<bpmn:'+n.type+' id="'+n.id+'"/>').join('')+'</bpmn:process><bpmndi:BPMNDiagram id="diagram"><bpmndi:BPMNPlane id="plane" bpmnElement="Process">'+symbols.map(n=>'<bpmndi:BPMNShape id="'+n.id+'_di" bpmnElement="'+n.id+'"><dc:Bounds x="'+n.x+'" y="'+n.y+'" width="'+n.width+'" height="'+n.height+'"/></bpmndi:BPMNShape>').join('')+'</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>';
+  let saved=source;const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Synthetic model",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");
+  for(const [id,kind] of [["Start","start"],["Gateway","gateway"],["End","end"],["Task","task"]]){
+    const node=canvas.locator('.djs-element[data-element-id="'+id+'"]').first();
+    await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();
+    await node.click();await expect(node.locator(".djs-outline")).toHaveAttribute("data-selection-kind",kind);
+    await expect(canvas.locator(".djs-resizer")).toHaveCount(0);
+  }
+  await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();
+  const start=canvas.locator('.djs-element[data-element-id="Start"]').first();await start.dblclick();
+  const editor=page.getByRole("form",{name:"Rinomina elemento"}).getByRole("textbox",{name:"Nome",exact:true});
+  const shape=await start.locator(".djs-visual > circle").first().boundingBox(), editing=await editor.boundingBox();
+  expect(editing!.y).toBeGreaterThan(shape!.y+shape!.height-1);
+  await editor.fill("Richiesta ricevuta");await editor.press("Enter");
+  await expect(canvas.locator('[data-delir-label-for="Start"]')).toContainText("Richiesta ricevuta");
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();
+  await expect(canvas.locator('[data-delir-label-for="Start"]')).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
+  expect(saved).toBe(source);expect(errors).toEqual([]);
+});
+
+test("canvas chat reserves readable space for conversation, actions and composer",async({page})=>{
+  await page.setViewportSize({width:1600,height:1000});await page.goto(canvasView);
+  await page.getByRole("button",{name:"Chat canvas",exact:true}).click();
+  const chat=page.locator(".process-studio-chat");await expect(chat).toBeVisible();
+  expect((await chat.boundingBox())!.width).toBeGreaterThanOrEqual(360);
+  const copy=chat.locator(".ui-action-prompt-copy");
+  if(await copy.count())expect((await copy.boundingBox())!.width).toBeGreaterThan(240);
+  const input=chat.getByRole("textbox",{name:"Scrivi un messaggio…",exact:true});
+  await expect(input).toBeVisible();
+  const controls=chat.locator(".composer-bottom-bar button");
+  const boxes=await controls.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width};}));
+  const bounds=(await chat.boundingBox())!;
+  for(const box of boxes){expect(box.x).toBeGreaterThanOrEqual(bounds.x);expect(box.right).toBeLessThanOrEqual(bounds.x+bounds.width+1);expect(box.width).toBeGreaterThanOrEqual(24);}
+  const scan=await new AxeBuilder({page}).include(".process-studio-chat").analyze();expect(scan.violations).toEqual([]);
+});
+
+test("connections follow BPMN pool and lane boundaries and lane removal preserves work",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const shapes=[
+    ["PoolA",100,100,800,400],["LaneA",130,100,770,200],["LaneB",130,300,770,200],
+    ["TaskA",260,150,160,88],["TaskB",550,350,160,88],
+    ["PoolB",100,650,800,220],["TaskC",260,710,160,88]
+  ];
+  let saved='<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="urn:collaboration"><bpmn:process id="ProcessA"><bpmn:laneSet id="Roles"><bpmn:lane id="LaneA" name="Operations"><bpmn:flowNodeRef>TaskA</bpmn:flowNodeRef></bpmn:lane><bpmn:lane id="LaneB" name="Finance"><bpmn:flowNodeRef>TaskB</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet><bpmn:task id="TaskA" name="Prepare"/><bpmn:task id="TaskB" name="Approve"/></bpmn:process><bpmn:process id="ProcessB"><bpmn:task id="TaskC" name="Receive"/></bpmn:process><bpmn:collaboration id="Collaboration"><bpmn:participant id="PoolA" name="Company" processRef="ProcessA"/><bpmn:participant id="PoolB" name="Partner" processRef="ProcessB"/></bpmn:collaboration><bpmndi:BPMNDiagram id="Diagram"><bpmndi:BPMNPlane id="Plane" bpmnElement="Collaboration">'+shapes.map(([id,x,y,w,h])=>'<bpmndi:BPMNShape id="'+id+'_di" bpmnElement="'+id+'" isHorizontal="true"><dc:Bounds x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'"/></bpmndi:BPMNShape>').join('')+'</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>';
+  const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Collaboration",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");
+  const node=(id:string)=>canvas.locator('.djs-element[data-element-id="'+id+'"]').first();
+  await expect(node("TaskA")).toBeVisible();
+  const connect=async(from:string,to:string)=>{
+    await node(from).click();await page.getByRole("button",{name:"Collega elemento",exact:true}).click();
+    const box=(await node(to).boundingBox())!;await page.mouse.move(box.x+box.width/2,box.y+box.height/2,{steps:12});await page.mouse.click(box.x+box.width/2,box.y+box.height/2);
+  };
+  await node("TaskA").click();await page.getByRole("button",{name:"Collega elemento",exact:true}).click();
+  const laneBox=(await node("LaneB").boundingBox())!;await page.mouse.move(laneBox.x+8,laneBox.y+40,{steps:8});await expect(node("LaneB")).toHaveClass(/connect-not-ok/);
+  await page.mouse.click(laneBox.x+8,laneBox.y+40);await expect(canvas.locator(".djs-connection")).toHaveCount(0);
+  await connect("TaskA","TaskB");await expect(canvas.locator(".djs-connection")).toHaveCount(1);
+  await connect("TaskB","TaskC");await expect(canvas.locator(".djs-connection")).toHaveCount(2);
+  await page.getByRole("button",{name:"Salva",exact:true}).click();
+  const graph=await page.evaluate(source=>{
+    const doc=new DOMParser().parseFromString(source,"application/xml");
+    return Array.from(doc.getElementsByTagNameNS("*","sequenceFlow")).map(n=>({type:n.localName,parent:n.parentElement?.id,source:n.getAttribute("sourceRef"),target:n.getAttribute("targetRef")})).concat(Array.from(doc.getElementsByTagNameNS("*","messageFlow")).map(n=>({type:n.localName,parent:n.parentElement?.id,source:n.getAttribute("sourceRef"),target:n.getAttribute("targetRef")})));
+  },saved);
+  expect(graph).toEqual(expect.arrayContaining([{type:"sequenceFlow",parent:"ProcessA",source:"TaskA",target:"TaskB"},{type:"messageFlow",parent:"Collaboration",source:"TaskB",target:"TaskC"}]));
+  await node("LaneB").click({position:{x:8,y:40}});
+  await page.getByRole("button",{name:"Aggiungi lane sotto",exact:true}).click();
+  await expect(canvas.locator('.djs-element[data-delir-type="bpmn:Lane"]')).toHaveCount(3);
+  await node("LaneB").click({position:{x:8,y:40}});await page.getByRole("button",{name:"Altre azioni",exact:true}).click();
+  await page.getByRole("menuitem",{name:"Rimuovi lane, mantieni le attività",exact:true}).click();
+  await expect(node("LaneB")).toHaveCount(0);await expect(node("TaskB")).toBeVisible();await expect(canvas.locator(".djs-connection")).toHaveCount(2);
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(node("LaneB")).toBeVisible();await expect(canvas.locator(".djs-connection")).toHaveCount(2);
+  await page.getByRole("button",{name:"Salva",exact:true}).click();
+  await info.attach("collaboration.xml",{body:Buffer.from(saved),contentType:"application/xml"});
+  expect(errors).toEqual([]);
+});
+
+for (const width of [1440,1920]) test("local connection control previews, clicks, drags and cancels at "+width,async({page})=>{
+  await page.setViewportSize({width,height:1000});const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),shell=page.locator(".process-bpmn-shell"),task=(id:string)=>canvas.locator('.djs-element[data-element-id="'+id+'"]').first();
+  await expect(task("Task_1")).toBeVisible();await task("Task_1").click();await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();
+  const control=page.getByRole("button",{name:"Collega elemento",exact:true});await expect(control).toBeVisible();
+  await expect.poll(async()=>{const a=(await control.boundingBox())!,b=(await task("Task_1").locator(".djs-visual > rect").first().boundingBox())!;return Math.abs(a.x-b.x-b.width);},{timeout:3000}).toBeLessThan(40);
+  for(const label of ["Ingrandisci","Riduci"]) {
+    await page.getByRole("button",{name:label,exact:true}).click();
+    await expect.poll(async()=>{const a=(await control.boundingBox())!,b=(await task("Task_1").locator(".djs-visual > rect").first().boundingBox())!;return Math.abs(a.x-b.x-b.width);}).toBeLessThan(40);
+  }
+  await page.getByRole("button",{name:"Chiudi ispettore",exact:true}).click();
+  await expect(control).toHaveCount(0);await task("Task_1").click();
+  await expect.poll(async()=>{const a=(await control.boundingBox())!,b=(await task("Task_1").locator(".djs-visual > rect").first().boundingBox())!;return Math.abs(a.x-b.x-b.width);}).toBeLessThan(40);
+  await control.click();await expect(shell).toHaveAttribute("data-connecting","true");
+  const target=(await task("Task_2").boundingBox())!;await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:10});
+  await expect(canvas.locator(".djs-dragger")).toBeVisible();await expect(task("Task_2")).toHaveClass(/connect-ok/);
+  await page.keyboard.press("Escape");await expect(canvas.locator(".djs-dragger")).toHaveCount(0);await expect(canvas.locator(".djs-connection")).toHaveCount(17);await expect(task("Task_1")).toHaveClass(/selected/);
+  await control.click();await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:10});await page.mouse.click(target.x+target.width/2,target.y+target.height/2);
+  await expect(canvas.locator(".djs-connection")).toHaveCount(18);
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(canvas.locator(".djs-connection")).toHaveCount(17);
+  await task("Task_1").click();const from=(await control.boundingBox())!,destination=(await task("Task_3").boundingBox())!;
+  await page.mouse.move(from.x+from.width/2,from.y+from.height/2);await page.mouse.down();await page.mouse.move(destination.x+destination.width/2,destination.y+destination.height/2,{steps:15});
+  await expect(canvas.locator(".djs-dragger")).toBeVisible();await page.mouse.up();await expect(canvas.locator(".djs-connection")).toHaveCount(18);
+  const connection=canvas.locator('.djs-connection[data-element-id^="SequenceFlow_"] .djs-visual > path').first();
+  const end=await connection.evaluate(path=>{const p=path as SVGPathElement,point=p.getPointAtLength(p.getTotalLength()),matrix=p.getScreenCTM()!;return{x:point.x*matrix.a+point.y*matrix.c+matrix.e,y:point.x*matrix.b+point.y*matrix.d+matrix.f};});
+  const bounds=(await task("Task_3").locator(".djs-visual > rect").first().boundingBox())!;
+  expect(Math.min(Math.abs(end.x-bounds.x),Math.abs(end.x-bounds.x-bounds.width),Math.abs(end.y-bounds.y),Math.abs(end.y-bounds.y-bounds.height))).toBeLessThan(2);
+  expect(errors).toEqual([]);
+});
+
+test.describe("touch connection gestures",()=>{
+  test.use({hasTouch:true,isMobile:true,viewport:{width:390,height:844}});
+  test("tap connects two elements and the cancel action restores selection",async({page})=>{
+    await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),task=canvas.locator('[data-element-id="Task_1"]').first();
+    await expect(task).toBeVisible();await task.tap();const control=page.getByRole("button",{name:"Collega elemento",exact:true});await expect(control).toBeVisible();await control.tap();
+    await expect(page.locator(".process-bpmn-shell")).toHaveAttribute("data-connecting","true");
+    await page.getByRole("button",{name:"Annulla collegamento",exact:true}).tap();await expect(task).toHaveClass(/selected/);await expect(canvas.locator(".djs-connection")).toHaveCount(17);
+    await control.tap();await canvas.locator('[data-element-id="Task_3"]').first().tap();await expect(canvas.locator(".djs-connection")).toHaveCount(18);
+  });
+});
+
+test("editing an endpoint keeps the arrow on the target boundary and undo restores the attachment",async({page})=>{
+  await page.setViewportSize({width:1600,height:1000});let saved=xml;
+  const source=xml.replace('<di:waypoint x="240" y="125" /><di:waypoint x="290" y="125" />','<di:waypoint x="160" y="125"/><di:waypoint x="270" y="125"/><di:waypoint x="270" y="260"/><di:waypoint x="370" y="260"/><di:waypoint x="370" y="125"/>');
+  saved=source;const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET, PUT, OPTIONS","access-control-allow-headers":"Content-Type"},json:{id:"layout-model",name:"Connections",process_id:"layout-process",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),path=canvas.locator('.djs-connection[data-element-id="Flow_0"] .djs-visual > path').first();
+  await expect(path).toBeVisible();await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
+  const point=async(fraction:number)=>path.evaluate((node,f)=>{const p=node as SVGPathElement,at=p.getPointAtLength(p.getTotalLength()*f),m=p.getScreenCTM()!;return{x:at.x*m.a+at.y*m.c+m.e,y:at.x*m.b+at.y*m.d+m.f};},fraction);
+  const originalPath=await path.getAttribute("d"),unrelated=canvas.locator('.djs-shape[data-element-id="Task_18"]').first(),unrelatedBox=(await unrelated.boundingBox())!;
+  await page.mouse.move(unrelatedBox.x+40,unrelatedBox.y+35);await page.mouse.down();await page.mouse.move(unrelatedBox.x+60,unrelatedBox.y+70,{steps:10});await page.mouse.up();
+  await expect(path).toHaveAttribute("d",originalPath!);await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
+  const p=await point(.5);await page.mouse.click(p.x,p.y);
+  await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();
+  await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+  const start=await point(1),task=canvas.locator('.djs-shape[data-element-id="Task_3"]').first(),box=(await task.boundingBox())!;
+  await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(box.x+box.width/2,box.y+box.height/2,{steps:15});await page.mouse.up();
+  await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeEnabled({timeout:5000});await page.getByRole("button",{name:"Salva",exact:true}).click();
+  expect(await page.evaluate(s=>new DOMParser().parseFromString(s,"application/xml").querySelector('[id="Flow_0"]')!.getAttribute("targetRef"),saved)).toBe("Task_3");
+  const end=await point(1),bounds=(await task.locator(".djs-visual > rect").first().boundingBox())!;
+  expect(Math.min(Math.abs(end.x-bounds.x),Math.abs(end.x-bounds.x-bounds.width),Math.abs(end.y-bounds.y),Math.abs(end.y-bounds.y-bounds.height))).toBeLessThan(2);
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await page.getByRole("button",{name:"Salva",exact:true}).click();
+  expect(await page.evaluate(s=>new DOMParser().parseFromString(s,"application/xml").querySelector('[id="Flow_0"]')!.getAttribute("targetRef"),saved)).toBe("Task_2");
+  await expect(path).toHaveAttribute("d",originalPath!);
+  expect(errors).toEqual([]);
+});
+
+
+test("large diagrams keep connection gestures reversible across 500 activities",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const nodes=Array.from({length:500},(_,i)=>({id:"Scale_"+i,x:80+(i%25)*180,y:80+Math.floor(i/25)*110}));
+  const source='<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" targetNamespace="urn:scale"><bpmn:process id="Scale">'+nodes.map(n=>'<bpmn:task id="'+n.id+'" name="Attività '+n.id+'"/>').join('')+'</bpmn:process><bpmndi:BPMNDiagram id="diagram"><bpmndi:BPMNPlane id="plane" bpmnElement="Scale">'+nodes.map(n=>'<bpmndi:BPMNShape id="'+n.id+'_di" bpmnElement="'+n.id+'"><dc:Bounds x="'+n.x+'" y="'+n.y+'" width="120" height="64"/></bpmndi:BPMNShape>').join('')+'</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>';
+  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",route=>route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Synthetic scale",xml:source,version_id:1}}));
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),node=(id:string)=>canvas.locator('.djs-shape[data-element-id="'+id+'"]').first();
+  await expect(canvas.locator('.djs-shape[data-delir-type="bpmn:Task"]')).toHaveCount(500);
+  await node("Scale_0").click();await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();
+  const before=Date.now();await page.getByRole("button",{name:"Collega elemento",exact:true}).click();const target=(await node("Scale_2").boundingBox())!;
+  await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:20});await expect(node("Scale_2")).toHaveClass(/connect-ok/);await expect(canvas.locator(".djs-dragger")).toBeVisible();
+  await info.attach("gesture-timing.json",{body:Buffer.from(JSON.stringify({activities:500,previewGestureWallMs:Date.now()-before,note:"Includes Playwright transport; observation, not a frame-rate benchmark."})),contentType:"application/json"});
+  await page.mouse.click(target.x+target.width/2,target.y+target.height/2);await expect(canvas.locator(".djs-connection")).toHaveCount(1);await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(canvas.locator(".djs-connection")).toHaveCount(0);await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();expect(errors).toEqual([]);
+});
+
+
+for (const touch of [false,true]) test.describe("container resize grips "+(touch?"touch":"mouse"),()=>{
+  test.use({hasTouch:touch,isMobile:touch,viewport:{width:1600,height:1000}});
+  test("stay discreet at every zoom and preserve resize undo",async({page},info)=>{
+    const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8");let saved=source;
+    const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+    await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET, PUT, OPTIONS","access-control-allow-headers":"Content-Type"},json:{id:"layout-model",process_id:"layout-process",name:"Container resize",xml:saved,version_id:1}});});
+    await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),lane=canvas.locator('.djs-shape[data-element-id="LaneB"]').first();
+    await expect(lane).toBeVisible();await lane.click({position:{x:8,y:40}});
+    const handles=canvas.locator('.delir-resizer[data-resize-element="LaneB"]');await expect(handles).toHaveCount(8);
+    await expect(handles.locator("circle.djs-resizer-visual")).toHaveCount(4);
+    const hitStyle=await handles.first().locator(".djs-resizer-hit").evaluate(node=>({fill:getComputedStyle(node).fill,stroke:getComputedStyle(node).stroke}));expect(hitStyle).toEqual({fill:"none",stroke:"none"});
+    await page.screenshot({path:info.outputPath("lane-selected.png")});
+    const gripPixels=Math.round((await handles.locator("circle.djs-resizer-visual").first().boundingBox())!.width);expect(gripPixels).toBeGreaterThanOrEqual(7);expect(gripPixels).toBeLessThanOrEqual(9);
+    for(const zoom of [50,100,200]) {
+      await page.getByRole("button",{name:/^Zoom \d+%$/}).click();await page.getByRole("menuitem",{name:zoom+"%",exact:true}).click();
+      await expect.poll(async()=>Math.round((await handles.locator("circle.djs-resizer-visual").first().boundingBox())!.width)).toBe(gripPixels);
+      expect(Math.round(await handles.first().locator(".djs-resizer-hit").evaluate(node=>{const el=node as SVGGraphicsElement,matrix=el.getScreenCTM()!;return el.getBBox().width*Math.hypot(matrix.a,matrix.b);}))).toBe(touch?44:24);
+    }
+    await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();
+    await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+    const body=lane.locator(".djs-visual > rect").first(),before=(await body.boundingBox())!,grip=(await handles.filter({has:page.locator("rect.djs-resizer-visual")}).filter({hasNot:page.locator("circle")}).count());expect(grip).toBe(4);
+    const handle=canvas.locator('.delir-resizer.djs-resizer-se[data-resize-element="LaneB"] .djs-resizer-hit'),start=(await handle.boundingBox())!;
+    await page.mouse.move(start.x+start.width/2,start.y+start.height/2);await page.mouse.down();await page.mouse.move(start.x+start.width/2+50,start.y+start.height/2+35,{steps:15});await page.mouse.up();
+    await expect.poll(async()=>(await body.boundingBox())!.width).toBeGreaterThan(before.width+20);
+    await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect.poll(async()=>Math.round((await body.boundingBox())!.width)).toBe(Math.round(before.width));await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();expect(saved).toBe(source);expect(errors).toEqual([]);
+  });
+});
+
+
+test("lanes without a participant support direct insertion, removal and exact undo",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source='<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" targetNamespace="urn:lane-process"><bpmn:process id="Process"><bpmn:laneSet id="Roles"><bpmn:lane id="Role" name="Operations"><bpmn:flowNodeRef>Work</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet><bpmn:task id="Work" name="Verifica richiesta"/></bpmn:process><bpmndi:BPMNDiagram id="Diagram"><bpmndi:BPMNPlane id="Plane" bpmnElement="Process"><bpmndi:BPMNShape id="Role_di" bpmnElement="Role"><dc:Bounds x="100" y="100" width="700" height="300"/></bpmndi:BPMNShape><bpmndi:BPMNShape id="Work_di" bpmnElement="Work"><dc:Bounds x="230" y="170" width="160" height="88"/></bpmndi:BPMNShape></bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>';
+  let saved=source;const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET, PUT, OPTIONS","access-control-allow-headers":"Content-Type"},json:{id:"layout-model",process_id:"layout-process",name:"Unpooled lanes",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),lane=canvas.locator('.djs-shape[data-element-id="Role"]').first();await expect(lane).toBeVisible();await lane.click({position:{x:8,y:40}});
+  const actions=page.getByRole("group",{name:"Azioni della selezione"});await expect(page.getByRole("button",{name:"Gestisci lane",exact:true})).toHaveCount(0);expect((await actions.boundingBox())!.width).toBeLessThan(180);await expect(actions.locator(".process-selection-label")).toHaveCount(0);
+  await page.screenshot({path:info.outputPath("unpooled-lane-selected.png")});
+  for(const label of ["Aggiungi lane sotto","Aggiungi lane sopra"]) {
+    if(label === "Aggiungi lane sotto"){await lane.click({button:"right",position:{x:8,y:40}});await page.getByRole("menu",{name:"Azioni della selezione"}).getByRole("menuitem",{name:label,exact:true}).click();}else await page.getByRole("button",{name:label,exact:true}).click();await expect(canvas.locator('.djs-shape[data-delir-type="bpmn:Lane"]')).toHaveCount(2);
+    await page.getByRole("button",{name:"Salva",exact:true}).click();
+    const graph=await page.evaluate(xml=>{const doc=new DOMParser().parseFromString(xml,"application/xml");return{lanes:doc.getElementsByTagNameNS("*","lane").length,pools:doc.getElementsByTagNameNS("*","participant").length,reference:doc.getElementsByTagNameNS("*","flowNodeRef")[0]?.textContent};},saved);expect(graph).toEqual({lanes:2,pools:0,reference:"Work"});if(label === "Aggiungi lane sotto")await info.attach("unpooled-lanes.xml",{body:Buffer.from(saved),contentType:"application/xml"});
+    await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);
+  }
+  for(const [label,count] of [["Dividi in due lane",2],["Dividi in tre lane",3]] as const) {
+    await lane.click({position:{x:8,y:40}});await page.getByRole("button",{name:"Altre azioni",exact:true}).click();await page.getByRole("menuitem",{name:label,exact:true}).click();await expect(canvas.locator('.djs-shape[data-delir-type="bpmn:Lane"]')).toHaveCount(count);
+    const placement=await canvas.locator('.djs-shape[data-element-id="Work"]').evaluate(el=>{const parent=el.closest('.djs-children')!.parentElement!.querySelector(':scope > .djs-element > .djs-visual > rect')!,child=el.querySelector('.djs-visual > rect')!;const a=child.getBoundingClientRect(),b=parent.getBoundingClientRect();return{top:a.top,bottom:a.bottom,parentTop:b.top,parentBottom:b.bottom};});expect(placement.top).toBeGreaterThan(placement.parentTop);expect(placement.bottom).toBeLessThan(placement.parentBottom);
+    await page.getByRole("button",{name:"Salva",exact:true}).click();await info.attach("split-"+count+".xml",{body:Buffer.from(saved),contentType:"application/xml"});await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);
+  }
+  await lane.click({position:{x:8,y:40}});await page.getByRole("button",{name:"Altre azioni",exact:true}).click();await page.getByRole("menuitem",{name:"Rimuovi lane, mantieni le attività",exact:true}).click();await expect(lane).toHaveCount(0);await expect(canvas.locator('.djs-shape[data-element-id="Work"]')).toBeVisible();await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(lane).toBeVisible();await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();expect(errors).toEqual([]);
+});
+
+
+test("palette lanes partition their pool even when dropped over an existing lane",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source='<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="urn:pool-palette"><bpmn:process id="Process"/></bpmn:definitions>';let saved=source;
+  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Pool creation",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");await page.getByRole("button",{name:"Apri libreria BPMN",exact:true}).click();const library=page.getByRole("navigation",{name:"Strumenti BPMN"});
+  const area=(await canvas.boundingBox())!;await library.getByRole("button",{name:/^Lane(?: \/ corsia)?$/}).first().click();await page.mouse.move(area.x+area.width*.55,area.y+area.height*.20,{steps:10});await page.mouse.click(area.x+area.width*.55,area.y+area.height*.20);await page.keyboard.press("Escape");await expect(canvas.locator('.djs-shape[data-delir-type="bpmn:Lane"]')).toHaveCount(0);await library.getByRole("button",{name:"Pool o partecipante",exact:true}).first().click();await page.mouse.click(area.x+area.width*.55,area.y+area.height*.20);
+  const pool=canvas.locator('.djs-shape[data-delir-type="bpmn:Participant"]').first();await expect(pool).toBeVisible();
+  for(const count of [1,2,3]){
+    await library.getByRole("button",{name:/^Lane(?: \/ corsia)?$/}).first().click();const target=count===1?pool:canvas.locator('.djs-shape[data-delir-type="bpmn:Lane"]').last(),box=(await target.locator('.djs-visual > rect').first().boundingBox())!;await page.mouse.click(box.x+box.width*.6,box.y+box.height*.5);await expect(canvas.locator('.djs-shape[data-delir-type="bpmn:Lane"]')).toHaveCount(count);
+    const g=await canvas.evaluate(host=>{const geometry=(el:Element)=>{const rect=el.querySelector('.djs-visual > rect')!,m=(el as SVGGraphicsElement).transform.baseVal.consolidate()!.matrix;return{x:m.e,y:m.f,width:Number(rect.getAttribute('width')),height:Number(rect.getAttribute('height'))};};return{pool:geometry(host.querySelector('.djs-shape[data-delir-type="bpmn:Participant"]')!),lanes:Array.from(host.querySelectorAll('.djs-shape[data-delir-type="bpmn:Lane"]')).map(geometry).sort((a,b)=>a.y-b.y)};});expect(g.lanes[0].y).toBe(g.pool.y);expect(g.lanes.at(-1)!.y+g.lanes.at(-1)!.height).toBe(g.pool.y+g.pool.height);for(let i=0;i<count;i++){expect(g.lanes[i].x).toBe(g.pool.x+30);expect(g.lanes[i].width).toBe(g.pool.width-30);if(i)expect(g.lanes[i].y).toBe(g.lanes[i-1].y+g.lanes[i-1].height);}
+  }
+  await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();await page.screenshot({path:info.outputPath("palette-pool-partitions.png")});await page.getByRole("button",{name:"Salva",exact:true}).click();await info.attach("palette-pool-partitions.xml",{body:Buffer.from(saved),contentType:"application/xml"});
+  const semantics=await page.evaluate(xml=>{const doc=new DOMParser().parseFromString(xml,"application/xml"),pool=doc.getElementsByTagNameNS("*","participant")[0],process=doc.getElementById(pool.getAttribute("processRef")!);return{poolCount:doc.getElementsByTagNameNS("*","participant").length,laneCount:process?.getElementsByTagNameNS("*","lane").length};},saved);expect(semantics).toEqual({poolCount:1,laneCount:3});expect(errors).toEqual([]);
+});
+
+test("pool edges and lane dividers remain one continuous partition during resize and movement",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8");let saved=source;
+  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Pool partitions",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");
+  const node=(id:string)=>canvas.locator('.djs-shape[data-element-id="'+id+'"]').first();
+  const geometry=()=>canvas.locator('.djs-shape').evaluateAll(els=>Object.fromEntries(els.map(el=>{
+    const rect=el.querySelector('.djs-visual > rect'),matrix=(el as SVGGraphicsElement).transform.baseVal.consolidate()?.matrix;
+    return[el.getAttribute('data-element-id'),{x:matrix?.e??0,y:matrix?.f??0,width:Number(rect?.getAttribute('width')),height:Number(rect?.getAttribute('height'))}];})));
+  const fit=async()=>{await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));};
+  const continuous=async()=>{const g=await geometry(),pool=g.PoolA;const lanes=Object.entries(g).filter(([id])=>id.startsWith("Lane")).map(([,box])=>box).sort((a,b)=>a.y-b.y);expect(lanes[0].y).toBe(pool.y);expect(lanes.at(-1)!.y+lanes.at(-1)!.height).toBe(pool.y+pool.height);for(let i=0;i<lanes.length;i++){expect(lanes[i].x).toBe(pool.x+30);expect(lanes[i].width).toBe(pool.width-30);if(i)expect(lanes[i].y).toBe(lanes[i-1].y+lanes[i-1].height);}};
+  const dragHandle=async(id:string,direction:string,dx:number,dy:number)=>{const body=(await node(id).locator(".djs-visual > rect").first().boundingBox())!;await page.mouse.click(body.x+8,body.y+40);await expect(node(id)).toHaveClass(/selected/);const box=(await canvas.locator('.delir-resizer.djs-resizer-'+direction+'[data-resize-element="'+id+'"] .djs-resizer-hit').boundingBox())!;await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+dx,box.y+box.height/2+dy,{steps:16});await page.mouse.up();};
+  await expect(node("PoolA")).toBeVisible();await fit();const initial=await geometry();
+  for(const [direction,dx,dy] of [["se",70,45],["nw",-35,-25]] as const){
+    await dragHandle("PoolA",direction,dx,dy);await continuous();const g=await geometry();expect(g.PoolA.width).toBeGreaterThan(initial.PoolA.width+20);expect(g.PoolA.height).toBeGreaterThan(initial.PoolA.height+15);
+    await page.screenshot({path:info.outputPath("pool-resize-"+direction+".png")});await page.getByRole("button",{name:"Salva",exact:true}).click();await info.attach("pool-resize-"+direction+".xml",{body:Buffer.from(saved),contentType:"application/xml"});
+    await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);await fit();
+  }
+  await dragHandle("LaneA","s",0,20);await continuous();const divided=await geometry();expect(divided.PoolA).toEqual(initial.PoolA);expect(divided.LaneA.height).toBeGreaterThan(initial.LaneA.height);expect(divided.LaneB.y).toBeGreaterThan(initial.LaneB.y);expect(divided.LaneB.y+divided.LaneB.height).toBe(initial.LaneB.y+initial.LaneB.height);
+  await page.screenshot({path:info.outputPath("lane-divider.png")});await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();
+  const header=(await node("LaneB").locator(".djs-visual > rect").first().boundingBox())!;await page.mouse.move(header.x+8,header.y+40);await page.mouse.down();await page.mouse.move(header.x+48,header.y+75,{steps:15});await page.mouse.up();
+  await continuous();const moved=await geometry(),dx=moved.PoolA.x-initial.PoolA.x,dy=moved.PoolA.y-initial.PoolA.y;expect(Math.abs(dx)+Math.abs(dy)).toBeGreaterThan(10);for(const id of ["LaneA","LaneB","TaskA","TaskB"]){expect(moved[id].x-initial[id].x).toBe(dx);expect(moved[id].y-initial[id].y).toBe(dy);}
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();expect(await geometry()).toEqual(initial);expect(errors).toEqual([]);
+  await fit();await page.screenshot({path:info.outputPath("pool-partitions-desktop.png")});await page.setViewportSize({width:390,height:844});await fit();await page.screenshot({path:info.outputPath("pool-partitions-mobile.png")});expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)).toBe(false);const scan=await new AxeBuilder({page}).include("main").withTags(["wcag2a","wcag2aa","wcag22aa"]).analyze();expect(scan.violations).toEqual([]);
+});
+
+test("bulk deletion handles lanes and explicitly selected work in one undoable command",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8");let saved=source;
+  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Bulk deletion",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),node=(id:string)=>canvas.locator('.djs-element[data-element-id="'+id+'"]').first();await expect(node("TaskA")).toBeVisible();
+  await node("LaneA").click({position:{x:8,y:40}});await node("LaneB").click({position:{x:8,y:40},modifiers:["Shift"]});await node("TaskA").click({modifiers:["Shift"]});
+  await expect(page.getByRole("button",{name:"3 elementi selezionati",exact:true})).toBeVisible();await page.getByRole("button",{name:"Elimina selezione",exact:true}).click();
+  await expect(node("LaneA")).toHaveCount(0);await expect(node("LaneB")).toHaveCount(0);await expect(node("TaskA")).toHaveCount(0);await expect(node("TaskB")).toBeVisible();await expect(node("TaskC")).toBeVisible();await expect(canvas.locator(".djs-connection")).toHaveCount(1);
+  await page.getByRole("button",{name:"Salva",exact:true}).click();await info.attach("bulk-delete.xml",{body:Buffer.from(saved),contentType:"application/xml"});expect(saved).not.toContain('id="TaskA"');expect(saved).not.toContain('>TaskA<');expect(saved).not.toContain('sourceRef="TaskA"');
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(node("LaneA")).toBeVisible();await expect(node("LaneB")).toBeVisible();await expect(node("TaskA")).toBeVisible();await expect(canvas.locator(".djs-connection")).toHaveCount(2);await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);expect(errors).toEqual([]);
+});
+
+for(const method of ["toolbar","Delete","Backspace","context"] as const)test("bulk delete all via "+method+" removes nested pools, nodes and labels with exact undo",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8").replace('<bpmn:task id="TaskA"','<bpmn:startEvent id="Start_bulk" name="Richiesta ricevuta"/><bpmn:task id="TaskA"').replace('<bpmn:flowNodeRef>TaskA</bpmn:flowNodeRef>','<bpmn:flowNodeRef>Start_bulk</bpmn:flowNodeRef><bpmn:flowNodeRef>TaskA</bpmn:flowNodeRef>').replace('</bpmndi:BPMNPlane>','<bpmndi:BPMNShape id="Start_bulk_di" bpmnElement="Start_bulk"><dc:Bounds x="180" y="150" width="36" height="36"/><bpmndi:BPMNLabel><dc:Bounds x="150" y="192" width="96" height="32"/></bpmndi:BPMNLabel></bpmndi:BPMNShape></bpmndi:BPMNPlane>');let saved=source;
+  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Delete all",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),svg=canvas.locator(".djs-container > svg");await expect(canvas.locator('.djs-shape[data-element-id="TaskA"]')).toBeVisible();await svg.focus();await page.keyboard.press("Control+a");const shapes=await canvas.locator(".djs-shape").count(),connections=await canvas.locator(".djs-connection").count();
+  if(method==="toolbar")await page.getByRole("button",{name:"Elimina selezione",exact:true}).click();
+  else if(method==="context"){await canvas.locator('.djs-shape[data-element-id="TaskA"]').first().click({button:"right"});await page.getByRole("menu",{name:"Azioni della selezione"}).getByRole("menuitem",{name:"Elimina selezione",exact:true}).click();}
+  else{await page.getByRole("button",{name:/elementi selezionati/}).focus();await page.keyboard.press(method);}
+  await expect(canvas.locator(".djs-shape")).toHaveCount(0);await expect(canvas.locator(".djs-connection")).toHaveCount(0);await page.screenshot({path:info.outputPath("bulk-empty-"+method+".png")});await page.getByRole("button",{name:"Salva",exact:true}).click();await info.attach("bulk-empty-"+method+".xml",{body:Buffer.from(saved),contentType:"application/xml"});
+  const remaining=await page.evaluate(xml=>{const doc=new DOMParser().parseFromString(xml,"application/xml");return["participant","lane","task","sequenceFlow","messageFlow","startEvent"].map(tag=>doc.getElementsByTagNameNS("*",tag).length);},saved);expect(remaining).toEqual([0,0,0,0,0,0]);
+  await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(canvas.locator(".djs-shape")).toHaveCount(shapes);await expect(canvas.locator(".djs-connection")).toHaveCount(connections);await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);expect(errors).toEqual([]);
+});
+
+test("Delete in a property field edits text without deleting the canvas selection",async({page})=>{
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");await canvas.locator('[data-element-id="Task_1"]').first().click();const input=page.getByRole("textbox",{name:"Nome",exact:true});await input.focus();await input.press("Control+a");await input.press("Backspace");await expect(input).toHaveValue("");await expect(canvas.locator(".djs-shape")).toHaveCount(18);await expect(canvas.locator(".djs-connection")).toHaveCount(17);
+});
+
+for(const mobile of [false,true])test("BPMN types show their own symbols directly on "+(mobile?"mobile":"desktop"),async({page},info)=>{
+  await page.setViewportSize(mobile?{width:390,height:844}:{width:1600,height:1000});let saved=xml;
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"BPMN types",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),task=canvas.locator('.djs-shape[data-element-id="Task_1"]').first();await expect(task).toBeVisible();
+  await task.click({button:"right"});const menu=page.getByRole("menu",{name:"Azioni della selezione"});await expect(menu.getByRole("menuitemradio",{name:"Attività utente",exact:true})).toHaveAttribute("aria-checked","true");
+  const symbols=await menu.locator('[role="menuitemradio"] [data-bpmn-symbol]').evaluateAll(icons=>icons.map(icon=>icon.getAttribute("data-bpmn-symbol")));expect(new Set(symbols).size).toBe(symbols.length);expect(symbols).toContain("bpmn-icon-service-task");expect(symbols).toContain("bpmn-icon-script-task");await page.evaluate(()=>document.fonts.load('20px bpmn'));expect(await page.evaluate(()=>document.fonts.check('20px bpmn'))).toBe(true);
+  await page.screenshot({path:info.outputPath("bpmn-type-menu-"+mobile+".png")});const scan=await new AxeBuilder({page}).include('[role="menu"]').withTags(['wcag2a','wcag2aa','wcag22aa']).analyze();expect(scan.violations).toEqual([]);expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)).toBe(false);
+  await menu.getByRole("menuitemradio",{name:"Attività utente",exact:true}).click();await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
+  await task.click({button:"right"});await menu.getByRole("menuitemradio",{name:"Attività di servizio",exact:true}).click();await expect(task).toHaveAttribute("data-delir-type","bpmn:ServiceTask");
+  const change=page.getByRole("button",{name:"Cambia tipo",exact:true});await expect(change.locator('[data-bpmn-symbol="bpmn-icon-service-task"]')).toBeVisible();await change.click();await page.getByRole("menuitemradio",{name:"Attività richiamata",exact:true}).click();await expect(task).toHaveAttribute("data-delir-type","bpmn:CallActivity");await expect(task.locator('.djs-visual > rect')).toHaveCount(2);await expect(task.locator('.djs-visual > rect').first()).toHaveAttribute("stroke-width","3");
+  await change.click();await page.getByRole("menuitemradio",{name:"Sottoprocesso compresso",exact:true}).click();await expect(task.locator('.djs-visual > rect')).toHaveCount(2);await expect(task.locator('.djs-visual > rect').first()).toHaveAttribute("stroke-width","1.5");
+  await page.getByRole("button",{name:"Salva",exact:true}).click();await info.attach("bpmn-types-"+mobile+".xml",{body:Buffer.from(saved),contentType:"application/xml"});for(let i=0;i<3;i++)await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(xml);
+});
+
+test("event type selection keeps distinct BPMN symbols and the original XML on undo",async({page},info)=>{
+  const source=xml.replace('<bpmn:userTask id="Task_1"','<bpmn:startEvent id="Task_1"').replace('width="160" height="90"','width="36" height="36"');let saved=source;
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Event types",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),event=canvas.locator('.djs-shape[data-element-id="Task_1"]').first();await event.click({button:"right"});const menu=page.getByRole("menu",{name:"Azioni della selezione"});await expect(menu.getByRole("menuitemradio",{name:"Evento di inizio",exact:true})).toHaveAttribute("aria-checked","true");await expect(menu.locator('[data-bpmn-symbol="bpmn-icon-start-event-timer"]')).toBeVisible();await expect(menu.locator('[data-bpmn-symbol="bpmn-icon-start-event-message"]')).toBeVisible();await menu.getByRole("menuitemradio",{name:"Evento iniziale · timer",exact:true}).click();
+  const change=page.getByRole("button",{name:"Cambia tipo",exact:true});await expect(change.locator('[data-bpmn-symbol="bpmn-icon-start-event-timer"]')).toBeVisible();await change.click();await page.getByRole("menuitemradio",{name:"Evento iniziale · messaggio",exact:true}).click();await expect(canvas.locator('.djs-container > svg')).toBeFocused();await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toContain("messageEventDefinition");await info.attach("event-type.xml",{body:Buffer.from(saved),contentType:"application/xml"});for(let i=0;i<2;i++)await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);
+});
+
+test("annotation associations stay visible inside a pool after movement and undo",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8").replace('</bpmn:process>','<bpmn:textAnnotation id="Note"><bpmn:text>Verificare i documenti</bpmn:text></bpmn:textAnnotation><bpmn:association id="Note_link" sourceRef="Note" targetRef="TaskA"/></bpmn:process>').replace('</bpmndi:BPMNPlane>','<bpmndi:BPMNShape id="Note_di" bpmnElement="Note"><dc:Bounds x="300" y="20" width="160" height="55"/></bpmndi:BPMNShape><bpmndi:BPMNEdge id="Note_link_di" bpmnElement="Note_link"><di:waypoint x="340" y="75"/><di:waypoint x="340" y="150"/></bpmndi:BPMNEdge></bpmndi:BPMNPlane>');let saved=source;
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Annotation layering",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),task=canvas.locator('.djs-shape[data-element-id="TaskA"]').first(),link=canvas.locator('.djs-connection[data-element-id="Note_link"]');await expect(link).toHaveCount(1);
+  const hit=()=>link.locator('.djs-visual > path').first().evaluate(el=>{const path=el as SVGPathElement,point=path.getPointAtLength(path.getTotalLength()/2),screen=new DOMPoint(point.x,point.y).matrixTransform(path.getScreenCTM()!);return document.elementFromPoint(screen.x,screen.y)?.closest('[data-element-id]')?.getAttribute('data-element-id');});
+  expect(await hit()).toBe("Note_link");await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();await page.screenshot({path:info.outputPath("annotation-visible.png")});const before=await task.getAttribute("transform"),box=(await task.boundingBox())!;await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+50,box.y+box.height/2+20,{steps:12});await page.mouse.up();await expect(task).not.toHaveAttribute("transform",before!);await page.getByRole("button",{name:"Chiudi ispettore",exact:true}).click();await expect.poll(hit).toBe("Note_link");await page.screenshot({path:info.outputPath("annotation-after-move.png")});await page.getByRole("button",{name:"Salva",exact:true}).click();await info.attach("annotation-moved.xml",{body:Buffer.from(saved),contentType:"application/xml"});await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(task).toHaveAttribute("transform",before!);await expect.poll(hit).toBe("Note_link");await page.getByRole("button",{name:"Salva",exact:true}).click();expect(saved).toBe(source);
+});
+
+test("right click opens working object actions while right drag only pans",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),task=canvas.locator('.djs-shape[data-element-id="Task_1"]').first(),viewport=canvas.locator("g.viewport").first();await expect(task).toBeVisible();
+  await task.click({button:"right"});const menu=page.getByRole("menu",{name:"Azioni della selezione"});await expect(menu).toBeVisible();await expect(task).toHaveClass(/selected/);await page.screenshot({path:info.outputPath("right-click-object.png")});
+  await menu.getByRole("menuitem",{name:"Collega elemento",exact:true}).click();await expect(page.locator(".process-bpmn-shell")).toHaveAttribute("data-connecting","true");await canvas.locator('.djs-shape[data-element-id="Task_3"]').first().click();await expect(canvas.locator(".djs-connection")).toHaveCount(18);await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(canvas.locator(".djs-connection")).toHaveCount(17);
+  await task.click({button:"right"});await menu.getByRole("menuitemradio",{name:"Attività di servizio",exact:true}).click();await expect(task).toHaveAttribute("data-delir-type","bpmn:ServiceTask");await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(task).toHaveAttribute("data-delir-type","bpmn:UserTask");
+  await task.click({button:"right"});await page.keyboard.press("Escape");await expect(menu).toHaveCount(0);
+  await canvas.locator(".djs-container > svg").focus();await page.keyboard.press("Shift+F10");await expect(menu).toBeVisible();await expect(task).toHaveClass(/selected/);await page.keyboard.press("Escape");
+  const box=(await canvas.boundingBox())!,x=box.x+box.width/2,y=box.y+90,before=await viewport.getAttribute("transform");await page.mouse.move(x,y);await page.mouse.down({button:"right"});await page.mouse.move(x+80,y+45,{steps:12});await page.mouse.up({button:"right"});await expect(viewport).not.toHaveAttribute("transform",before!);await expect(menu).toHaveCount(0);
+  await page.mouse.click(x,y,{button:"right"});await expect(menu).toBeVisible();await menu.getByRole("menuitem",{name:"Seleziona tutto",exact:true}).click();await expect(page.getByRole("button",{name:"35 elementi selezionati",exact:true})).toBeVisible();await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
+});

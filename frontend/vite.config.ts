@@ -13,7 +13,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: [
-      "bpmn-js/lib/Modeler",
+      "diagram-js",
     ],
   },
   server: {

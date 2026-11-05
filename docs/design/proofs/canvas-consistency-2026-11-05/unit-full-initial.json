@@ -1,0 +1,708 @@
+{
+  "report": "initial broad run",
+  "commandExit": 1,
+  "filesRun": 139,
+  "passed": 759,
+  "failed": 0,
+  "notRunBecauseWorkerTimeout": [
+    "src/features/process/simulation/CaseRules.ui.test.tsx",
+    "src/features/projects/components/ProjectFormDialog.test.tsx"
+  ],
+  "files": [
+    {
+      "path": "src/app/NotFoundPage.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/contracts/backendContract.test.ts",
+      "status": "passed",
+      "tests": 11
+    },
+    {
+      "path": "src/contracts/chat.canvasVersion.test.ts",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/contracts/chatAttachments.test.ts",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/lib/api.test.ts",
+      "status": "passed",
+      "tests": 6
+    },
+    {
+      "path": "src/lib/http.test.ts",
+      "status": "passed",
+      "tests": 12
+    },
+    {
+      "path": "src/share/shareIsolation.test.ts",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/share/ShareRoot.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/ui/button.test.tsx",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "path": "src/components/feedback/ConfirmDialog.test.tsx",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/components/feedback/ErrorBoundary.test.tsx",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/components/form/FormDialog.test.tsx",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "path": "src/components/shell/GlobalSidebar.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/components/shell/HelpDialog.test.tsx",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/components/shell/TopBar.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/components/shell/useNavigationLayout.test.ts",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/chat/api.reasoning.test.ts",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/models/ModelsPage.test.tsx",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "src/features/identity/AccountMenu.test.tsx",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/period/periods.test.ts",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "src/features/notifications/NotificationsMenu.test.tsx",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "src/features/home/HomePage.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/api.saveVersion.test.ts",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/projects/api.test.tsx",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "path": "src/features/status/ServiceStatusDialog.test.tsx",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/search/GlobalSearchDialog.test.tsx",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "path": "src/features/settings/SettingsPage.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/lib/i18n/loadProcessTranslations.test.ts",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/chat/lib/agentActivity.test.ts",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "path": "src/features/chat/lib/markdown.test.ts",
+      "status": "passed",
+      "tests": 6
+    },
+    {
+      "path": "src/features/chat/lib/normalizeSession.test.ts",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "src/features/chat/lib/streamSanitizer.test.ts",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/chat/lib/threadGroups.test.ts",
+      "status": "passed",
+      "tests": 6
+    },
+    {
+      "path": "src/features/chat/components/EmptyState.test.tsx",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/chat/components/MessageBubble.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/chat/components/SourceCardMenu.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/chat/components/TurnControls.test.tsx",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/chat/components/UploadDestinationDialog.test.tsx",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/chat/hooks/useChatSessions.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/chat/hooks/useChatStream.test.tsx",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/chat/hooks/useComposerUploads.test.tsx",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "path": "src/features/chat/review/ModelingWorkspaceBar.test.tsx",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "path": "src/features/chat/review/ReviewQuestionsCard.test.tsx",
+      "status": "passed",
+      "tests": 13
+    },
+    {
+      "path": "src/features/chat/navigation/HistorySearchDialog.test.tsx",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/chat/stream/chatRunStore.test.ts",
+      "status": "passed",
+      "tests": 11
+    },
+    {
+      "path": "src/features/clients/routes/ClientDetailPage.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/bpmn/draft.test.ts",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/process/bpmn/elements.test.ts",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/bpmn/enterprisePalette.test.ts",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "path": "src/features/process/bpmn/iconClass.test.ts",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/bpmn/provenance.test.ts",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "src/features/process/bpmn/viewport.test.ts",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "path": "src/features/process/bpmn/xml.test.ts",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/canvas-engine/BpmnDocument.test.ts",
+      "status": "passed",
+      "tests": 9
+    },
+    {
+      "path": "src/features/process/canvas-engine/clipboard.test.ts",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/canvas-engine/ConnectionOrder.test.ts",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "path": "src/features/process/canvas-engine/connectionRules.test.ts",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/process/canvas-engine/DeleteSelection.test.ts",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/canvas-engine/moveRules.test.ts",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/process/canvas-engine/Partitions.test.ts",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "src/features/process/canvas-engine/Routing.test.ts",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "path": "src/features/process/handover/handoverModel.test.ts",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "path": "src/features/process/handover/plainProcess.test.ts",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/process/components/BpmnCanvasToolbar.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/components/ConformanceSummary.test.tsx",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "path": "src/features/process/components/EvidenceReviewPanel.test.tsx",
+      "status": "passed",
+      "tests": 9
+    },
+    {
+      "path": "src/features/process/review/reviewModel.test.ts",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/projects/components/MilestoneTracker.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/projects/components/ProcessFormDialog.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/projects/components/SourceClaimsSection.test.tsx",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/projects/components/SourceRelationsSection.test.tsx",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/projects/components/SourcesPanel.test.tsx",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "path": "src/features/process/simulation/ActivitySources.ui.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/simulation/arrivalBands.test.ts",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "path": "src/features/process/simulation/ArrivalBandsPanel.ui.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/simulation/arrivalMonths.test.ts",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/process/simulation/ArrivalMonthsPanel.ui.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/simulation/arrivals.test.ts",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "src/features/process/simulation/casePriorities.test.ts",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/simulation/CasePriorities.ui.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/simulation/caseRules.test.ts",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "path": "src/features/process/simulation/ClientNarrative.ui.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/simulation/compareDeltas.test.ts",
+      "status": "passed",
+      "tests": 9
+    },
+    {
+      "path": "src/features/process/simulation/costs.test.tsx",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/process/simulation/decisionRecord.test.ts",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/process/simulation/draftRequest.test.ts",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "path": "src/features/process/simulation/DurationByCategory.ui.test.tsx",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/process/simulation/durationWindows.test.ts",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/process/simulation/DurationWindowsPanel.ui.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/simulation/escalation.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/simulation/experiments.test.ts",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/process/simulation/flowRules.test.ts",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/process/simulation/FlowRulesPanel.ui.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/simulation/interpretation.test.ts",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/process/simulation/narrative.test.ts",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/simulation/otherAssignments.test.ts",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "src/features/process/simulation/OtherAssignments.ui.test.tsx",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/process/simulation/perspective.test.ts",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/process/simulation/PerspectiveViews.ui.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/simulation/ReadinessSummary.ui.test.tsx",
+      "status": "passed",
+      "tests": 6
+    },
+    {
+      "path": "src/features/process/simulation/ReplicationDelta.ui.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/simulation/replications.test.tsx",
+      "status": "passed",
+      "tests": 14
+    },
+    {
+      "path": "src/features/process/simulation/ResourceShifts.ui.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/simulation/RunLength.ui.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/simulation/runLog.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/simulation/runQueue.test.ts",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/simulation/scenarioChanges.test.ts",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/process/simulation/ScenarioOutcome.ui.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/simulation/scenarioPatch.test.ts",
+      "status": "passed",
+      "tests": 16
+    },
+    {
+      "path": "src/features/process/simulation/scenarioWorkspace.test.ts",
+      "status": "passed",
+      "tests": 16
+    },
+    {
+      "path": "src/features/process/simulation/sensitivity.test.ts",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "path": "src/features/process/simulation/SensitivityTornado.ui.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/simulation/ServiceLevel.ui.test.tsx",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/process/simulation/SimulationConfigRail.test.tsx",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/process/simulation/simulationProvenance.test.ts",
+      "status": "passed",
+      "tests": 13
+    },
+    {
+      "path": "src/features/process/simulation/simulationResults.missing.test.ts",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/process/simulation/simulationResults.test.ts",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "path": "src/features/process/simulation/simulationScenario.test.ts",
+      "status": "passed",
+      "tests": 19
+    },
+    {
+      "path": "src/features/process/simulation/slaSegments.test.ts",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/process/simulation/sourceConflicts.test.ts",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/process/simulation/studentT.test.ts",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/simulation/SystemResource.ui.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/simulation/TaskInstances.test.tsx",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "path": "src/features/process/simulation/taskOutcome.test.ts",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "src/features/process/simulation/TaskOutcomePanel.ui.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "path": "src/features/process/simulation/warmup.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "path": "src/features/process/simulation/whatIf.test.ts",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "path": "src/features/process/simulation/WhatIfComposer.ui.test.tsx",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "path": "src/features/process/simulation/canvas/tokenRoute.test.ts",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "src/features/process/simulation/dashboard/dashboardModel.test.ts",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "path": "src/features/process/simulation/eventlog/eventLogMapping.test.ts",
+      "status": "passed",
+      "tests": 6
+    },
+    {
+      "path": "src/features/process/simulation/eventlog/EventLogPanel.test.tsx",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "path": "src/features/process/simulation/eventlog/realVsSimulated.test.ts",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "path": "src/features/process/simulation/replay/replayEngine.test.ts",
+      "status": "passed",
+      "tests": 18
+    },
+    {
+      "path": "src/features/process/simulation/studio/activityParameters.test.ts",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "path": "src/features/process/simulation/studio/canvasGeometry.test.ts",
+      "status": "passed",
+      "tests": 13
+    },
+    {
+      "path": "src/features/process/simulation/studio/CanvasPalette.test.ts",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "path": "src/features/process/simulation/studio/modelParameters.test.ts",
+      "status": "passed",
+      "tests": 12
+    },
+    {
+      "path": "src/features/process/simulation/studio/trustMap.test.ts",
+      "status": "passed",
+      "tests": 3
+    }
+  ]
+}

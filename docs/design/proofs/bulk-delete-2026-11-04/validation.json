@@ -1,0 +1,45 @@
+{
+  "date": "2026-11-04",
+  "chromium": {
+    "cases": 7,
+    "passed": 7
+  },
+  "chromiumLaneRegressions": {
+    "cases": 2,
+    "passed": 2
+  },
+  "webkit": {
+    "cases": 3,
+    "passed": 3
+  },
+  "unit": {
+    "files": 2,
+    "tests": 10,
+    "passed": 10
+  },
+  "checks": {
+    "typecheck": "passed",
+    "eslint": "passed",
+    "productionBuild": "passed; pre-existing simulation chunk warning remains"
+  },
+  "xml": {
+    "artifacts": [
+      "bulk-delete.xml",
+      "bulk-empty-Backspace.xml",
+      "bulk-empty-context.xml",
+      "bulk-empty-Delete.xml",
+      "bulk-empty-toolbar.xml"
+    ],
+    "schema": "official BPMN20.xsd and local includes/imports, .NET XmlSchemaSet",
+    "allValid": true,
+    "undo": "Exact source XML equality after a single Undo"
+  },
+  "scope": [
+    "Synthetic BPMN only; no changes or saves on user model at 3030.",
+    "Bulk selection, selected pool descendants, lane preservation, explicit work deletion, external event labels, toolbar/context/keyboard entry points, text field protection."
+  ],
+  "limitations": [
+    "Targeted verification; no new full product E2E run for this fix.",
+    "Local WebKit does not certify physical iOS devices."
+  ]
+}

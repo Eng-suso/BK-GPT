@@ -1,0 +1,61 @@
+{
+  "date": "2026-11-05",
+  "scope": "Synthetic BPMN fixtures; user workspace only observed read-only",
+  "unit": {
+    "initial": {
+      "files": 139,
+      "passed": 759,
+      "failed": 0,
+      "commandExit": 1,
+      "reason": "Two test files did not start because workers timed out under concurrent CPU load"
+    },
+    "retry": {
+      "files": 2,
+      "passed": 10,
+      "failed": 0,
+      "commandExit": 0
+    },
+    "combinedDistinct": {
+      "files": 141,
+      "passed": 769,
+      "failed": 0
+    }
+  },
+  "browser": {
+    "chromium": {
+      "cases": 2,
+      "passed": 2,
+      "existingRegressions": {
+        "cases": 4,
+        "passed": 4,
+        "coverage": [
+          "selected subgraph transfer and release",
+          "enterprise library and properties desktop round-trip",
+          "inline rename commit/cancel/undo/save",
+          "right click actions and right drag pan"
+        ]
+      }
+    },
+    "webkit": {
+      "initial": {
+        "passed": 1,
+        "timedOut": 1,
+        "timeoutMs": 150000
+      },
+      "isolatedRetry": {
+        "passed": 1,
+        "timeoutMs": 300000
+      },
+      "combinedDistinct": {
+        "cases": 2,
+        "passed": 2
+      }
+    }
+  },
+  "other": {
+    "typecheck": "passed",
+    "eslint": "passed",
+    "productionBuild": "passed"
+  },
+  "limits": "These checks do not prove formal idempotency for all backend APIs or every application workflow."
+}

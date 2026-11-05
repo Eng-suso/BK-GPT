@@ -28,18 +28,22 @@
 
   /* Apple regular material: readable content, glass above it, concentric radii. */
   --radius: 20px;
-  --layout-shell-padding: 16px;
-  --layout-shell-gap: 16px;
+  --layout-shell-padding: 0px;
+  --layout-shell-gap: 0px;
+  --layout-pane-gap: 0px;
+  --layout-workspace-padding: 0px;
+  --layout-workspace-radius: 0px;
+  --layout-page-gutter: clamp(16px, 2vw, 24px);
   --layout-sidebar-width: 17rem;
   --layout-rail-width: 72px;
-  --layout-topbar-height: 72px;
+  --layout-topbar-height: 64px;
   --layout-contextbar-height: 64px;
   --layout-nav-row-height: 48px;
   --layout-history-width: 16rem;
-  --layout-history-gap: 16px;
+  --layout-history-gap: var(--layout-pane-gap);
   --layout-conversation-gutter: clamp(20px, 3vw, 40px);
   --material-radius-control: 18px;
-  --material-radius-panel: 26px;
+  --material-radius-panel: 12px;
   --material-radius-frame: 30px;
   /* Bridge custom/legacy compositions to the same component geometry. */
   --radius-control: var(--material-radius-control);
@@ -49,13 +53,15 @@
   --radius-section: var(--radius-overlay);
   --radius-raised: var(--material-radius-panel);
   --glass-card-radius: var(--material-radius-panel);
-  --glass-card-radius-compact: 20px;
+  --glass-card-radius-compact: 12px;
   --composer-radius: var(--material-radius-frame);
   --composer-radius-compact: 24px;
   --inset-panel-radius: var(--material-radius-panel);
-  --inset-panel-radius-compact: 20px;
+  --inset-panel-radius-compact: 12px;
   --material-edge: rgb(255 255 255 / 0.94);
-  --material-divider: rgb(45 51 65 / 0.09);
+  --material-divider: rgb(45 51 65 / 0.06);
+  --material-soft-edge: inset 0 0 2px rgb(45 51 65 / 0.12);
+  --material-soft-separator: -2px 0 5px -3px rgb(45 51 65 / 0.16);
   --material-control-edge: rgb(255 255 255 / 0.92);
   --material-panel: rgb(255 255 255 / 0.94);
   --material-floating: rgb(252 253 255 / 0.78);
@@ -362,10 +368,10 @@
   }
 
   .panel {
-    border: 1px solid var(--material-edge);
+    border: 0;
     border-radius: var(--material-radius-panel);
     background: var(--material-panel);
-    box-shadow: var(--material-shadow);
+    box-shadow: var(--material-soft-edge);
   }
 
   .panel-header {

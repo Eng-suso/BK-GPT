@@ -16,7 +16,7 @@ export function ActionPrompt({ label, title, children, meta, icon, action, dismi
   onDismiss: () => void;
   className?: string;
 }) {
-  return <Surface asChild variant="panel"><section role="region" aria-label={label} className={cn("ui-action-prompt", className)}>
+  return <Surface asChild variant="workspace"><section role="region" aria-label={label} className={cn("ui-action-prompt", className)}>
     <span className="ui-action-prompt-icon" aria-hidden="true">{icon}</span>
     <div className="ui-action-prompt-copy">
       {meta && <span className="ui-action-prompt-meta">{meta}</span>}

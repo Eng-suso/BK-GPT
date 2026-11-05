@@ -1,0 +1,202 @@
+{
+  "config": {
+    "argv": [
+      "C:\\node.exe",
+      "C:\\Users\\sohay\\Desktop\\AZIENDA\\prodotti\\DeliR-MVP\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "-c",
+      ".tmp/canvas-ui.config.ts",
+      "--grep",
+      "canvas chat reserves|connections follow BPMN|inline rename"
+    ],
+    "configFile": "C:\\Users\\sohay\\Desktop\\AZIENDA\\prodotti\\DeliR-MVP\\.tmp\\canvas-ui.config.ts",
+    "rootDir": "C:/Users/sohay/Desktop/AZIENDA/prodotti/DeliR-MVP/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/sohay/Desktop/AZIENDA/prodotti/DeliR-MVP/.tmp/.tmp/canvas-ui-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "C:/Users/sohay/Desktop/AZIENDA/prodotti/DeliR-MVP/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "workspace-layout.spec.ts"
+        ],
+        "timeout": 120000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json",
+        {
+          "outputFile": ".tmp/canvas-ui-results.json"
+        }
+      ],
+      [
+        "list",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "npm run dev:frontend",
+      "url": "http://127.0.0.1:3030",
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "workspace-layout.spec.ts",
+      "file": "workspace-layout.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "inline rename commits, cancels, undoes and saves the BPMN name",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4751,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-04T15:11:21.946Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "87206d496e61dcf70a84-2baf391bc007f3e4d50e",
+          "file": "workspace-layout.spec.ts",
+          "line": 811,
+          "column": 5
+        },
+        {
+          "title": "canvas chat reserves readable space for conversation, actions and composer",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5135,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-04T15:11:27.243Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "87206d496e61dcf70a84-b781dbaea48a84d4e7b3",
+          "file": "workspace-layout.spec.ts",
+          "line": 875,
+          "column": 5
+        },
+        {
+          "title": "connections follow BPMN pool and lane boundaries and lane removal preserves work",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5711,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-04T15:11:32.404Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "collaboration.xml",
+                      "contentType": "application/xml",
+                      "body": "PGJwbW46ZGVmaW5pdGlvbnMgeG1sbnM6YnBtbj0iaHR0cDovL3d3dy5vbWcub3JnL3NwZWMvQlBNTi8yMDEwMDUyNC9NT0RFTCIgeG1sbnM6YnBtbmRpPSJodHRwOi8vd3d3Lm9tZy5vcmcvc3BlYy9CUE1OLzIwMTAwNTI0L0RJIiB4bWxuczpkYz0iaHR0cDovL3d3dy5vbWcub3JnL3NwZWMvREQvMjAxMDA1MjQvREMiIHhtbG5zOmRpPSJodHRwOi8vd3d3Lm9tZy5vcmcvc3BlYy9ERC8yMDEwMDUyNC9ESSIgdGFyZ2V0TmFtZXNwYWNlPSJ1cm46Y29sbGFib3JhdGlvbiI+PGJwbW46cHJvY2VzcyBpZD0iUHJvY2Vzc0EiPjxicG1uOmxhbmVTZXQgaWQ9IlJvbGVzIj48YnBtbjpsYW5lIGlkPSJMYW5lQSIgbmFtZT0iT3BlcmF0aW9ucyI+PGJwbW46Zmxvd05vZGVSZWY+VGFza0E8L2JwbW46Zmxvd05vZGVSZWY+PC9icG1uOmxhbmU+PGJwbW46bGFuZSBpZD0iTGFuZUIiIG5hbWU9IkZpbmFuY2UiPjxicG1uOmZsb3dOb2RlUmVmPlRhc2tCPC9icG1uOmZsb3dOb2RlUmVmPjwvYnBtbjpsYW5lPjxicG1uOmxhbmUgaWQ9IkxhbmVfZjA3NDgzMjhkOTAyIi8+PC9icG1uOmxhbmVTZXQ+PGJwbW46dGFzayBpZD0iVGFza0EiIG5hbWU9IlByZXBhcmUiPjxicG1uOm91dGdvaW5nPlNlcXVlbmNlRmxvd18xMjcxMmYyZDc1YjQ8L2JwbW46b3V0Z29pbmc+PC9icG1uOnRhc2s+PGJwbW46dGFzayBpZD0iVGFza0IiIG5hbWU9IkFwcHJvdmUiPjxicG1uOmluY29taW5nPlNlcXVlbmNlRmxvd18xMjcxMmYyZDc1YjQ8L2JwbW46aW5jb21pbmc+PC9icG1uOnRhc2s+PGJwbW46c2VxdWVuY2VGbG93IGlkPSJTZXF1ZW5jZUZsb3dfMTI3MTJmMmQ3NWI0IiBzb3VyY2VSZWY9IlRhc2tBIiB0YXJnZXRSZWY9IlRhc2tCIi8+PC9icG1uOnByb2Nlc3M+PGJwbW46cHJvY2VzcyBpZD0iUHJvY2Vzc0IiPjxicG1uOnRhc2sgaWQ9IlRhc2tDIiBuYW1lPSJSZWNlaXZlIi8+PC9icG1uOnByb2Nlc3M+PGJwbW46Y29sbGFib3JhdGlvbiBpZD0iQ29sbGFib3JhdGlvbiI+PGJwbW46cGFydGljaXBhbnQgaWQ9IlBvb2xBIiBuYW1lPSJDb21wYW55IiBwcm9jZXNzUmVmPSJQcm9jZXNzQSIvPjxicG1uOnBhcnRpY2lwYW50IGlkPSJQb29sQiIgbmFtZT0iUGFydG5lciIgcHJvY2Vzc1JlZj0iUHJvY2Vzc0IiLz48YnBtbjptZXNzYWdlRmxvdyBpZD0iTWVzc2FnZUZsb3dfNzVlZWY4NjgyZDg5IiBzb3VyY2VSZWY9IlRhc2tCIiB0YXJnZXRSZWY9IlRhc2tDIi8+PC9icG1uOmNvbGxhYm9yYXRpb24+PGJwbW5kaTpCUE1ORGlhZ3JhbSBpZD0iRGlhZ3JhbSI+PGJwbW5kaTpCUE1OUGxhbmUgaWQ9IlBsYW5lIiBicG1uRWxlbWVudD0iQ29sbGFib3JhdGlvbiI+PGJwbW5kaTpCUE1OU2hhcGUgaWQ9IlBvb2xBX2RpIiBicG1uRWxlbWVudD0iUG9vbEEiIGlzSG9yaXpvbnRhbD0idHJ1ZSI+PGRjOkJvdW5kcyB4PSIxMDAiIHk9IjEwMCIgd2lkdGg9IjgwMCIgaGVpZ2h0PSI1NDQiLz48L2JwbW5kaTpCUE1OU2hhcGU+PGJwbW5kaTpCUE1OU2hhcGUgaWQ9IkxhbmVBX2RpIiBicG1uRWxlbWVudD0iTGFuZUEiIGlzSG9yaXpvbnRhbD0idHJ1ZSI+PGRjOkJvdW5kcyB4PSIxMzAiIHk9IjEwMCIgd2lkdGg9Ijc3MCIgaGVpZ2h0PSIyMDAiLz48L2JwbW5kaTpCUE1OU2hhcGU+PGJwbW5kaTpCUE1OU2hhcGUgaWQ9IkxhbmVCX2RpIiBicG1uRWxlbWVudD0iTGFuZUIiIGlzSG9yaXpvbnRhbD0idHJ1ZSI+PGRjOkJvdW5kcyB4PSIxMzAiIHk9IjMwMCIgd2lkdGg9Ijc3MCIgaGVpZ2h0PSIyMDAiLz48L2JwbW5kaTpCUE1OU2hhcGU+PGJwbW5kaTpCUE1OU2hhcGUgaWQ9IlRhc2tBX2RpIiBicG1uRWxlbWVudD0iVGFza0EiIGlzSG9yaXpvbnRhbD0idHJ1ZSI+PGRjOkJvdW5kcyB4PSIyNjAiIHk9IjE1MCIgd2lkdGg9IjE2MCIgaGVpZ2h0PSI4OCIvPjwvYnBtbmRpOkJQTU5TaGFwZT48YnBtbmRpOkJQTU5TaGFwZSBpZD0iVGFza0JfZGkiIGJwbW5FbGVtZW50PSJUYXNrQiIgaXNIb3Jpem9udGFsPSJ0cnVlIj48ZGM6Qm91bmRzIHg9IjU1MCIgeT0iMzUwIiB3aWR0aD0iMTYwIiBoZWlnaHQ9Ijg4Ii8+PC9icG1uZGk6QlBNTlNoYXBlPjxicG1uZGk6QlBNTlNoYXBlIGlkPSJQb29sQl9kaSIgYnBtbkVsZW1lbnQ9IlBvb2xCIiBpc0hvcml6b250YWw9InRydWUiPjxkYzpCb3VuZHMgeD0iMTAwIiB5PSI3OTQiIHdpZHRoPSI4MDAiIGhlaWdodD0iMjIwIi8+PC9icG1uZGk6QlBNTlNoYXBlPjxicG1uZGk6QlBNTlNoYXBlIGlkPSJUYXNrQ19kaSIgYnBtbkVsZW1lbnQ9IlRhc2tDIiBpc0hvcml6b250YWw9InRydWUiPjxkYzpCb3VuZHMgeD0iMjYwIiB5PSI4NTQiIHdpZHRoPSIxNjAiIGhlaWdodD0iODgiLz48L2JwbW5kaTpCUE1OU2hhcGU+PGJwbW5kaTpCUE1ORWRnZSBpZD0iU2VxdWVuY2VGbG93XzEyNzEyZjJkNzViNF9kaSIgYnBtbkVsZW1lbnQ9IlNlcXVlbmNlRmxvd18xMjcxMmYyZDc1YjQiPjxkaTp3YXlwb2ludCB4PSI0MjAiIHk9IjE5NCIvPjxkaTp3YXlwb2ludCB4PSI0ODUiIHk9IjE5NCIvPjxkaTp3YXlwb2ludCB4PSI0ODUiIHk9IjM5NCIvPjxkaTp3YXlwb2ludCB4PSI1NTAiIHk9IjM5NCIvPjwvYnBtbmRpOkJQTU5FZGdlPjxicG1uZGk6QlBNTkVkZ2UgaWQ9Ik1lc3NhZ2VGbG93Xzc1ZWVmODY4MmQ4OV9kaSIgYnBtbkVsZW1lbnQ9Ik1lc3NhZ2VGbG93Xzc1ZWVmODY4MmQ4OSI+PGRpOndheXBvaW50IHg9IjYzMCIgeT0iNDM4Ii8+PGRpOndheXBvaW50IHg9IjYzMCIgeT0iNjQ2Ii8+PGRpOndheXBvaW50IHg9IjM0MCIgeT0iNjQ2Ii8+PGRpOndheXBvaW50IHg9IjM0MCIgeT0iODU0Ii8+PC9icG1uZGk6QlBNTkVkZ2U+PGJwbW5kaTpCUE1OU2hhcGUgaWQ9IkxhbmVfZjA3NDgzMjhkOTAyX2RpIiBicG1uRWxlbWVudD0iTGFuZV9mMDc0ODMyOGQ5MDIiPjxkYzpCb3VuZHMgeD0iMTMwIiB5PSI1MDAiIHdpZHRoPSI3NzAiIGhlaWdodD0iMTQ0Ii8+PC9icG1uZGk6QlBNTlNoYXBlPjwvYnBtbmRpOkJQTU5QbGFuZT48L2JwbW5kaTpCUE1ORGlhZ3JhbT48L2JwbW46ZGVmaW5pdGlvbnM+"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "87206d496e61dcf70a84-be4123a66eff0582fcb0",
+          "file": "workspace-layout.spec.ts",
+          "line": 891,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-04T15:11:20.879Z",
+    "duration": 17896.311,
+    "expected": 3,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}
