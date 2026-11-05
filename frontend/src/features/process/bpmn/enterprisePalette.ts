@@ -1,6 +1,15 @@
 
 type Target = { type: string; eventDefinitionType?: string; isExpanded?: boolean };
 type Entry = { id: string; group: string; icon: string; target: Target };
+/** Categories follow BPMN types, including IDs such as create.start-message. */
+export function creationGroup(type: string): string {
+  if (/Event$/.test(type)) return "event";
+  if (/Gateway$/.test(type)) return "gateway";
+  if (/Participant$|Lane$/.test(type)) return "collaboration";
+  if (/DataObjectReference$|DataStoreReference$/.test(type)) return "data";
+  if (/TextAnnotation$|Group$/.test(type)) return "artifact";
+  return "activity";
+}
 export const enterpriseEntries: Entry[] = [];
 for (const [kind, type, definitions] of [
   ["start", "StartEvent", ["message", "timer", "conditional", "signal"]],

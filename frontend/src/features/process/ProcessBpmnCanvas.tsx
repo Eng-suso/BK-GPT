@@ -268,7 +268,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             </div>
           )}
         </div>
-        {renameTarget && <BpmnInlineRename key={renameTarget.id} target={renameTarget} host={containerRef} onCommit={commitRename} onCancel={cancelRename} onDone={selectTool} onSave={save} />}
+        {renameTarget && <BpmnInlineRename key={renameTarget.id} target={renameTarget} host={containerRef} geometryKey={canvasUi.geometryKey} onCommit={commitRename} onCancel={cancelRename} onDone={selectTool} onSave={save} />}
         <CanvasToolGroup label={t("canvas.interactions.history")} className="process-canvas-history">
           <CanvasToolButton label={t("canvas.interactions.undo")} disabled={!isReady || !canvasUi.canUndo} onClick={undo}><Undo2 aria-hidden /></CanvasToolButton>
           <CanvasToolButton label={t("canvas.interactions.redo")} disabled={!isReady || !canvasUi.canRedo} onClick={redo}><Redo2 aria-hidden /></CanvasToolButton>

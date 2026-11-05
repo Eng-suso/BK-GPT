@@ -31,7 +31,7 @@ import EditorActionsModule from "diagram-js/lib/features/editor-actions";
 import { DeliRRenderer } from "./Renderer";
 import { BpmnDocument } from "./BpmnDocument";
 import { businessObject, type Bus, type CanvasElement, type Factory, type Point, type Registry } from "./types";
-import { enterpriseEntries } from "../bpmn/enterprisePalette";
+import { enterpriseEntries, creationGroup } from "../bpmn/enterprisePalette";
 import { i18n } from "@/lib/i18n";
 import type { CreationTool } from "../bpmn/elements";
 type CanvasService = {
@@ -394,7 +394,7 @@ export class DeliRCanvas {
         this.on("diagram.destroy", () => { svg.removeEventListener("pointerdown", down); svg.removeEventListener("pointermove", move); svg.removeEventListener("pointerup", up); svg.removeEventListener("pointercancel", up); host.removeEventListener("wheel", wheel); });
     }
     private paletteEntries(): Record<string, CreationTool> {
-        return Object.fromEntries([...targets.keys(), "hand-tool", "global-connect-tool", "lasso-tool", "space-tool"].map(id => [id, { id, title: i18n.t("process:canvas.tools." + id), group: id.endsWith("-tool") ? "tools" : /event/.test(id) ? "event" : /gateway/.test(id) ? "gateway" : /participant|lane/.test(id) ? "collaboration" : /data-|annotation|group/.test(id) ? "artifact" : "activity" }]));
+        return Object.fromEntries([...targets.keys(), "hand-tool", "global-connect-tool", "lasso-tool", "space-tool"].map(id => [id, { id, title: i18n.t("process:canvas.tools." + id), group: id.endsWith("-tool") ? "tools" : creationGroup(targets.get(id)!.type) }]));
     }
     private activate(id: string, event: Event) {
         if (!this.editable)

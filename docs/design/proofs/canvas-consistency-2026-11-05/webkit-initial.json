@@ -1,0 +1,189 @@
+{
+  "config": {
+    "argv": [
+      "C:\\node.exe",
+      "<workspace>\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "-c",
+      ".tmp/run-move-webkit.config.ts",
+      "-g",
+      "repeated canvas cycles|pool backgrounds never"
+    ],
+    "configFile": "<workspace>\\.tmp\\run-move-webkit.config.ts",
+    "rootDir": "<workspace>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "<workspace>/.tmp/.tmp/move-webkit-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "webkit",
+        "name": "webkit",
+        "testDir": "<workspace>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "workspace-layout.spec.ts"
+        ],
+        "timeout": 150000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json",
+        {
+          "outputFile": ".tmp/move-webkit-results.json"
+        }
+      ],
+      [
+        "list",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "workspace-layout.spec.ts",
+      "file": "workspace-layout.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "pool backgrounds never hide loose process lanes and their work",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 150000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "webkit",
+              "projectName": "webkit",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 50317,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-05T07:52:10.487Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "87206d496e61dcf70a84-5e8cf1da1543a6db6feb",
+          "file": "workspace-layout.spec.ts",
+          "line": 45,
+          "column": 5
+        },
+        {
+          "title": "repeated canvas cycles preserve camera, label editors, connections and XML",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 150000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "webkit",
+              "projectName": "webkit",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 151860,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 150000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 150000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 150000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "<workspace>\\e2e\\workspace-layout.spec.ts",
+                        "column": 68,
+                        "line": 81
+                      },
+                      "message": "Error: locator.click: Test timeout of 150000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Undo change', exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-size=\"icon\" data-slot=\"button\" title=\"Undo change\" data-variant=\"ghost\" aria-label=\"Undo change\" class=\"ui-button inline-flex shrink-0 items-center justify-center gap-2 text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform,scale] duration-200 ease-out active:scale-[0.98] motion-reduce:scale-100 motion-reduce:transform-none motion-reduce:transition-none motion-reduce:duration-0 outline-none focus-visible:outline-2 focus-vis…>…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\n\n  79 |     const before=await node(\"TaskA\").getAttribute(\"transform\"),body=(await node(\"TaskA\").locator(\".djs-visual > rect\").first().boundingBox())!;\n  80 |     await page.mouse.move(body.x+body.width/2,body.y+body.height/2);await page.mouse.down();await page.mouse.move(body.x+body.width/2+16,body.y+body.height/2+10,{steps:8});await page.mouse.up();await expect(canvas.locator(\".djs-dragger\")).toHaveCount(0);\n> 81 |     await page.getByRole(\"button\",{name:\"Undo change\",exact:true}).click();await expect(node(\"TaskA\")).toHaveAttribute(\"transform\",before!);expect(await paths()).toEqual(originalPaths);await expect(page.getByRole(\"button\",{name:\"Save\",exact:true})).toBeDisabled();\n     |                                                                    ^\n  82 |   }\n  83 |   await page.screenshot({path:info.outputPath(\"repeated-canvas.png\")});expect(saved).toBe(source);expect(errors).toEqual([]);\n  84 | });\n    at <workspace>\\e2e\\workspace-layout.spec.ts:81:68"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-05T07:53:04.414Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<workspace>\\.tmp\\.tmp\\move-webkit-results\\workspace-layout-repeated--d8674-editors-connections-and-XML-webkit\\test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "<workspace>\\.tmp\\.tmp\\move-webkit-results\\workspace-layout-repeated--d8674-editors-connections-and-XML-webkit\\video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<workspace>\\.tmp\\.tmp\\move-webkit-results\\workspace-layout-repeated--d8674-editors-connections-and-XML-webkit\\error-context.md"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "87206d496e61dcf70a84-5e4def5ff225b1e8d2f6",
+          "file": "workspace-layout.spec.ts",
+          "line": 56,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-05T07:52:07.848Z",
+    "duration": 208630.34399999998,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

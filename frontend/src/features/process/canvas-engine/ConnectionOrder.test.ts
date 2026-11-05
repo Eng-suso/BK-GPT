@@ -15,4 +15,8 @@ it("keeps links above pool backgrounds without changing containment or replacing
   expect(root.children.map(child=>child.id)).toEqual(["link","pool","note"]);expect(graphics.get("link")!.parentElement).toBe(layer.children[1]);
   const observer=new MutationObserver(()=>{});observer.observe(layer,{childList:true});arrange();expect(observer.takeRecords()).toEqual([]);observer.disconnect();
   layer.insertBefore(graphics.get("link")!.parentElement!,layer.firstChild);arrange();expect(layer.children[0].getAttribute("data-id")).toBe("pool");
+  const lane=element("lane","Lane"),laneGroup=document.createElementNS("http://www.w3.org/2000/svg","g"),laneGraphics=document.createElementNS("http://www.w3.org/2000/svg","g");laneGroup.setAttribute("data-id","lane");laneGroup.append(laneGraphics);graphics.set("lane",laneGraphics);layer.prepend(laneGroup);
+  root.children=[lane,pool,note];lane.parent=root;
+  arrange();expect(Array.from(layer.children).map(group=>group.getAttribute("data-id")).slice(0,3)).toEqual(["pool","lane","note"]);
+  observer.observe(layer,{childList:true});arrange();expect(observer.takeRecords()).toEqual([]);observer.disconnect();
 });

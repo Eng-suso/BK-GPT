@@ -3,9 +3,10 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 /** Edit the rendered label in place, keeping event labels outside their symbol. */
-export function BpmnInlineRename({ target, host, onCommit, onCancel, onDone, onSave }: {
+export function BpmnInlineRename({ target, host, geometryKey, onCommit, onCancel, onDone, onSave }: {
   target: { id: string; name: string };
   host: RefObject<HTMLDivElement | null>;
+  geometryKey?: string;
   onCommit: (id: string, name: string) => void;
   onCancel: () => void; onDone: () => void; onSave: () => void;
 }) {
@@ -33,19 +34,21 @@ export function BpmnInlineRename({ target, host, onCommit, onCancel, onDone, onS
       if (!element || !body) return;
       const box = body.getBoundingClientRect(), label = text?.getBoundingClientRect();
       const matrix = element.getScreenCTM(), scale = Math.hypot(matrix?.a ?? 1, matrix?.b ?? 0);
+      const partition = /Participant$|Lane$/.test(element.dataset.delirType ?? "");
       const external = /Event$|Gateway$|DataObjectReference$|DataStoreReference$/.test(element.dataset.delirType ?? "") || element.classList.contains("djs-connection");
       const fontSize = (text ? parseFloat(getComputedStyle(text).fontSize) : external ? 12 : 14) * scale;
-      const width = Math.min(external ? Math.max(92 * scale, label?.width ?? 0) : Math.max(60, box.width - 24 * scale), bounds.width - 16);
+      const width = Math.min(partition ? Math.min(240,Math.max(120,(label?.height ?? 0)+16)) : external ? Math.max(92 * scale, label?.width ?? 0) : Math.max(60, box.width - 24 * scale), bounds.width - 16);
       const center = label && label.width > 0 ? label.x + label.width / 2 : box.x + box.width / 2;
-      const height = Math.max(fontSize * 1.3, label?.height ?? 0);
-      const top = label && label.height > 0 ? label.y : external ? box.bottom + 6 * scale : box.y + box.height / 2 - height / 2;
-      setPosition({ left: Math.max(8, Math.min(bounds.width - width - 8, center - bounds.x - width / 2)), top: Math.max(8, Math.min(bounds.height - height - 8, top - bounds.y)), width, fontSize, minHeight: height });
+      const height = partition ? fontSize*1.3 : Math.max(fontSize * 1.3, label?.height ?? 0);
+      const top = partition ? (label && label.height>0 ? label.y+label.height/2 : box.y+box.height/2)-height/2 : label && label.height > 0 ? label.y : external ? box.bottom + 6 * scale : box.y + box.height / 2 - height / 2;
+      const next={ left: Math.max(8, Math.min(bounds.width - width - 8, center - bounds.x - width / 2)), top: Math.max(8, Math.min(bounds.height - height - 8, top - bounds.y)), width, fontSize, minHeight: height };
+      setPosition(previous=>Object.entries(next).every(([key,value])=>previous[key as keyof typeof previous]===value) ? previous : next);
     };
     measure(); text?.setAttribute("data-delir-editing", "true");
-    input.current?.focus(); input.current?.select();
     const observer = new ResizeObserver(measure); observer.observe(container);
     return () => { observer.disconnect(); text?.removeAttribute("data-delir-editing"); };
-  }, [host, target.id]);
+  }, [host, target.id, geometryKey]);
+  useLayoutEffect(()=>{ input.current?.focus(); input.current?.select(); },[target.id]);
   const grow = () => { if (input.current) { input.current.style.height = "0px"; input.current.style.height = input.current.scrollHeight + "px"; } };
   useLayoutEffect(grow, [position]);
   if (!host.current) return null;

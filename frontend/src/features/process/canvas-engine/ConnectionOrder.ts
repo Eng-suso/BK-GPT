@@ -1,6 +1,6 @@
 import type {Bus,CanvasElement,Registry} from "./types";
 
-const rank=(element:CanvasElement)=>element.waypoints ? 1 : /Participant$|Lane$/.test(element.type) ? 0 : 2;
+const rank=(element:CanvasElement)=>element.type === "bpmn:Participant" ? 0 : element.type === "bpmn:Lane" ? 1 : element.waypoints ? 2 : 3;
 
 /** Paint container backgrounds before links. Semantic containment and XML order
  * stay unchanged; cross-pool links must not disappear under a participant. */
@@ -10,7 +10,7 @@ export class ConnectionOrder {
     const arrange=()=>{
       for(const owner of registry.getAll()) {
         const children=owner.children??[];
-        if(!children.some(child=>child.waypoints)||!children.some(child=>/Participant$|Lane$/.test(child.type)))continue;
+        if(!children.some(child=>/Participant$|Lane$/.test(child.type)))continue;
         const groups=[...children].sort((a,b)=>rank(a)-rank(b)).map(child=>registry.getGraphics(child)?.parentElement).filter((group):group is HTMLElement=>Boolean(group));
         const container=groups[0]?.parentElement;
         if(!container)continue;

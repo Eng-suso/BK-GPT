@@ -42,6 +42,47 @@ test.beforeEach(async ({ page }) => { await fixture(page); });
 // Aprire un processo porta alla discussione: il canvas si chiede, con `?view=canvas`.
 const canvasView = `${studio}?view=canvas`;
 
+test("pool backgrounds never hide loose process lanes and their work",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8").replace('processRef="ProcessA"','processRef="Empty"').replace('<bpmn:collaboration','<bpmn:process id="Empty"/><bpmn:collaboration');
+  await page.route("**/v1/workspace/bpmn-models/layout-model",route=>route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Overlapping containers",xml:source,version_id:1}}));
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");
+  const hit=()=>canvas.locator('.djs-shape[data-element-id="TaskA"] .djs-visual > rect').first().evaluate(el=>{const b=el.getBoundingClientRect();return document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)?.closest('[data-element-id]')?.getAttribute('data-element-id');});
+  await expect(canvas.locator('.djs-shape[data-element-id="TaskA"]').first()).toBeVisible();await expect.poll(hit).toBe("TaskA");
+  for(let i=0;i<5;i++){await page.getByRole("button",{name:"Apri libreria BPMN",exact:true}).click();await expect.poll(hit).toBe("TaskA");await page.getByRole("button",{name:"Chiudi libreria BPMN",exact:true}).click();await expect.poll(hit).toBe("TaskA");}
+  await page.screenshot({path:info.outputPath("loose-lanes-visible.png")});await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
+});
+
+test("repeated canvas cycles preserve camera, label editors, connections and XML",async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});await page.addInitScript(()=>localStorage.setItem("delir-language","en"));
+  const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8");let saved=source;
+  const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET, PUT, OPTIONS","access-control-allow-headers":"Content-Type"},json:{id:"layout-model",process_id:"layout-process",name:"Repeated canvas",xml:saved,version_id:1}});});
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),node=(id:string)=>canvas.locator('.djs-shape[data-element-id="'+id+'"]').first();await expect(node("TaskA")).toBeVisible();
+  await page.getByRole("button",{name:"Centre and fit the diagram",exact:true}).click();await page.evaluate(()=>new Promise<void>(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r()))));
+  const paths=()=>canvas.locator(".djs-connection .djs-visual > path:first-child").evaluateAll(es=>es.map(e=>e.getAttribute("d"))),originalPaths=await paths();
+  const camera=canvas.locator("g.viewport").first(),originalCamera=await camera.getAttribute("transform");
+  for(let i=0;i<5;i++){
+    await page.getByRole("button",{name:"Open BPMN library",exact:true}).click();const library=page.getByRole("navigation",{name:"BPMN tools"});await expect(library.getByRole("button",{name:"Start event · timer",exact:true})).toBeVisible();
+    const eventCategory=library.locator("details").filter({has:page.locator("summary").filter({hasText:/^Events/})});await expect(eventCategory.getByRole("button",{name:"Start event · timer",exact:true})).toBeVisible();
+    const dataCategory=library.locator("details").filter({has:page.locator("summary").filter({hasText:/^Data/})});await expect(dataCategory.locator(".process-library-entry")).toHaveCount(2);
+    await page.getByRole("button",{name:"Close BPMN library",exact:true}).click();
+    for(const label of ["Elements","Properties"]){await page.getByRole("button",{name:label,exact:true}).click();await page.getByRole("button",{name:label,exact:true}).click();}
+    await expect(camera).toHaveAttribute("transform",originalCamera!);expect(await paths()).toEqual(originalPaths);
+  }
+  for(let i=0;i<5;i++){
+    const label=(await node("LaneA").locator(".djs-visual text").first().boundingBox())!;await page.mouse.dblclick(label.x+label.width/2,label.y+label.height/2);
+    const editor=page.locator(".process-inline-rename textarea");await expect(editor).toBeVisible();const bounds=(await editor.boundingBox())!;expect(bounds.width).toBeLessThanOrEqual(240);expect(bounds.height).toBeLessThan(60);
+    await editor.fill("Discarded "+i);await editor.press("Escape");await expect(editor).toHaveCount(0);await expect(canvas.locator('[data-delir-editing="true"]')).toHaveCount(0);await expect(page.getByRole("button",{name:"Save",exact:true})).toBeDisabled();
+  }
+  for(let i=0;i<5;i++){
+    const before=await node("TaskA").getAttribute("transform"),body=(await node("TaskA").locator(".djs-visual > rect").first().boundingBox())!;
+    await page.mouse.move(body.x+body.width/2,body.y+body.height/2);await page.mouse.down();await page.mouse.move(body.x+body.width/2+16,body.y+body.height/2+10,{steps:8});await page.mouse.up();await expect(canvas.locator(".djs-dragger")).toHaveCount(0);
+    await page.getByRole("button",{name:"Undo change",exact:true}).click();await expect(node("TaskA")).toHaveAttribute("transform",before!);expect(await paths()).toEqual(originalPaths);await expect(page.getByRole("button",{name:"Save",exact:true})).toBeDisabled();
+  }
+  await page.screenshot({path:info.outputPath("repeated-canvas.png")});expect(saved).toBe(source);expect(errors).toEqual([]);
+});
+
 test("selected subgraph drops into a pool and releases after valid and rejected moves",async({page},info)=>{
   await page.setViewportSize({width:1600,height:1000});
   const source='<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="urn:move"><bpmn:process id="Loose"><bpmn:startEvent id="Start"/><bpmn:task id="Work" name="Verifica"/><bpmn:endEvent id="End"/><bpmn:sequenceFlow id="First" sourceRef="Start" targetRef="Work"/><bpmn:sequenceFlow id="Last" sourceRef="Work" targetRef="End"/></bpmn:process><bpmn:process id="Inside"/><bpmn:collaboration id="Collaboration"><bpmn:participant id="Pool" name="Operations" processRef="Inside"/></bpmn:collaboration><bpmndi:BPMNDiagram id="diagram"><bpmndi:BPMNPlane id="plane" bpmnElement="Collaboration"><bpmndi:BPMNShape id="Start_di" bpmnElement="Start"><dc:Bounds x="160" y="100" width="36" height="36"/></bpmndi:BPMNShape><bpmndi:BPMNShape id="Work_di" bpmnElement="Work"><dc:Bounds x="300" y="86" width="120" height="64"/></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_di" bpmnElement="End"><dc:Bounds x="520" y="100" width="36" height="36"/></bpmndi:BPMNShape><bpmndi:BPMNShape id="Pool_di" bpmnElement="Pool" isHorizontal="true"><dc:Bounds x="100" y="300" width="900" height="350"/></bpmndi:BPMNShape><bpmndi:BPMNEdge id="First_di" bpmnElement="First"><di:waypoint x="196" y="118"/><di:waypoint x="300" y="118"/></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Last_di" bpmnElement="Last"><di:waypoint x="420" y="118"/><di:waypoint x="520" y="118"/></bpmndi:BPMNEdge></bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>';
