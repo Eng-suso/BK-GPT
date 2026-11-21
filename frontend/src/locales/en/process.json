@@ -1911,6 +1911,8 @@
       "repairError": "Adding the points did not work. Try again in a few minutes."
     },
     "toolbarLabel": "Process canvas",
+    "focusCanvas": "Focus canvas",
+    "exitFocus": "Exit focus",
     "zoomGroup": "Zoom controls",
     "readableTitle": "Open a readable view from the start of the process",
     "readable": "Read",

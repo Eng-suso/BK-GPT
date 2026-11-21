@@ -53,6 +53,8 @@ type ProcessBpmnCanvasProps = {
   /** BPMN properties dock toggle (owned by the route, URL `?panel=properties`). */
   isPropertiesOpen?: boolean;
   onTogglePropertiesPanel?: () => void;
+  isFocusMode?: boolean;
+  onToggleFocusMode?: () => void;
 };
 
 /**
@@ -75,6 +77,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   onToggleCanvasChat,
   isPropertiesOpen,
   onTogglePropertiesPanel,
+  isFocusMode,
+  onToggleFocusMode,
 }) => {
   const { t } = useTranslation("process");
   const { ref: shellRef, width: shellWidth } = useElementWidth<HTMLElement>();
@@ -203,6 +207,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           isOpen: isPropertiesOpen,
           onToggle: onTogglePropertiesPanel,
         }}
+        focusMode={onToggleFocusMode ? { isOpen: isFocusMode, onToggle: () => { setElementsOpen(false); setIsEvidenceOpen(false); onToggleFocusMode(); } } : undefined}
         evidence={
           processId
             ? {

@@ -1911,6 +1911,8 @@
       "repairError": "L'integrazione non è riuscita. Riprova tra qualche minuto."
     },
     "toolbarLabel": "Canvas processo",
+    "focusCanvas": "Concentrati sul canvas",
+    "exitFocus": "Esci dalla vista concentrata",
     "zoomGroup": "Controlli zoom",
     "readableTitle": "Apri una vista leggibile dall'inizio del processo",
     "readable": "Leggi",

@@ -15,6 +15,7 @@ import {
   Upload,
   MousePointer2,
   Hand,
+  Focus,
 } from "lucide-react";
 
 import { WorkspaceCommandBar } from "@/components/layout/CanvasWorkspace";
@@ -60,6 +61,7 @@ type BpmnCanvasToolbarProps = {
   menuButtonRef?: RefObject<HTMLButtonElement | null>;
   canvasChat: PanelToggle;
   properties: PanelToggle;
+  focusMode?: PanelToggle;
   evidence?: EvidenceToggle;
   navigationMode: CanvasNavigationMode;
   onNavigationModeChange: (mode: CanvasNavigationMode) => void;
@@ -96,6 +98,7 @@ export function BpmnCanvasToolbar({
   menuButtonRef,
   canvasChat,
   properties,
+  focusMode,
   evidence,
   navigationMode,
   onNavigationModeChange,
@@ -146,6 +149,7 @@ export function BpmnCanvasToolbar({
             )}
           </div>
         )}
+        {focusMode?.onToggle && <Button type="button" variant={focusMode.isOpen ? "secondary" : "ghost"} size="sm" onClick={focusMode.onToggle} aria-pressed={focusMode.isOpen} aria-label={t(focusMode.isOpen ? "canvas.exitFocus" : "canvas.focusCanvas")} title={t(focusMode.isOpen ? "canvas.exitFocus" : "canvas.focusCanvas")}><Focus aria-hidden className="size-4" /><span className="bpmn-toolbar-label">{t(focusMode.isOpen ? "canvas.exitFocus" : "canvas.focusCanvas")}</span></Button>}
       </div>
 
       <div className="process-bpmn-toolbar-actions">
@@ -207,16 +211,16 @@ export function BpmnCanvasToolbar({
             <DropdownMenuSeparator />
             {onToggleColours && <><DropdownMenuCheckboxItem checked={coloursEnabled} onCheckedChange={onToggleColours}>{t("canvas.colours")}</DropdownMenuCheckboxItem><DropdownMenuSeparator /></>}
             <DropdownMenuItem disabled={!isReady} onClick={onZoomReadable}>
-              Leggi il processo dall'inizio
+              {t("canvas.readableTitle")}
             </DropdownMenuItem>
             <DropdownMenuItem disabled={!isReady} onClick={onZoomFit}>
-              <Maximize2 /> Centra e adatta diagramma
+              <Maximize2 /> {t("canvas.fitTitle")}
             </DropdownMenuItem>
             <DropdownMenuItem disabled={!isReady} onClick={onZoomIn}>
-              <Plus /> Ingrandisci
+              <Plus /> {t("canvas.zoomIn")}
             </DropdownMenuItem>
             <DropdownMenuItem disabled={!isReady} onClick={onZoomOut}>
-              <Minus /> Riduci
+              <Minus /> {t("canvas.zoomOut")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={!isReady} onClick={onImportClick}>
