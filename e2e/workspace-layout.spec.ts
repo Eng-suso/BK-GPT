@@ -42,6 +42,38 @@ test.beforeEach(async ({ page }) => { await fixture(page); });
 // Aprire un processo porta alla discussione: il canvas si chiede, con `?view=canvas`.
 const canvasView = `${studio}?view=canvas`;
 
+test("canvas focus and process hierarchy keep the model usable", async ({ page }, info) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.addInitScript(() => localStorage.setItem("delir-language", "en"));
+  const source = readFileSync(join(process.cwd(), "docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"), "utf8");
+  await page.route("**/v1/workspace/bpmn-models/layout-model", route => route.fulfill({ json: { id: "layout-model", process_id: "layout-process", name: "Model", xml: source, version_id: 1 } }));
+  await page.goto(canvasView);
+  const task = page.locator('.process-bpmn-canvas .djs-shape[data-element-id="TaskA"]').first();
+  await expect(task).toBeVisible();
+
+  await page.getByRole("button", { name: "Elements", exact: true }).click();
+  const navigator = page.locator(".process-element-navigator");
+  await navigator.getByRole("textbox", { name: "Search process" }).fill("Prepare");
+  const rows = await navigator.locator("li button").allTextContents();
+  expect(rows).toHaveLength(3);
+  expect(rows[0]).toContain("Company");
+  expect(rows[1]).toContain("Operations");
+  expect(rows[2]).toContain("Prepare");
+  await navigator.getByRole("button", { name: "Close element list" }).click();
+
+  await task.click();
+  await expect(page.locator(".process-studio-properties")).toBeVisible();
+  await page.getByRole("button", { name: "Focus canvas" }).click();
+  await expect(page.locator(".process-studio-properties")).toBeHidden();
+  await expect(task).toBeVisible();
+  await expect(page.getByRole("button", { name: "Exit focus" })).toHaveAttribute("aria-pressed", "true");
+  await page.screenshot({ path: info.outputPath("canvas-focus.png") });
+  await page.getByRole("button", { name: "Exit focus" }).click();
+  await expect(page.locator(".process-studio-properties")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+});
+
 test("pool backgrounds never hide loose process lanes and their work",async({page},info)=>{
   await page.setViewportSize({width:1600,height:1000});
   const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8").replace('processRef="ProcessA"','processRef="Empty"').replace('<bpmn:collaboration','<bpmn:process id="Empty"/><bpmn:collaboration');
