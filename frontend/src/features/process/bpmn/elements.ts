@@ -1,7 +1,7 @@
 import type { BpmnModeler } from "./types";
 export type ElementKind = "task" | "automation" | "gateway" | "start" | "end" | "other";
-export type CanvasElement = { id: string; name: string; type: string; kind: ElementKind };
-type RegistryShape = { id: string; type: string; labelTarget?: unknown; x?: number; height?: number; businessObject?: { name?: string }; di?: { $attrs?: Record<string, unknown>; get?: (key: string) => unknown } };
+export type CanvasElement = { id: string; name: string; type: string; kind: ElementKind; parentId?: string };
+type RegistryShape = { id: string; type: string; parent?: { id: string; type: string }; labelTarget?: unknown; x?: number; height?: number; businessObject?: { name?: string }; di?: { $attrs?: Record<string, unknown>; get?: (key: string) => unknown } };
 const kinds: ElementKind[] = ["task", "automation", "gateway", "start", "end", "other"];
 export function elementKind(type: string): ElementKind {
   if (/Gateway$/.test(type)) return "gateway";
@@ -39,7 +39,8 @@ export function readCanvasElements(modeler: Pick<BpmnModeler, "get">): CanvasEle
         visual.insertBefore(band, visual.children[1] ?? null);
       }
     }
-    return { id: el.id, name: el.businessObject?.name?.trim() || "", type: el.type.replace(/^bpmn:/, ""), kind };
+    const parentId = el.parent && /^bpmn:(Participant|Lane|SubProcess)$/.test(el.parent.type) ? el.parent.id : undefined;
+    return { id: el.id, name: el.businessObject?.name?.trim() || "", type: el.type.replace(/^bpmn:/, ""), kind, ...(parentId ? { parentId } : {}) };
   });
 }
 
