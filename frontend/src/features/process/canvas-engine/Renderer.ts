@@ -166,7 +166,7 @@ export class DeliRRenderer {
             if(el.businessObject.isForCompensation) node("path", { d:"M"+(x-12)+","+(y-5)+"l-6 5 6 5Zm-7 0-6 5 6 5Z", fill:"none", stroke }, gfx);
         }
         if (el.businessObject.name && !/Event$|Gateway$/.test(t))
-            text(gfx, el.businessObject.name, w / 2, /SubProcess/.test(t) && el.di?.get("isExpanded") === "true" ? 20 : h / 2 + 4, w - 24, 14);
+            text(gfx, el.businessObject.name, w / 2, /SubProcess/.test(t) && el.di?.get("isExpanded") === "true" ? 20 : h / 2 + 4, w - 24, 16);
         return body;
     }
     drawConnection(gfx: SVGElement, el: CanvasElement) {
