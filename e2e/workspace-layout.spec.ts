@@ -152,7 +152,7 @@ for (const mobile of [false, true]) test(`enterprise library and properties roun
   await canvas.locator('[data-element-id="Task_1"]').first().click();
   const inspector = page.locator(".process-enterprise-properties");
   if (mobile) { await page.getByRole("button", { name: "Proprietà", exact: true }).click(); await expect(canvas).toBeHidden(); }
-  await inspector.getByRole("textbox", { name: "Responsabile attività", exact: true }).fill("Operations");
+  await inspector.getByRole("textbox", { name: "Responsabile operativo", exact: true }).fill("Operations");
   await inspector.getByRole("textbox", { name: "Ufficio competente", exact: true }).fill("Acquisti");
   await inspector.getByRole("checkbox").check();
   await inspector.getByRole("combobox", { name: "Sezione proprietà" }).click();
@@ -192,7 +192,7 @@ for (const mobile of [false, true]) test(`enterprise library and properties roun
   await page.reload();
   await canvas.locator('[data-element-id="Task_1"]').first().click();
   if (mobile) { await page.getByRole("button", { name: "Proprietà", exact: true }).click(); await expect(canvas).toBeHidden(); }
-  await expect(inspector.getByRole("textbox", { name: "Responsabile attività", exact: true })).toHaveValue("Operations");
+  await expect(inspector.getByRole("textbox", { name: "Responsabile operativo", exact: true })).toHaveValue("Operations");
   await expect(inspector.getByRole("checkbox")).toBeChecked();
   await inspector.getByRole("button", { name: "Elimina elemento", exact: true }).click();
   await expect(canvas.locator('[data-element-id="Task_1"]')).toHaveCount(0);

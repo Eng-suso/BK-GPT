@@ -402,8 +402,8 @@ test("08-as-is-corretto", async ({ page }) => {
     await clickOn(page, page.getByRole("button", { name: "Proprietà", exact: true }));
     await expect(page.getByRole("tablist", { name: "Schede proprietà" })).toBeVisible();
     await page.waitForTimeout(300);
-    await rec.focus(page.getByLabel("Responsabile attività"), 1.8, 180);
-    await moveTo(page, page.getByLabel("Responsabile attività"), 800);
+    await rec.focus(page.getByLabel("Responsabile operativo"), 1.8, 180);
+    await moveTo(page, page.getByLabel("Responsabile operativo"), 800);
     await page.waitForTimeout(1200);
     rec.wide();
     await clickOn(page, page.getByRole("button", { name: "Importa, esporta, cronologia" }));
