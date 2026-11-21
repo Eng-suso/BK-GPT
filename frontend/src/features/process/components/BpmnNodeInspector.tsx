@@ -50,7 +50,9 @@ export function BpmnNodeInspector({ element, onNameChange, onDocChange, onMetada
         <div className="grid gap-5">
           {section === "details" && <>
             <label className="ui-editor-field"><span>{t("properties.enterprise.name")}</span><Input value={element.name} onChange={event => onNameChange(event.target.value)} /></label>
+            {element.laneName && !isContainer && !isConnection && <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"><p className="text-xs text-muted-foreground">{t("properties.enterprise.bpmnRole")}</p><p className="font-medium">{element.laneName}</p></div>}
             {!isContainer && !isConnection && <>{field("owner")}{field("office")}</>}
+            {element.laneName && !isContainer && !isConnection && <p className="text-xs leading-relaxed text-muted-foreground">{t("properties.enterprise.ownerHint")}</p>}
             <label className="ui-editor-field"><span>{t("properties.enterprise.description")}</span><Textarea rows={4} value={element.documentation} onChange={event => onDocChange(event.target.value)} /></label>
             {!isContainer && !isConnection && <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" className="size-4 shrink-0 accent-primary" checked={element.metadata.required} onChange={event => onMetadataChange({ required: event.target.checked })} />{t("properties.enterprise.required")}</label>}
             {!isContainer && !isConnection && <p className="text-xs leading-relaxed text-muted-foreground">{t("properties.enterprise.saveHint")}</p>}

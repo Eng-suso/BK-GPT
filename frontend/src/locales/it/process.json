@@ -1776,11 +1776,13 @@
         "ai": "AI"
       },
       "name": "Nome",
+      "bpmnRole": "Lane BPMN",
+      "ownerHint": "La lane indica dove si trova l’attività nel processo. Il responsabile operativo è facoltativo e può indicare una persona o un team specifico.",
       "description": "Descrizione",
       "required": "Obbligatorio nel processo (annotazione)",
       "saveHint": "Le proprietà si salvano con il disegno. L’annotazione «obbligatorio» non modifica l’esecuzione BPMN.",
       "fields": {
-        "owner": "Responsabile attività",
+        "owner": "Responsabile operativo",
         "office": "Ufficio competente",
         "rules": "Note sulle regole",
         "risks": "Rischi e mitigazioni",

@@ -75,6 +75,7 @@ export type BpmnFactory = {
 export type BpmnElementSelection = {
   id: string;
   type: string;
+  parent?: BpmnElementSelection;
   businessObject?: {
     name?: string;
     documentation?: Array<{ text?: string }>;
@@ -87,6 +88,7 @@ export type SelectedBpmnElement = {
   id: string;
   type: string;
   name: string;
+  laneName?: string;
   documentation: string;
   metadata: import("./enterprise").EnterpriseMetadata;
 };

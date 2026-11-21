@@ -1776,11 +1776,13 @@
         "ai": "AI"
       },
       "name": "Name",
+      "bpmnRole": "BPMN lane",
+      "ownerHint": "The lane shows where this activity sits in the process. Operational owner is optional and can name a specific accountable person or team.",
       "description": "Description",
       "required": "Required in the process (annotation)",
       "saveHint": "Properties are saved with the diagram. The required annotation does not change BPMN execution.",
       "fields": {
-        "owner": "Task owner",
+        "owner": "Operational owner",
         "office": "Competence office",
         "rules": "Rule notes",
         "risks": "Risks and mitigations",
