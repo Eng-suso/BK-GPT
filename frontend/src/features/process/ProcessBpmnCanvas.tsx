@@ -122,7 +122,6 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     fileInputRef,
     isReady,
     isEmptyModel,
-    status,
     error,
     isSaving,
     hasUnsavedChanges,
@@ -168,7 +167,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     propertyContent
   ) : null);
 
-  const isError = status.toLowerCase().startsWith("errore");
+  const isError = Boolean(error);
   const saveTone: StatusTone = isError
     ? "danger"
     : hasUnsavedChanges
@@ -177,13 +176,13 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   // Keep it to one short chip so the toolbar stays on a single row; the full
   // error text still renders in the canvas error banner.
   const saveLabel = isError
-    ? status
+    ? t("canvas.errorStatus")
     : hasUnsavedChanges
       ? t("canvas.unsaved")
       : t("canvas.saved");
 
   return (
-    <section ref={shellRef} data-multiple-selection={canvasUi.isMultiple} data-connecting={Boolean(canvasUi.connectionSourceId)} className={`process-bpmn-shell ${coloursEnabled ? "process-bpmn--colours" : ""}`} aria-label="Canvas BPMN" onKeyDown={(event) => { if (event.key === "Escape" && elementsOpen) { event.preventDefault(); closeElements(); } }}>
+    <section ref={shellRef} data-multiple-selection={canvasUi.isMultiple} data-connecting={Boolean(canvasUi.connectionSourceId)} className={`process-bpmn-shell ${coloursEnabled ? "process-bpmn--colours" : ""}`} aria-label={t("canvas.toolbarLabel")} onKeyDown={(event) => { if (event.key === "Escape" && elementsOpen) { event.preventDefault(); closeElements(); } }}>
       <BpmnCanvasToolbar
         elements={{ isOpen: elementsOpen, onToggle: () => { setIsEvidenceOpen(false); setElementsOpen((prev) => !prev); } }}
         elementsButtonRef={elementsButtonRef}
@@ -289,8 +288,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
 
       <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
         <DialogContent onCloseAutoFocus={(event) => { event.preventDefault(); menuButtonRef.current?.focus(); }} className="flex max-h-[85dvh] flex-col overflow-hidden border-border sm:max-w-xl">
-          <DialogTitle>Cronologia versioni</DialogTitle>
-          <DialogDescription>Consulta le modifiche e ripristina una versione del processo.</DialogDescription>
+          <DialogTitle>{t("canvas.versionHistory")}</DialogTitle>
+          <DialogDescription>{t("canvas.versionHistoryDescription")}</DialogDescription>
           <BpmnVersionHistory
             versions={versions}
             restoringVersionId={restoringVersionId}

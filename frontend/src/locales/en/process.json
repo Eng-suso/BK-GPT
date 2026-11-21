@@ -1921,6 +1921,8 @@
     "exportBpmn": "Export BPMN",
     "hideHistory": "Hide history",
     "versionHistory": "Version history",
+    "versionHistoryDescription": "Review changes and restore an earlier version of the process.",
+    "errorStatus": "Error",
     "saveTitle": "Save process (Ctrl+S)",
     "saving": "Saving…",
     "save": "Save",
