@@ -105,7 +105,7 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
                 lanes_boxes = [c for key, c in containers.items() if local_name(elements[key]) == "lane"]
                 sides = {side for node, side in docked if node == element_id}
                 corners = {corner for node, corner in turns if node == element_id}
-                label = node_label(box, elements[element_id].get("name"), sides, boxes, labels, pool, lanes_boxes, corners)
+                label = node_label(box, elements[element_id].get("name"), sides, boxes, labels, pool, lanes_boxes, corners, stubs)
             labels[element_id] = label
             _bounds(ET.SubElement(shape, f"{{{BPMNDI}}}BPMNLabel"), label)
     # Feedback routes come last; they may use outer channels without changing

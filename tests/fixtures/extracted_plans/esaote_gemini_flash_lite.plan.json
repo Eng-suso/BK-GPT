@@ -1,0 +1,1439 @@
+{
+  "schema_version": "process_understanding.v1",
+  "language": "it",
+  "title": "Gestione acquisto materiali indiretti e servizi",
+  "objective": "Gestire l'acquisto di materiali indiretti e servizi partendo dalle richieste dell'Ufficio Tecnico fino all'emissione dell'ordine e alla sistemazione contabile",
+  "scope": "Gestione delle richieste di acquisto indiretti ricevute dall'Ufficio Tecnico, verifica di lavorabilità, richiesta autorizzazione, scelta del fornitore ed emissione ordine, inclusa la gestione a posteriori degli acquisti urgenti della manutenzione.",
+  "actors": [
+    {
+      "id": "actor_reparto",
+      "label": "Personale di reparto",
+      "kind": "role",
+      "source_evidence": [
+        "Quasi sempre se ne accorge chi sta in reparto. Un capoturno vede che sta finendo il materiale di consumo, oppure un tecnico si rende conto che per un intervento programmato gli serve una attrezzatura che non abbiamo."
+      ]
+    },
+    {
+      "id": "actor_laura",
+      "label": "Laura Conti (Responsabile Ufficio Tecnico)",
+      "kind": "person",
+      "source_evidence": [
+        "Laura Conti (Responsabile Ufficio Tecnico)"
+      ]
+    },
+    {
+      "id": "actor_acquisti",
+      "label": "Ufficio Acquisti",
+      "kind": "team",
+      "source_evidence": [
+        "La passo ad Acquisti."
+      ]
+    },
+    {
+      "id": "francesca_neri",
+      "label": "Francesca Neri",
+      "kind": "person",
+      "source_evidence": [
+        "Francesca Neri (Ufficio Acquisti)"
+      ]
+    },
+    {
+      "id": "laura",
+      "label": "Laura",
+      "kind": "person",
+      "source_evidence": [
+        "quasi sempre da Laura"
+      ]
+    },
+    {
+      "id": "ufficio_tecnico",
+      "label": "Ufficio Tecnico",
+      "kind": "team",
+      "source_evidence": [
+        "ricevi le richieste dall'Ufficio Tecnico"
+      ]
+    },
+    {
+      "id": "responsabile",
+      "label": "Responsabile",
+      "kind": "role",
+      "source_evidence": [
+        "chiedere una autorizzazione al mio responsabile"
+      ]
+    },
+    {
+      "id": "paolo",
+      "label": "Paolo",
+      "kind": "person",
+      "source_evidence": [
+        "quando Paolo mi manda la mail"
+      ]
+    },
+    {
+      "id": "amministrazione",
+      "label": "Amministrazione",
+      "kind": "team",
+      "source_evidence": [
+        "La parte contabile la fa Amministrazione"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "event_start",
+      "label": "Bisogno di materiale o servizio rilevato in reparto",
+      "type": "start",
+      "direction": "catch",
+      "timing": null,
+      "definition": "conditional",
+      "condition": "Mancanza di materiale di consumo o necessità di attrezzatura per intervento programmato",
+      "triggers": [],
+      "parallel_multiple": false,
+      "source_evidence": [
+        "Quasi sempre se ne accorge chi sta in reparto. Un capoturno vede che sta finendo il materiale di consumo, oppure un tecnico si rende conto che per un intervento programmato gli serve una attrezzatura che non abbiamo."
+      ]
+    },
+    {
+      "id": "event_end_inviato",
+      "label": "Richiesta inviata agli acquisti",
+      "type": "end",
+      "direction": "throw",
+      "timing": null,
+      "definition": "message",
+      "condition": null,
+      "triggers": [],
+      "parallel_multiple": false,
+      "source_evidence": [
+        "Gli mando una mail con quello che sono riuscita a mettere insieme: descrizione, quantita', per quando serve, e se ho un riferimento lo metto."
+      ]
+    },
+    {
+      "id": "start_richiesta",
+      "label": "Richiesta ricevuta via mail",
+      "type": "start",
+      "direction": "catch",
+      "timing": null,
+      "definition": "message",
+      "condition": null,
+      "triggers": [],
+      "parallel_multiple": false,
+      "source_evidence": [
+        "Mi arrivano via mail"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_rilevazione_bisogno",
+      "label": "Rilevare il bisogno in reparto",
+      "description": "Il capoturno o un tecnico si accorge della necessità di materiale di consumo o attrezzatura.",
+      "actor_ids": [
+        "actor_reparto"
+      ],
+      "type": "manual_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [],
+      "outputs": [
+        "Richiesta informale"
+      ],
+      "source_evidence": [
+        "Quasi sempre se ne accorge chi sta in reparto. Un capoturno vede che sta finendo il materiale di consumo, oppure un tecnico si rende conto che per un intervento programmato gli serve una attrezzatura che non abbiamo."
+      ]
+    },
+    {
+      "id": "step_invio_richiesta_informale",
+      "label": "Inviare la richiesta informale all'Ufficio Tecnico",
+      "description": "La richiesta viene inviata tramite mail, messaggio o a voce.",
+      "actor_ids": [
+        "actor_reparto"
+      ],
+      "type": "send_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Richiesta informale"
+      ],
+      "outputs": [
+        "Segnalazione"
+      ],
+      "source_evidence": [
+        "Poi la richiesta arriva a me, e arriva in tre modi diversi a seconda di chi la manda. C'e' chi mi scrive una mail, c'e' chi mi manda un messaggio, e c'e' chi passa dal mio ufficio e me lo dice a voce."
+      ]
+    },
+    {
+      "id": "step_ricezione_registrazione",
+      "label": "Ricevere e annotare la richiesta",
+      "description": "Laura riceve la segnalazione e la trascrive nella propria agenda personale per non dimenticarla.",
+      "actor_ids": [
+        "actor_laura"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Segnalazione"
+      ],
+      "outputs": [
+        "Appunto personale"
+      ],
+      "source_evidence": [
+        "Io in tutti e tre i casi finisco per riscrivermela da qualche parte, perche' altrimenti me la dimentico."
+      ]
+    },
+    {
+      "id": "step_verifica_informazioni",
+      "label": "Verificare completezza informazioni e raccogliere dati mancanti",
+      "description": "Laura verifica se ha informazioni sufficienti; in caso contrario, avvia telefonate per ricostruire i dettagli.",
+      "actor_ids": [
+        "actor_laura"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Appunto personale"
+      ],
+      "outputs": [
+        "Dati integrati della richiesta"
+      ],
+      "source_evidence": [
+        "La prima cosa che faccio e' capire se ho abbastanza informazioni per portarla avanti. E qui casca l'asino, perche' quasi mai le ho... Quindi comincia il giro di telefonate."
+      ]
+    },
+    {
+      "id": "step_invio_acquisti",
+      "label": "Inviare la richiesta all'Ufficio Acquisti",
+      "description": "Laura invia una mail ad Acquisti con descrizione, quantità, tempistica e riferimenti ricostruiti.",
+      "actor_ids": [
+        "actor_laura"
+      ],
+      "type": "send_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Dati integrati della richiesta"
+      ],
+      "outputs": [
+        "Mail di richiesta acquisto"
+      ],
+      "source_evidence": [
+        "La passo ad Acquisti. Gli mando una mail con quello che sono riuscita a mettere insieme: descrizione, quantita', per quando serve, e se ho un riferimento lo metto."
+      ]
+    },
+    {
+      "id": "ricevi_richiesta",
+      "label": "Ricevere richiesta di acquisto",
+      "description": "Ricezione della richiesta via mail dall'Ufficio Tecnico",
+      "actor_ids": [
+        "francesca_neri"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Email richiesta"
+      ],
+      "outputs": [
+        "Richiesta di acquisto"
+      ],
+      "source_evidence": [
+        "Mi arrivano via mail, quasi sempre da Laura."
+      ]
+    },
+    {
+      "id": "verifica_lavorabilita",
+      "label": "Verificare lavorabilità richiesta",
+      "description": "Legge e verifica se la richiesta è comprensibile (cosa comprare e da chi)",
+      "actor_ids": [
+        "francesca_neri"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Richiesta di acquisto"
+      ],
+      "outputs": [
+        "Esito verifica lavorabilità"
+      ],
+      "source_evidence": [
+        "Leggo e verifico se e' lavorabile. Lavorabile vuol dire che capisco cosa devo comprare e da chi posso comprarlo."
+      ]
+    },
+    {
+      "id": "richiedi_completamento",
+      "label": "Rimandare indietro richiesta incompleta",
+      "description": "Richiede integrazioni se la richiesta manca di informazioni",
+      "actor_ids": [
+        "francesca_neri"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Richiesta incompleta"
+      ],
+      "outputs": [
+        "Richiesta integrata"
+      ],
+      "source_evidence": [
+        "Se manca qualcosa richiedo, e questo e' il grosso del mio lavoro sugli indiretti: rimbalzare indietro le richieste per completarle."
+      ]
+    },
+    {
+      "id": "valuta_importo",
+      "label": "Valutare importo e tipo acquisto",
+      "description": "Valuta se l'acquisto è piccolo/ricorrente o supera la soglia",
+      "actor_ids": [
+        "francesca_neri"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Richiesta completa"
+      ],
+      "outputs": [
+        "Parametri importo e tipo"
+      ],
+      "source_evidence": [
+        "Dipende dall'importo e dal tipo di acquisto. Per le cose piccole e ricorrenti ho margine per procedere da sola: emetto l'ordine e via. Sopra una certa cifra devo chiedere una autorizzazione"
+      ]
+    },
+    {
+      "id": "richiedi_autorizzazione",
+      "label": "Chiedere autorizzazione al responsabile",
+      "description": "Manda una mail al responsabile per ottenere l'autorizzazione sopra una certa soglia",
+      "actor_ids": [
+        "francesca_neri"
+      ],
+      "type": "send_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Richiesta di autorizzazione"
+      ],
+      "outputs": [
+        "Email di autorizzazione inviata"
+      ],
+      "source_evidence": [
+        "Sopra una certa cifra devo chiedere una autorizzazione al mio responsabile",
+        "'e' una mail che mando e una risposta che aspetto"
+      ]
+    },
+    {
+      "id": "attendi_autorizzazione",
+      "label": "Attendere risposta di autorizzazione",
+      "description": "Attende la risposta via mail dal responsabile",
+      "actor_ids": [
+        "francesca_neri"
+      ],
+      "type": "receive_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Email di autorizzazione inviata"
+      ],
+      "outputs": [
+        "Risposta di autorizzazione"
+      ],
+      "source_evidence": [
+        "una risposta che aspetto",
+        "Se il mio responsabile e' in ufficio, e' questione di ore. Se e' fuori, possono essere giorni."
+      ]
+    },
+    {
+      "id": "scegli_fornitore",
+      "label": "Scegliere il fornitore",
+      "description": "Seleziona il fornitore da lista ricorrente o richiede quotazioni per cose nuove",
+      "actor_ids": [
+        "francesca_neri"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Richiesta completa"
+      ],
+      "outputs": [
+        "Fornitore selezionato"
+      ],
+      "source_evidence": [
+        "Per le cose ricorrenti ho una lista di nomi... Per le cose nuove chiedo delle quotazioni in giro e confronto."
+      ]
+    },
+    {
+      "id": "emetti_ordine",
+      "label": "Emettere l'ordine",
+      "description": "Emissione dell'ordine a sistema",
+      "actor_ids": [
+        "francesca_neri"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Fornitore selezionato",
+        "Richiesta completa"
+      ],
+      "outputs": [
+        "Ordine emesso"
+      ],
+      "source_evidence": [
+        "emetto l'ordine e via"
+      ]
+    },
+    {
+      "id": "ricostruisci_pratica_posteriori",
+      "label": "Ricostruire la pratica a posteriori",
+      "description": "Apre l'ordine, lo aggancia al fornitore e sistema la parte contabile per acquisti urgenti fatti da Paolo",
+      "actor_ids": [
+        "francesca_neri"
+      ],
+      "type": "user_task",
+      "called_process": null,
+      "event_trigger": null,
+      "event_condition": null,
+      "interrupting": true,
+      "compensates_step_id": null,
+      "multiplicity": "single",
+      "inputs": [
+        "Mail di Paolo o Fattura"
+      ],
+      "outputs": [
+        "Pratica ricostruita",
+        "Ordine aperto"
+      ],
+      "source_evidence": [
+        "quando Paolo mi manda la mail con il riferimento dell'ordine che ha fatto lui. A quel punto io devo ricostruire la pratica a posteriori: aprire l'ordine, agganciarlo al fornitore, sistemare la parte contabile"
+      ]
+    }
+  ],
+  "sequence": [
+    "ricevi_richiesta",
+    "verifica_lavorabilita",
+    "valuta_importo",
+    "richiedi_autorizzazione",
+    "attendi_autorizzazione",
+    "scegli_fornitore",
+    "emetti_ordine",
+    "richiedi_completamento",
+    "ricostruisci_pratica_posteriori",
+    "step_rilevazione_bisogno",
+    "step_invio_richiesta_informale",
+    "step_ricezione_registrazione",
+    "step_verifica_informazioni",
+    "step_invio_acquisti"
+  ],
+  "decisions": [
+    {
+      "id": "dec_lavorabilita",
+      "label": "La richiesta è lavorabile?",
+      "question": "Capisco cosa devo comprare e da chi posso comprarlo?",
+      "gateway_type": "exclusive",
+      "activation_condition": null,
+      "instantiate": false,
+      "event_gateway_type": "exclusive",
+      "outcomes": [
+        "Sì",
+        "No"
+      ],
+      "outcome_details": [
+        {
+          "id": "out_lavorabile_si",
+          "label": "Sì",
+          "condition": "La richiesta è completa e comprensibile",
+          "target_ref": "valuta_importo",
+          "target_path_id": null,
+          "rejoins_at": null,
+          "ends_process": false,
+          "is_default": false,
+          "certainty": "explicit",
+          "source_evidence": []
+        },
+        {
+          "id": "out_lavorabile_no",
+          "label": "No",
+          "condition": "Manca qualcosa nella richiesta",
+          "target_ref": "richiedi_completamento",
+          "target_path_id": null,
+          "rejoins_at": null,
+          "ends_process": false,
+          "is_default": false,
+          "certainty": "explicit",
+          "source_evidence": []
+        }
+      ],
+      "source_evidence": [
+        "Leggo e verifico se e' lavorabile. Lavorabile vuol dire che capisco cosa devo comprare e da chi posso comprarlo. Se manca qualcosa richiedo"
+      ]
+    },
+    {
+      "id": "dec_importo",
+      "label": "L'importo richiede autorizzazione?",
+      "question": "L'acquisto rientra nelle cose piccole/ricorrenti o supera la soglia?",
+      "gateway_type": "exclusive",
+      "activation_condition": null,
+      "instantiate": false,
+      "event_gateway_type": "exclusive",
+      "outcomes": [
+        "Piccolo importo",
+        "Sopra soglia"
+      ],
+      "outcome_details": [
+        {
+          "id": "out_piccolo",
+          "label": "Cose piccole e ricorrenti",
+          "condition": "Importo inferiore alla soglia",
+          "target_ref": "scegli_fornitore",
+          "target_path_id": null,
+          "rejoins_at": null,
+          "ends_process": false,
+          "is_default": false,
+          "certainty": "explicit",
+          "source_evidence": []
+        },
+        {
+          "id": "out_sopra_soglia",
+          "label": "Sopra una certa cifra",
+          "condition": "Importo superiore alla soglia",
+          "target_ref": "richiedi_autorizzazione",
+          "target_path_id": null,
+          "rejoins_at": null,
+          "ends_process": false,
+          "is_default": false,
+          "certainty": "explicit",
+          "source_evidence": []
+        }
+      ],
+      "source_evidence": [
+        "Per le cose piccole e ricorrenti ho margine per procedere da sola: emetto l'ordine e via. Sopra una certa cifra devo chiedere una autorizzazione al mio responsabile"
+      ]
+    }
+  ],
+  "handoffs": [
+    {
+      "id": "handoff_reparto_laura",
+      "from_actor_id": "actor_reparto",
+      "to_actor_id": "actor_laura",
+      "artifact": "Segnalazione (mail, messaggio o voce)",
+      "trigger": null,
+      "source_evidence": [
+        "Poi la richiesta arriva a me, e arriva in tre modi diversi a seconda di chi la manda. C'e' chi mi scrive una mail, c'e' chi mi manda un messaggio, e c'e' chi passa dal mio ufficio e me lo dice a voce."
+      ]
+    },
+    {
+      "id": "handoff_laura_acquisti",
+      "from_actor_id": "actor_laura",
+      "to_actor_id": "actor_acquisti",
+      "artifact": "Mail con descrizione, quantità, tempistica e riferimento",
+      "trigger": null,
+      "source_evidence": [
+        "La passo ad Acquisti. Gli mando una mail con quello che sono riuscita a mettere insieme: descrizione, quantita', per quando serve, e se ho un riferimento lo metto."
+      ]
+    },
+    {
+      "id": "handoff_richiesta",
+      "from_actor_id": "ufficio_tecnico",
+      "to_actor_id": "francesca_neri",
+      "artifact": "Email richiesta",
+      "trigger": "Invio email",
+      "source_evidence": [
+        "Mi arrivano via mail, quasi sempre da Laura."
+      ]
+    },
+    {
+      "id": "handoff_autorizzazione",
+      "from_actor_id": "francesca_neri",
+      "to_actor_id": "responsabile",
+      "artifact": "Email autorizzazione",
+      "trigger": "Invio richiesta autorizzazione",
+      "source_evidence": [
+        "e' una mail che mando e una risposta che aspetto"
+      ]
+    },
+    {
+      "id": "handoff_paolo",
+      "from_actor_id": "paolo",
+      "to_actor_id": "francesca_neri",
+      "artifact": "Email con riferimento ordine",
+      "trigger": "Invio email acquisto urgente",
+      "source_evidence": [
+        "quando Paolo mi manda la mail con il riferimento dell'ordine che ha fatto lui"
+      ]
+    }
+  ],
+  "data_objects": [
+    {
+      "id": "doc_file_excel",
+      "label": "File Excel (Agenda personale Laura)",
+      "kind": "form",
+      "source_evidence": [
+        "esiste un file Excel che avevo preparato io due anni fa, ma lo uso praticamente solo io... Quindi diciamo che il file esiste come mia agenda personale, non come strumento del processo."
+      ]
+    },
+    {
+      "id": "doc_mail_richiesta",
+      "label": "Mail di richiesta acquisto",
+      "kind": "document",
+      "source_evidence": [
+        "Gli mando una mail con quello che sono riuscita a mettere insieme: descrizione, quantita', per quando serve, e se ho un riferimento lo metto."
+      ]
+    },
+    {
+      "id": "doc_email_richiesta",
+      "label": "Email richiesta acquisto",
+      "kind": "form",
+      "source_evidence": [
+        "Mi arrivano via mail"
+      ]
+    },
+    {
+      "id": "doc_procedura_scritta",
+      "label": "Procedura interna scritta",
+      "kind": "document",
+      "source_evidence": [
+        "C'e' una procedura interna scritta"
+      ]
+    },
+    {
+      "id": "doc_lista_fornitori",
+      "label": "Lista fornitori ricorrenti",
+      "kind": "record",
+      "source_evidence": [
+        "lista di nomi con cui lavoriamo da tempo"
+      ]
+    },
+    {
+      "id": "doc_fattura",
+      "label": "Fattura fornitore",
+      "kind": "receipt",
+      "source_evidence": [
+        "quando arriva la fattura"
+      ]
+    }
+  ],
+  "participants": [
+    {
+      "id": "part_reparto",
+      "label": "Reparto Operativo",
+      "actor_id": "actor_reparto",
+      "kind": "organization",
+      "responsibility": "initiator",
+      "bpmn_container": "pool",
+      "parent_pool_id": null,
+      "rationale": null,
+      "source_evidence": [
+        "Quasi sempre se ne accorge chi sta in reparto."
+      ]
+    },
+    {
+      "id": "part_ufficio_tecnico",
+      "label": "Ufficio Tecnico",
+      "actor_id": "actor_laura",
+      "kind": "organization",
+      "responsibility": "intermediary",
+      "bpmn_container": "pool",
+      "parent_pool_id": null,
+      "rationale": null,
+      "source_evidence": [
+        "Laura Conti, Responsabile Ufficio Tecnico"
+      ]
+    },
+    {
+      "id": "part_acquisti",
+      "label": "Ufficio Acquisti",
+      "actor_id": "actor_acquisti",
+      "kind": "organization",
+      "responsibility": "recipient",
+      "bpmn_container": "black_box",
+      "parent_pool_id": null,
+      "rationale": null,
+      "source_evidence": [
+        "La passo ad Acquisti."
+      ]
+    },
+    {
+      "id": "p_ufficio_acquisti",
+      "label": "Ufficio Acquisti",
+      "actor_id": "francesca_neri",
+      "kind": "role",
+      "responsibility": "executor",
+      "bpmn_container": "pool",
+      "parent_pool_id": null,
+      "rationale": null,
+      "source_evidence": [
+        "Ufficio Acquisti"
+      ]
+    },
+    {
+      "id": "p_ufficio_tecnico",
+      "label": "Ufficio Tecnico",
+      "actor_id": "ufficio_tecnico",
+      "kind": "organization",
+      "responsibility": "initiator",
+      "bpmn_container": "black_box",
+      "parent_pool_id": null,
+      "rationale": null,
+      "source_evidence": [
+        "Ufficio Tecnico"
+      ]
+    },
+    {
+      "id": "p_responsabile",
+      "label": "Responsabile Ufficio Acquisti",
+      "actor_id": "responsabile",
+      "kind": "role",
+      "responsibility": "decision_owner",
+      "bpmn_container": "black_box",
+      "parent_pool_id": null,
+      "rationale": null,
+      "source_evidence": [
+        "il mio responsabile"
+      ]
+    },
+    {
+      "id": "p_manutenzione",
+      "label": "Manutenzione (Paolo)",
+      "actor_id": "paolo",
+      "kind": "organization",
+      "responsibility": "initiator",
+      "bpmn_container": "black_box",
+      "parent_pool_id": null,
+      "rationale": null,
+      "source_evidence": [
+        "Manutenzione"
+      ]
+    }
+  ],
+  "bpmn_topology": {
+    "pools": [
+      {
+        "id": "pool_reparto",
+        "label": "Reparto Operativo",
+        "participant_id": "part_reparto",
+        "actor_ids": [
+          "actor_reparto"
+        ],
+        "is_external": false,
+        "rendering_intent": "expanded",
+        "rationale": null
+      },
+      {
+        "id": "pool_ufficio_tecnico",
+        "label": "Ufficio Tecnico",
+        "participant_id": "part_ufficio_tecnico",
+        "actor_ids": [
+          "actor_laura"
+        ],
+        "is_external": false,
+        "rendering_intent": "expanded",
+        "rationale": null
+      },
+      {
+        "id": "pool_acquisti",
+        "label": "Ufficio Acquisti",
+        "participant_id": "p_ufficio_acquisti",
+        "actor_ids": [
+          "actor_acquisti",
+          "francesca_neri"
+        ],
+        "is_external": false,
+        "rendering_intent": "expanded",
+        "rationale": null
+      }
+    ],
+    "lanes": [
+      {
+        "id": "lane_francesca",
+        "label": "Francesca Neri",
+        "pool_id": "pool_acquisti",
+        "participant_id": null,
+        "actor_ids": [
+          "francesca_neri"
+        ],
+        "role": "Ufficio Acquisti",
+        "rationale": null
+      }
+    ],
+    "message_flows": [
+      {
+        "id": "mf_richiesta",
+        "label": "Invio richiesta acquisto",
+        "from_participant_id": "p_ufficio_tecnico",
+        "to_participant_id": "p_ufficio_acquisti",
+        "from_actor_id": null,
+        "to_actor_id": null,
+        "source_ref": null,
+        "target_ref": "ricevi_richiesta",
+        "artifact": "Email richiesta",
+        "trigger": null,
+        "source_evidence": [
+          "Mi arrivano via mail, quasi sempre da Laura."
+        ]
+      },
+      {
+        "id": "mf_autorizzazione",
+        "label": "Richiesta e risposta autorizzazione",
+        "from_participant_id": "p_ufficio_acquisti",
+        "to_participant_id": "p_responsabile",
+        "from_actor_id": null,
+        "to_actor_id": null,
+        "source_ref": "richiedi_autorizzazione",
+        "target_ref": "attendi_autorizzazione",
+        "artifact": "Email autorizzazione",
+        "trigger": null,
+        "source_evidence": [
+          "e' una mail che mando e una risposta che aspetto"
+        ]
+      },
+      {
+        "id": "mf_manutenzione",
+        "label": "Riferimento ordine acquisto urgente",
+        "from_participant_id": "p_manutenzione",
+        "to_participant_id": "p_ufficio_acquisti",
+        "from_actor_id": null,
+        "to_actor_id": null,
+        "source_ref": null,
+        "target_ref": "ricostruisci_pratica_posteriori",
+        "artifact": "Email riferimento ordine",
+        "trigger": null,
+        "source_evidence": [
+          "quando Paolo mi manda la mail con il riferimento dell'ordine che ha fatto lui"
+        ]
+      }
+    ],
+    "black_box_participant_ids": [
+      "part_acquisti",
+      "p_ufficio_tecnico",
+      "p_responsabile",
+      "p_manutenzione"
+    ],
+    "out_of_scope_participant_ids": [],
+    "rationale": null
+  },
+  "document_requirements": [
+    {
+      "id": "doc_req_richiesta",
+      "label": "Email richiesta di acquisto",
+      "data_object_id": "doc_email_richiesta",
+      "required_when": null,
+      "provided_by_actor_id": "ufficio_tecnico",
+      "received_by_actor_id": "francesca_neri",
+      "validation_owner_actor_id": "francesca_neri",
+      "mandatory": true,
+      "source_evidence": [
+        "Mi arrivano via mail, quasi sempre da Laura."
+      ]
+    }
+  ],
+  "input_outputs": [
+    {
+      "step": "ricevi_richiesta",
+      "input": [
+        "Email richiesta"
+      ],
+      "output": [
+        "Richiesta di acquisto"
+      ]
+    },
+    {
+      "step": "verifica_lavorabilita",
+      "input": [
+        "Richiesta di acquisto"
+      ],
+      "output": [
+        "Esito verifica lavorabilità"
+      ]
+    },
+    {
+      "step": "richiedi_completamento",
+      "input": [
+        "Richiesta incompleta"
+      ],
+      "output": [
+        "Richiesta integrata"
+      ]
+    },
+    {
+      "step": "valuta_importo",
+      "input": [
+        "Richiesta completa"
+      ],
+      "output": [
+        "Parametri importo e tipo"
+      ]
+    },
+    {
+      "step": "richiedi_autorizzazione",
+      "input": [
+        "Richiesta di autorizzazione"
+      ],
+      "output": [
+        "Email di autorizzazione inviata"
+      ]
+    },
+    {
+      "step": "attendi_autorizzazione",
+      "input": [
+        "Email di autorizzazione inviata"
+      ],
+      "output": [
+        "Risposta di autorizzazione"
+      ]
+    },
+    {
+      "step": "scegli_fornitore",
+      "input": [
+        "Richiesta completa"
+      ],
+      "output": [
+        "Fornitore selezionato"
+      ]
+    },
+    {
+      "step": "emetti_ordine",
+      "input": [
+        "Fornitore selezionato",
+        "Richiesta completa"
+      ],
+      "output": [
+        "Ordine emesso"
+      ]
+    },
+    {
+      "step": "ricostruisci_pratica_posteriori",
+      "input": [
+        "Mail di Paolo o Fattura"
+      ],
+      "output": [
+        "Pratica ricostruita",
+        "Ordine aperto"
+      ]
+    }
+  ],
+  "exceptions": [],
+  "controls": [
+    {
+      "id": "ctrl_lavorabilita",
+      "label": "Controllo lavorabilità richiesta",
+      "control_type": "document_completeness",
+      "checked_item": "Richiesta di acquisto",
+      "control_owner_actor_id": "francesca_neri",
+      "subject_ids": [
+        "ricevi_richiesta"
+      ],
+      "pass_condition": "Capisco cosa devo comprare e da chi posso comprarlo",
+      "fail_condition": "Manca qualcosa",
+      "pass_target_ref": "valuta_importo",
+      "fail_target_ref": "richiedi_completamento",
+      "source_evidence": [
+        "Leggo e verifico se e' lavorabile. Lavorabile vuol dire che capisco cosa devo comprare e da chi posso comprarlo. Se manca qualcosa richiedo"
+      ]
+    }
+  ],
+  "business_rules": [],
+  "structured_business_rules": [
+    {
+      "id": "rule_canale_unico",
+      "label": "Canale unico informale richieste",
+      "condition": null,
+      "consequence": "Le richieste devono arrivare via mail dall'Ufficio Tecnico; quelle da altri reparti vengono rimandate indietro.",
+      "applies_to_ids": [],
+      "certainty": "inferred",
+      "source_evidence": [
+        "Mi arrivano via mail, quasi sempre da Laura. Ogni tanto arriva qualcosa da un reparto direttamente e io la rimando indietro"
+      ]
+    }
+  ],
+  "assumptions": [
+    "Il file Excel utilizzato da Laura serve esclusivamente come agenda personale e non come modulo di processo condiviso.",
+    "Il canale email dall'Ufficio Tecnico è l'unico canale formale riconosciuto dall'Ufficio Acquisti anche se basato su una regola informale."
+  ],
+  "unknowns": [
+    {
+      "question": "Quali sono le soglie di spesa e i soggetti autorizzativi per l'approvazione degli acquisti?",
+      "affects": "Gestione delle approvazioni e degli importi",
+      "severity": "non_blocking",
+      "grounded_in": "Laura Conti dice: 'Io non approvo niente. So che sopra una cifra serve un passaggio in piu', ma quale sia la cifra e chi firmi non te lo so dire.'",
+      "options": [
+        {
+          "label": "Soglia definita da Acquisti",
+          "implication": "Il controllo spetta interamente all'Ufficio Acquisti senza passaggi nell'Ufficio Tecnico."
+        },
+        {
+          "label": "Approvazione dipendente dal tipo di spesa",
+          "implication": "L'iter di autorizzazione varia in base alla natura del materiale o servizio richiesto."
+        }
+      ]
+    },
+    {
+      "question": "Come si svolge esattamente il processo nei casi di urgenza vera (es. linea ferma)?",
+      "affects": "Gestione dei flussi di emergenza",
+      "severity": "non_blocking",
+      "grounded_in": "Laura Conti dice: 'In quel quel caso non passa da me quasi per niente, si muovono direttamente loro. Come funzioni esattamente in quei കേസi non te lo so descrivere bene...'",
+      "options": [
+        {
+          "label": "Ordine diretto da parte del reparto",
+          "implication": "Il reparto attiva direttamente l'acquisto e la documentazione viene regolarizzata a posteriori."
+        },
+        {
+          "label": "Canale prioritario tramite Acquisti",
+          "implication": "Viene attivato un canale d'emergenza saltando la mediazione dell'Ufficio Tecnico."
+        }
+      ]
+    },
+    {
+      "question": "Qual è la cifra esatta e la procedura scritta che regola l'autorizzazione degli acquisti sopra soglia?",
+      "affects": "Soglie di importo e regole di autorizzazione",
+      "severity": "non_blocking",
+      "grounded_in": "Francesca Neri dice: Preferisco non dartela a memoria perche' e' una cosa che e' cambiata e non voglio dirti un numero sbagliato. C'e' una procedura interna scritta, te la faccio avere.",
+      "options": [
+        {
+          "label": "Consultare procedura scritta",
+          "implication": "Integrare i valori esatti di soglia e le regole formali di autorizzazione nel modello."
+        }
+      ]
+    }
+  ],
+  "narrative_focus": [
+    "Generazione della richiesta in reparto",
+    "Raccolta e verifica informale dei dati da parte di Laura Conti",
+    "Inoltro della richiesta all'Ufficio Acquisti",
+    "Gestione richieste materiali indiretti",
+    "Verifica lavorabilità e rimbalzo richieste",
+    "Autorizzazione responsabile",
+    "Gestione acquisti urgenti manutenzione a posteriori"
+  ],
+  "boundaries": {
+    "trigger": "Arrivo di una richiesta di acquisto via email",
+    "start_event": "start_richiesta",
+    "success_end": "event_end_inviato",
+    "failure_ends": [],
+    "terminating_ends": [],
+    "in_scope": [
+      "Ricezione richiesta",
+      "Verifica lavorabilità",
+      "Richiesta completamento",
+      "Valutazione importo",
+      "Autorizzazione",
+      "Scelta fornitore",
+      "Emissione ordine",
+      "Ricostruzione pratica a posteriori"
+    ],
+    "out_of_scope": [
+      "Gestione contabile amministrazione",
+      "Creazione autonoma ordine manutenzione da parte di Paolo"
+    ]
+  },
+  "main_success_path": [
+    "ricevi_richiesta",
+    "verifica_lavorabilita",
+    "valuta_importo",
+    "scegli_fornitore",
+    "emetti_ordine",
+    "step_rilevazione_bisogno",
+    "step_invio_richiesta_informale",
+    "step_ricezione_registrazione",
+    "step_verifica_informazioni",
+    "step_invio_acquisti"
+  ],
+  "alternative_paths": [
+    {
+      "id": "path_incompleta",
+      "label": "Gestione richiesta incompleta",
+      "trigger_or_condition": "Richiesta non lavorabile",
+      "sequence": [
+        "ricevi_richiesta",
+        "verifica_lavorabilita",
+        "richiedi_completamento",
+        "ricevi_richiesta"
+      ],
+      "rejoins_at": "ricevi_richiesta",
+      "ends_at": null,
+      "is_confirmed": true
+    },
+    {
+      "id": "path_autorizzazione",
+      "label": "Gestione acquisto sopra soglia con autorizzazione",
+      "trigger_or_condition": "Importo sopra soglia",
+      "sequence": [
+        "valuta_importo",
+        "richiedi_autorizzazione",
+        "attendi_autorizzazione",
+        "scegli_fornitore",
+        "emetti_ordine"
+      ],
+      "rejoins_at": "scegli_fornitore",
+      "ends_at": null,
+      "is_confirmed": true
+    },
+    {
+      "id": "path_urgente_manutenzione",
+      "label": "Gestione acquisto urgente manutenzione a posteriori",
+      "trigger_or_condition": "Acquisto fatto direttamente da manutenzione",
+      "sequence": [
+        "ricostruisci_pratica_posteriori"
+      ],
+      "rejoins_at": null,
+      "ends_at": null,
+      "is_confirmed": true
+    }
+  ],
+  "out_of_scope_alternatives": [],
+  "flow_edges": [
+    {
+      "id": "edge_1",
+      "source_id": "event_start",
+      "target_id": "step_rilevazione_bisogno",
+      "label": "Il bisogno viene identificato in reparto",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Quasi sempre se ne accorge chi sta in reparto."
+      ]
+    },
+    {
+      "id": "edge_2",
+      "source_id": "step_rilevazione_bisogno",
+      "target_id": "step_invio_richiesta_informale",
+      "label": "La richiesta viene trasmessa all'Ufficio Tecnico",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Poi la richiesta arriva a me..."
+      ]
+    },
+    {
+      "id": "edge_3",
+      "source_id": "step_invio_richiesta_informale",
+      "target_id": "step_ricezione_registrazione",
+      "label": "La richiesta viene ricevuta da Laura",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Io in tutti e tre i casi finisco per riscrivermela da qualche parte..."
+      ]
+    },
+    {
+      "id": "edge_4",
+      "source_id": "step_ricezione_registrazione",
+      "target_id": "step_verifica_informazioni",
+      "label": "La richiesta annotata viene analizzata per completezza",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "La prima cosa che faccio e' capire se ho abbastanza informazioni per portarla avanti."
+      ]
+    },
+    {
+      "id": "edge_5",
+      "source_id": "step_verifica_informazioni",
+      "target_id": "step_invio_acquisti",
+      "label": "A seguito della ricostruzione dei dati, la richiesta è pronta",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "La passo ad Acquisti."
+      ]
+    },
+    {
+      "id": "edge_6",
+      "source_id": "step_invio_acquisti",
+      "target_id": "event_end_inviato",
+      "label": "La mail viene inviata all'Ufficio Acquisti",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Gli mando una mail con quello che sono riuscita a mettere insieme..."
+      ]
+    },
+    {
+      "id": "flow_1",
+      "source_id": "start_richiesta",
+      "target_id": "ricevi_richiesta",
+      "label": "Arriva email di richiesta",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Mi arrivano via mail"
+      ]
+    },
+    {
+      "id": "flow_2",
+      "source_id": "ricevi_richiesta",
+      "target_id": "verifica_lavorabilita",
+      "label": "La richiesta viene letta",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Leggo e verifico se e' lavorabile"
+      ]
+    },
+    {
+      "id": "flow_3",
+      "source_id": "verifica_lavorabilita",
+      "target_id": "richiedi_completamento",
+      "label": "Se la richiesta manca di informazioni",
+      "condition": "Manca qualcosa",
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Se manca qualcosa richiedo"
+      ]
+    },
+    {
+      "id": "flow_4",
+      "source_id": "richiedi_completamento",
+      "target_id": "ricevi_richiesta",
+      "label": "Ricezione richiesta integrata",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "rimbalzare indietro le richieste per completarle"
+      ]
+    },
+    {
+      "id": "flow_5",
+      "source_id": "verifica_lavorabilita",
+      "target_id": "valuta_importo",
+      "label": "Se la richiesta è lavorabile",
+      "condition": "Richiesta lavorabile",
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Una volta che la richiesta e' completa, come procedi? Dipende dall'importo"
+      ]
+    },
+    {
+      "id": "flow_6",
+      "source_id": "valuta_importo",
+      "target_id": "scegli_fornitore",
+      "label": "Per cose piccole e ricorrenti",
+      "condition": "Importo piccolo",
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Per le cose piccole e ricorrenti ho margine per procedere da sola: emetto l'ordine e via"
+      ]
+    },
+    {
+      "id": "flow_7",
+      "source_id": "valuta_importo",
+      "target_id": "richiedi_autorizzazione",
+      "label": "Sopra una certa cifra",
+      "condition": "Sopra soglia",
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "Sopra una certa cifra devo chiedere una autorizzazione al mio responsabile"
+      ]
+    },
+    {
+      "id": "flow_8",
+      "source_id": "richiedi_autorizzazione",
+      "target_id": "attendi_autorizzazione",
+      "label": "Invio mail di richiesta autorizzazione",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "e' una mail che mando e una risposta che aspetto"
+      ]
+    },
+    {
+      "id": "flow_9",
+      "source_id": "attendi_autorizzazione",
+      "target_id": "scegli_fornitore",
+      "label": "Ricezione risposta autorizzazione",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "una risposta che aspetto"
+      ]
+    },
+    {
+      "id": "flow_10",
+      "source_id": "scegli_fornitore",
+      "target_id": "emetti_ordine",
+      "label": "Fornitore scelto",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "emetto l'ordine e via"
+      ]
+    },
+    {
+      "id": "flow_11",
+      "source_id": "start_richiesta",
+      "target_id": "ricostruisci_pratica_posteriori",
+      "label": "Arrivo segnalazione acquisto urgente manutenzione",
+      "condition": null,
+      "kind": "sequence",
+      "path_id": null,
+      "source_evidence": [
+        "quando Paolo mi manda la mail con il riferimento dell'ordine che ha fatto lui"
+      ]
+    }
+  ],
+  "loops": [
+    {
+      "id": "loop_completamento",
+      "label": "Ciclo di completamento richiesta",
+      "repeated_steps": [
+        "verifica_lavorabilita",
+        "richiedi_completamento"
+      ],
+      "condition": "Richiesta incompleta",
+      "exit_condition": "Richiesta completa e lavorabile"
+    }
+  ],
+  "actor_relationships": [
+    {
+      "actor_id": "actor_reparto",
+      "organization_id": null,
+      "relationship": "internal_role",
+      "bpmn_pool_candidate": true,
+      "bpmn_lane_candidate": false
+    },
+    {
+      "actor_id": "actor_laura",
+      "organization_id": null,
+      "relationship": "internal_role",
+      "bpmn_pool_candidate": true,
+      "bpmn_lane_candidate": false
+    },
+    {
+      "actor_id": "actor_acquisti",
+      "organization_id": null,
+      "relationship": "external_participant",
+      "bpmn_pool_candidate": true,
+      "bpmn_lane_candidate": false
+    },
+    {
+      "actor_id": "francesca_neri",
+      "organization_id": null,
+      "relationship": "internal_role",
+      "bpmn_pool_candidate": true,
+      "bpmn_lane_candidate": true
+    },
+    {
+      "actor_id": "laura",
+      "organization_id": "ufficio_tecnico",
+      "relationship": "internal_role",
+      "bpmn_pool_candidate": false,
+      "bpmn_lane_candidate": false
+    },
+    {
+      "actor_id": "ufficio_tecnico",
+      "organization_id": null,
+      "relationship": "external_participant",
+      "bpmn_pool_candidate": true,
+      "bpmn_lane_candidate": false
+    },
+    {
+      "actor_id": "responsabile",
+      "organization_id": null,
+      "relationship": "internal_role",
+      "bpmn_pool_candidate": true,
+      "bpmn_lane_candidate": false
+    },
+    {
+      "actor_id": "paolo",
+      "organization_id": null,
+      "relationship": "external_participant",
+      "bpmn_pool_candidate": true,
+      "bpmn_lane_candidate": false
+    },
+    {
+      "actor_id": "amministrazione",
+      "organization_id": null,
+      "relationship": "internal_role",
+      "bpmn_pool_candidate": false,
+      "bpmn_lane_candidate": false
+    }
+  ],
+  "bpmn_modeling_hints": [],
+  "consultant_findings": [
+    {
+      "id": "ordine_percorso_da_confermare",
+      "finding": "Le fonti non collegano all'inizio del processo 5 passaggi del percorso principale (\"Rilevare il bisogno in reparto\", \"Inviare la richiesta informale all'Ufficio Tecnico\", \"Ricevere e annotare la richiesta\", \"Verificare completezza informazioni e raccogliere dati mancanti\", \"Inviare la richiesta all'Ufficio Acquisti\"): la loro posizione non si deduce da cio' che le voci raccontano, e sono in coda al percorso.",
+      "category": "scope",
+      "severity": "warning",
+      "recommendation": "Conferma dove si collocano nel processo, o quale passaggio li precede."
+    }
+  ],
+  "unified_elements": [],
+  "quality_report": null,
+  "confidence": {
+    "overall": "medium",
+    "weak_points": [
+      "Soglie di importo non definite numericamente",
+      "Regole di scelta fornitore non formalizzate"
+    ]
+  }
+}

@@ -278,6 +278,19 @@ def finalize_message_flows(
         A list of resolved BPMNMessageFlow instances.
     """
     result: list[BPMNMessageFlow] = []
+    # Every flow node lives in the one process, owned by the primary pool; a
+    # participant endpoint is its own pool. BPMN allows message flows only
+    # between different pools: one from a step to the pool that contains it
+    # cannot be drawn either, and the layout failed on it ("Nessun percorso
+    # ortogonale") with a plan Gemini extracted for the Facility golden case.
+    participant_ids = {participant.id for participant in collaboration.participants}
+    primary_id = next(
+        (participant.id for participant in collaboration.participants if participant.processRef), None
+    )
+
+    def pool_of(ref: str) -> str | None:
+        return ref if ref in participant_ids else primary_id
+
     for spec in collaboration.message_flow_specs:
         source_ref = _message_endpoint(
             spec.from_node_ref, spec.from_pool_key, collaboration, step_node_by_original_id, node_ids
@@ -288,6 +301,12 @@ def finalize_message_flows(
         if not source_ref or not target_ref or source_ref == target_ref:
             warnings.append(
                 f"Message flow '{spec.label}' non collegato: estremi non risolti nel modello BPMN."
+            )
+            continue
+        if pool_of(source_ref) == pool_of(target_ref):
+            warnings.append(
+                f"Message flow '{spec.label}' scartato: collega due elementi dello stesso pool, "
+                "e in BPMN un messaggio passa solo fra pool diversi."
             )
             continue
         result.append(
