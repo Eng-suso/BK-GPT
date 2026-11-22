@@ -18,8 +18,10 @@ type PageLocation = Pick<Location, "protocol" | "hostname" | "port">;
 export function resolveApiBase(location: PageLocation, configured?: string): string {
   if (configured) return configured;
   if (location.protocol === "file:") return LOCAL_BACKEND;
-  const servedByLocalBackend = location.port === "8000";
-  if (LOCAL_HOSTS.has(location.hostname) && !servedByLocalBackend) return LOCAL_BACKEND;
+  // Solo Vite usa una porta diversa dall'API. Gli stack Compose servono
+  // frontend e backend sulla stessa origine (18000 / 28000): spedirli alla
+  // 8000 leggerebbe per errore il database DEV.
+  if (LOCAL_HOSTS.has(location.hostname) && location.port === "3030") return LOCAL_BACKEND;
   return "";
 }
 

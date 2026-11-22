@@ -4,17 +4,43 @@ type RuntimeAuthConfig = {
   DELIR_TENANT_ID?: string;
 };
 
+const TOKEN_KEY = "delir:session-api-token";
+const TENANT_KEY = "delir:session-tenant-id";
+let memoryCredentials: { token: string; tenant: string } | null = null;
+
+function sessionValue(key: string): string {
+  try { return window.sessionStorage.getItem(key) ?? ""; }
+  catch { return ""; }
+}
+
+/** Credentials supplied by the user for this browser origin and session. */
+export function setSessionCredentials(token: string, tenant: string): void {
+  memoryCredentials = { token, tenant };
+  try {
+    window.sessionStorage.setItem(TOKEN_KEY, token);
+    window.sessionStorage.setItem(TENANT_KEY, tenant);
+  } catch { /* In-memory credentials still work for this page. */ }
+}
+
+export function clearSessionCredentials(): void {
+  memoryCredentials = null;
+  try {
+    window.sessionStorage.removeItem(TOKEN_KEY);
+    window.sessionStorage.removeItem(TENANT_KEY);
+  } catch { /* Storage can be unavailable in private browsing. */ }
+}
+
 function runtimeConfig(): RuntimeAuthConfig {
   if (typeof window === "undefined") return {};
   return window as unknown as RuntimeAuthConfig;
 }
 
 function tenantId(): string {
-  return runtimeConfig().DELIR_TENANT_ID || import.meta.env.VITE_DELIR_TENANT_ID || "local";
+  return memoryCredentials?.tenant || sessionValue(TENANT_KEY) || runtimeConfig().DELIR_TENANT_ID || import.meta.env.VITE_DELIR_TENANT_ID || "local";
 }
 
 function apiToken(): string {
-  return runtimeConfig().DELIR_API_TOKEN || import.meta.env.VITE_DELIR_API_TOKEN || "";
+  return memoryCredentials?.token || sessionValue(TOKEN_KEY) || runtimeConfig().DELIR_API_TOKEN || import.meta.env.VITE_DELIR_API_TOKEN || "";
 }
 
 function adminToken(): string {

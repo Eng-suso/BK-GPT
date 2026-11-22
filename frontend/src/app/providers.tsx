@@ -4,6 +4,7 @@ import { RouterProvider } from "react-router-dom";
 import { I18nextProvider } from "react-i18next";
 
 import { router } from "@/app/router";
+import { LocalAuthGate } from "@/app/LocalAuthGate";
 import { ErrorBoundary } from "@/components/feedback";
 import { PeriodProvider } from "@/features/period/PeriodContext";
 import { i18n } from "@/lib/i18n";
@@ -17,9 +18,11 @@ export const AppProviders: React.FC = () => {
             provider, il router stesso. Dentro la shell c'è già quella che
             tiene in piedi la navigazione. */}
         <ErrorBoundary>
-          <PeriodProvider>
-            <RouterProvider router={router} />
-          </PeriodProvider>
+          <LocalAuthGate>
+            <PeriodProvider>
+              <RouterProvider router={router} />
+            </PeriodProvider>
+          </LocalAuthGate>
         </ErrorBoundary>
       </I18nextProvider>
     </QueryClientProvider>

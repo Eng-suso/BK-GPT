@@ -3,6 +3,13 @@
   "private": true,
   "scripts": {
     "dev": "powershell -ExecutionPolicy Bypass -File scripts/dev.ps1",
+    "env:dev": "docker compose -p ops --env-file ops/.env -f ops/docker-compose.yml up -d --wait && npm run dev",
+    "env:staging": "uv --cache-dir .uv-cache run --no-sync python ops/local_release.py init staging && uv --cache-dir .uv-cache run --no-sync python ops/local_release.py up staging",
+    "env:prod-sim": "uv --cache-dir .uv-cache run --no-sync python ops/local_release.py init prod-sim && uv --cache-dir .uv-cache run --no-sync python ops/local_release.py up prod-sim",
+    "env:staging:stop": "uv --cache-dir .uv-cache run --no-sync python ops/local_release.py stop staging",
+    "env:prod-sim:stop": "uv --cache-dir .uv-cache run --no-sync python ops/local_release.py stop prod-sim",
+    "env:staging:teardown": "uv --cache-dir .uv-cache run --no-sync python ops/local_release.py teardown staging",
+    "env:prod-sim:teardown": "uv --cache-dir .uv-cache run --no-sync python ops/local_release.py teardown prod-sim",
     "dev:backend": "uv run uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload",
     "dev:frontend": "npm --prefix frontend run dev -- --host 127.0.0.1 --port 3030",
     "build": "npm --prefix frontend run build",

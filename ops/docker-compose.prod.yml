@@ -74,10 +74,10 @@ services:
       DELIR_AUTH_ENABLED: "true"
       DELIR_API_TOKEN: ${DELIR_API_TOKEN:?serve DELIR_API_TOKEN}
       DELIR_ADMIN_TOKEN: ${DELIR_ADMIN_TOKEN:-}
-      # Il browser che apre una pagina non manda il tenant: il default deve
-      # essere l'unico ammesso, o ogni pagina risponde 403.
-      DELIR_DEFAULT_TENANT_ID: ${DELIR_TENANT_ID:?serve DELIR_TENANT_ID}
-      DELIR_ALLOWED_TENANT_IDS: ${DELIR_TENANT_ID:?serve DELIR_TENANT_ID}
+      # Compatibilita' col pilota a tenant singolo. Un deploy multi-tenant puo'
+      # configurare default e allowlist separatamente.
+      DELIR_DEFAULT_TENANT_ID: ${DELIR_DEFAULT_TENANT_ID:-${DELIR_TENANT_ID:?serve DELIR_TENANT_ID o DELIR_DEFAULT_TENANT_ID}}
+      DELIR_ALLOWED_TENANT_IDS: ${DELIR_ALLOWED_TENANT_IDS:-${DELIR_TENANT_ID:?serve DELIR_TENANT_ID o DELIR_ALLOWED_TENANT_IDS}}
       DELIR_CORS_ORIGINS: ${DELIR_PUBLIC_ORIGIN:?serve DELIR_PUBLIC_ORIGIN}
       RUN_MIGRATIONS_ON_STARTUP: "false"
       # Le password finiscono dentro un URL: solo lettere e cifre.

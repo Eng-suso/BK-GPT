@@ -1,0 +1,54 @@
+# Overlay locale: usare insieme a docker-compose.yml e docker-compose.prod.yml.
+# Usare ops/local_release.py per up/stop/teardown: controlla il project name
+# e le risorse risolte prima di invocare Compose.
+name: ${DELIR_LOCAL_STACK:?serve DELIR_LOCAL_STACK}
+
+services:
+  postgres:
+    container_name: ${DELIR_LOCAL_STACK}-postgres
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  neo4j:
+    container_name: ${DELIR_LOCAL_STACK}-neo4j
+    environment:
+      NEO4J_server_memory_heap_initial__size: 256M
+      NEO4J_server_memory_heap_max__size: 512M
+      NEO4J_server_memory_pagecache_size: 256M
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+
+  docling:
+    container_name: ${DELIR_LOCAL_STACK}-docling
+
+  prosimos:
+    container_name: ${DELIR_LOCAL_STACK}-prosimos
+    environment:
+      GUNICORN_WORKERS: "1"
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  app:
+    container_name: ${DELIR_LOCAL_STACK}-app
+    image: delir:${DELIR_LOCAL_STACK}
+    environment:
+      DELIR_ENVIRONMENT: ${DELIR_LOCAL_ENVIRONMENT:?serve DELIR_LOCAL_ENVIRONMENT}
+      FORWARDED_ALLOW_IPS: 127.0.0.1
+      WORKERS_IN_PROCESS: "false"
+      DELIR_ADMIN_TOKEN: ""
+      LANGSMITH_TRACING: "false"
+      LANGSMITH_API_KEY: ""
+
+volumes:
+  delir_pgdata:
+    name: ${DELIR_LOCAL_VOLUME_PREFIX:?serve DELIR_LOCAL_VOLUME_PREFIX}_pgdata
+  delir_neo4jdata:
+    name: ${DELIR_LOCAL_VOLUME_PREFIX:?serve DELIR_LOCAL_VOLUME_PREFIX}_neo4jdata
+  delir_appdata:
+    name: ${DELIR_LOCAL_VOLUME_PREFIX:?serve DELIR_LOCAL_VOLUME_PREFIX}_appdata

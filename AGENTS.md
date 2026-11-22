@@ -18,6 +18,15 @@ These skills were copied from:
 
 DeliR is an enterprise AI process automation PWA. Frontend work should feel operational, dense, reliable, and professional.
 
+### Customer complexity rule
+
+DeliR must absorb the complexity of the customer's tools and data. A consultant should spend attention on the process problem and the decision to make, never on learning JSON paths, BPMN IDs, statistical encoding, or the interface itself.
+
+- Make the ordinary path automatic and express the result in business language: what was read, what changed, and what needs a decision.
+- Show technical identifiers, raw fields, distributions, and units only when needed for verification or specialist editing. Keep full precision and functionality available.
+- Never turn a failed structured import into a silent partial numeric import. Explain the exact unsupported part and leave the scenario unchanged.
+- Before shipping a workflow, test it with a realistic customer file and check whether a nontechnical consultant can complete it without decoding implementation details.
+
 Prefer:
 
 - Clear workflow-first interfaces over landing-page composition.

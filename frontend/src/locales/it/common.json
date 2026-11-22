@@ -42,6 +42,15 @@
     "crashBody": "Il resto del prodotto continua a funzionare. Riprova, oppure passa a un'altra sezione dalla barra a sinistra.",
     "truncated": "Mostrati i primi {{shown}} di {{total}}. Usa i filtri o la ricerca per trovare gli altri."
   },
+  "localAuth": {
+    "title": "Accesso a DeliR",
+    "description": "Inserisci il tenant e il token di questo ambiente. Li trovi nel suo file .env locale; il token resta in questa sessione del browser.",
+    "tenant": "Tenant",
+    "token": "Token API",
+    "enter": "Entra",
+    "invalid": "Tenant o token non valido per questo ambiente.",
+    "unavailable": "Il backend non risponde. Verifica che l'ambiente sia avviato e riprova."
+  },
   "home": {
     "description": "Panoramica operativa di clienti, progetti e processi nel workspace.",
     "seeAll": "Vedi tutti",

@@ -25,7 +25,11 @@ Al primo avvio del volume Postgres girano, come superuser:
   simulazioni + cronologia chat + indice memoria episodica + checkpoint
   LangGraph)
 
-Per rieseguirli: `docker compose down -v && docker compose up -d`.
+Gli script di inizializzazione girano solo alla creazione del volume. Non
+eliminare il volume DEV per rieseguirli: prima serve un piano di migrazione o
+di ripristino dei dati.
+
+Per STAGING locale e PROD-SIM isolati, vedere [local-release.md](local-release.md).
 
 ## Stack di test (pytest)
 
@@ -404,10 +408,9 @@ curl -s http://127.0.0.1:8000/health/ready
 | Salute | `/health` = processo vivo; `/health/ready` = database raggiungibili e a head |
 | Tenant | `DELIR_TENANT_ID` e' sia il default sia l'unico ammesso: un altro tenant riceve 403 |
 
-**Attenzione sulla macchina di sviluppo:** i nomi dei container e dei volumi
-sono gli stessi dello stack di sviluppo (`delir-postgres`, `delir_pgdata`).
-Per provare l'overlay in locale usare `-p <nome>` e un override che rinomina
-container, volumi e porte, o si avvia sul database di sviluppo.
+**Attenzione sulla macchina di sviluppo:** non avviare questo overlay da solo.
+Riusa i nomi e i volumi DEV. Per prove locali usare sempre l'overlay isolato e
+la configurazione validata di [local-release.md](local-release.md).
 
 Aggiornamento: `git pull` + lo stesso `up -d --build`. Il container vecchio si
 ferma prima che parta il nuovo (pochi secondi di interruzione): per un

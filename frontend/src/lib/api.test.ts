@@ -21,6 +21,11 @@ describe("resolveApiBase", () => {
     expect(resolveApiBase(at("http://localhost:8000/"))).toBe("");
   });
 
+  it("gli stack locali Compose usano la propria origine e non DEV", () => {
+    expect(resolveApiBase(at("http://127.0.0.1:18000/home"))).toBe("");
+    expect(resolveApiBase(at("http://127.0.0.1:28000/home"))).toBe("");
+  });
+
   it("con Vite in sviluppo chiama il backend locale sulla 8000", () => {
     expect(resolveApiBase(at("http://127.0.0.1:3030/projects"))).toBe("http://127.0.0.1:8000");
     expect(resolveApiBase(at("http://localhost:3030/"))).toBe("http://127.0.0.1:8000");
