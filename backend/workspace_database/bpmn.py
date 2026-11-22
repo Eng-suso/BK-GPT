@@ -170,11 +170,32 @@ def _canvas_xml_for_write(xml: str, *, source: str, process_name: str | None = N
     # or omit DI for optional associations; preserve their XML byte-for-byte.
     if "BPMNDiagram" in xml:
         from backend.bpmn.canvas_layout.normalizer import normalize_semantics
+        _validate_manual_di_coordinates(xml)
         normalize_semantics(xml)  # Validate semantics on a copy; preserve the original DI bytes.
         semantic = validate_bpmn_xml(xml)
         if semantic["issues"]:
             raise ValueError("Disegno manuale non valido: " + "; ".join(semantic["issues"]))
     return xml
+
+
+def _validate_manual_di_coordinates(xml: str) -> None:
+    """Reject malformed DI coordinates while preserving valid manual geometry."""
+    import math
+    import xml.etree.ElementTree as ET
+
+    root = ET.fromstring(xml)
+    fields = {
+        "{http://www.omg.org/spec/DD/20100524/DC}Bounds": ("x", "y", "width", "height"),
+        "{http://www.omg.org/spec/DD/20100524/DI}waypoint": ("x", "y"),
+    }
+    for element in root.iter():
+        for name in fields.get(element.tag, ()):
+            try:
+                value = float(element.attrib[name])
+            except (KeyError, ValueError) as exc:
+                raise ValueError(f"Disegno manuale non valido: coordinata {name} mancante o non numerica") from exc
+            if not math.isfinite(value):
+                raise ValueError(f"Disegno manuale non valido: coordinata {name} non finita")
 
 
 def update_bpmn_model(

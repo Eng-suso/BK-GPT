@@ -21,6 +21,13 @@ COMPOSE = (
 )
 
 
+@pytest.fixture(autouse=True)
+def isolated_release_shell(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CI database settings must not override generated release files."""
+    for key in local_release.COMPOSE_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+
+
 def _config(files: tuple[Path, ...], env_file: Path) -> dict:
     if shutil.which("docker") is None:
         pytest.skip("Docker Compose CLI non installato")
