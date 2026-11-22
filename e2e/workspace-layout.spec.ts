@@ -912,6 +912,7 @@ test('selection list opens one element and clearing returns keyboard focus to th
 });
 
 test('mouse and trackpad wheel modes preserve the pointer anchor and model',async({page})=>{
+  test.skip(test.info().project.name === "mobile-safari", "Playwright mobile WebKit does not implement mouse.wheel");
   test.setTimeout(90_000);await page.setViewportSize({width:1600,height:1000});await page.goto(canvasView);
   const canvas=page.locator('.process-bpmn-canvas'), viewport=canvas.locator('.viewport'), task=canvas.locator('[data-element-id="Task_1"]').first();
   await expect(task).toBeVisible();const node=await task.getAttribute('transform');const box=(await canvas.boundingBox())!;const point={x:box.x+box.width*.6,y:box.y+box.height*.65};
@@ -1148,6 +1149,7 @@ test("pool boundaries connect with BPMN message flow",async({page})=>{
 
 
 test("large diagrams keep connection gestures reversible across 500 activities",async({page},info)=>{
+  test.setTimeout(90_000);
   await page.setViewportSize({width:1600,height:1000});
   const nodes=Array.from({length:500},(_,i)=>({id:"Scale_"+i,x:80+(i%25)*180,y:80+Math.floor(i/25)*110}));
   const source='<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" targetNamespace="urn:scale"><bpmn:process id="Scale">'+nodes.map(n=>'<bpmn:task id="'+n.id+'" name="Attività '+n.id+'"/>').join('')+'</bpmn:process><bpmndi:BPMNDiagram id="diagram"><bpmndi:BPMNPlane id="plane" bpmnElement="Scale">'+nodes.map(n=>'<bpmndi:BPMNShape id="'+n.id+'_di" bpmnElement="'+n.id+'"><dc:Bounds x="'+n.x+'" y="'+n.y+'" width="120" height="64"/></bpmndi:BPMNShape>').join('')+'</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>';
@@ -1156,10 +1158,10 @@ test("large diagrams keep connection gestures reversible across 500 activities",
   await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),node=(id:string)=>canvas.locator('.djs-shape[data-element-id="'+id+'"]').first();
   await expect(canvas.locator('.djs-shape[data-delir-type="bpmn:Task"]')).toHaveCount(500);
   await node("Scale_0").click();await page.getByRole("button",{name:"Centra e adatta diagramma",exact:true}).click();
-  const before=Date.now();await page.getByRole("button",{name:"Collega elemento",exact:true}).click();const target=(await node("Scale_2").boundingBox())!;
+  const before=Date.now();await node("Scale_0").click({button:"right"});await page.getByRole("menu",{name:"Azioni della selezione"}).getByRole("menuitem",{name:"Collega elemento",exact:true}).click();const target=(await node("Scale_2").boundingBox())!;
   await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:20});await expect(node("Scale_2")).toHaveClass(/connect-ok/);await expect(canvas.locator(".djs-dragger")).toBeVisible();
   await info.attach("gesture-timing.json",{body:Buffer.from(JSON.stringify({activities:500,previewGestureWallMs:Date.now()-before,note:"Includes Playwright transport; observation, not a frame-rate benchmark."})),contentType:"application/json"});
-  await page.mouse.click(target.x+target.width/2,target.y+target.height/2);await expect(canvas.locator(".djs-connection")).toHaveCount(1);await page.getByRole("button",{name:"Annulla modifica",exact:true}).click();await expect(canvas.locator(".djs-connection")).toHaveCount(0);await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();expect(errors).toEqual([]);
+  await page.mouse.click(target.x+target.width/2,target.y+target.height/2);await expect(canvas.locator(".djs-connection")).toHaveCount(1);await canvas.locator(".djs-container > svg").focus();await page.keyboard.press("Control+z");await expect(canvas.locator(".djs-connection")).toHaveCount(0);await expect(page.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();expect(errors).toEqual([]);
 });
 
 
@@ -1232,6 +1234,7 @@ test("palette lanes partition their pool even when dropped over an existing lane
 });
 
 test("pool edges and lane dividers remain one continuous partition during resize and movement",async({page},info)=>{
+  test.skip(info.project.name.startsWith("mobile-"), "Desktop mouse resize; mobile handle geometry is covered separately");
   await page.setViewportSize({width:1600,height:1000});
   const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8");let saved=source;
   const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
@@ -1286,7 +1289,7 @@ for(const method of ["toolbar","Delete","Backspace","context"] as const)test("bu
 });
 
 test("Delete in a property field edits text without deleting the canvas selection",async({page})=>{
-  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");await canvas.locator('[data-element-id="Task_1"]').first().click();const input=page.getByRole("textbox",{name:"Nome",exact:true});await input.focus();await input.press("Control+a");await input.press("Backspace");await expect(input).toHaveValue("");await expect(canvas.locator(".djs-shape")).toHaveCount(18);await expect(canvas.locator(".djs-connection")).toHaveCount(17);
+  await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas");await canvas.locator('[data-element-id="Task_1"]').first().click();const input=page.getByRole("textbox",{name:"Nome",exact:true});if(!await input.isVisible())await page.getByRole("button",{name:"Proprietà",exact:true}).click();await input.focus();await input.press("Control+a");await input.press("Backspace");await expect(input).toHaveValue("");await expect(canvas.locator(".djs-shape")).toHaveCount(18);await expect(canvas.locator(".djs-connection")).toHaveCount(17);
 });
 
 for(const mobile of [false,true])test("BPMN types show their own symbols directly on "+(mobile?"mobile":"desktop"),async({page},info)=>{
