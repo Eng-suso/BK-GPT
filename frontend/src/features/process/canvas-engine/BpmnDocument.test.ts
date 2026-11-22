@@ -26,6 +26,16 @@ describe("DeliR BPMN document contract", () => {
         task.businessObject.name = "Verify";
         expect(doc.serialize(elements)).toBe(xml);
     });
+    it("preserves an imported association without DI across a move and repeated exports", () => {
+        const source = xml.replace("</bpmn:process>", '<bpmn:textAnnotation id="note"><bpmn:text>Imported note</bpmn:text></bpmn:textAnnotation><bpmn:association id="annotation_link" sourceRef="task" targetRef="note"/></bpmn:process>');
+        const { doc, elements } = importDocument(source);
+        expect(doc.serialize(elements)).toBe(source);
+        elements.find(el => el.id === "task")!.x += 30;
+        const saved = doc.serialize(elements);
+        expect(parse(saved).getElementById("annotation_link")?.getAttribute("targetRef")).toBe("note");
+        const again = importDocument(saved);
+        expect(again.doc.serialize(again.elements)).toBe(saved);
+    });
     it("edits name, geometry and enterprise metadata without losing vendor extensions, conditions, IDs or DI attributes", () => {
         const { doc, elements } = importDocument();
         const task = elements.find(el => el.id === "task")!;
@@ -97,8 +107,8 @@ describe("DeliR BPMN document contract", () => {
         const collaboration=saved.getElementsByTagNameNS(NS.bpmn,"collaboration")[0];
         expect(collaboration.id).not.toBe("process");
         expect(saved.getElementById("Message")!.parentElement).toBe(collaboration);
-        expect(saved.getElementById(saved.getElementById("Company")!.getAttribute("processRef")!)).not.toBeNull();
-        expect(saved.getElementById("Company")!.getAttribute("processRef")).not.toBe(saved.getElementById("Partner")!.getAttribute("processRef"));
+        expect(saved.getElementById("Company")!.getAttribute("processRef")).toBeNull();
+        expect(saved.getElementById("Partner")!.getAttribute("processRef")).toBeNull();
         expect(saved.getElementById("plane")!.getAttribute("bpmnElement")).toBe(collaboration.id);
         expect(new BpmnDocument(new XMLSerializer().serializeToString(saved)).records.filter(record=>record.type === "bpmn:MessageFlow")).toHaveLength(1);
     });
@@ -120,5 +130,28 @@ describe("DeliR BPMN document contract", () => {
         expect(reloaded.records.filter(r=>r.id!=="Pool").every(r=>r.parentId==="Pool")).toBe(true);
         for(const el of elements)delete el.parent;
         expect(doc.serialize(elements)).toBe(xml);
+    });
+    it("makes a dropped task and its flow part of the destination lane and pool after reload",()=>{
+        const {doc,elements}=importDocument();
+        const root={id:"process",type:"bpmn:Process"} as CanvasElement;
+        const pool:CanvasElement={id:"Pool",type:"bpmn:Participant",parent:root,businessObject:businessObject("bpmn:Participant",{id:"Pool"}),x:0,y:0,width:600,height:400};
+        const lane:CanvasElement={id:"Lane",type:"bpmn:Lane",parent:pool,businessObject:businessObject("bpmn:Lane",{id:"Lane"}),x:30,y:0,width:570,height:400};
+        const note:CanvasElement={id:"Note",type:"bpmn:TextAnnotation",parent:lane,businessObject:businessObject("bpmn:TextAnnotation",{id:"Note",name:"Check"}),x:300,y:150,width:100,height:60};
+        for(const element of elements)element.parent=element.waypoints ? root : lane;
+        const saved=doc.serialize([...elements,pool,lane,note]);
+        const parsed=parse(saved), processId=parsed.getElementById("Pool")!.getAttribute("processRef")!;
+        expect(parsed.getElementById("task")!.parentElement!.id).toBe(processId);
+        expect(parsed.getElementById("flow")!.parentElement!.id).toBe(processId);
+        expect(Array.from(parsed.getElementById("Lane")!.getElementsByTagNameNS(NS.bpmn,"flowNodeRef")).map(ref=>ref.textContent).sort()).toEqual(["start","task"]);
+        expect(parsed.getElementById("Note")!.getAttributeNS(NS.delir,"canvasLaneRef")).toBe("Lane");
+        const reloaded=new BpmnDocument(saved);
+        expect(reloaded.records.find(record=>record.id==="task")?.parentId).toBe("Lane");
+        expect(reloaded.records.find(record=>record.id==="Note")?.parentId).toBe("Lane");
+        expect(reloaded.records.find(record=>record.id==="flow")?.parentId).toBe("Pool");
+        const again=reloaded.records.map(record=>({...record})) as unknown as CanvasElement[];
+        const byId=new Map(again.map(element=>[element.id,element]));
+        for(const element of again){element.parent=byId.get(reloaded.records.find(record=>record.id===element.id)?.parentId ?? "") ?? root;const record=reloaded.records.find(record=>record.id===element.id)!;element.source=byId.get(record.sourceId ?? "");element.target=byId.get(record.targetId ?? "");}
+        reloaded.setBaseline(again);
+        expect(reloaded.serialize(again)).toBe(saved);
     });
 });

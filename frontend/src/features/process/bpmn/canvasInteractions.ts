@@ -126,7 +126,6 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
   const blur = () => { stopGesture(); dragging.cancel(); manager.setActive(null); space = false; cursor(); changed(); };
   // A mouseup outside the browser may never reach diagram-js. On re-entry a
   // released primary button must cancel a move, not keep the shape in hand.
-  // Click-to-place creation/connection tools intentionally remain active.
   const recoverMove = (event:MouseEvent) => {
     const context=dragging.context?.();
     if(context?.active && context.prefix === "shape.move" && !(event.buttons & 1)) dragging.cancel();
@@ -160,6 +159,11 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
   document.addEventListener("visibilitychange",visibility);
   bus.on("element.click",2000,keepSelection);
   bus.on("element.mousedown",2000,startMarquee);
+  // A palette or connector action is one-shot, including click-to-place.
+  // Dragging has already completed its modeling command at the .ended event.
+  const finishTool = () => select();
+  bus.on("create.ended", 1000, finishTool);
+  bus.on("connect.ended", 1000, finishTool);
   cursor();
   return {
     select,pan,
@@ -177,7 +181,7 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
       host.removeEventListener("pointerdown",pointerDown,true);host.removeEventListener("pointermove",pointerMove,true);host.removeEventListener("pointerup",pointerEnd,true);host.removeEventListener("pointercancel",pointerEnd,true);host.removeEventListener("click",click,true);host.removeEventListener("contextmenu",contextMenu);host.removeEventListener("wheel",wheel,true);
       host.removeEventListener("pointercancel",pointerCancel,true);host.removeEventListener("mousemove",recoverMove,true);document.removeEventListener("visibilitychange",visibility);
       document.removeEventListener("mousemove",mouseDuringPan,true);document.removeEventListener("keydown",keyDown,true);document.removeEventListener("keyup",keyUp,true);window.removeEventListener("blur",blur);
-      bus.off("element.click",keepSelection);bus.off("element.mousedown",startMarquee);delete host.dataset.delirCursor;
+      bus.off("element.click",keepSelection);bus.off("element.mousedown",startMarquee);bus.off("create.ended",finishTool);bus.off("connect.ended",finishTool);delete host.dataset.delirCursor;
     }
   };
 }

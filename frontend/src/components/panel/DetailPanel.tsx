@@ -66,14 +66,16 @@ export function DetailPanelSection({
   action,
   children,
   id,
+  hidden,
 }: {
   title: string;
   action?: ReactNode;
   children: ReactNode;
   id?: string;
+  hidden?: boolean;
 }): React.JSX.Element {
   return (
-    <section id={id} className="border-t border-border/70 py-4 first:border-t-0">
+    <section id={id} hidden={hidden} className="border-t border-border/70 py-4 first:border-t-0">
       <div className="mb-3 flex items-center justify-between">
         <h4 className="eyebrow">{title}</h4>
         {action}

@@ -162,19 +162,18 @@ def _canvas_xml_for_write(xml: str, *, source: str, process_name: str | None = N
     """Runtime actor is authoritative; source also covers system drawing jobs."""
     from backend.agents.chat_mode import active_mode
     from backend.bpmn.canvas_layout import apply_enterprise_layout
-    from backend.workspace_services.bpmn_canvas_edit import validate_bpmn_layout, validate_bpmn_xml
+    from backend.workspace_services.bpmn_canvas_edit import validate_bpmn_xml
     if active_mode() is not None or source.startswith("canvas_") or source in {"review_approval", "plan_draft"}:
         return apply_enterprise_layout(xml, process_name=process_name)
     # This low-level store also serves legacy records with no diagram yet.
-    # A present manual diagram is validated without changing a single byte.
+    # Manual geometry is advisory. Imported BPMN.io files may contain overlaps
+    # or omit DI for optional associations; preserve their XML byte-for-byte.
     if "BPMNDiagram" in xml:
         from backend.bpmn.canvas_layout.normalizer import normalize_semantics
         normalize_semantics(xml)  # Validate semantics on a copy; preserve the original DI bytes.
         semantic = validate_bpmn_xml(xml)
-        report = validate_bpmn_layout(xml)
-        report["issues"].extend(semantic["issues"])
-        if report["issues"]:
-            raise ValueError("Disegno manuale non valido: " + "; ".join(report["issues"]))
+        if semantic["issues"]:
+            raise ValueError("Disegno manuale non valido: " + "; ".join(semantic["issues"]))
     return xml
 
 

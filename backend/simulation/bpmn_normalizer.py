@@ -84,6 +84,11 @@ _NOISE_TAGS = frozenset(
     }
 )
 
+_EXECUTABLE_CHILD_TAGS = frozenset({
+    "task", "startEvent", "endEvent", "exclusiveGateway", "parallelGateway",
+    "inclusiveGateway", "eventBasedGateway", "intermediateCatchEvent", "sequenceFlow",
+})
+
 
 def _q(ns: str, tag: str) -> str:
     return f"{{{ns}}}{tag}"
@@ -143,6 +148,20 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
         changed |= _collapse_start_events(process)
         changed |= _collapse_end_events(process)
         changed |= _drop_unreachable(process, exception_nodes)
+
+    # Empty participant processes are black-box pools, not executable paths.
+    # The canvas may also leave an empty original process after transferring all
+    # of its nodes into a newly created participant. Prosimos must not receive
+    # either as a second process to simulate.
+    for process in list(root.findall(_q(BPMN_MODEL_NS, "process"))):
+        if any(_local(child.tag) in _EXECUTABLE_CHILD_TAGS for child in process):
+            continue
+        process_id = process.get("id")
+        root.remove(process)
+        for participant in root.iter(_q(BPMN_MODEL_NS, "participant")):
+            if participant.get("processRef") == process_id:
+                participant.attrib.pop("processRef", None)
+        changed = True
 
     if not changed:
         return bpmn_xml

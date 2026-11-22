@@ -75,7 +75,7 @@ export class BpmnDocument {
             if (el.hasAttribute("attachedToRef"))
                 bo.attachedToRef = el.getAttribute("attachedToRef");
             bo.eventDefinitions = Array.from(el.children).filter(child => child.namespaceURI === NS.bpmn && child.localName.endsWith("EventDefinition")).map(child => ({ $type: "bpmn:" + child.localName[0].toUpperCase() + child.localName.slice(1) }));
-            let parentId = laneByNode.get(id);
+            let parentId = laneByNode.get(id) ?? (byId.get(el.getAttributeNS(NS.delir, "canvasLaneRef") ?? "")?.localName === "lane" ? el.getAttributeNS(NS.delir, "canvasLaneRef") ?? undefined : undefined);
             if (!parentId) {
                 let parent = el.parentElement;
                 while (parent && !["process", "subProcess", "collaboration"].includes(parent.localName))
@@ -157,8 +157,12 @@ export class BpmnDocument {
             if (!pool)
                 return process;
             const known = poolProcesses.get(pool.id);
-            if (known)
+            if (known) {
+                const participant = nodes.get(pool.id);
+                if (participant && participant.getAttribute("processRef") !== known.id)
+                    participant.setAttribute("processRef", known.id);
                 return known;
+            }
             const participant = nodes.get(pool.id);
             const reference = participant?.getAttribute("processRef");
             let scoped = reference ? nodes.get(reference) : undefined;
@@ -232,8 +236,10 @@ export class BpmnDocument {
                     (semanticParent?.localName === "subProcess" ? semanticParent : processFor(el)).append(node);
                 nodes.set(el.id, node);
             }
-            if (tag === "participant")
-                processFor(el);
+            // A participant without flow nodes is a BPMN black-box pool. Link
+            // an already created process if its child was visited first.
+            if (tag === "participant" && poolProcesses.has(el.id))
+                node.setAttribute("processRef", poolProcesses.get(el.id)!.id);
             if (tag === "textAnnotation") {
                 let value = direct(node, NS.bpmn, "text")[0];
                 if (!value) {
@@ -358,14 +364,26 @@ export class BpmnDocument {
         // iteration order. Move the original XML node, retaining opaque payloads.
         for (const el of live) {
             if (!el.parent || /Participant$|Lane$|MessageFlow$/.test(el.type)) continue;
-            if (originalParents.get(el.id) === el.parent.id) continue;
+            if (!el.waypoints && originalParents.get(el.id) === el.parent.id) continue;
             const node = nodes.get(el.id);
-            let owner = el.parent;
+            // diagram-js can keep a connection on its old graphical parent when
+            // both endpoints move into a pool. BPMN sequence flow ownership is
+            // semantic and follows the endpoints, not that graphical parent.
+            let owner = el.waypoints && el.source ? el.source.parent ?? el.parent : el.parent;
             while (owner.type === "bpmn:Lane" && owner.parent) owner = owner.parent;
-            const destination = owner.type === "bpmn:SubProcess" ? nodes.get(owner.id) : processFor(el);
+            const destination = owner.type === "bpmn:SubProcess" ? nodes.get(owner.id) : processFor(el.waypoints && el.source ? el.source : el);
             if (node && destination && node.parentElement !== destination) destination.append(node);
         }
-        const laneByNode = new Map(live.filter(el => el.parent?.type === "bpmn:Lane" && !el.waypoints && !["bpmn:Lane", "bpmn:Participant"].includes(el.type)).map(el => [el.id, el.parent!.id]));
+        const flowNodes = live.filter(el => !el.waypoints && /Task$|Activity$|Event$|Gateway$|SubProcess$/.test(el.type));
+        const laneByNode = new Map(flowNodes.filter(el => el.parent?.type === "bpmn:Lane").map(el => [el.id, el.parent!.id]));
+        for (const el of live.filter(el => !el.waypoints && !flowNodes.includes(el) && !/Participant$|Lane$/.test(el.type))) {
+            const node = nodes.get(el.id);
+            if (!node) continue;
+            if (el.parent?.type === "bpmn:Lane") {
+                definitions.setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns:delir", NS.delir);
+                node.setAttributeNS(NS.delir, "delir:canvasLaneRef", el.parent.id);
+            } else node.removeAttributeNS(NS.delir, "canvasLaneRef");
+        }
         for (const lane of all(doc, NS.bpmn, "lane"))
             for (const ref of direct(lane, NS.bpmn, "flowNodeRef"))
                 if (this.originalIds.has(ref.textContent ?? "") && laneByNode.get(ref.textContent ?? "") !== lane.id)

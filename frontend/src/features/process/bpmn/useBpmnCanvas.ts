@@ -210,6 +210,8 @@ export function useBpmnCanvas({
         const { xml } = await modelerRef.current.saveXML({ format: true });
         if (xml) onCurrentXmlChangeRef.current?.(xml);
         if (xml && lastSavedXmlRef.current === xml) {
+          clearDraftTimer();
+          clearLocalBpmnDraft(bpmnModelId);
           markUnsaved(false);
           setStatus("Salvato");
           return;
@@ -222,7 +224,7 @@ export function useBpmnCanvas({
       setStatus("Modifiche non salvate");
       scheduleLocalDraftSave();
     }, 120);
-  }, [scheduleLocalDraftSave]);
+  }, [bpmnModelId, scheduleLocalDraftSave]);
 
   // Fit after importing a document. Resizing panes preserves the user camera.
   const scheduleCanvasFit = useCallback(() => {

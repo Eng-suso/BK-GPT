@@ -32,3 +32,27 @@ export function canMoveElements(shapes: CanvasElement[], target: CanvasElement |
   }
   return true;
 }
+
+/** A hovered task, edge or moving shape is not a semantic container. Keep the
+ * current parent when a drop cannot legally transfer the selection. */
+export function moveTarget(shapes: CanvasElement[], hover: CanvasElement | undefined, elements: CanvasElement[], delta?: Point): CanvasElement | undefined {
+  const roots = shapes.filter(shape => !shape.labelTarget && !shape.waypoints);
+  const current = roots[0]?.parent;
+  // Hover is the element under the pointer, which can be a connection, label,
+  // or a sibling node. Resolve ownership from the dropped bounds as well so a
+  // shape placed inside a lane joins that lane even when the pointer is over a
+  // child or the canvas reports the pool underneath.
+  if (delta && roots.length && roots.every(shape => !/Participant$|Lane$/.test(shape.type))) {
+    const containing = elements.filter(element => /Participant$|Lane$|SubProcess$/.test(element.type) &&
+      roots.every(shape => shape.x + delta.x >= element.x + (/Participant$|Lane$/.test(element.type) ? 30 : 0) &&
+        shape.y + delta.y >= element.y && shape.x + delta.x + shape.width <= element.x + element.width &&
+        shape.y + delta.y + shape.height <= element.y + element.height))
+      .sort((a, b) => a.width * a.height - b.width * b.height);
+    for (const container of containing)
+      if (canMoveElements(shapes, container, elements, delta)) return container;
+  }
+  let candidate = hover;
+  while (candidate && !/Process$|Collaboration$|Participant$|Lane$|SubProcess$/.test(candidate.type)) candidate = candidate.parent;
+  if (candidate && canMoveElements(shapes, candidate, elements, delta)) return candidate;
+  return current && canMoveElements(shapes, current, elements, delta) ? current : undefined;
+}

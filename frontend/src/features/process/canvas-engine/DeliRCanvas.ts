@@ -3,10 +3,11 @@ import SelectionModule from "diagram-js/lib/features/selection";
 import { LaneCommand } from "./Lanes";
 import { DeleteSelectionCommand, deletionTargets } from "./DeleteSelection";
 import { ConnectionOrder } from "./ConnectionOrder";
+import { ConnectionMovePreview } from "./ConnectionMovePreview";
 import { laneChildren, partitionResize, validPartitionResize, type Bounds } from "./Partitions";
 import { getMinResizeBounds } from "diagram-js/lib/features/resize/ResizeUtil";
 import { connectionRule, canStartConnection, flowScope } from "./connectionRules";
-import { canMoveElements } from "./moveRules";
+import { canMoveElements, moveTarget } from "./moveRules";
 import { DeliROutline } from "./Outline";
 import OutlineModule from "diagram-js/lib/features/outline";
 import OverlaysModule from "diagram-js/lib/features/overlays";
@@ -123,7 +124,7 @@ export class DeliRCanvas {
         this.editable = Boolean(options.editable);
         options.container.classList.add("delir-diagram");
         const editModules = this.editable ? [ModelingModule, MoveModule, CreateModule, ConnectModule, ConnectionPreviewModule, GlobalConnectModule, LassoModule, SpaceModule, ResizeModule, BendpointsModule, HoverFixModule, CopyPasteModule, KeyboardModule, EditorActionsModule] : [];
-        this.diagram = new Diagram({ canvas: { container: options.container, deferUpdate: false }, modules: [SelectionModule, OutlineModule, OverlaysModule, ...editModules, { __init__: ["delirRenderer", "delirOutline","delirConnectionOrder"], delirConnectionOrder:["type",ConnectionOrder], delirOutline: ["type", DeliROutline], delirRenderer: ["type", DeliRRenderer], resizeHandles: ["type", DeliRResizeHandles], layouter: ["type", OrthogonalLayout], connectionDocking: ["type", CroppingConnectionDocking] }] });
+        this.diagram = new Diagram({ canvas: { container: options.container, deferUpdate: false }, modules: [SelectionModule, OutlineModule, OverlaysModule, ...editModules, { __init__: ["delirRenderer", "delirOutline","delirConnectionOrder", ...(this.editable ? ["delirConnectionMovePreview"] : [])], delirConnectionOrder:["type",ConnectionOrder], delirConnectionMovePreview:["type",ConnectionMovePreview], delirOutline: ["type", DeliROutline], delirRenderer: ["type", DeliRRenderer], resizeHandles: ["type", DeliRResizeHandles], layouter: ["type", OrthogonalLayout], connectionDocking: ["type", CroppingConnectionDocking] }] });
         const factory = this.diagram.get<Factory>("elementFactory"), original = factory.create.bind(factory);
         factory.create = (kind, attrs = {}) => {
             const type = String(attrs.type ?? (kind === "connection" ? "bpmn:SequenceFlow" : "bpmn:Task")), id = String(attrs.id ?? attrs.delirId ?? type.replace("bpmn:", "") + "_" + crypto.randomUUID().replaceAll("-", "").slice(0, 12));
@@ -249,6 +250,19 @@ export class DeliRCanvas {
             context.shapes=context.validatedShapes=owner.type === "bpmn:Lane" && owner.parent ? laneChildren(owner.parent) : [owner];
             context.shape=owner;
         });
+        // diagram-js validates the raw hovered element. A task or connector is
+        // not a parent, so that validation otherwise rejects an ordinary drag.
+        const settleMoveTarget = (value: unknown) => {
+            const event = value as { hover?: CanvasElement; dx?: number; dy?: number; context: { shapes: CanvasElement[]; delta?: Point; target?: CanvasElement; canExecute?: boolean } };
+            const delta = event.context.delta ?? { x: event.dx ?? 0, y: event.dy ?? 0 };
+            const target = moveTarget(event.context.shapes, event.hover ?? event.context.target, this.diagram.get<Registry>("elementRegistry").getAll(), delta);
+            event.context.target = target;
+            event.context.canExecute = Boolean(target);
+        };
+        bus.on("shape.move.move", 499.5, settleMoveTarget);
+        // The pointer may enter a node after the last move event. Resolve its
+        // parent again immediately before diagram-js commits the drop.
+        bus.on("shape.move.end", 1500, settleMoveTarget);
         bus.on("commandStack.element.copy.canExecute", 2000, () => true);
         bus.on("commandStack.connection.start.canExecute", 2000, value => {
             const source = (value as { context: { source?: CanvasElement } }).context.source;

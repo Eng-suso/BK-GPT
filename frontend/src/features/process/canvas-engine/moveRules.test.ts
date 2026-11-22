@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canMoveElements } from "./moveRules";
+import { canMoveElements, moveTarget } from "./moveRules";
 import { businessObject, type CanvasElement } from "./types";
 
 const shape = (id:string,type:string,parent?:CanvasElement):CanvasElement => ({id,type,parent,businessObject:businessObject(type,{id}),x:60,y:20,width:40,height:40});
@@ -10,6 +10,17 @@ function graph() {
   return {root,pool,a,b,edge,elements:[root,pool,a,b,edge]};
 }
 describe("subgraph pool adoption",()=>{
+  it("keeps the current parent when hovering a node or an invalid drop target",()=>{
+    const {root,a,b,edge,elements}=graph();
+    expect(moveTarget([a],b,elements,{x:150,y:0})).toBe(root);
+    expect(moveTarget([a],edge,elements,{x:150,y:0})).toBe(root);
+  });
+  it.each(["bpmn:Task", "bpmn:StartEvent", "bpmn:ExclusiveGateway", "bpmn:TextAnnotation"])("keeps a %s movable across another element", type=>{
+    const {root,b,edge,elements}=graph();
+    const moving=shape("moving",type,root);
+    expect(moveTarget([moving],b,[...elements,moving],{x:150,y:0})).toBe(root);
+    expect(moveTarget([moving],edge,[...elements,moving],{x:150,y:0})).toBe(root);
+  });
   it("allows a complete connected selection, with or without its explicit edge",()=>{
     const {pool,a,b,edge,elements}=graph();
     expect(canMoveElements([a,b],pool,elements,{x:0,y:150})).toBe(true);
@@ -24,6 +35,14 @@ describe("subgraph pool adoption",()=>{
     const lane={...shape("lane","bpmn:Lane",pool),x:30,y:100,width:570,height:300};
     expect(canMoveElements([a],lane,elements,{x:0,y:150})).toBe(true);
     expect(canMoveElements([a,b],lane,elements,{x:500,y:150})).toBe(false);
+  });
+  it("assigns a dropped task to the deepest containing lane even when hover reports the pool",()=>{
+    const {pool,a,b,edge,elements}=graph();a.parent=pool;b.parent=pool;
+    const lane={...shape("lane","bpmn:Lane",pool),x:30,y:100,width:570,height:300};
+    a.x=90;a.y=130;b.x=210;b.y=130;
+    expect(moveTarget([a],pool,[...elements,lane],{x:0,y:0})).toBe(lane);
+    expect(moveTarget([a],b,[...elements,lane],{x:0,y:0})).toBe(lane);
+    expect(edge.waypoints).toHaveLength(2);
   });
   it("does not let a pool become its own descendant or merge message-flow endpoints",()=>{
     const {root,pool,a,b,edge,elements}=graph();a.parent=pool;
