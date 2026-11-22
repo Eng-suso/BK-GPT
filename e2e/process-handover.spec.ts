@@ -201,7 +201,11 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: 
     // Le pagine scorrono in un contenitore loro: e' li' che il contenuto non deve uscire.
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
     const results = await new AxeBuilder({ page }).include(".handover").analyze();
-    expect(results.violations.map((violation) => violation.id)).toEqual([]);
+    const violations = results.violations.map((violation) => ({
+      id: violation.id,
+      nodes: violation.nodes.map((node) => ({ target: node.target, html: node.html, summary: node.failureSummary })),
+    }));
+    expect(violations).toEqual([]);
     await page.screenshot({ path: info.outputPath(`handover-${viewport.name}.png`), fullPage: true });
   });
 }
