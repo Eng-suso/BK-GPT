@@ -1,0 +1,30 @@
+{
+  "states": [
+    {
+      "name": "delir-selected-source",
+      "violations": [],
+      "overflow": false
+    },
+    {
+      "name": "delir-connect-preview",
+      "violations": [],
+      "overflow": false
+    },
+    {
+      "name": "delir-connected",
+      "violations": [],
+      "overflow": false
+    },
+    {
+      "name": "delir-selected-mobile",
+      "violations": [],
+      "overflow": false
+    },
+    {
+      "name": "delir-connecting-mobile",
+      "violations": [],
+      "overflow": false
+    }
+  ],
+  "errors": []
+}

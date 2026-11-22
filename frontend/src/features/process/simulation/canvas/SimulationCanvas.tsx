@@ -1,13 +1,10 @@
-import { canvasThemeOptions } from "../../bpmn/canvasTheme";
 import React from "react";
 import { useTranslation } from "react-i18next";
-import Viewer from "bpmn-js/lib/Viewer";
-import NavigatedViewer from "bpmn-js/lib/NavigatedViewer";
+import { DeliRCanvas as Viewer, DeliRCanvas as NavigatedViewer } from "../../canvas-engine/DeliRCanvas";
 import { Maximize2, Minus, Plus } from "lucide-react";
 
-import "bpmn-js/dist/assets/bpmn-js.css";
-import "bpmn-js/dist/assets/diagram-js.css";
-import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
+import "diagram-js/assets/diagram-js.css";
+import "@/features/process/canvas-engine/canvas.css";
 
 import { Button } from "@/ui/button";
 import { cn } from "@/lib/utils";
@@ -99,7 +96,7 @@ export function SimulationCanvas({
     const ViewerClass = sharedCanvas ? Viewer : NavigatedViewer;
     const viewer = new ViewerClass({
       container: containerRef.current,
-      ...canvasThemeOptions(containerRef.current),
+      navigation: !sharedCanvas,
     }) as unknown as BpmnViewer;
     viewerRef.current = viewer;
 

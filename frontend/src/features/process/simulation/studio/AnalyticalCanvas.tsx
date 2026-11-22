@@ -36,14 +36,10 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, lib
   const insertionFrame = React.useRef<number | null>(null);
   React.useEffect(() => () => { if (insertionFrame.current !== null) cancelAnimationFrame(insertionFrame.current); }, []);
   const process = objects.find(object => object.id === PROCESS_ID);
-  // The navigation and zoom bars float over the bottom of the scene: a fitted
-  // view stops above them so they never cover a widget.
-  const controlsInset = (el: HTMLElement) =>
-    (el.parentElement?.querySelector<HTMLElement>(".sim-scene-controls")?.offsetHeight ?? 0) + 12;
   const focus = (rect: CanvasRect) => {
     const el = viewport.current;
     if (el) {
-      const fitted = fitCamera(rect, el.clientWidth, el.clientHeight, controlsInset(el));
+      const fitted = fitCamera(rect, el.clientWidth, el.clientHeight);
       setCamera(fitted);
     }
   };
@@ -72,7 +68,7 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, lib
         // Fit the whole process and principal analyses in both dimensions once.
         // Later inspector/palette resizes must preserve the user camera.
         const rect = el.clientWidth < 700 ? initialProcess.rect : bounds(initialObjects.slice(0, 3).map(object => object.rect));
-        setCamera(fitCamera(rect, el.clientWidth, el.clientHeight, Math.max(64, controlsInset(el))));
+        setCamera(fitCamera(rect, el.clientWidth, el.clientHeight));
         initialized.current = true;
       }
     });
@@ -143,7 +139,7 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, lib
       <Surface asChild variant="floating"><div className="sim-scene-navigation">
       <Button variant="ghost" size="icon" title={t("simulation.workspaceHierarchy.center")} aria-label={t("simulation.workspaceHierarchy.center")} onClick={() => process && focus(process.rect)}><Workflow aria-hidden className="size-4" /></Button>
       <label className="sim-scene-jump"><span className="sr-only">{t("simulation.scene.goTo")}</span><select className="ui-field" aria-label={t("simulation.scene.goTo")} value="" onChange={event => { const object = objects.find(item => item.id === event.target.value); if (object) { setActiveObject(object.id); focus(object.rect); } }}><option value="">{t("simulation.scene.goTo")}</option>{objects.map(object => <option value={object.id} key={object.id}>{object.title}</option>)}</select></label>
-      <WorkspaceDisclosure label={t("simulation.workspaceHierarchy.navigation")} contentClassName="bottom-full top-auto mb-2 mt-0"><p className="text-xs text-muted-foreground">{t("simulation.workspaceHierarchy.gestureHint")}</p><div className="sim-scene-extra" ref={onActionsHost} /></WorkspaceDisclosure>
+      <WorkspaceDisclosure label={t("simulation.workspaceHierarchy.navigation")}><p className="text-xs text-muted-foreground">{t("simulation.workspaceHierarchy.gestureHint")}</p><div className="sim-scene-extra" ref={onActionsHost} /></WorkspaceDisclosure>
       </div></Surface><Surface asChild variant="floating"><div className="sim-scene-navigation">
       <Button variant="outline" type="button" className="sim-scene-map" aria-label={t("simulation.scene.map")} title={t("simulation.scene.showAll")} onClick={event => {
         const id = event.detail ? (event.target as HTMLElement).getAttribute("data-map-id") : null;

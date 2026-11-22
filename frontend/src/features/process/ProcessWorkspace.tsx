@@ -43,35 +43,38 @@ function ModelingProcessWorkspace({ project, process, view, propertiesOpen, onTo
   const { t } = useTranslation("process");
   const { ref, width } = useElementWidth<HTMLElement>();
   const [chatOpen, setChatOpen] = React.useState(false);
-  const [chatWidth, setChatWidth] = usePanelSize("process-chat", 360, 320, 480);
+  const [focusCanvas, setFocusCanvas] = React.useState(false);
+  const [chatWidth, setChatWidth] = usePanelSize("process-chat", 400, 360, 520);
   const [inspectorCloseLabel, setInspectorCloseLabel] = React.useState<string | null>(null);
   const [inspectorTitle, setInspectorTitle] = React.useState<string | null>(null);
+  const [inspectorShowOnCompact, setInspectorShowOnCompact] = React.useState(false);
   const inspectorClose = React.useRef<(() => void) | null>(null);
   const inspectorHost = React.useRef<HTMLDivElement | null>(null);
-  const onInspectorChange = React.useCallback((inspector: { title: string; closeLabel: string; close: () => void } | null) => { inspectorClose.current = inspector?.close ?? null; setInspectorTitle(inspector?.title ?? null); setInspectorCloseLabel(inspector?.closeLabel ?? null); }, []);
+  const onInspectorChange = React.useCallback((inspector: { title: string; closeLabel: string; close: () => void; showOnCompact: boolean } | null) => { inspectorClose.current = inspector?.close ?? null; setInspectorTitle(inspector?.title ?? null); setInspectorCloseLabel(inspector?.closeLabel ?? null); setInspectorShowOnCompact(inspector?.showOnCompact ?? false); }, []);
   const [currentCanvasXml, setCurrentCanvasXml] = React.useState<string | null>(null);
   const [currentCanvasVersionId, setCurrentCanvasVersionId] = React.useState<number | null>(null);
-  const propertiesPanelRef = React.useRef<HTMLDivElement | null>(null);
+  const [technicalPropertiesHost,setTechnicalPropertiesHost] = React.useState<HTMLDivElement|null>(null);
   const enterprisePropertiesHost = React.useRef<HTMLDivElement | null>(null);
   // A support pane is inline only when at least 720 px remain for the model.
-  const inline = width >= 1090;
-  const availableChatWidth = Math.min(chatWidth, Math.max(320, width - 792));
+  const inline = width >= 1152;
+  const availableChatWidth = Math.min(chatWidth, Math.max(360, width - 792));
   const bothFit = width >= availableChatWidth + 480 + 792;
-  const showChat = chatOpen && (!propertiesOpen || bothFit);
-  const detailsOpen = Boolean(inspectorTitle) && (!showChat || bothFit);
-  const rightOpen = propertiesOpen || detailsOpen;
-  const supportReplacesCanvas = !inline && (showChat || propertiesOpen);
+  const showChat = !focusCanvas && chatOpen && (!propertiesOpen || bothFit);
+  // Compact canvases keep their full height; properties open explicitly.
+  const detailsOpen = !focusCanvas && (inline || inspectorShowOnCompact) && Boolean(inspectorTitle) && (!showChat || bothFit);
+  const rightOpen = !focusCanvas && (propertiesOpen || detailsOpen);
+  const supportReplacesCanvas = !focusCanvas && !inline && (showChat || propertiesOpen || detailsOpen);
   const lastTrigger = React.useRef<HTMLElement | null>(null);
   const closeRef = React.useRef<HTMLButtonElement | null>(null);
 
   const restoreSupportFocus = React.useRef(false);
   React.useLayoutEffect(() => {
-    if (supportReplacesCanvas) (closeRef.current ?? ref.current?.querySelector<HTMLButtonElement>(`.process-studio-properties button[aria-label="${CSS.escape(t("actions.closeOverlays"))}"]`))?.focus();
+    if (supportReplacesCanvas) (closeRef.current ?? ref.current?.querySelector<HTMLButtonElement>(`.process-studio-properties button[aria-label="${CSS.escape(propertiesOpen ? t("actions.closeOverlays") : inspectorCloseLabel ?? t("actions.closeOverlays"))}"]`))?.focus();
     else if (restoreSupportFocus.current && !propertiesOpen && !showChat) {
       restoreSupportFocus.current = false;
       lastTrigger.current?.focus({ preventScroll: true });
     }
-  }, [supportReplacesCanvas, propertiesOpen, showChat, ref, t]);
+  }, [supportReplacesCanvas, propertiesOpen, showChat, inspectorCloseLabel, ref, t]);
 
   const closeSupport = () => {
     restoreSupportFocus.current = true;
@@ -80,19 +83,28 @@ function ModelingProcessWorkspace({ project, process, view, propertiesOpen, onTo
   };
   const closeInspector = () => { if (propertiesOpen) closeSupport(); else { inspectorClose.current?.(); ref.current?.querySelector<HTMLButtonElement>(`button[aria-label="${CSS.escape(t("actions.toggleProperties"))}"]`)?.focus({ preventScroll: true }); } };
   const toggleChat = () => {
+    setFocusCanvas(false);
     lastTrigger.current = ref.current?.querySelector<HTMLElement>(`button[aria-label="${CSS.escape(t("actions.toggleChat"))}"]`) ?? document.activeElement as HTMLElement | null;
     if (!showChat && propertiesOpen && !bothFit) onTogglePropertiesPanel();
     setChatOpen(!showChat);
   };
   const toggleProperties = () => {
+    setFocusCanvas(false);
     lastTrigger.current = ref.current?.querySelector<HTMLElement>(`button[aria-label="${CSS.escape(t("actions.toggleProperties"))}"]`) ?? document.activeElement as HTMLElement | null;
     if (!propertiesOpen && !bothFit) setChatOpen(false);
     onTogglePropertiesPanel();
   };
+  const toggleFocusCanvas = () => {
+    if (!focusCanvas) {
+      setChatOpen(false);
+      if (propertiesOpen) onTogglePropertiesPanel();
+    }
+    setFocusCanvas(value => !value);
+  };
 
   return (
     <section ref={ref} className="process-workspace process-workspace--embedded" onKeyDown={(event) => {
-      if (event.key === "Escape" && supportReplacesCanvas) { event.preventDefault(); closeSupport(); }
+      if (event.key === "Escape" && !event.defaultPrevented && supportReplacesCanvas) { event.preventDefault(); closeSupport(); }
     }}>
       <div className={`process-workspace-grid process-view-${view}`}>
         {view === "canvas" ? (
@@ -107,15 +119,15 @@ function ModelingProcessWorkspace({ project, process, view, propertiesOpen, onTo
                   <ChatExperience chrome="panel" layout="embedded" scope={{ type: "canvas", projectId: project.id, processId: process.id, bpmnModelId: process.bpmnModelId, processName: process.name, currentBpmnXml: currentCanvasXml, currentBpmnVersionId: currentCanvasVersionId }} />
                 </div>
               </section>
-              {inline && <div className="process-chat-resize"><WorkspaceResizeSeparator label={t("actions.toggleChat")} value={availableChatWidth} minimum={320} maximum={Math.min(480, width - 792)} edge="end" onResize={setChatWidth} /></div>}
+              {inline && <div className="process-chat-resize"><WorkspaceResizeSeparator label={t("actions.toggleChat")} value={availableChatWidth} minimum={360} maximum={Math.min(520, width - 792)} edge="end" onResize={setChatWidth} /></div>}
             </>}
             <div className="process-studio-canvas" style={{ flex: 1, minWidth: 0 }} hidden={supportReplacesCanvas}>
-              <ProcessBpmnCanvas bpmnModelId={process.bpmnModelId} processId={process.id} processName={process.name} propertiesPanelRef={propertiesPanelRef} enterprisePropertiesHost={enterprisePropertiesHost} inspectorHost={inspectorHost} onInspectorChange={onInspectorChange} onCurrentXmlChange={setCurrentCanvasXml} onBaseVersionChange={setCurrentCanvasVersionId} onOpenDiscussion={onOpenDiscussion} isCanvasChatOpen={showChat} onToggleCanvasChat={toggleChat} isPropertiesOpen={propertiesOpen} onTogglePropertiesPanel={toggleProperties} />
+              <ProcessBpmnCanvas bpmnModelId={process.bpmnModelId} processId={process.id} processName={process.name} technicalPropertiesHost={technicalPropertiesHost} enterprisePropertiesHost={enterprisePropertiesHost} inspectorHost={inspectorHost} onInspectorChange={onInspectorChange} onCurrentXmlChange={setCurrentCanvasXml} onBaseVersionChange={setCurrentCanvasVersionId} onOpenDiscussion={onOpenDiscussion} isCanvasChatOpen={showChat} onToggleCanvasChat={toggleChat} isPropertiesOpen={propertiesOpen} onTogglePropertiesPanel={toggleProperties} isFocusMode={focusCanvas} onToggleFocusMode={toggleFocusCanvas} />
             </div>
             <WorkspaceInspector label={t("properties.title")} title={propertiesOpen ? t("properties.title") : inspectorTitle ?? t("properties.title")} closeLabel={propertiesOpen ? t("actions.closeOverlays") : inspectorCloseLabel ?? t("actions.closeOverlays")} onClose={closeInspector} hidden={!rightOpen} resizeLabel={inline ? t("actions.resizeInspector") : undefined} initialWidth={360} maximumWidth={480} minimumStageWidth={784 + (showChat && inline ? availableChatWidth + 12 : 0)} className={`process-studio-properties ${inline ? "" : "process-studio-properties--compact"}`} bodyClassName="process-inspector-body">
               {/* Both hosts stay mounted: opening a pane must not rebuild the modeler. */}
               <div className="process-enterprise-host" ref={enterprisePropertiesHost} hidden={!propertiesOpen} />
-              <details className="process-technical-properties" hidden={!propertiesOpen}><summary>{t("properties.enterprise.technical")}</summary><div className="process-bpmn-properties-host ui-scrollbar" ref={propertiesPanelRef} /></details>
+              <details className="process-technical-properties" hidden={!propertiesOpen}><summary>{t("properties.enterprise.technical")}</summary><div className="process-bpmn-properties-host ui-scrollbar" ref={setTechnicalPropertiesHost} /></details>
               <div ref={inspectorHost} className="process-detail-host ui-scrollbar" hidden={propertiesOpen} />
             </WorkspaceInspector>
           </div>

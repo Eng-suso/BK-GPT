@@ -16,7 +16,9 @@ describe("the element navigator", () => {
       { id: "task", name: "Verify", type: "UserTask", kind: "task" },
       { id: "custom", name: "", type: "ServiceTask", kind: "automation" },
     ]);
-    expect(addMarker).toHaveBeenCalledExactlyOnceWith("task", "delir-type-task");
+    expect(addMarker).toHaveBeenCalledWith("task", "delir-type-task");
+    expect(addMarker).toHaveBeenCalledWith("task_label", "delir-selection-label");
+    expect(addMarker).not.toHaveBeenCalledWith("custom", "delir-type-automation");
     expect(elements[4].di?.$attrs["bioc:fill"]).toBe("#123456");
   });
   it("retains BPMN type distinctions without implying that every event is an activity", () => {

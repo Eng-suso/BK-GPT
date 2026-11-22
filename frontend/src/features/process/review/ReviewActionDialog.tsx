@@ -24,7 +24,7 @@ export function ReviewActionDialog({ processId, node, revision, kind, initialTit
   const mutation = useCreateReviewAction(processId);
   const conflict = mutation.error instanceof HttpError && mutation.error.status === 409;
   return <Dialog open onOpenChange={open => { if (!open && !mutation.isPending) onClose(); }}>
-    <DialogContent className="sm:max-w-lg" onCloseAutoFocus={event => { event.preventDefault(); requestAnimationFrame(() => { if (returnFocus.current?.isConnected) returnFocus.current.focus({ preventScroll: true }); else onReturnFocus(); }); }} onEscapeKeyDown={event => { if (mutation.isPending) event.preventDefault(); }} onPointerDownOutside={event => { if (mutation.isPending) event.preventDefault(); }}>
+    <DialogContent className="sm:max-w-lg" onCloseAutoFocus={event => { event.preventDefault(); requestAnimationFrame(() => { if (returnFocus.current?.isConnected) returnFocus.current.focus({ preventScroll: true }); else onReturnFocus(); }); }} onEscapeKeyDown={event => { event.stopPropagation(); if (mutation.isPending) event.preventDefault(); }} onPointerDownOutside={event => { if (mutation.isPending) event.preventDefault(); }}>
       <DialogTitle>{t(`review.action.${kind}`)}</DialogTitle>
       <DialogDescription>{t(`review.actionDescription.${kind}`, { name: node.name })}</DialogDescription>
       {initialDetail && initialDetail.length > 4000 && <p className="text-xs text-muted-foreground">{t("review.agent.draftTrimmed")}</p>}

@@ -23,7 +23,7 @@
  */
 .process-workspace--embedded {
   grid-template-rows: minmax(0, 1fr);
-  padding: 0 16px 16px;
+  padding: var(--layout-workspace-padding);
 }
 
 .process-workspace--embedded > .process-workspace-grid {
@@ -44,10 +44,10 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--material-edge);
-  border-radius: var(--material-radius-panel);
-  background: var(--material-panel);
-  box-shadow: var(--material-shadow);
+  border:0;
+  border-radius:var(--layout-workspace-radius);
+  background:var(--material-panel);
+  box-shadow:none;
 }
 
 .process-simulation-panel {
@@ -145,10 +145,10 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--material-edge);
-  border-radius: var(--material-radius-panel);
-  background: var(--material-panel);
-  box-shadow: var(--material-shadow);
+  border:0;
+  border-radius:var(--layout-workspace-radius);
+  background:var(--material-panel);
+  box-shadow:none;
 }
 
 .process-studio-properties {
@@ -397,7 +397,7 @@
 }
 
 .process-studio-chat .embedded-chat-body {
-  padding: var(--space-300) var(--space-400);
+  padding: 12px 16px;
 }
 
 .process-studio-chat .embedded-chat-panel .composer-wrap {
@@ -698,8 +698,8 @@
 }
 
 /* Process studio adopts the shared workspace hierarchy; materials stay in Satin. */
-.process-studio-header { margin: 0; border-radius: 0; min-height: var(--layout-contextbar-height); padding-block: 12px; }
-.process-workspace--embedded { padding: 8px 12px 12px; }
+.process-studio-header { margin: 0; border-radius: 0; min-height: var(--layout-contextbar-height); padding-block: 8px; }
+.process-workspace--embedded { padding: var(--layout-workspace-padding); }
 .process-bpmn-toolbar { min-height: 44px; padding: 6px 10px; gap: 8px; }
 .process-bpmn-stage { position: relative; }
 .process-canvas-navigation { position: absolute; bottom: 12px; right: 80px; z-index: 6; display: flex; align-items: center; gap: 2px; padding: 5px; border-radius: 999px; }
@@ -721,7 +721,7 @@
   .process-studio-header > :last-child > :last-child { margin-left: auto; }
   .process-view-label { display: none; }
   .process-section-link { display: none; }
-  .process-workspace--embedded { padding: 6px; }
+  .process-workspace--embedded { padding: var(--layout-workspace-padding); }
   .process-canvas-navigation { right: 8px; bottom: 40px; }
   .process-canvas-navigation { max-width: calc(100% - 16px); flex-wrap: wrap; justify-content: flex-end; }
   .process-canvas-navigation [data-slot="button"] { min-width: 44px; min-height: 44px; }
@@ -733,7 +733,7 @@
   .process-library-entry { min-height: 44px; }
 }
 
-.process-studio-properties.ui-workspace-inspector { display: flex; margin-left: 12px; }
+.process-studio-properties.ui-workspace-inspector { display:flex; margin-left:var(--layout-pane-gap); border-inline-start:0; box-shadow:var(--material-soft-edge), var(--material-soft-separator); }
 .process-studio-properties[hidden], .process-detail-host[hidden], .process-bpmn-properties-host[hidden] { display: none; }
 .process-inspector-body { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 .process-detail-host, .process-bpmn-properties-host { min-height: 0; flex: 1; overflow: auto; }
@@ -742,7 +742,7 @@
 .process-studio-properties--compact { width: 100%; flex: 1; margin-left: 0 !important; }
 .process-studio-flex--stacked { flex-direction: column; gap: 8px; }
 .process-studio-flex--stacked > .process-studio-properties { flex: 0 1 46%; max-height: 46%; }
-.process-chat-resize { position: relative; width: 12px; flex: 0 0 12px; }
+.process-chat-resize { position: relative; width:var(--layout-pane-gap); flex:0 0 var(--layout-pane-gap); }
 .process-chat-resize .ui-workspace-splitter { inset-inline-start: 0; }
 
 .process-studio-properties:not(.process-studio-properties--compact) { width: var(--workspace-inspector-width, 360px); }
@@ -756,3 +756,5 @@
 }
 
 @media (max-width: 620px) { .process-stage-badge { display: none; } }
+
+.embedded-chat-panel:has(> .chat-workspace-slot) { grid-template-rows:auto minmax(0,1fr) auto auto; }

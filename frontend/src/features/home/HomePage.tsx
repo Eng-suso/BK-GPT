@@ -56,8 +56,8 @@ export function HomePage(): React.JSX.Element {
   ];
 
   return (
-    <div className="ui-scrollbar h-full overflow-auto px-4 py-6 sm:px-7 sm:py-8 lg:px-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-7">
+    <div className="ui-page-content ui-scrollbar h-full overflow-auto">
+      <div className="flex w-full flex-col gap-6">
       <PageHeader
         breadcrumbs={[{ label: t("nav.home") }]}
         title={t("nav.home")}

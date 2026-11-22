@@ -13,9 +13,12 @@ export const enterpriseModdle = {
 
 export function readSelectedElement(element: BpmnElementSelection): SelectedBpmnElement {
   const bo = element.businessObject;
+  let parent = element.parent;
+  while (parent && parent.type !== "bpmn:Lane") parent = parent.parent;
+  const laneName = parent?.businessObject?.name?.trim();
   const metadata = Object.fromEntries(enterpriseFields.map(field => {
     const value = bo?.get?.(`delir:${field}`) ?? bo?.$attrs?.[`delir:${field}`];
     return [field, field === "required" ? value === true || value === "true" : typeof value === "string" ? value : ""];
   })) as EnterpriseMetadata;
-  return { id: element.id, type: element.type.replace(/^bpmn:/, ""), name: bo?.name ?? "", documentation: splitTraceability(bo?.documentation?.[0]?.text).notes, metadata };
+  return { id: element.id, type: element.type.replace(/^bpmn:/, ""), name: bo?.name ?? "", laneName: laneName || undefined, documentation: splitTraceability(bo?.documentation?.[0]?.text).notes, metadata };
 }

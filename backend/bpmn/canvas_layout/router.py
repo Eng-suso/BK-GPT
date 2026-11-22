@@ -12,7 +12,18 @@ def segment_hits_box(a, b, box):
         return box.x < a[0] < box.right and max(min(a[1], b[1]), box.y) < min(max(a[1], b[1]), box.bottom)
     if a[1] == b[1]:
         return box.y < a[1] < box.bottom and max(min(a[0], b[0]), box.x) < min(max(a[0], b[0]), box.right)
-    return True
+    # Slab clipping against the open rectangle. Manual annotation associations
+    # may be diagonal: a diagonal is not an intersection with every node.
+    enter, leave = 0.0, 1.0
+    for origin, delta, low, high in (
+        (a[0], b[0] - a[0], box.x, box.right),
+        (a[1], b[1] - a[1], box.y, box.bottom),
+    ):
+        start, end = sorted(((low - origin) / delta, (high - origin) / delta))
+        enter, leave = max(enter, start), min(leave, end)
+        if enter >= leave:
+            return False
+    return enter < leave
 
 
 def compress(points):

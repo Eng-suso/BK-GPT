@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode } from "react";
+import { useRef, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -22,7 +22,7 @@ type FormDialogProps = {
   isSubmitting: boolean;
   /** Messaggio dell'errore di salvataggio, gia' tradotto. */
   error?: string | null;
-  onSubmit: () => void;
+  onSubmit: () => void | Promise<void>;
   children: ReactNode;
   className?: string;
 };
@@ -51,10 +51,15 @@ export function FormDialog({
 }: FormDialogProps): React.JSX.Element {
   const { t } = useTranslation("common");
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const submitting = useRef(false);
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSubmitting) return;
-    onSubmit();
+    if (isSubmitting || submitting.current) return;
+    // Lock synchronously: a second submit can arrive before the parent's busy
+    // prop is committed. Failed validation and completed saves release it.
+    submitting.current = true;
+    try { await onSubmit(); }
+    finally { submitting.current = false; }
   };
 
   return (

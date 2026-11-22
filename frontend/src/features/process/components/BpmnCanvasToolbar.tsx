@@ -13,6 +13,9 @@ import {
   Save,
   ShieldCheck,
   Upload,
+  MousePointer2,
+  Hand,
+  Focus,
 } from "lucide-react";
 
 import { WorkspaceCommandBar } from "@/components/layout/CanvasWorkspace";
@@ -23,8 +26,12 @@ import {
   DropdownMenuItem,
   DropdownMenuCheckboxItem,
   DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
+import type { CanvasNavigationMode } from "../bpmn/canvasInteractions";
 import { StatusIndicator, type StatusTone } from "@/components/status";
 
 type PanelToggle = {
@@ -54,7 +61,10 @@ type BpmnCanvasToolbarProps = {
   menuButtonRef?: RefObject<HTMLButtonElement | null>;
   canvasChat: PanelToggle;
   properties: PanelToggle;
+  focusMode?: PanelToggle;
   evidence?: EvidenceToggle;
+  navigationMode: CanvasNavigationMode;
+  onNavigationModeChange: (mode: CanvasNavigationMode) => void;
   onSave: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -88,7 +98,10 @@ export function BpmnCanvasToolbar({
   menuButtonRef,
   canvasChat,
   properties,
+  focusMode,
   evidence,
+  navigationMode,
+  onNavigationModeChange,
   onSave,
   onZoomIn,
   onZoomOut,
@@ -102,7 +115,7 @@ export function BpmnCanvasToolbar({
   const { t } = useTranslation("process");
 
   return (
-    <WorkspaceCommandBar label={t("canvas.toolbarLabel")} className="process-bpmn-toolbar">
+    <WorkspaceCommandBar label={t("canvas.toolbarLabel")} material="toolbar" className="process-bpmn-toolbar">
       <div className="bpmn-toolbar-context flex min-w-0 items-center gap-3">
         <h2 className="sr-only">{t("canvas.toolbarLabel")}</h2>
         {elements?.onToggle && <Button ref={elementsButtonRef} variant={elements.isOpen ? "secondary" : "outline"} size="sm" onClick={elements.onToggle} aria-pressed={elements.isOpen} aria-label={t("canvas.elements.title")}><ListTree aria-hidden /><span className="bpmn-toolbar-label">{t("canvas.elements.title")}</span><span aria-hidden className="bpmn-toolbar-label text-xs tabular-nums text-muted-foreground">{elementCount}</span></Button>}
@@ -136,6 +149,7 @@ export function BpmnCanvasToolbar({
             )}
           </div>
         )}
+        {focusMode?.onToggle && <Button type="button" variant={focusMode.isOpen ? "secondary" : "ghost"} size="sm" onClick={focusMode.onToggle} aria-pressed={focusMode.isOpen} aria-label={t(focusMode.isOpen ? "canvas.exitFocus" : "canvas.focusCanvas")} title={t(focusMode.isOpen ? "canvas.exitFocus" : "canvas.focusCanvas")}><Focus aria-hidden className="size-4" /><span className="bpmn-toolbar-label">{t(focusMode.isOpen ? "canvas.exitFocus" : "canvas.focusCanvas")}</span></Button>}
       </div>
 
       <div className="process-bpmn-toolbar-actions">
@@ -188,18 +202,25 @@ export function BpmnCanvasToolbar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuLabel>{t("canvas.navigation.title")}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={navigationMode} onValueChange={value => onNavigationModeChange(value as CanvasNavigationMode)}>
+              <DropdownMenuRadioItem value="mouse"><MousePointer2 aria-hidden />{t("canvas.navigation.mouse")}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="trackpad"><Hand aria-hidden />{t("canvas.navigation.trackpad")}</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuLabel className="font-normal text-muted-foreground">{t("canvas.navigation.shortcuts")}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
             {onToggleColours && <><DropdownMenuCheckboxItem checked={coloursEnabled} onCheckedChange={onToggleColours}>{t("canvas.colours")}</DropdownMenuCheckboxItem><DropdownMenuSeparator /></>}
             <DropdownMenuItem disabled={!isReady} onClick={onZoomReadable}>
-              Leggi il processo dall'inizio
+              {t("canvas.readableTitle")}
             </DropdownMenuItem>
             <DropdownMenuItem disabled={!isReady} onClick={onZoomFit}>
-              <Maximize2 /> Centra e adatta diagramma
+              <Maximize2 /> {t("canvas.fitTitle")}
             </DropdownMenuItem>
             <DropdownMenuItem disabled={!isReady} onClick={onZoomIn}>
-              <Plus /> Ingrandisci
+              <Plus /> {t("canvas.zoomIn")}
             </DropdownMenuItem>
             <DropdownMenuItem disabled={!isReady} onClick={onZoomOut}>
-              <Minus /> Riduci
+              <Minus /> {t("canvas.zoomOut")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={!isReady} onClick={onImportClick}>

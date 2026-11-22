@@ -1,0 +1,129 @@
+{
+  "config": {
+    "argv": [
+      "C:\\node.exe",
+      "<workspace>\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "-c",
+      ".tmp/run-move-webkit.config.ts",
+      "-g",
+      "selected subgraph drops"
+    ],
+    "configFile": "<workspace>\\.tmp\\run-move-webkit.config.ts",
+    "rootDir": "<workspace>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "<workspace>/.tmp/.tmp/move-webkit-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "webkit",
+        "name": "webkit",
+        "testDir": "<workspace>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "workspace-layout.spec.ts"
+        ],
+        "timeout": 150000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json",
+        {
+          "outputFile": ".tmp/move-webkit-results.json"
+        }
+      ],
+      [
+        "list",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "workspace-layout.spec.ts",
+      "file": "workspace-layout.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "selected subgraph drops into a pool and releases after valid and rejected moves",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 150000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "webkit",
+              "projectName": "webkit",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 30992,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-05T07:08:10.567Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "adopted-pool.xml",
+                      "contentType": "application/xml",
+                      "body": "PGJwbW46ZGVmaW5pdGlvbnMgeG1sbnM6YnBtbj0iaHR0cDovL3d3dy5vbWcub3JnL3NwZWMvQlBNTi8yMDEwMDUyNC9NT0RFTCIgeG1sbnM6YnBtbmRpPSJodHRwOi8vd3d3Lm9tZy5vcmcvc3BlYy9CUE1OLzIwMTAwNTI0L0RJIiB4bWxuczpkYz0iaHR0cDovL3d3dy5vbWcub3JnL3NwZWMvREQvMjAxMDA1MjQvREMiIHhtbG5zOmRpPSJodHRwOi8vd3d3Lm9tZy5vcmcvc3BlYy9ERC8yMDEwMDUyNC9ESSIgdGFyZ2V0TmFtZXNwYWNlPSJ1cm46bW92ZSI+PGJwbW46cHJvY2VzcyBpZD0iTG9vc2UiLz48YnBtbjpwcm9jZXNzIGlkPSJJbnNpZGUiPjxicG1uOmVuZEV2ZW50IGlkPSJFbmQiPjxicG1uOmluY29taW5nPkxhc3Q8L2JwbW46aW5jb21pbmc+PC9icG1uOmVuZEV2ZW50PjxicG1uOnRhc2sgaWQ9IldvcmsiIG5hbWU9IlZlcmlmaWNhIj48YnBtbjppbmNvbWluZz5GaXJzdDwvYnBtbjppbmNvbWluZz48YnBtbjpvdXRnb2luZz5MYXN0PC9icG1uOm91dGdvaW5nPjwvYnBtbjp0YXNrPjxicG1uOnN0YXJ0RXZlbnQgaWQ9IlN0YXJ0Ij48YnBtbjpvdXRnb2luZz5GaXJzdDwvYnBtbjpvdXRnb2luZz48L2JwbW46c3RhcnRFdmVudD48YnBtbjpzZXF1ZW5jZUZsb3cgaWQ9IkZpcnN0IiBzb3VyY2VSZWY9IlN0YXJ0IiB0YXJnZXRSZWY9IldvcmsiLz48YnBtbjpzZXF1ZW5jZUZsb3cgaWQ9Ikxhc3QiIHNvdXJjZVJlZj0iV29yayIgdGFyZ2V0UmVmPSJFbmQiLz48L2JwbW46cHJvY2Vzcz48YnBtbjpjb2xsYWJvcmF0aW9uIGlkPSJDb2xsYWJvcmF0aW9uIj48YnBtbjpwYXJ0aWNpcGFudCBpZD0iUG9vbCIgbmFtZT0iT3BlcmF0aW9ucyIgcHJvY2Vzc1JlZj0iSW5zaWRlIi8+PC9icG1uOmNvbGxhYm9yYXRpb24+PGJwbW5kaTpCUE1ORGlhZ3JhbSBpZD0iZGlhZ3JhbSI+PGJwbW5kaTpCUE1OUGxhbmUgaWQ9InBsYW5lIiBicG1uRWxlbWVudD0iQ29sbGFib3JhdGlvbiI+PGJwbW5kaTpCUE1OU2hhcGUgaWQ9IlN0YXJ0X2RpIiBicG1uRWxlbWVudD0iU3RhcnQiPjxkYzpCb3VuZHMgeD0iMTYwIiB5PSI0NTciIHdpZHRoPSIzNiIgaGVpZ2h0PSIzNiIvPjwvYnBtbmRpOkJQTU5TaGFwZT48YnBtbmRpOkJQTU5TaGFwZSBpZD0iV29ya19kaSIgYnBtbkVsZW1lbnQ9IldvcmsiPjxkYzpCb3VuZHMgeD0iMzAwIiB5PSI0NDMiIHdpZHRoPSIxMjAiIGhlaWdodD0iNjQiLz48L2JwbW5kaTpCUE1OU2hhcGU+PGJwbW5kaTpCUE1OU2hhcGUgaWQ9IkVuZF9kaSIgYnBtbkVsZW1lbnQ9IkVuZCI+PGRjOkJvdW5kcyB4PSI1MjAiIHk9IjQ1NyIgd2lkdGg9IjM2IiBoZWlnaHQ9IjM2Ii8+PC9icG1uZGk6QlBNTlNoYXBlPjxicG1uZGk6QlBNTlNoYXBlIGlkPSJQb29sX2RpIiBicG1uRWxlbWVudD0iUG9vbCIgaXNIb3Jpem9udGFsPSJ0cnVlIj48ZGM6Qm91bmRzIHg9IjEwMCIgeT0iMzAwIiB3aWR0aD0iOTAwIiBoZWlnaHQ9IjM1MCIvPjwvYnBtbmRpOkJQTU5TaGFwZT48YnBtbmRpOkJQTU5FZGdlIGlkPSJGaXJzdF9kaSIgYnBtbkVsZW1lbnQ9IkZpcnN0Ij48ZGk6d2F5cG9pbnQgeD0iMTk2IiB5PSI0NzUiLz48ZGk6d2F5cG9pbnQgeD0iMzAwIiB5PSI0NzUiLz48L2JwbW5kaTpCUE1ORWRnZT48YnBtbmRpOkJQTU5FZGdlIGlkPSJMYXN0X2RpIiBicG1uRWxlbWVudD0iTGFzdCI+PGRpOndheXBvaW50IHg9IjQyMCIgeT0iNDc1Ii8+PGRpOndheXBvaW50IHg9IjUyMCIgeT0iNDc1Ii8+PC9icG1uZGk6QlBNTkVkZ2U+PC9icG1uZGk6QlBNTlBsYW5lPjwvYnBtbmRpOkJQTU5EaWFncmFtPjwvYnBtbjpkZWZpbml0aW9ucz4="
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "87206d496e61dcf70a84-bdc25f15c54a66abebd2",
+          "file": "workspace-layout.spec.ts",
+          "line": 45,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-05T07:08:09.799Z",
+    "duration": 32007.876,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

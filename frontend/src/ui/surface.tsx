@@ -8,6 +8,7 @@ export const surfaceVariants = cva("ui-surface", {
   variants: {
     variant: {
       panel: "ui-surface-panel",
+      workspace: "ui-surface-workspace",
       inset: "ui-surface-inset",
       chrome: "ui-surface-chrome",
       rail: "ui-surface-rail",

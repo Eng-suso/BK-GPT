@@ -1,0 +1,208 @@
+{
+  "date": "2026-11-04",
+  "scope": "Horizontal BPMN pool/lane partition behavior; synthetic fixtures only",
+  "reports": {
+    "chromiumSix": {
+      "stats": {
+        "startTime": "2026-11-04T20:46:06.638Z",
+        "duration": 41393.634,
+        "expected": 6,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "tests": [
+        {
+          "name": "connections follow BPMN pool and lane boundaries and lane removal preserves work",
+          "project": "chromium",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 6097
+            }
+          ]
+        },
+        {
+          "name": "lanes without a participant support direct insertion, removal and exact undo",
+          "project": "chromium",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 8708
+            }
+          ]
+        },
+        {
+          "name": "palette lanes partition their pool even when dropped over an existing lane",
+          "project": "chromium",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 5078
+            }
+          ]
+        },
+        {
+          "name": "pool edges and lane dividers remain one continuous partition during resize and movement",
+          "project": "chromium",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 7329
+            }
+          ]
+        },
+        {
+          "name": "stay discreet at every zoom and preserve resize undo",
+          "project": "chromium",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 6252
+            }
+          ]
+        },
+        {
+          "name": "stay discreet at every zoom and preserve resize undo",
+          "project": "chromium",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 6036
+            }
+          ]
+        }
+      ]
+    },
+    "chromiumFinalTwo": {
+      "stats": {
+        "startTime": "2026-11-04T20:52:31.710Z",
+        "duration": 17393.031,
+        "expected": 2,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "tests": [
+        {
+          "name": "palette lanes partition their pool even when dropped over an existing lane",
+          "project": "chromium",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 4928
+            }
+          ]
+        },
+        {
+          "name": "pool edges and lane dividers remain one continuous partition during resize and movement",
+          "project": "chromium",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 10810
+            }
+          ]
+        }
+      ]
+    },
+    "chromiumVisual": {
+      "stats": {
+        "startTime": "2026-11-04T20:53:22.615Z",
+        "duration": 15915.597,
+        "expected": 1,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "tests": [
+        {
+          "name": "pool edges and lane dividers remain one continuous partition during resize and movement",
+          "project": "chromium",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 13014
+            }
+          ]
+        }
+      ]
+    },
+    "webkit": {
+      "stats": {
+        "startTime": "2026-11-04T20:50:55.912Z",
+        "duration": 60381.625,
+        "expected": 2,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "tests": [
+        {
+          "name": "palette lanes partition their pool even when dropped over an existing lane",
+          "project": "webkit",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 15942
+            }
+          ]
+        },
+        {
+          "name": "pool edges and lane dividers remain one continuous partition during resize and movement",
+          "project": "webkit",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 43479
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "unit": {
+    "files": 134,
+    "tests": 755,
+    "passed": true
+  },
+  "checks": {
+    "typecheck": "passed",
+    "eslint": "passed",
+    "build": "passed; existing simulation chunk warning remains"
+  },
+  "visual": {
+    "desktop": [
+      1600,
+      1000
+    ],
+    "mobile": [
+      390,
+      844
+    ],
+    "mobileOverflow": false,
+    "mobileAxeViolations": 0,
+    "notes": "Final leaf-lane header separator and coloured band removed; pool title band retained."
+  },
+  "xml": {
+    "format": "BPMN XML; API/storage unchanged",
+    "schemas": "Official BPMN20.xsd and local includes/imports via .NET XmlSchemaSet",
+    "files": [
+      "collaboration.xml",
+      "palette-pool-partitions.xml",
+      "pool-resize-nw.xml",
+      "pool-resize-se.xml",
+      "split-2.xml",
+      "split-3.xml",
+      "unpooled-lanes.xml"
+    ],
+    "status": "all seven synthetic XML artifacts passed schema validation",
+    "undo": "Exact source equality asserted after pool resize and undo"
+  },
+  "limitations": [
+    "WebKit initial matrix had a timeout during concurrent full frontend unit testing; final isolated two-case run passed.",
+    "134-file unit suite finished before the final small renderer/presentation adjustment; final typecheck, lint, build and Chromium visual/behavior checks cover that adjustment.",
+    "No vertical pool or choreography certification; no real iOS devices.",
+    "No user model edits or saves on 3030."
+  ]
+}

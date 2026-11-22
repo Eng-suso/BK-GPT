@@ -1,6 +1,5 @@
-import { canvasThemeOptions } from "../bpmn/canvasTheme";
 import React from "react";
-import NavigatedViewer from "bpmn-js/lib/NavigatedViewer";
+import { DeliRCanvas as NavigatedViewer } from "../canvas-engine/DeliRCanvas";
 import { Maximize2, Minus, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Surface } from "@/ui/surface";
@@ -11,8 +10,8 @@ import { fitCanvas } from "../bpmn/viewport";
 import { readCanvasElements } from "../bpmn/elements";
 import type { ReviewNode } from "./reviewModel";
 
-import "bpmn-js/dist/assets/diagram-js.css";
-import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
+import "diagram-js/assets/diagram-js.css";
+import "@/features/process/canvas-engine/canvas.css";
 
 type CanvasService = {
   zoom: (scale?: number | "fit-viewport") => number;
@@ -57,7 +56,7 @@ export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, docum
     let mounted = true;
     setReady(false); setError(false); setAnchor(null);
     const tokens = getComputedStyle(host.current);
-    const instance = new NavigatedViewer({ container: host.current, ...canvasThemeOptions(host.current) }) as BpmnViewer;
+    const instance = new NavigatedViewer({ container: host.current,  }) as BpmnViewer;
     viewer.current = instance;
     const canvas = instance.get("canvas") as CanvasService;
     instance.on("element.click", (event: unknown) => {
@@ -92,7 +91,7 @@ export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, docum
 
   const zoom = (delta: number) => { const canvas = viewer.current?.get("canvas") as CanvasService | undefined; if (canvas) canvas.zoom(Math.min(3, Math.max(0.2, canvas.zoom() + delta))); };
   return <div className="review-canvas-stage delir-canvas--colours">
-    <div ref={host} className="review-canvas" aria-label={t("review.canvasLabel")} />
+    <div ref={host} className="review-canvas" role="region" aria-label={t("review.canvasLabel")} />
     {error && <div className="review-canvas-error"><InlineNotice tone="error" title={t("review.diagramError")} action={<Button size="sm" variant="outline" onClick={() => setRetry(value => value + 1)}>{t("review.retry")}</Button>} /></div>}
     {ready && renderAgent?.(anchor)}
     <Surface variant="floating" className="review-canvas-controls" role="group" aria-label={t("canvas.zoomGroup")}>

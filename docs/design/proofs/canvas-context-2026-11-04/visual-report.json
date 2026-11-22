@@ -1,0 +1,35 @@
+{
+  "states": [
+    {
+      "name": "pool-selected",
+      "violations": [],
+      "overflow": false
+    },
+    {
+      "name": "lane-selected",
+      "violations": [],
+      "overflow": false
+    },
+    {
+      "name": "right-click-menu",
+      "violations": [],
+      "overflow": false
+    },
+    {
+      "name": "lane-secondary-actions",
+      "violations": [],
+      "overflow": false
+    },
+    {
+      "name": "lane-inserted",
+      "violations": [],
+      "overflow": false
+    },
+    {
+      "name": "lane-mobile",
+      "violations": [],
+      "overflow": false
+    }
+  ],
+  "errors": []
+}

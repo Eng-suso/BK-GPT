@@ -1,0 +1,365 @@
+{
+  "date": "2026-11-04",
+  "branch": "codex/bpmn-canvas-ui",
+  "document": "canvas-connection-ux-2026-11-04.md",
+  "chromium": {
+    "stats": {
+      "startTime": "2026-11-04T16:15:50.211Z",
+      "duration": 194159.591,
+      "expected": 41,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "tests": [
+      {
+        "title": "enterprise library and properties round-trip on desktop",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 15735
+      },
+      {
+        "title": "enterprise library and properties round-trip on mobile",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 16076
+      },
+      {
+        "title": "enterprise library places service tasks and timer event definitions",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 5833
+      },
+      {
+        "title": "product-generated diagram keeps the DeliR identity in the editable canvas",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 5815
+      },
+      {
+        "title": "laptop tools preserve canvas space and unsaved model edits",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 6713
+      },
+      {
+        "title": "scenario supports long activity lists, model reference and execution",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 12615
+      },
+      {
+        "title": "mobile tools are reachable and scenario controls stay inside the viewport",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 21429
+      },
+      {
+        "title": "consultant chat keeps long conversations and composer usable on laptop and mobile",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 11137
+      },
+      {
+        "title": "project chat keeps long conversations and composer usable on laptop and mobile",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 10911
+      },
+      {
+        "title": "process chat keeps long conversations and composer usable on laptop and mobile",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 10934
+      },
+      {
+        "title": "canvas chat keeps long conversations and composer usable on laptop and mobile",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 10388
+      },
+      {
+        "title": "mobile heatmap preserves a readable diagram above populated metrics",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 6494
+      },
+      {
+        "title": "process elements follow imports, selection and properties without rewriting BPMN colours",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 8278
+      },
+      {
+        "title": "process loading failures are recoverable and never look like a new empty model",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 4083
+      },
+      {
+        "title": "process chrome and element navigation remain accessible without overlap on mobile",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 6937
+      },
+      {
+        "title": "reserved BPMN tools create elements through the modeler without covering its viewport",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 4286
+      },
+      {
+        "title": "unpooled resources require explicit assignment and remain empty after removal and reload on desktop",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 14143
+      },
+      {
+        "title": "unpooled resources require explicit assignment and remain empty after removal and reload on mobile",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 13874
+      },
+      {
+        "title": "BPMN lane resource origin, capacity review and stable layout on desktop",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 19929
+      },
+      {
+        "title": "BPMN lane resource origin, capacity review and stable layout on mobile",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 18961
+      },
+      {
+        "title": "resource configuration waits for the BPMN before claiming the model is empty",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 5288
+      },
+      {
+        "title": "process canvas hierarchy preserves camera, edits and one inspector at 1440",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 10793
+      },
+      {
+        "title": "process canvas hierarchy preserves camera, edits and one inspector at 1920",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 9685
+      },
+      {
+        "title": "DeliR canvas controls keep XML and the edit-save-reopen workflow on desktop",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 9792
+      },
+      {
+        "title": "DeliR canvas controls keep XML and the edit-save-reopen workflow on mobile",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 10369
+      },
+      {
+        "title": "selection actions use the existing BPMN commands on desktop",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 10056
+      },
+      {
+        "title": "selection actions use the existing BPMN commands on mobile",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 8161
+      },
+      {
+        "title": "mouse tools keep selection, pan and node movement separate",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 9707
+      },
+      {
+        "title": "selection rectangle selects objects without moving the camera",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 3816
+      },
+      {
+        "title": "selection list opens one element and clearing returns keyboard focus to the canvas",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 4111
+      },
+      {
+        "title": "mouse and trackpad wheel modes preserve the pointer anchor and model",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 7655
+      },
+      {
+        "title": "inline rename commits, cancels, undoes and saves the BPMN name",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 6513
+      },
+      {
+        "title": "clipboard keeps copied tasks independent with new IDs and valid BPMN references",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 5178
+      },
+      {
+        "title": "semantic selection keeps symbols clear and edits event labels below their shape",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 5397
+      },
+      {
+        "title": "canvas chat reserves readable space for conversation, actions and composer",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 5417
+      },
+      {
+        "title": "connections follow BPMN pool and lane boundaries and lane removal preserves work",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 8167
+      },
+      {
+        "title": "local connection control previews, clicks, drags and cancels at 1440",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 7896
+      },
+      {
+        "title": "local connection control previews, clicks, drags and cancels at 1920",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 8674
+      },
+      {
+        "title": "editing an endpoint keeps the arrow on the target boundary and undo restores the attachment",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 6706
+      },
+      {
+        "title": "large diagrams keep connection gestures reversible across 500 activities",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 7409
+      },
+      {
+        "title": "tap connects two elements and the cancel action restores selection",
+        "project": "chromium",
+        "status": "expected",
+        "durationMs": 4826
+      }
+    ]
+  },
+  "webkit": {
+    "stats": {
+      "startTime": "2026-11-04T16:20:02.147Z",
+      "duration": 119528.534,
+      "expected": 5,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "tests": [
+      {
+        "title": "connections follow BPMN pool and lane boundaries and lane removal preserves work",
+        "project": "webkit",
+        "status": "expected",
+        "durationMs": 45135
+      },
+      {
+        "title": "local connection control previews, clicks, drags and cancels at 1440",
+        "project": "webkit",
+        "status": "expected",
+        "durationMs": 27176
+      },
+      {
+        "title": "local connection control previews, clicks, drags and cancels at 1920",
+        "project": "webkit",
+        "status": "expected",
+        "durationMs": 26161
+      },
+      {
+        "title": "editing an endpoint keeps the arrow on the target boundary and undo restores the attachment",
+        "project": "webkit",
+        "status": "expected",
+        "durationMs": 15102
+      },
+      {
+        "title": "tap connects two elements and the cancel action restores selection",
+        "project": "webkit",
+        "status": "expected",
+        "durationMs": 4533
+      }
+    ]
+  },
+  "unit": {
+    "passed": 35,
+    "files": 5,
+    "command": "npx vitest run src/features/process/canvas-engine src/features/process/bpmn/viewport.test.ts --maxWorkers=1"
+  },
+  "typecheck": "passed",
+  "eslint": "passed",
+  "productionBuild": {
+    "status": "passed",
+    "remainingWarning": "Existing simulation chunk exceeds 500 kB (1020.61 kB minified)"
+  },
+  "xmlSchema": {
+    "fixture": "collaboration.xml",
+    "validator": ".NET XmlSchemaSet / XmlReader",
+    "officialSchema": "https://www.omg.org/spec/BPMN/2.0.2/BPMN20.xsd",
+    "files": [
+      "BPMN20.xsd",
+      "Semantic.xsd",
+      "BPMNDI.xsd",
+      "DC.xsd",
+      "DI.xsd"
+    ],
+    "valid": true,
+    "errors": 0
+  },
+  "visual": {
+    "states": [
+      {
+        "name": "delir-selected-source",
+        "violations": [],
+        "overflow": false
+      },
+      {
+        "name": "delir-connect-preview",
+        "violations": [],
+        "overflow": false
+      },
+      {
+        "name": "delir-connected",
+        "violations": [],
+        "overflow": false
+      },
+      {
+        "name": "delir-selected-mobile",
+        "violations": [],
+        "overflow": false
+      },
+      {
+        "name": "delir-connecting-mobile",
+        "violations": [],
+        "overflow": false
+      }
+    ],
+    "errors": []
+  },
+  "notes": [
+    "Synthetic fixtures only; user workspace models on port 3030 were not edited.",
+    "WebKit on Windows is not a real iOS device certification.",
+    "500-activity observation is not an FPS benchmark."
+  ]
+}

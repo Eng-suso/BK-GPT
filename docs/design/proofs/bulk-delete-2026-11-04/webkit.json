@@ -1,0 +1,42 @@
+{
+  "stats": {
+    "startTime": "2026-11-04T21:02:35.971Z",
+    "duration": 47958.868,
+    "expected": 3,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "name": "bulk deletion handles lanes and explicitly selected work in one undoable command",
+      "project": "webkit",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 21184
+        }
+      ]
+    },
+    {
+      "name": "bulk delete all via Delete removes nested pools, nodes and labels with exact undo",
+      "project": "webkit",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 10127
+        }
+      ]
+    },
+    {
+      "name": "bulk delete all via context removes nested pools, nodes and labels with exact undo",
+      "project": "webkit",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 15505
+        }
+      ]
+    }
+  ]
+}

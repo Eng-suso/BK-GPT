@@ -1,0 +1,58 @@
+{
+  "date": "2026-11-04",
+  "chromium": {
+    "distinctCases": 10,
+    "initialCases": 4,
+    "regressionsAndEventCase": 6,
+    "finalTypeCasesRepeated": 2,
+    "allPassed": true
+  },
+  "webkit": {
+    "distinctCases": 4,
+    "finalTypeCasesRepeated": 2,
+    "allPassed": true
+  },
+  "unit": {
+    "files": 3,
+    "tests": 11,
+    "allPassed": true
+  },
+  "checks": {
+    "typecheck": "passed",
+    "eslint": "passed",
+    "productionBuild": "passed; existing simulation chunk warning remains"
+  },
+  "xml": {
+    "files": [
+      "annotation-moved.xml",
+      "bpmn-types-false.xml",
+      "bpmn-types-true.xml",
+      "collaboration.xml",
+      "event-type.xml"
+    ],
+    "schema": "official BPMN20.xsd and its local imports, .NET XmlSchemaSet",
+    "allValid": true,
+    "undo": "Exact original source equality after type changes and annotation-target movement"
+  },
+  "visual": {
+    "desktop": [
+      1600,
+      1000
+    ],
+    "mobile": [
+      390,
+      844
+    ],
+    "menuAxeViolations": 0,
+    "mobileOverflow": false,
+    "font": "bpmn-font 0.13.0, local WOFF2/WOFF assets; license shipped under public/third-party",
+    "referenceActor": "Playwright gestures; REA passive screenshot",
+    "referenceReceipt": "ev_b1be39130752bb29cc25f72fb7017adab00a4b44628251a633eb4e87ca106492"
+  },
+  "limits": [
+    "Generic Call Activity rendering retains the existing collapsed-call marker after checking OMG §10.3.6; final two type cases repeated in both browsers.",
+    "Only supported compatible type families are offered; full BPMN coverage is not claimed.",
+    "Local WebKit is not physical iOS certification.",
+    "No user model modifications or saves on port 3030."
+  ]
+}

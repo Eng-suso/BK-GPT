@@ -1,0 +1,431 @@
+{
+  "results": [
+    {
+      "name": "home",
+      "mobile": false,
+      "overflow": false,
+      "main": {
+        "x": 272,
+        "y": 64,
+        "width": 1610,
+        "height": 892,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 272,
+        "height": 956,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": null,
+      "violations": []
+    },
+    {
+      "name": "clients",
+      "mobile": false,
+      "overflow": false,
+      "main": {
+        "x": 272,
+        "y": 64,
+        "width": 1610,
+        "height": 892,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 272,
+        "height": 956,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": null,
+      "violations": []
+    },
+    {
+      "name": "projects",
+      "mobile": false,
+      "overflow": false,
+      "main": {
+        "x": 272,
+        "y": 64,
+        "width": 1610,
+        "height": 892,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 272,
+        "height": 956,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": null,
+      "violations": []
+    },
+    {
+      "name": "consultant",
+      "mobile": false,
+      "overflow": false,
+      "main": {
+        "x": 272,
+        "y": 64,
+        "width": 1610,
+        "height": 892,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 272,
+        "height": 956,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": null,
+      "violations": []
+    },
+    {
+      "name": "canvas",
+      "mobile": false,
+      "overflow": false,
+      "main": {
+        "x": 72,
+        "y": 0,
+        "width": 1810,
+        "height": 956,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 72,
+        "height": 956,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": {
+        "x": 144,
+        "y": 116,
+        "width": 1738,
+        "height": 840,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "workspace": null,
+      "violations": []
+    },
+    {
+      "name": "review",
+      "mobile": false,
+      "overflow": false,
+      "main": {
+        "x": 72,
+        "y": 0,
+        "width": 1810,
+        "height": 956,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 72,
+        "height": 956,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": {
+        "x": 72,
+        "y": 64,
+        "width": 1810,
+        "height": 892,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "violations": []
+    },
+    {
+      "name": "simulation",
+      "mobile": false,
+      "overflow": false,
+      "main": {
+        "x": 72,
+        "y": 0,
+        "width": 1810,
+        "height": 956,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 72,
+        "height": 956,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": {
+        "x": 72,
+        "y": 64,
+        "width": 1810,
+        "height": 892,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "violations": []
+    },
+    {
+      "name": "settings",
+      "mobile": false,
+      "overflow": false,
+      "main": {
+        "x": 272,
+        "y": 64,
+        "width": 1610,
+        "height": 892,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 272,
+        "height": 956,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": null,
+      "violations": []
+    },
+    {
+      "name": "home",
+      "mobile": true,
+      "overflow": false,
+      "main": {
+        "x": 0,
+        "y": 64,
+        "width": 390,
+        "height": 780,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": null,
+      "violations": []
+    },
+    {
+      "name": "clients",
+      "mobile": true,
+      "overflow": false,
+      "main": {
+        "x": 0,
+        "y": 64,
+        "width": 390,
+        "height": 780,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": null,
+      "violations": []
+    },
+    {
+      "name": "projects",
+      "mobile": true,
+      "overflow": false,
+      "main": {
+        "x": 0,
+        "y": 64,
+        "width": 390,
+        "height": 780,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": null,
+      "violations": []
+    },
+    {
+      "name": "consultant",
+      "mobile": true,
+      "overflow": false,
+      "main": {
+        "x": 0,
+        "y": 64,
+        "width": 390,
+        "height": 780,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": null,
+      "violations": []
+    },
+    {
+      "name": "canvas",
+      "mobile": true,
+      "overflow": false,
+      "main": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": {
+        "x": 0,
+        "y": 153,
+        "width": 390,
+        "height": 691,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "workspace": null,
+      "violations": []
+    },
+    {
+      "name": "review",
+      "mobile": true,
+      "overflow": false,
+      "main": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": {
+        "x": 0,
+        "y": 101,
+        "width": 390,
+        "height": 743,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "violations": []
+    },
+    {
+      "name": "simulation",
+      "mobile": true,
+      "overflow": false,
+      "main": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "violations": []
+    },
+    {
+      "name": "settings",
+      "mobile": true,
+      "overflow": false,
+      "main": {
+        "x": 0,
+        "y": 64,
+        "width": 390,
+        "height": 780,
+        "radius": "0px",
+        "shadow": "none"
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "radius": "0px",
+        "shadow": "rgba(45, 51, 65, 0.12) 0px 0px 2px 0px inset"
+      },
+      "canvas": null,
+      "workspace": null,
+      "violations": []
+    }
+  ],
+  "errors": []
+}

@@ -1776,11 +1776,13 @@
         "ai": "AI"
       },
       "name": "Nome",
+      "bpmnRole": "Lane BPMN",
+      "ownerHint": "La lane indica dove si trova l’attività nel processo. Il responsabile operativo è facoltativo e può indicare una persona o un team specifico.",
       "description": "Descrizione",
       "required": "Obbligatorio nel processo (annotazione)",
       "saveHint": "Le proprietà si salvano con il disegno. L’annotazione «obbligatorio» non modifica l’esecuzione BPMN.",
       "fields": {
-        "owner": "Responsabile attività",
+        "owner": "Responsabile operativo",
         "office": "Ufficio competente",
         "rules": "Note sulle regole",
         "risks": "Rischi e mitigazioni",
@@ -1909,6 +1911,8 @@
       "repairError": "L'integrazione non è riuscita. Riprova tra qualche minuto."
     },
     "toolbarLabel": "Canvas processo",
+    "focusCanvas": "Concentrati sul canvas",
+    "exitFocus": "Esci dalla vista concentrata",
     "zoomGroup": "Controlli zoom",
     "readableTitle": "Apri una vista leggibile dall'inizio del processo",
     "readable": "Leggi",
@@ -1921,12 +1925,14 @@
     "exportBpmn": "Esporta BPMN",
     "hideHistory": "Nascondi cronologia",
     "versionHistory": "Cronologia versioni",
+    "versionHistoryDescription": "Consulta le modifiche e ripristina una versione del processo.",
+    "errorStatus": "Errore",
     "saveTitle": "Salva processo (Ctrl+S)",
     "saving": "Salvo…",
     "save": "Salva",
     "saved": "Salvato",
     "unsaved": "Non salvato",
-    "inspectorLabel": "Ispettore nodo selezionato",
+    "inspectorLabel": "Proprietà elemento",
     "inspectorClose": "Chiudi ispettore",
     "inspectorNotes": "Note / Documentazione",
     "inspectorNotesPlaceholder": "Aggiungi dettagli o regole per questo nodo…",
@@ -2010,7 +2016,10 @@
         "subprocess-collapsed": "Sottoprocesso compresso",
         "lane": "Lane / corsia",
         "annotation": "Annotazione di testo"
-      }
+      },
+      "connection.sequence-flow": "Flusso di sequenza",
+      "connection.message-flow": "Flusso messaggio",
+      "connection.association": "Associazione"
     },
     "conflict": {
       "reloadLatest": "Carica l'ultima versione",
@@ -2036,6 +2045,75 @@
         "collaboration": "Collaborazione",
         "artifact": "Artefatti"
       }
+    },
+    "interactions": {
+      "select": "Seleziona",
+      "selectionActions": "Azioni della selezione",
+      "selectionCount": "{{count}} elementi selezionati",
+      "selected": "Elemento selezionato",
+      "append": "Aggiungi passaggio",
+      "connect": "Collega elemento",
+      "replace": "Cambia tipo",
+      "more": "Altre azioni",
+      "history": "Modifiche al disegno",
+      "undo": "Annulla modifica",
+      "redo": "Ripeti modifica",
+      "zoomMenu": "Zoom {{value}}%",
+      "multipleHint": "Scegli un elemento per aprirne le proprietà.",
+      "section": "Sezione proprietà",
+      "identity": "Identificativi tecnici",
+      "deleteSelection": "Elimina selezione",
+      "clearSelection": "Deseleziona tutto",
+      "connection": "Collegamento",
+      "rename": "Rinomina elemento"
+    },
+    "context": {
+      "delete": "Elimina elemento",
+      "replace": "Cambia tipo",
+      "connect": "Collega elemento",
+      "association": "Collega con associazione",
+      "dataAssociation": "Collega dati in ingresso",
+      "task": "Aggiungi attività",
+      "receive": "Aggiungi attività di ricezione",
+      "end": "Aggiungi evento finale",
+      "gateway": "Aggiungi decisione",
+      "event": "Aggiungi evento intermedio",
+      "annotation": "Aggiungi annotazione",
+      "laneAbove": "Aggiungi corsia sopra",
+      "laneBelow": "Aggiungi corsia sotto",
+      "twoLanes": "Dividi in due corsie",
+      "threeLanes": "Dividi in tre corsie",
+      "message": "Aggiungi evento di messaggio",
+      "timer": "Aggiungi evento temporale",
+      "condition": "Aggiungi evento condizionale",
+      "signal": "Aggiungi evento di segnale",
+      "compensation": "Aggiungi attività di compensazione",
+      "intermediate": "Aggiungi evento intermedio"
+    },
+    "navigation": {
+      "title": "Navigazione della tela",
+      "mouse": "Mouse · rotella per lo zoom",
+      "trackpad": "Trackpad · scorri per spostare",
+      "shortcuts": "V Seleziona · H Mano · Spazio Trascina"
+    },
+    "lanes": {
+      "manage": "Gestisci lane",
+      "add-above": "Aggiungi lane sopra",
+      "add-below": "Aggiungi lane sotto",
+      "split-2": "Dividi in due lane",
+      "split-3": "Dividi in tre lane",
+      "remove": "Rimuovi lane, mantieni le attività"
+    },
+    "contextMenu": {"title": "Menu del canvas", "selectAll": "Seleziona tutto"},
+    "resizeHint": "Trascina per ridimensionare",
+    "connectGesture": {
+      "actionHint": "Collega: trascina fino al bersaglio oppure fai clic e scegli un elemento",
+      "choose": "Scegli l’elemento da collegare · Esc annulla",
+      "confirm": "Fai clic per collegare",
+      "invalid": "Questi elementi non possono essere collegati in questa direzione",
+      "cancel": "Annulla collegamento",
+      "poolHint": "La pool rappresenta un partecipante e contiene il suo processo. Usa «Gestisci lane» per suddividere le responsabilità.",
+      "laneHint": "La lane suddivide le responsabilità nella stessa pool. Collega le attività al suo interno, non la lane."
     }
   },
   "review": {

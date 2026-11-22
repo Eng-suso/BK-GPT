@@ -1,0 +1,451 @@
+{
+  "date": "2026-11-03",
+  "scope": "Synthetic DeliR fixture; pointer trajectories performed by Playwright, runtime and screenshots observed by REA through CDP.",
+  "observations": [
+    {
+      "phase": "before",
+      "kind": "hand state after drag",
+      "evidence_id": "ev_9cdd0d8c601a8db10be4659f5cec8910ee0e2024526b09ed40ab4cf3a071348c",
+      "completeness": "complete_within_window"
+    },
+    {
+      "phase": "before",
+      "kind": "runtime during shortcut replay",
+      "evidence_id": "ev_53e1d3907acc5d306aceca12463368bb2dd9de6d090ac23c49f4175c519ac442",
+      "completeness": "policy_filtered"
+    },
+    {
+      "phase": "after",
+      "kind": "hand state after drag",
+      "evidence_id": "ev_f7a7dae5ae253463952577b1b501983b7877e8dc35e27e307c16bfad0abc0b3c",
+      "sha256": "692e17802b0be969ab2dd6069a37b6233e5c3684c4a0abec6080ebb13fa60863",
+      "completeness": {
+        "status": "complete_within_window",
+        "conditions": [
+          "complete_within_window"
+        ],
+        "policy_filtered_sections": [],
+        "attach_limited_sections": [],
+        "truncated_sections": [],
+        "unavailable_sections": [],
+        "excluded": [],
+        "dropped_events": {
+          "scripts": 0,
+          "network_requests": 0,
+          "console_events": 0,
+          "websocket_connections": 0,
+          "websocket_frames": 0,
+          "webmcp_tools": 0,
+          "timeline_events": 0,
+          "total": 0
+        }
+      },
+      "limitations": [
+        "Artifact identity is unavailable for this observation.",
+        "The screenshot contains the visible viewport, including on-screen content.",
+        "REA does not scroll, evaluate JavaScript, or capture beyond the current viewport.",
+        "Browser host platform and architecture were not observed."
+      ]
+    },
+    {
+      "phase": "after",
+      "kind": "runtime during shortcut replay; no per-event causality claimed",
+      "evidence_id": "ev_e6df99567db9b6c2c9b7b75f948e21b809e4882cf08b87573f0a1aa804192c07",
+      "completeness": "policy_filtered"
+    },
+    {
+      "phase": "after",
+      "kind": "responsive properties presentation",
+      "evidence_id": "ev_f759df5e5f7509654d7fd83599504f1429bc0f8a5ea6b95f434c3f7e74b72b1a",
+      "scope": "Earlier presentation capture; later mouse policy verified separately"
+    }
+  ],
+  "pointerReplay": {
+    "findings": [
+      {
+        "name": "repeat-click-on-selected-node",
+        "before": {
+          "camera": "matrix(1.0177 0 0 1.0177 8.14159 184.606)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Request"
+          ],
+          "tool": [
+            "select"
+          ],
+          "zoom": "Zoom 102%"
+        },
+        "after": {
+          "camera": "matrix(1.0177 0 0 1.0177 8.14159 184.606)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Request"
+          ],
+          "tool": [
+            "select"
+          ],
+          "zoom": "Zoom 102%"
+        },
+        "expected": "Selection remains stable"
+      },
+      {
+        "name": "hand-drag-over-node",
+        "before": {
+          "camera": "matrix(1.0177 0 0 1.0177 8.14159 184.606)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Request"
+          ],
+          "tool": [
+            "hand-tool"
+          ],
+          "zoom": "Zoom 102%"
+        },
+        "after": {
+          "camera": "matrix(1.017699122428894,0,0,1.017699122428894,108.14159393310547,219.60618591308594)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Request"
+          ],
+          "tool": [
+            "hand-tool"
+          ],
+          "zoom": "Zoom 102%"
+        },
+        "expected": "Camera moves, BPMN node coordinates unchanged; hand stays active"
+      },
+      {
+        "name": "space-drag-over-node",
+        "before": {
+          "camera": "matrix(0.743363 0 0 0.743363 5.9469 244.96)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [],
+          "tool": [
+            "select"
+          ],
+          "zoom": "Zoom 74%"
+        },
+        "after": {
+          "camera": "matrix(0.7433630228042603,0,0,0.7433630228042603,80.94690704345703,269.9601745605469)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [],
+          "tool": [
+            "select"
+          ],
+          "zoom": "Zoom 74%"
+        },
+        "expected": "Temporary camera pan without moving node; restores selection tool"
+      },
+      {
+        "name": "H-then-V-shortcuts",
+        "before": {
+          "camera": "matrix(1.0177 0 0 1.0177 8.14159 184.606)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Request"
+          ],
+          "tool": [
+            "select"
+          ],
+          "zoom": "Zoom 102%"
+        },
+        "after": {
+          "camera": "matrix(1.0177 0 0 1.0177 8.14159 184.606)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Request"
+          ],
+          "tool": [
+            "select"
+          ],
+          "zoom": "Zoom 102%"
+        },
+        "expected": "Hand then Select; V returns to selection"
+      },
+      {
+        "name": "select-tool-blank-drag",
+        "before": {
+          "camera": "matrix(0.743363 0 0 0.743363 5.9469 244.96)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Request"
+          ],
+          "tool": [
+            "select"
+          ],
+          "zoom": "Zoom 74%"
+        },
+        "after": {
+          "camera": "matrix(0.743363 0 0 0.743363 5.9469 244.96)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Participant_Buyer",
+            "Lane_Procurement",
+            "Lane_Requester",
+            "Start",
+            "Start_label",
+            "Request",
+            "Validate",
+            "Complete",
+            "Complete_label",
+            "Rework",
+            "CreatePO",
+            "End",
+            "End_label",
+            "f1",
+            "f2",
+            "f3",
+            "f4",
+            "f4_label",
+            "f5",
+            "f6",
+            "f6_label",
+            "f7"
+          ],
+          "tool": [
+            "select"
+          ],
+          "zoom": "Zoom 74%"
+        },
+        "expected": "Marquee selects objects without panning camera"
+      },
+      {
+        "name": "plain-mouse-wheel",
+        "before": {
+          "camera": "matrix(0.743363 0 0 0.743363 5.9469 244.96)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Participant_Buyer",
+            "Lane_Procurement",
+            "Lane_Requester",
+            "Start",
+            "Start_label",
+            "Request",
+            "Validate",
+            "Complete",
+            "Complete_label",
+            "Rework",
+            "CreatePO",
+            "End",
+            "End_label",
+            "f1",
+            "f2",
+            "f3",
+            "f4",
+            "f4_label",
+            "f5",
+            "f6",
+            "f6_label",
+            "f7"
+          ],
+          "tool": [
+            "select"
+          ],
+          "zoom": "Zoom 74%"
+        },
+        "after": {
+          "camera": "matrix(0.6206057848138293,0,0,0.6206057848138293,88.19413240017533,265.1135239452083)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Participant_Buyer",
+            "Lane_Procurement",
+            "Lane_Requester",
+            "Start",
+            "Start_label",
+            "Request",
+            "Validate",
+            "Complete",
+            "Complete_label",
+            "Rework",
+            "CreatePO",
+            "End",
+            "End_label",
+            "f1",
+            "f2",
+            "f3",
+            "f4",
+            "f4_label",
+            "f5",
+            "f6",
+            "f6_label",
+            "f7"
+          ],
+          "tool": [
+            "select"
+          ],
+          "zoom": "Zoom 62%"
+        },
+        "expected": "Documented mouse/trackpad policy; inspect actual result"
+      },
+      {
+        "name": "ctrl-wheel",
+        "before": {
+          "camera": "matrix(0.743363 0 0 0.743363 5.9469 244.96)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Participant_Buyer",
+            "Lane_Procurement",
+            "Lane_Requester",
+            "Start",
+            "Start_label",
+            "Request",
+            "Validate",
+            "Complete",
+            "Complete_label",
+            "Rework",
+            "CreatePO",
+            "End",
+            "End_label",
+            "f1",
+            "f2",
+            "f3",
+            "f4",
+            "f4_label",
+            "f5",
+            "f6",
+            "f6_label",
+            "f7"
+          ],
+          "tool": [
+            "select"
+          ],
+          "zoom": "Zoom 74%"
+        },
+        "after": {
+          "camera": "matrix(0.8377301175614207,0,0,0.8377301175614207,-44.457575937203245,239.8772618696457)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Participant_Buyer",
+            "Lane_Procurement",
+            "Lane_Requester",
+            "Start",
+            "Start_label",
+            "Request",
+            "Validate",
+            "Complete",
+            "Complete_label",
+            "Rework",
+            "CreatePO",
+            "End",
+            "End_label",
+            "f1",
+            "f2",
+            "f3",
+            "f4",
+            "f4_label",
+            "f5",
+            "f6",
+            "f6_label",
+            "f7"
+          ],
+          "tool": [
+            "select"
+          ],
+          "zoom": "Zoom 84%"
+        },
+        "expected": "Zoom at pointer; no BPMN coordinate changes"
+      },
+      {
+        "name": "toolbar-select-then-H-over-canvas",
+        "before": {
+          "camera": "matrix(0.743363 0 0 0.743363 5.9469 244.96)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Participant_Buyer",
+            "Lane_Procurement",
+            "Lane_Requester",
+            "Start",
+            "Start_label",
+            "Request",
+            "Validate",
+            "Complete",
+            "Complete_label",
+            "Rework",
+            "CreatePO",
+            "End",
+            "End_label",
+            "f1",
+            "f2",
+            "f3",
+            "f4",
+            "f4_label",
+            "f5",
+            "f6",
+            "f6_label",
+            "f7"
+          ],
+          "tool": [
+            "select"
+          ],
+          "zoom": "Zoom 74%"
+        },
+        "after": {
+          "camera": "matrix(0.743363 0 0 0.743363 5.9469 244.96)",
+          "node": "matrix(1 0 0 1 205 90)",
+          "selected": [
+            "Participant_Buyer",
+            "Lane_Procurement",
+            "Lane_Requester",
+            "Start",
+            "Start_label",
+            "Request",
+            "Validate",
+            "Complete",
+            "Complete_label",
+            "Rework",
+            "CreatePO",
+            "End",
+            "End_label",
+            "f1",
+            "f2",
+            "f3",
+            "f4",
+            "f4_label",
+            "f5",
+            "f6",
+            "f6_label",
+            "f7"
+          ],
+          "tool": [
+            "hand-tool"
+          ],
+          "zoom": "Zoom 74%"
+        },
+        "expected": "Keyboard tool switching works after toolbar use"
+      }
+    ],
+    "writes": []
+  },
+  "limitations": [
+    "REA browser scenarios in this installed version have no drag or wheel action; the pointer trajectory is a test-driver observation.",
+    "REA PTY process capture unavailable on Windows.",
+    "Listener inventory exceeded the dev bundle metadata budget.",
+    "Two parallel browser-scenario attempts had unconfirmed cleanup and are excluded from successful proof.",
+    "No private board content or real client model included."
+  ],
+  "validation": {
+    "e2e": {
+      "browser": "System Chrome on Windows",
+      "viewportCoverage": [
+        "390x844",
+        "1366x768",
+        "1440x1000",
+        "1600x1000",
+        "1920x1000"
+      ],
+      "passed": 18,
+      "failed": 0,
+      "retries": 0
+    },
+    "unit": {
+      "passed": 35,
+      "scope": "Targeted files in separate completed runs; worker startup failures rerun"
+    },
+    "static": [
+      "typecheck",
+      "ESLint changed files",
+      "production build"
+    ],
+    "fullCi": "Not certified; #161 baseline has known E2E failures."
+  }
+}

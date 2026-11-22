@@ -1,0 +1,43 @@
+{
+  "actor": "Playwright mouse gestures; REA passive observation",
+  "before": [
+    {
+      "id": "PoolA",
+      "transform": "matrix(1 0 0 1 100 100)",
+      "width": "800",
+      "height": "544"
+    },
+    {
+      "id": "LaneB",
+      "transform": "matrix(1 0 0 1 130 300)",
+      "width": "770",
+      "height": "200"
+    },
+    {
+      "id": "LaneA",
+      "transform": "matrix(1 0 0 1 130 100)",
+      "width": "770",
+      "height": "200"
+    }
+  ],
+  "after": [
+    {
+      "id": "PoolA",
+      "transform": "matrix(1 0 0 1 100 100)",
+      "width": "890",
+      "height": "610"
+    },
+    {
+      "id": "LaneB",
+      "transform": "matrix(1 0 0 1 130 300)",
+      "width": "860",
+      "height": "200"
+    },
+    {
+      "id": "LaneA",
+      "transform": "matrix(1 0 0 1 130 100)",
+      "width": "860",
+      "height": "200"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "url": "https://demo.bpmn.io/new",
+  "actor": "Playwright mouse gestures; passive REA screenshot and DOM observation are captured separately.",
+  "before": "matrix(1 0 0 1 156 82)",
+  "after": "matrix(1 0 0 1 302 142)",
+  "rejected": "matrix(1 0 0 1 302 142)",
+  "afterPointerMoved": "matrix(1 0 0 1 302 142)",
+  "draggerCount": 0,
+  "finalDraggerCount": 0
+}

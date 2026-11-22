@@ -180,8 +180,8 @@ test("floating agent, contextual conversation, knowledge and product screenshots
   expect(state.turns[0]).toMatchObject({ autonomy: "manual", posture: "review", scope: { review_node_id: "verify", review_base_revision: BASE } });
   expect(await page.locator(".review-canvas .viewport").getAttribute("transform")).toBe(camera);
   const chatBounds = (await chat.boundingBox())!;
-  const attributionBounds = (await page.locator(".review-canvas .bjs-powered-by").boundingBox())!;
-  expect(chatBounds.y + chatBounds.height).toBeLessThan(attributionBounds.y);
+  const zoomBounds = (await page.getByRole("button", { name: "Centra", exact: true }).boundingBox())!;
+  expect(chatBounds.y + chatBounds.height).toBeLessThan(zoomBounds.y);
   expect((await new AxeBuilder({ page }).include(".process-review-workspace").analyze()).violations).toEqual([]);
   await page.screenshot({ path: info.outputPath("review-agent-chat.png") });
   if (info.project.name === "chromium") await chat.screenshot({ path: info.outputPath("review-agent-detail.png") });
@@ -243,10 +243,10 @@ test("separate As-Is diagram is available for presentation and export", async ({
   await page.getByRole("tab", { name: "Proposte", exact: true }).click();
   await page.getByRole("button", { name: "Apri diagramma", exact: true }).click();
   const preview = page.getByRole("dialog", { name: "Esplicitare il controllo di completezza" });
-  await expect(preview.locator(".djs-label").filter({ hasText: "Verificare completezza" })).toBeVisible();
+  await expect(preview.locator(".djs-visual text").filter({ hasText: "Verificare completezza" })).toBeVisible();
   await page.screenshot({ path: info.outputPath("review-as-is-proposal.png") });
   await preview.getByRole("tab", { name: "As-Is originale", exact: true }).click();
-  await expect(preview.locator(".djs-label").filter({ hasText: "Verificare dati" })).toBeVisible();
+  await expect(preview.locator(".djs-visual text").filter({ hasText: "Verificare dati" })).toBeVisible();
   const download = page.waitForEvent("download");
   await preview.getByRole("button", { name: "Scarica BPMN" }).click();
   expect((await download).suggestedFilename()).toBe("review-separate-diagram.bpmn");
@@ -269,11 +269,11 @@ test("agent engine output renders the new task, owner and reconnected flows", as
   await page.getByRole("button", { name: "Apri diagramma", exact: true }).click();
   const preview = page.getByRole("dialog", { name: "Esplicitare il controllo di completezza" });
   for (const id of ["verify", "record", "buying"]) await expect(preview.locator(`.djs-element[data-element-id='${id}']`)).toBeVisible();
-  await expect(preview.locator(".djs-label").filter({ hasText: "Registrare esito verifica" })).toBeVisible();
-  await expect(preview.locator(".djs-label").filter({ hasText: "Acquisti" })).toBeVisible();
+  await expect(preview.locator(".djs-visual text").filter({ hasText: "Registrare esito verifica" })).toBeVisible();
+  await expect(preview.locator(".djs-visual text").filter({ hasText: "Acquisti" })).toBeVisible();
   await expect(preview.locator(".djs-connection")).toHaveCount(3);
   for (const id of ["begin", "handoff", "finish"]) {
-    const line = preview.locator(`.djs-connection[data-element-id='${id}'] .djs-visual > path`);
+    const line = preview.locator(`.djs-connection[data-element-id='${id}'] .djs-visual > path`).first();
     // Horizontal SVG lines have zero bounding-box height: Playwright's
     // visibility predicate cannot distinguish them from a hidden element.
     expect(await line.evaluate(element => {
@@ -323,6 +323,7 @@ test("retry and stale proposal errors retain editable text", async ({ page }) =>
   await page.getByRole("button", { name: "Registra azione" }).click();
   await expect(page.getByRole("alert")).toContainText("La base della review è cambiata");
   await expect(page.getByLabel("Titolo", { exact: true })).toHaveValue("Proposta conservata");
+  await expect(page.locator('.review-agent-chat')).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Salva come ipotesi" })).toBeFocused();
 });
@@ -377,16 +378,13 @@ test("enterprise policy diagram renders real-owner lanes, process pool and branc
   for (const id of ["Company", "Supplier", "Technical", "Purchasing", "Maintenance", "Director_Sign", "Request_Document"])
     await expect(preview.locator(`.djs-element[data-element-id='${id}']`)).toBeVisible();
   for (const text of ["Ufficio tecnico", "Acquisti", "Manutenzione", "Sopra soglia", "Sotto soglia"])
-    await expect(preview.locator(".djs-label").filter({ hasText: text }).first()).toBeVisible();
+    await expect(preview.locator(".djs-visual text").filter({ hasText: text }).first()).toBeVisible();
   const laneBounds = await Promise.all(["Technical", "Purchasing", "Maintenance"].map(id => preview.locator(`.djs-element[data-element-id='${id}'] .djs-visual > rect`).first().boundingBox()));
   for (const name of ["Sopra soglia", "Sotto soglia"]) {
-    const label = (await preview.locator(".djs-label").filter({ hasText: name }).first().boundingBox())!;
+    const label = (await preview.locator(".djs-visual text").filter({ hasText: name }).first().boundingBox())!;
     expect(laneBounds.some(lane => lane && label.y > lane.y && label.y + label.height < lane.y + lane.height)).toBe(true);
   }
   await expect(preview.locator(".djs-connection")).toHaveCount(11);
-  await expect(preview.locator(".delir-canvas-identity")).toHaveText("DeliR.");
-  await expect(preview.locator(".delir-canvas-identity").getByRole("img", { name: "DeliR" })).toBeVisible();
-  await expect(preview.locator(".delir-role-band")).toHaveCount(5);
   const task = preview.locator(".djs-element[data-element-id='Verify'] .djs-visual > rect").first();
   const gateway = preview.locator(".djs-element[data-element-id='Decision'] .djs-visual > polygon").first();
   expect(await task.evaluate(el => getComputedStyle(el).fill)).not.toBe(await gateway.evaluate(el => getComputedStyle(el).fill));

@@ -1,4 +1,4 @@
-/** Minimal structural types over the parts of bpmn-js this feature touches. */
+/** Minimal structural types over the DeliR services this feature touches. */
 
 export type BpmnModeler = {
   importXML: (xml: string) => Promise<unknown>;
@@ -75,6 +75,7 @@ export type BpmnFactory = {
 export type BpmnElementSelection = {
   id: string;
   type: string;
+  parent?: BpmnElementSelection;
   businessObject?: {
     name?: string;
     documentation?: Array<{ text?: string }>;
@@ -87,6 +88,7 @@ export type SelectedBpmnElement = {
   id: string;
   type: string;
   name: string;
+  laneName?: string;
   documentation: string;
   metadata: import("./enterprise").EnterpriseMetadata;
 };

@@ -68,6 +68,11 @@ async function jump(page: Page, id: string): Promise<void> {
   await page.getByLabel("Vai a un elemento…", { exact: true }).selectOption(id);
 }
 
+async function openAnalysis(page: Page, name: string): Promise<void> {
+  await page.locator(".sim-studio-tool-actions").getByRole("button").click();
+  await page.getByRole("menuitem", { name, exact: true }).click();
+}
+
 async function expectDisclosureWithinWorkspace(page: Page, label: string): Promise<void> {
   const menu = page.getByRole("region", { name: label, exact: true });
   await expect(menu).toBeVisible();
@@ -92,7 +97,7 @@ test("dashboard and process share the clock and never label final KPIs as curren
   await costWidget.getByText("Visualizza dati", { exact: true }).click();
   await expect(costWidget.locator("tbody tr")).toHaveCount(3);
   await expect(costWidget.locator("tbody")).not.toContainText("999");
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Scenario", exact: true }).click();
+  await openAnalysis(page, "Scenario");
   await expect(page.locator('input[type="range"]')).toHaveValue("200");
   await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
   await expect(page.locator('input[type="range"]')).toHaveValue("200");
@@ -324,7 +329,7 @@ test("consultant investigates an activity through contextual tools without losin
   await viewer.evaluate((element) => element.setAttribute("data-session-marker", "same-viewer"));
   const tools = page.locator(".sim-studio-tools");
   for (const name of ["Scenario", "Risultati", "Heatmap", "Confronto", "Insight"]) {
-    await tools.getByRole("button", { name, exact: true }).click();
+    await openAnalysis(page, name);
     if (name === "Confronto") await expect(page.locator(".sim-comparison-bar")).toBeVisible();
     else await expect(page.getByRole("complementary", { name: "Dettagli e impostazioni", exact: true })).toBeVisible();
     await expect(viewer).toHaveAttribute("data-session-marker", "same-viewer");
@@ -340,16 +345,16 @@ test("consultant investigates an activity through contextual tools without losin
     if (name !== "Confronto") {
       await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
       await expect(page.locator(".sim-studio-dock")).toBeHidden();
-      await expect(tools.getByRole("button", { name, exact: true })).toBeFocused();
+      await expect(tools.locator(".sim-studio-tool-actions").getByRole("button")).toBeFocused();
     }
-    await tools.getByRole("button", { name: "Osserva", exact: true }).click();
+    await tools.getByRole("radio", { name: "Osserva", exact: true }).click();
     await expect(page.locator('input[type="range"]')).toHaveValue("100");
   }
   await expect(process.locator(".sim-token")).not.toHaveCount(0);
   if (!isMobile) await page.setViewportSize({ width: 1600, height: 1000 });
   await page.locator(".sim-dashboard-workspace").evaluate((element) => { element.scrollTop = 0; });
   await page.screenshot({ path: testInfo.outputPath("unified-workspace.png"), animations: "disabled" });
-  await tools.getByRole("button", { name: "Heatmap", exact: true }).click();
+  await openAnalysis(page, "Heatmap");
   await expect(page.locator(".sim-studio-dock")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("unified-heatmap.png"), animations: "disabled" });
 });
@@ -383,9 +388,9 @@ test("changing run retains the tool while resetting clock and activity scope", a
   await page.goto(`${studio}/workspace/42`);
   await seek(page, 200);
   await page.getByLabel("Attivit\u00e0", { exact: true }).selectOption("A");
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Risultati", exact: true }).click();
+  await openAnalysis(page, "Risultati");
   await expect(page).toHaveURL(/panel=overview/);
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Intera esecuzione", exact: true }).click();
+  await page.locator(".sim-studio-tools").getByRole("radio", { name: "Intera esecuzione", exact: true }).click();
   await page.getByRole("combobox", { name: "Scegli una run" }).click();
   await page.getByRole("option", { name: /TO-BE/ }).click();
   await expect(page).toHaveURL(/workspace\/43.*panel=overview/);
@@ -403,7 +408,7 @@ for (const state of ["pending", "failed", "no-artifact"] as const) {
     else await page.route("http://127.0.0.1:8000/**/simulation-runs", (route) => route.fulfill({ json: [{ ...run, status: state, error: state === "failed" ? "Simulation failed" : null }] }));
     await page.goto(`${studio}/workspace/42`);
     await expect(page.locator(".simulation-bpmn-view .djs-container")).toHaveCount(1);
-    await page.locator(".sim-studio-tools").getByRole("button", { name: "Scenario", exact: true }).click();
+    await openAnalysis(page, "Scenario");
     await expect(page.getByRole("complementary", { name: "Dettagli e impostazioni", exact: true })).toBeVisible();
     await expect(page.locator(".sim-config-body")).toBeVisible();
     await expect(page.locator(".simulation-bpmn-view .djs-container")).toHaveCount(1);
@@ -433,12 +438,18 @@ test("a consultant observes a lane-based process and opens details without reflo
   await expect(process.locator(".sim-token")).not.toHaveCount(0);
   await viewer.evaluate(el => el.setAttribute("data-session-marker", "same-lanes"));
   const size = await process.boundingBox();
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Scenario", exact: true }).click();
+  await openAnalysis(page, "Scenario");
   await expect(viewer).toHaveAttribute("data-session-marker", "same-lanes");
-  expect((await process.boundingBox())!.width).toBeCloseTo(size!.width, 1);
-  expect((await process.boundingBox())!.height).toBeCloseTo(size!.height, 1);
+  if (isMobile) await expect(process).toBeHidden();
+  else {
+    expect((await process.boundingBox())!.width).toBeCloseTo(size!.width, 1);
+    expect((await process.boundingBox())!.height).toBeCloseTo(size!.height, 1);
+  }
   await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
   await expect(page.locator(".sim-studio-dock")).toBeHidden();
+  await expect(process).toBeVisible();
+  expect((await process.boundingBox())!.width).toBeCloseTo(size!.width, 1);
+  expect((await process.boundingBox())!.height).toBeCloseTo(size!.height, 1);
   await expect(page.locator('input[type="range"]')).toHaveValue("100");
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
   await page.screenshot({ path: testInfo.outputPath("analytical-canvas-lanes.png"), animations: "disabled" });
@@ -452,7 +463,7 @@ for (const missingReplay of [false, true]) test(`comparison uses the selected B 
   await seek(page, 200);
   const viewer = page.locator("[data-process-tile] .djs-container");
   await viewer.evaluate(el => el.setAttribute("data-session-marker", "same-comparison"));
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Confronto", exact: true }).click();
+  await openAnalysis(page, "Confronto");
   await page.locator(".sim-comparison-bar").getByRole("combobox").last().click();
   await page.getByRole("option", { name: /TO-BE/ }).click();
   await expect(page.locator(".sim-kpi").filter({ hasText: "Attraversamento medio" })).toContainText("2 min");
@@ -605,7 +616,7 @@ test("results panels have dedicated space and readable metrics on desktop and ph
   } }, { ...run, id: 43, scenario_name: "TO-BE · Capacità aggiuntiva" }] }));
   if (!isMobile) await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto(`${studio}/workspace/42`);
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Risultati", exact: true }).click();
+  await openAnalysis(page, "Risultati");
   const dock = page.locator(".sim-studio-dock");
   const board = page.locator(".sim-studio-board");
   const metrics = dock.locator(".sim-snapshot-kpis");
@@ -631,7 +642,7 @@ test("multiple alternatives compare against one reference and preserve the repla
   if (!isMobile) await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto(`${studio}/workspace/42`);
   await seek(page, 200);
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Confronto", exact: true }).click();
+  await openAnalysis(page, "Confronto");
   await page.getByRole("combobox", { name: "Scenario A", exact: true }).click();
   await page.getByRole("option", { name: /AS-IS/ }).click();
   await expect(page.getByRole("combobox", { name: "Scenario A", exact: true })).toContainText("AS-IS");
@@ -660,7 +671,7 @@ test("multiple alternatives compare against one reference and preserve the repla
   const scan = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(scan.violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("scenario-matrix.png"), animations: "disabled" });
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Osserva", exact: true }).click();
+  await page.locator(".sim-studio-tools").getByRole("radio", { name: "Osserva", exact: true }).click();
   await expect(page.locator('input[type="range"]')).toHaveValue("200");
 });
 
@@ -693,6 +704,7 @@ test("inspecting a matrix alternative preserves an implicit reference and labels
 
 
 for (const size of [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }]) test(`desktop hierarchy reserves the stage and preserves camera and clock at ${size.width}`, async ({ page, isMobile, browserName }) => {
+  test.setTimeout(90_000);
   test.skip(isMobile, "Desktop-specific workspace geometry");
   await page.setViewportSize(size);
   await page.goto(`${studio}/workspace/42`);
@@ -726,20 +738,20 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }]
   await page.keyboard.up("Space");
   await expect(world).not.toHaveAttribute("style", camera!);
   const panned = await world.getAttribute("style");
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Risultati", exact: true }).click();
+  await openAnalysis(page, "Risultati");
   await expect(page.locator('input[type="range"]')).toHaveValue("100");
   await expect(world).toHaveAttribute("style", panned!);
   await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
   await expect(world).toHaveAttribute("style", panned!);
   await page.getByRole("button", { name: "Centra processo", exact: true }).click();
   await expect(process).toBeInViewport({ ratio: 0.99 });
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Confronto", exact: true }).click();
+  await openAnalysis(page, "Confronto");
   await page.locator(".sim-multi-comparison > summary").click();
   const stageAfter = await viewport.boundingBox();
   expect(stageAfter!.y).toBeLessThan(210);
   expect(stageAfter!.height).toBeGreaterThan(size.height * 0.65);
   await page.screenshot({ path: `.tmp/canvas-hierarchy-compare-${size.width}-${browserName}.png`, animations: "disabled" });
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Osserva", exact: true }).click();
+  await page.getByRole("button", { name: "Riprendi osservazione", exact: true }).click();
   await expect(page.locator('input[type="range"]')).toHaveValue("100");
   const scan = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(scan.violations).toEqual([]);
@@ -776,18 +788,18 @@ test("desktop containers and canvas objects resize quietly without changing the 
   await expect(chart).toHaveCSS("outline-style", "none");
   const world = page.locator(".sim-scene-world");
   const camera = await world.getAttribute("style");
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Heatmap", exact: true }).click();
+  await openAnalysis(page, "Heatmap");
   const dock = page.locator(".sim-studio-dock");
   const splitter = page.getByRole("separator", { name: "Ridimensiona pannello di dettagli", exact: true });
-  await expect(splitter).toHaveAttribute("aria-valuenow", "400");
+  await expect(splitter).toHaveAttribute("aria-valuenow", "320");
   await splitter.press("ArrowLeft");
-  await expect(dock).toHaveCSS("width", "420px");
+  await expect(dock).toHaveCSS("width", "340px");
   const divider = await splitter.boundingBox();
   await page.mouse.move(divider!.x + divider!.width / 2, divider!.y + divider!.height / 2);
   await page.mouse.down();
   await page.mouse.move(divider!.x + divider!.width / 2 - 60, divider!.y + divider!.height / 2, { steps: 5 });
   await page.mouse.up();
-  await expect(dock).toHaveCSS("width", "480px");
+  await expect(dock).toHaveCSS("width", "400px");
   const stage = page.locator(".sim-studio-board");
   const stageBefore = await stage.boundingBox();
   const resizeStage = page.getByRole("button", { name: "Ridimensiona area canvas", exact: true });

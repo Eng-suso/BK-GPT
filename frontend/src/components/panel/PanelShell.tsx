@@ -3,9 +3,9 @@ import type { ElementType, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * The one bordered workspace surface. Every panel in the projects / process /
+ * The shared continuous workspace surface. Every panel in the projects / process /
  * simulation / chat area is a `PanelShell` with a `PanelShellHeader` — same
- * border, radius, shadow and 56px header everywhere, instead of five
+ * dividers, material and header geometry everywhere, instead of five
  * slightly-different hand-rolled shells.
  *
  * Compose:
@@ -27,7 +27,7 @@ export function PanelShell({
   return (
     <Tag
       className={cn(
-        "ui-surface ui-surface-panel flex min-h-0 min-w-0 flex-col overflow-hidden",
+        "ui-surface ui-surface-workspace flex min-h-0 min-w-0 flex-col overflow-hidden",
         className,
       )}
       {...rest}

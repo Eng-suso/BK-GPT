@@ -1,0 +1,174 @@
+{
+  "evidence_id": "ev_d872dca18a445fb1800c35b8795864e0733d2c0a555a130a651ece26030e7da8",
+  "operation": "inspect_web_page",
+  "authority": "external-service",
+  "confidence": "observed",
+  "provider": {
+    "id": "rea-cdp-browser",
+    "name": "REA Chrome DevTools Protocol observation provider",
+    "version": "2"
+  },
+  "target": {
+    "target_id": "698959B1E4FBA18B138BD42C8E53C30F",
+    "type": "page",
+    "title": "DeliR",
+    "url": "http://127.0.0.1:3040/projects/pitch-procurement/processes/purchase-to-pay?view=canvas",
+    "origin": "http://127.0.0.1:3040",
+    "attached": null
+  },
+  "completeness": {
+    "status": "policy_filtered",
+    "conditions": [
+      "attach_limited",
+      "policy_filtered"
+    ],
+    "policy_filtered_sections": [
+      "json_body_shapes",
+      "metadata",
+      "script_sources",
+      "scripts",
+      "source_maps",
+      "storage_keys",
+      "websocket_shapes"
+    ],
+    "attach_limited_sections": [
+      "console_events",
+      "metadata",
+      "network_requests",
+      "websocket_connections",
+      "websocket_frames"
+    ],
+    "truncated_sections": [],
+    "unavailable_sections": [],
+    "excluded": [
+      {
+        "section": "json_body_shapes",
+        "reason": "not_approved",
+        "count": null
+      },
+      {
+        "section": "metadata",
+        "reason": "disallowed_origin",
+        "count": 1
+      },
+      {
+        "section": "script_sources",
+        "reason": "not_approved",
+        "count": 251
+      },
+      {
+        "section": "scripts",
+        "reason": "unattributed_origin",
+        "count": 25
+      },
+      {
+        "section": "source_maps",
+        "reason": "unsupported_url",
+        "count": 232
+      },
+      {
+        "section": "storage_keys",
+        "reason": "not_approved",
+        "count": null
+      },
+      {
+        "section": "websocket_shapes",
+        "reason": "not_approved",
+        "count": null
+      }
+    ],
+    "dropped_events": {
+      "scripts": 0,
+      "network_requests": 0,
+      "console_events": 0,
+      "websocket_connections": 0,
+      "websocket_frames": 0,
+      "webmcp_tools": 0,
+      "timeline_events": 0,
+      "total": 0
+    }
+  },
+  "limitations": [
+    "Observation starts when REA attaches; prior network and console activity is unavailable.",
+    "Raw network headers, bodies, cookies, storage values, console objects, and WebSocket payloads are never retained; explicitly requested primitive console text is retained verbatim, while payload captures retain value-free shapes.",
+    "Source maps are reported only as declarative URLs and are not fetched.",
+    "URL-less scripts and console events without an allowed source URL are excluded because their origin cannot be proven.",
+    "CDP discovery omitted the target attachment state; attached is reported as unknown."
+  ],
+  "console": {
+    "events": [
+      {
+        "type": "debug",
+        "timestamp": 1793786400772.213,
+        "argument_types": [
+          "string"
+        ],
+        "url": "http://127.0.0.1:3040/@vite/client",
+        "line": 850,
+        "column": 8,
+        "text_capture": {
+          "status": "included",
+          "values": [
+            {
+              "argument_index": 0,
+              "type": "string",
+              "text": "[vite] connecting..."
+            }
+          ],
+          "retained_bytes": 20
+        }
+      },
+      {
+        "type": "debug",
+        "timestamp": 1793786400782.798,
+        "argument_types": [
+          "string"
+        ],
+        "url": "http://127.0.0.1:3040/@vite/client",
+        "line": 954,
+        "column": 11,
+        "text_capture": {
+          "status": "included",
+          "values": [
+            {
+              "argument_index": 0,
+              "type": "string",
+              "text": "[vite] connected."
+            }
+          ],
+          "retained_bytes": 17
+        }
+      },
+      {
+        "type": "info",
+        "timestamp": 1793786401249.668,
+        "argument_types": [
+          "string",
+          "string"
+        ],
+        "url": "http://127.0.0.1:3040/node_modules/.vite/deps/react-dom_client.js?v=6abfcbc4",
+        "line": 14335,
+        "column": 48,
+        "text_capture": {
+          "status": "included",
+          "values": [
+            {
+              "argument_index": 0,
+              "type": "string",
+              "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools"
+            },
+            {
+              "argument_index": 1,
+              "type": "string",
+              "text": "font-weight:bold"
+            }
+          ],
+          "retained_bytes": 120
+        }
+      }
+    ],
+    "coverage_started_at": "2026-11-04T10:00:45.114Z",
+    "prior_activity_available": false
+  },
+  "projection_note": "Full inline Evidence retained in task runtime; this receipt records scope and limitations without reproducing script/resource inventories."
+}

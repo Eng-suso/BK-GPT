@@ -1,0 +1,289 @@
+{
+  "config": {
+    "argv": [
+      "C:\\node.exe",
+      "<workspace>\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "-c",
+      ".tmp/run-move.config.ts",
+      "-g",
+      "selected subgraph drops|annotation associations stay|right click opens|container resize grips"
+    ],
+    "configFile": "<workspace>\\.tmp\\run-move.config.ts",
+    "rootDir": "<workspace>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "<workspace>/.tmp/.tmp/move-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "<workspace>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "workspace-layout.spec.ts"
+        ],
+        "timeout": 120000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json",
+        {
+          "outputFile": ".tmp/move-results.json"
+        }
+      ],
+      [
+        "list",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "workspace-layout.spec.ts",
+      "file": "workspace-layout.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "selected subgraph drops into a pool and releases after valid and rejected moves",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8473,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-05T07:00:10.980Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "adopted-pool.xml",
+                      "contentType": "application/xml",
+                      "body": "PGJwbW46ZGVmaW5pdGlvbnMgeG1sbnM6YnBtbj0iaHR0cDovL3d3dy5vbWcub3JnL3NwZWMvQlBNTi8yMDEwMDUyNC9NT0RFTCIgeG1sbnM6YnBtbmRpPSJodHRwOi8vd3d3Lm9tZy5vcmcvc3BlYy9CUE1OLzIwMTAwNTI0L0RJIiB4bWxuczpkYz0iaHR0cDovL3d3dy5vbWcub3JnL3NwZWMvREQvMjAxMDA1MjQvREMiIHhtbG5zOmRpPSJodHRwOi8vd3d3Lm9tZy5vcmcvc3BlYy9ERC8yMDEwMDUyNC9ESSIgdGFyZ2V0TmFtZXNwYWNlPSJ1cm46bW92ZSI+PGJwbW46cHJvY2VzcyBpZD0iTG9vc2UiLz48YnBtbjpwcm9jZXNzIGlkPSJJbnNpZGUiPjxicG1uOmVuZEV2ZW50IGlkPSJFbmQiPjxicG1uOmluY29taW5nPkxhc3Q8L2JwbW46aW5jb21pbmc+PC9icG1uOmVuZEV2ZW50PjxicG1uOnRhc2sgaWQ9IldvcmsiIG5hbWU9IlZlcmlmaWNhIj48YnBtbjppbmNvbWluZz5GaXJzdDwvYnBtbjppbmNvbWluZz48YnBtbjpvdXRnb2luZz5MYXN0PC9icG1uOm91dGdvaW5nPjwvYnBtbjp0YXNrPjxicG1uOnN0YXJ0RXZlbnQgaWQ9IlN0YXJ0Ij48YnBtbjpvdXRnb2luZz5GaXJzdDwvYnBtbjpvdXRnb2luZz48L2JwbW46c3RhcnRFdmVudD48YnBtbjpzZXF1ZW5jZUZsb3cgaWQ9IkZpcnN0IiBzb3VyY2VSZWY9IlN0YXJ0IiB0YXJnZXRSZWY9IldvcmsiLz48YnBtbjpzZXF1ZW5jZUZsb3cgaWQ9Ikxhc3QiIHNvdXJjZVJlZj0iV29yayIgdGFyZ2V0UmVmPSJFbmQiLz48L2JwbW46cHJvY2Vzcz48YnBtbjpjb2xsYWJvcmF0aW9uIGlkPSJDb2xsYWJvcmF0aW9uIj48YnBtbjpwYXJ0aWNpcGFudCBpZD0iUG9vbCIgbmFtZT0iT3BlcmF0aW9ucyIgcHJvY2Vzc1JlZj0iSW5zaWRlIi8+PC9icG1uOmNvbGxhYm9yYXRpb24+PGJwbW5kaTpCUE1ORGlhZ3JhbSBpZD0iZGlhZ3JhbSI+PGJwbW5kaTpCUE1OUGxhbmUgaWQ9InBsYW5lIiBicG1uRWxlbWVudD0iTG9vc2UiPjxicG1uZGk6QlBNTlNoYXBlIGlkPSJTdGFydF9kaSIgYnBtbkVsZW1lbnQ9IlN0YXJ0Ij48ZGM6Qm91bmRzIHg9IjE2MCIgeT0iNDU3IiB3aWR0aD0iMzYiIGhlaWdodD0iMzYiLz48L2JwbW5kaTpCUE1OU2hhcGU+PGJwbW5kaTpCUE1OU2hhcGUgaWQ9IldvcmtfZGkiIGJwbW5FbGVtZW50PSJXb3JrIj48ZGM6Qm91bmRzIHg9IjMwMCIgeT0iNDQzIiB3aWR0aD0iMTIwIiBoZWlnaHQ9IjY0Ii8+PC9icG1uZGk6QlBNTlNoYXBlPjxicG1uZGk6QlBNTlNoYXBlIGlkPSJFbmRfZGkiIGJwbW5FbGVtZW50PSJFbmQiPjxkYzpCb3VuZHMgeD0iNTIwIiB5PSI0NTciIHdpZHRoPSIzNiIgaGVpZ2h0PSIzNiIvPjwvYnBtbmRpOkJQTU5TaGFwZT48YnBtbmRpOkJQTU5TaGFwZSBpZD0iUG9vbF9kaSIgYnBtbkVsZW1lbnQ9IlBvb2wiIGlzSG9yaXpvbnRhbD0idHJ1ZSI+PGRjOkJvdW5kcyB4PSIxMDAiIHk9IjMwMCIgd2lkdGg9IjkwMCIgaGVpZ2h0PSIzNTAiLz48L2JwbW5kaTpCUE1OU2hhcGU+PGJwbW5kaTpCUE1ORWRnZSBpZD0iRmlyc3RfZGkiIGJwbW5FbGVtZW50PSJGaXJzdCI+PGRpOndheXBvaW50IHg9IjE5NiIgeT0iNDc1Ii8+PGRpOndheXBvaW50IHg9IjMwMCIgeT0iNDc1Ii8+PC9icG1uZGk6QlBNTkVkZ2U+PGJwbW5kaTpCUE1ORWRnZSBpZD0iTGFzdF9kaSIgYnBtbkVsZW1lbnQ9Ikxhc3QiPjxkaTp3YXlwb2ludCB4PSI0MjAiIHk9IjQ3NSIvPjxkaTp3YXlwb2ludCB4PSI1MjAiIHk9IjQ3NSIvPjwvYnBtbmRpOkJQTU5FZGdlPjwvYnBtbmRpOkJQTU5QbGFuZT48L2JwbW5kaTpCUE1ORGlhZ3JhbT48L2JwbW46ZGVmaW5pdGlvbnM+"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "87206d496e61dcf70a84-cf65515eff92fd509be0",
+          "file": "workspace-layout.spec.ts",
+          "line": 45,
+          "column": 5
+        },
+        {
+          "title": "annotation associations stay visible inside a pool after movement and undo",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8561,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-05T07:00:41.189Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "annotation-moved.xml",
+                      "contentType": "application/xml",
+                      "body": "PGJwbW46ZGVmaW5pdGlvbnMgeG1sbnM6YnBtbj0iaHR0cDovL3d3dy5vbWcub3JnL3NwZWMvQlBNTi8yMDEwMDUyNC9NT0RFTCIgeG1sbnM6YnBtbmRpPSJodHRwOi8vd3d3Lm9tZy5vcmcvc3BlYy9CUE1OLzIwMTAwNTI0L0RJIiB4bWxuczpkYz0iaHR0cDovL3d3dy5vbWcub3JnL3NwZWMvREQvMjAxMDA1MjQvREMiIHhtbG5zOmRpPSJodHRwOi8vd3d3Lm9tZy5vcmcvc3BlYy9ERC8yMDEwMDUyNC9ESSIgdGFyZ2V0TmFtZXNwYWNlPSJ1cm46Y29sbGFib3JhdGlvbiI+PGJwbW46cHJvY2VzcyBpZD0iUHJvY2Vzc0EiPjxicG1uOmxhbmVTZXQgaWQ9IlJvbGVzIj48YnBtbjpsYW5lIGlkPSJMYW5lQSIgbmFtZT0iT3BlcmF0aW9ucyI+PGJwbW46Zmxvd05vZGVSZWY+VGFza0E8L2JwbW46Zmxvd05vZGVSZWY+PC9icG1uOmxhbmU+PGJwbW46bGFuZSBpZD0iTGFuZUIiIG5hbWU9IkZpbmFuY2UiPjxicG1uOmZsb3dOb2RlUmVmPlRhc2tCPC9icG1uOmZsb3dOb2RlUmVmPjwvYnBtbjpsYW5lPjxicG1uOmxhbmUgaWQ9IkxhbmVfZTU5MGJmMTY1NDc0Ii8+PC9icG1uOmxhbmVTZXQ+PGJwbW46dGFzayBpZD0iVGFza0EiIG5hbWU9IlByZXBhcmUiPjxicG1uOm91dGdvaW5nPlNlcXVlbmNlRmxvd19iMzY1OThjYWYwZmQ8L2JwbW46b3V0Z29pbmc+PC9icG1uOnRhc2s+PGJwbW46dGFzayBpZD0iVGFza0IiIG5hbWU9IkFwcHJvdmUiPjxicG1uOmluY29taW5nPlNlcXVlbmNlRmxvd19iMzY1OThjYWYwZmQ8L2JwbW46aW5jb21pbmc+PC9icG1uOnRhc2s+PGJwbW46c2VxdWVuY2VGbG93IGlkPSJTZXF1ZW5jZUZsb3dfYjM2NTk4Y2FmMGZkIiBzb3VyY2VSZWY9IlRhc2tBIiB0YXJnZXRSZWY9IlRhc2tCIi8+PGJwbW46dGV4dEFubm90YXRpb24gaWQ9Ik5vdGUiPjxicG1uOnRleHQ+VmVyaWZpY2FyZSBpIGRvY3VtZW50aTwvYnBtbjp0ZXh0PjwvYnBtbjp0ZXh0QW5ub3RhdGlvbj48YnBtbjphc3NvY2lhdGlvbiBpZD0iTm90ZV9saW5rIiBzb3VyY2VSZWY9Ik5vdGUiIHRhcmdldFJlZj0iVGFza0EiLz48L2JwbW46cHJvY2Vzcz48YnBtbjpwcm9jZXNzIGlkPSJQcm9jZXNzQiI+PGJwbW46dGFzayBpZD0iVGFza0MiIG5hbWU9IlJlY2VpdmUiLz48L2JwbW46cHJvY2Vzcz48YnBtbjpjb2xsYWJvcmF0aW9uIGlkPSJDb2xsYWJvcmF0aW9uIj48YnBtbjpwYXJ0aWNpcGFudCBpZD0iUG9vbEEiIG5hbWU9IkNvbXBhbnkiIHByb2Nlc3NSZWY9IlByb2Nlc3NBIi8+PGJwbW46cGFydGljaXBhbnQgaWQ9IlBvb2xCIiBuYW1lPSJQYXJ0bmVyIiBwcm9jZXNzUmVmPSJQcm9jZXNzQiIvPjxicG1uOm1lc3NhZ2VGbG93IGlkPSJNZXNzYWdlRmxvd19mNmIxMDBhZjU0YzAiIHNvdXJjZVJlZj0iVGFza0IiIHRhcmdldFJlZj0iVGFza0MiLz48L2JwbW46Y29sbGFib3JhdGlvbj48YnBtbmRpOkJQTU5EaWFncmFtIGlkPSJEaWFncmFtIj48YnBtbmRpOkJQTU5QbGFuZSBpZD0iUGxhbmUiIGJwbW5FbGVtZW50PSJDb2xsYWJvcmF0aW9uIj48YnBtbmRpOkJQTU5TaGFwZSBpZD0iUG9vbEFfZGkiIGJwbW5FbGVtZW50PSJQb29sQSIgaXNIb3Jpem9udGFsPSJ0cnVlIj48ZGM6Qm91bmRzIHg9IjEwMCIgeT0iMTAwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjU0NCIvPjwvYnBtbmRpOkJQTU5TaGFwZT48YnBtbmRpOkJQTU5TaGFwZSBpZD0iTGFuZUFfZGkiIGJwbW5FbGVtZW50PSJMYW5lQSIgaXNIb3Jpem9udGFsPSJ0cnVlIj48ZGM6Qm91bmRzIHg9IjEzMCIgeT0iMTAwIiB3aWR0aD0iNzcwIiBoZWlnaHQ9IjIwMCIvPjwvYnBtbmRpOkJQTU5TaGFwZT48YnBtbmRpOkJQTU5TaGFwZSBpZD0iTGFuZUJfZGkiIGJwbW5FbGVtZW50PSJMYW5lQiIgaXNIb3Jpem9udGFsPSJ0cnVlIj48ZGM6Qm91bmRzIHg9IjEzMCIgeT0iMzAwIiB3aWR0aD0iNzcwIiBoZWlnaHQ9IjIwMCIvPjwvYnBtbmRpOkJQTU5TaGFwZT48YnBtbmRpOkJQTU5TaGFwZSBpZD0iVGFza0FfZGkiIGJwbW5FbGVtZW50PSJUYXNrQSIgaXNIb3Jpem9udGFsPSJ0cnVlIj48ZGM6Qm91bmRzIHg9IjMyMiIgeT0iMTc1IiB3aWR0aD0iMTYwIiBoZWlnaHQ9Ijg4Ii8+PC9icG1uZGk6QlBNTlNoYXBlPjxicG1uZGk6QlBNTlNoYXBlIGlkPSJUYXNrQl9kaSIgYnBtbkVsZW1lbnQ9IlRhc2tCIiBpc0hvcml6b250YWw9InRydWUiPjxkYzpCb3VuZHMgeD0iNTUwIiB5PSIzNTAiIHdpZHRoPSIxNjAiIGhlaWdodD0iODgiLz48L2JwbW5kaTpCUE1OU2hhcGU+PGJwbW5kaTpCUE1OU2hhcGUgaWQ9IlBvb2xCX2RpIiBicG1uRWxlbWVudD0iUG9vbEIiIGlzSG9yaXpvbnRhbD0idHJ1ZSI+PGRjOkJvdW5kcyB4PSIxMDAiIHk9Ijc5NCIgd2lkdGg9IjgwMCIgaGVpZ2h0PSIyMjAiLz48L2JwbW5kaTpCUE1OU2hhcGU+PGJwbW5kaTpCUE1OU2hhcGUgaWQ9IlRhc2tDX2RpIiBicG1uRWxlbWVudD0iVGFza0MiIGlzSG9yaXpvbnRhbD0idHJ1ZSI+PGRjOkJvdW5kcyB4PSIyNjAiIHk9Ijg1NCIgd2lkdGg9IjE2MCIgaGVpZ2h0PSI4OCIvPjwvYnBtbmRpOkJQTU5TaGFwZT48YnBtbmRpOkJQTU5FZGdlIGlkPSJTZXF1ZW5jZUZsb3dfYjM2NTk4Y2FmMGZkX2RpIiBicG1uRWxlbWVudD0iU2VxdWVuY2VGbG93X2IzNjU5OGNhZjBmZCI+PGRpOndheXBvaW50IHg9IjQ4MiIgeT0iMjUxIi8+PGRpOndheXBvaW50IHg9IjQ4MiIgeT0iMzk0Ii8+PGRpOndheXBvaW50IHg9IjU1MCIgeT0iMzk0Ii8+PC9icG1uZGk6QlBNTkVkZ2U+PGJwbW5kaTpCUE1ORWRnZSBpZD0iTWVzc2FnZUZsb3dfZjZiMTAwYWY1NGMwX2RpIiBicG1uRWxlbWVudD0iTWVzc2FnZUZsb3dfZjZiMTAwYWY1NGMwIj48ZGk6d2F5cG9pbnQgeD0iNjMwIiB5PSI0MzgiLz48ZGk6d2F5cG9pbnQgeD0iNjMwIiB5PSI1NzQiLz48ZGk6d2F5cG9pbnQgeD0iMzM5IiB5PSI1NzQiLz48ZGk6d2F5cG9pbnQgeD0iMzM5IiB5PSI4NTQiLz48L2JwbW5kaTpCUE1ORWRnZT48YnBtbmRpOkJQTU5TaGFwZSBpZD0iTGFuZV9lNTkwYmYxNjU0NzRfZGkiIGJwbW5FbGVtZW50PSJMYW5lX2U1OTBiZjE2NTQ3NCI+PGRjOkJvdW5kcyB4PSIxMzAiIHk9IjUwMCIgd2lkdGg9Ijc3MCIgaGVpZ2h0PSIxNDQiLz48L2JwbW5kaTpCUE1OU2hhcGU+PGJwbW5kaTpCUE1OU2hhcGUgaWQ9Ik5vdGVfZGkiIGJwbW5FbGVtZW50PSJOb3RlIj48ZGM6Qm91bmRzIHg9IjMwMCIgeT0iMjAiIHdpZHRoPSIxNjAiIGhlaWdodD0iNTUiLz48L2JwbW5kaTpCUE1OU2hhcGU+PGJwbW5kaTpCUE1ORWRnZSBpZD0iTm90ZV9saW5rX2RpIiBicG1uRWxlbWVudD0iTm90ZV9saW5rIj48ZGk6d2F5cG9pbnQgeD0iMzgwIiB5PSI3NSIvPjxkaTp3YXlwb2ludCB4PSIzODAiIHk9IjEyNSIvPjxkaTp3YXlwb2ludCB4PSI0MDIiIHk9IjEyNSIvPjxkaTp3YXlwb2ludCB4PSI0MDIiIHk9IjE3NSIvPjwvYnBtbmRpOkJQTU5FZGdlPjwvYnBtbmRpOkJQTU5QbGFuZT48L2JwbW5kaTpCUE1ORGlhZ3JhbT48L2JwbW46ZGVmaW5pdGlvbnM+"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "87206d496e61dcf70a84-766f57d17f83f8630d66",
+          "file": "workspace-layout.spec.ts",
+          "line": 1192,
+          "column": 5
+        },
+        {
+          "title": "right click opens working object actions while right drag only pans",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 13200,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-05T07:00:49.794Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "87206d496e61dcf70a84-b291f442f1fca30c895b",
+          "file": "workspace-layout.spec.ts",
+          "line": 1201,
+          "column": 5
+        }
+      ],
+      "suites": [
+        {
+          "title": "container resize grips mouse",
+          "file": "workspace-layout.spec.ts",
+          "line": 1045,
+          "column": 40,
+          "specs": [
+            {
+              "title": "stay discreet at every zoom and preserve resize undo",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11396,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-05T07:00:20.024Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87206d496e61dcf70a84-a13144c9e9950805bd80",
+              "file": "workspace-layout.spec.ts",
+              "line": 1047,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "container resize grips touch",
+          "file": "workspace-layout.spec.ts",
+          "line": 1045,
+          "column": 40,
+          "specs": [
+            {
+              "title": "stay discreet at every zoom and preserve resize undo",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9653,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-05T07:00:31.482Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87206d496e61dcf70a84-b7982193fb95c505214e",
+              "file": "workspace-layout.spec.ts",
+              "line": 1047,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-05T07:00:08.639Z",
+    "duration": 55016.725000000006,
+    "expected": 5,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

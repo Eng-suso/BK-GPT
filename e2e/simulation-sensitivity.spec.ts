@@ -118,7 +118,8 @@ test("the readiness dialog starts a sensitivity study on the uncertain assumptio
   posted.length = 0;
   await fixture(page);
   await page.goto(`${studio}/scenario`);
-  await page.getByRole("button", { name: "Ipotesi e prontezza" }).click();
+  await page.getByRole("button", { name: "Strumenti", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Ipotesi e prontezza" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Ipotesi e prontezza" });
   await expect(dialog.getByText(/ipotesi incerte, variate di ±20% una alla volta/)).toBeVisible();

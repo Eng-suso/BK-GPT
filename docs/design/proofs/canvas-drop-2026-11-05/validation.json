@@ -1,0 +1,16 @@
+{
+  "date": "2026-11-05",
+  "chromium_distinct_cases": 5,
+  "webkit_distinct_cases": 3,
+  "final_drop_case_rerun": ["chromium", "webkit"],
+  "frontend_distinct_unit_tests": 26,
+  "python_geometry_tests": 39,
+  "python_scope": "Pure geometry/readability tests; --confcutdir=tests/bpmn; no database fixtures",
+  "typecheck": "passed",
+  "eslint": "passed",
+  "production_build": "passed; existing simulation chunk warning",
+  "official_bpmn_xsd": "passed",
+  "manual_write_gate": "passed; input XML bytes preserved",
+  "user_diagram_mutated": false,
+  "reference_actor": "Playwright gestures; passive REA observation"
+}

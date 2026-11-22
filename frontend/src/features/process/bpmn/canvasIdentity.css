@@ -46,3 +46,7 @@
 
 /* Preserve measured glyph geometry at small zoom factors on mobile browsers. */
 :is(.process-bpmn-canvas, .review-canvas) .djs-label { text-rendering: geometricPrecision; }
+
+/* Presentation only: imported DI geometry and explicit colour markers stay intact. */
+:is(.process-bpmn--colours, .delir-canvas--colours) :is(.delir-type-task, .delir-type-automation) .djs-visual > rect:first-child { rx:12px; ry:12px; stroke-width:1.5px; }
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-gateway .djs-visual > polygon:first-child { stroke-linejoin:round; stroke-width:1.5px; }

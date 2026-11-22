@@ -2,12 +2,12 @@
 .sim-studio-shell { overflow-y:auto; }
 .sim-studio:has(.sim-comparison-bar) { min-height:900px; }
 /* Canvas, context and decisions occupy distinct tracks in the same workspace. */
-.sim-studio { display:flex; flex-direction:column; height:100%; min-height:680px; gap:8px; }
+.sim-studio { display:flex; flex-direction:column; height:100%; min-height:680px; gap:var(--layout-pane-gap); }
 .sim-studio-tools { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; border-bottom:1px solid var(--border); padding-bottom:8px; flex-shrink:0; }
 .sim-studio-identity { display:flex; align-items:center; gap:8px; }
 .sim-studio-identity h2 { font-size: var(--font-size-300); font-weight:600; }
 .sim-studio-tool-actions { display:flex; flex-wrap:wrap; gap:2px; }
-.sim-studio-body { position:relative; flex:1; min-height:560px; display:flex; gap:12px; }
+.sim-studio-body { position:relative; flex:1; min-height:560px; display:flex; gap:var(--layout-pane-gap); }
 .sim-studio-board { flex:1; min-width:0; min-height:560px; display:flex; flex-direction:column; }
 .sim-studio-dock { position:relative; inset:auto; max-width:100%; flex-shrink:0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
 .sim-studio-dock[hidden] { display:none; }
@@ -43,7 +43,7 @@
 .sim-scene-instructions { display:flex; align-items:center; gap:6px; color:var(--muted-foreground); font-size: var(--font-size-100); }
 .sim-scene-zoom { display:flex; align-items:center; gap:2px; margin-left:auto; }
 .sim-scene-zoom output { width:40px; font-size: var(--font-size-100); text-align:center; font-variant-numeric:tabular-nums; }
-.sim-scene-viewport { position:relative; flex:1; min-height:0; overflow:hidden; touch-action:none; background-image:radial-gradient(var(--border) 1px,transparent 1px); background-size:20px 20px; }
+.sim-scene-viewport { position:relative; flex:1; min-height:0; overflow:hidden; touch-action:none; background-image:radial-gradient(var(--canvas-grid-color) 1px,transparent 1px); background-size:20px 20px; }
 .sim-scene-viewport:focus-visible { outline:2px solid var(--ring); outline-offset:-3px; }
 .sim-scene-world { position:absolute; width:1px; height:1px; transform-origin:0 0; }
 .sim-scene-object { position:absolute; min-width:0; min-height:0; }
@@ -159,7 +159,7 @@
 
 /* Compact operational controls reserve usable process space on small screens. */
 @media(max-width:800px) {
- .sim-studio { gap:6px; }
+ .sim-studio { gap:var(--layout-pane-gap); }
  .sim-studio-page-header > div { gap:6px; }
  .sim-studio-page-header > div > div:last-child { width:100%; }
  .sim-studio-run-actions { width:100%; flex-wrap:nowrap; gap:4px; }
@@ -315,7 +315,7 @@
 .sim-scenario-matrix td > strong { display:block; font-variant-numeric:tabular-nums; }
 .sim-scenario-matrix td > span { display:block; margin-top:3px; }
 .sim-scenario-matrix small { display:block; margin-top:4px; color:var(--muted-foreground); font-weight:400; }
-.sim-scenario-matrix .is-better { color:var(--color-status-success); }
+.sim-scenario-matrix .is-better { color:var(--state-success-text); }
 .sim-scenario-matrix .is-worse { color:var(--color-status-danger); }
 .sim-comparison-compatibility { font-size: var(--font-size-100); padding:8px 10px; border-left:3px solid var(--sim-warning); background:var(--muted); }
 
@@ -337,7 +337,7 @@
 }
 
 /* Shared Satin recipes supply materials; scene CSS supplies only domain geometry. */
-.sim-scene-viewport { background-color:var(--color-surface-secondary); background-image:radial-gradient(color-mix(in srgb,var(--muted-foreground) 15%,transparent) .7px,transparent .7px); background-size:24px 24px; }
+.sim-scene-viewport { background-color:var(--color-surface-secondary); background-image:radial-gradient(var(--canvas-grid-color) 1px,transparent 1px); background-size:24px 24px; }
 .sim-palette-content:focus-visible,.sim-scenario-matrix:focus-visible { outline:2px solid var(--ring); outline-offset:-2px; }
 @media(forced-colors:active) {
  .sim-scene-viewport { background-image:none; }
@@ -368,7 +368,7 @@
 .sim-organization-panel { width:360px; }
 .sim-organization-panel .sim-scene-sections { display:flex; flex-direction:column; align-items:stretch; gap:12px; overflow:visible; padding:0; }
 .sim-organization-panel .sim-layout-actions { margin:0; flex-wrap:wrap; }
-.sim-scene-controls { position:absolute; left:12px; right:12px; bottom:12px; z-index:10; display:flex; justify-content:space-between; align-items:flex-end; gap:12px; padding:0; border:0; overflow:visible; pointer-events:none; }
+.sim-scene-controls { position:relative; z-index:10; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:6px 10px; border-bottom:1px solid var(--material-divider); overflow:visible; pointer-events:auto; }
 .sim-scene-navigation { display:flex; align-items:center; gap:4px; padding:4px; pointer-events:auto; }
 .sim-scene-zoom { margin-left:0; }
 .sim-scene-map { width:72px; height:32px; }
@@ -398,7 +398,7 @@
  .sim-studio-page-header > h1 { min-width:120px; }
  .sim-studio-page-header > div { max-width:100%; }
  .sim-studio-dashboard-commands { margin-left:0; width:100%; }
- .sim-scene-controls { left:4px; right:4px; bottom:4px; gap:4px; }
+ .sim-scene-controls { gap:4px; }
  .sim-scene-jump select { width:110px; }
  .sim-scene-map { display:none; }
  .sim-scene-navigation { gap:0; }
@@ -423,7 +423,7 @@
  .sim-scene-navigation { gap:0; }
 }
 @container sim-canvas (max-width:460px) {
- .sim-scene-controls { flex-direction:column; align-items:flex-start; gap:4px; }
+ .sim-scene-controls { flex-direction:column; align-items:stretch; gap:4px; }
  .sim-scene-controls > .sim-scene-navigation:last-child { align-self:flex-end; }
 }
 

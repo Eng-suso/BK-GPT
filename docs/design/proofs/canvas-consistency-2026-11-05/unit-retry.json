@@ -1,0 +1,20 @@
+{
+  "report": "isolated retry of worker timeouts",
+  "commandExit": 0,
+  "filesRun": 2,
+  "passed": 10,
+  "failed": 0,
+  "notRunBecauseWorkerTimeout": [],
+  "files": [
+    {
+      "path": "src/features/projects/components/ProjectFormDialog.test.tsx",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "path": "src/features/process/simulation/CaseRules.ui.test.tsx",
+      "status": "passed",
+      "tests": 3
+    }
+  ]
+}
