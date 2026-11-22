@@ -409,6 +409,8 @@ def fail_plan_materialization(
     error: str,
     max_attempts: int = MATERIALIZATION_MAX_ATTEMPTS,
     backoff_seconds: int = MATERIALIZATION_BACKOFF_SECONDS,
+    consumes_attempt: bool = True,
+    pause_seconds: float | None = None,
 ) -> dict | None:
     """Un tentativo non riuscito: si riprova piu' tardi, ma non per sempre.
 
@@ -416,13 +418,24 @@ def fail_plan_materialization(
     supera aspettando; un piano che non si riesce a costruire non migliora al
     quinto tentativo, e tenerlo in coda nasconderebbe che quel processo non ha
     un piano.
+
+    Se il guasto non e' del piano - il credito del provider e' finito - il
+    tentativo non si consuma e la riga aspetta `pause_seconds`: cinque rifiuti
+    per un conto vuoto metterebbero in dead-letter un piano perfettamente
+    costruibile appena qualcuno ricarica.
     """
     with workspace_connection() as session:
         row = _owned_materialization(session, materialization_id)
         if row is None:
             return None
-        row.attempts += 1
         row.last_error = str(error)[:2000]
+        if not consumes_attempt:
+            row.next_attempt_at = (
+                datetime.now(UTC) + timedelta(seconds=pause_seconds or backoff_seconds)
+            ).isoformat(timespec="seconds")
+            session.flush()
+            return _materialization_to_dict(row)
+        row.attempts += 1
         if row.attempts >= max_attempts:
             row.status = "failed"
             row.completed_at = now_iso()
