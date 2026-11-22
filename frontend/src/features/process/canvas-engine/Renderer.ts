@@ -174,9 +174,9 @@ export class DeliRRenderer {
         const stroke = el.di?.get("bioc:stroke") || "var(--color-text-secondary)";
         const body = node("path", { d: path, fill: "none", stroke, "stroke-width": 1.5, "stroke-linecap": "round", "stroke-linejoin": "round", "stroke-dasharray": /MessageFlow/.test(el.type) ? "8 5" : /Association/.test(el.type) ? "2 5" : "", class: /MessageFlow/.test(el.type) ? "delir-dashed-flow" : /Association/.test(el.type) ? "delir-dashed-flow delir-dashed-flow--association" : "" }, gfx);
         const points = el.waypoints ?? [];
-        if (points.length > 1 && el.type === "bpmn:SequenceFlow" && (el.businessObject.isDefaultFlow || el.businessObject.hasCondition && /Task$|Activity$|SubProcess$/.test(el.source?.type ?? ""))) {
+        if (points.length > 1 && el.type === "bpmn:SequenceFlow" && (el.businessObject?.isDefaultFlow || el.businessObject?.hasCondition && /Task$|Activity$|SubProcess$/.test(el.source?.type ?? ""))) {
             const start = points[0], next = points[1], angle = Math.atan2(next.y-start.y,next.x-start.x)*180/Math.PI;
-            node("path", {d:el.businessObject.isDefaultFlow ? "M7 -5 13 5" : "M0 0 6 -4 12 0 6 4Z",transform:"translate("+start.x+","+start.y+") rotate("+angle+")",fill:el.businessObject.isDefaultFlow ? "none" : "var(--color-surface-primary)",stroke,"stroke-width":1.4},gfx);
+            node("path", {d:el.businessObject?.isDefaultFlow ? "M7 -5 13 5" : "M0 0 6 -4 12 0 6 4Z",transform:"translate("+start.x+","+start.y+") rotate("+angle+")",fill:el.businessObject?.isDefaultFlow ? "none" : "var(--color-surface-primary)",stroke,"stroke-width":1.4},gfx);
         }
         if (points.length > 1 && el.type === "bpmn:MessageFlow") node("circle",{cx:points[0].x,cy:points[0].y,r:3.5,fill:"var(--color-surface-primary)",stroke,"stroke-width":1.2},gfx);
         if (points.length > 1 && el.type !== "bpmn:Association") {

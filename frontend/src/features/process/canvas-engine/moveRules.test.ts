@@ -29,6 +29,7 @@ describe("subgraph pool adoption",()=>{
   it("rejects a partial transfer that would leave a sequence flow crossing pools",()=>{
     const {pool,a,elements}=graph();
     expect(canMoveElements([a],pool,elements,{x:0,y:150})).toBe(false);
+    expect(moveTarget([a],pool,elements,{x:0,y:150})).toBeUndefined();
   });
   it("supports transfers between lanes and rejects drops outside the destination bounds",()=>{
     const {pool,a,b,elements}=graph();a.parent=pool;b.parent=pool;

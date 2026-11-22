@@ -305,6 +305,8 @@ test("laptop tools preserve canvas space and unsaved model edits", async ({ page
 test("scenario supports long activity lists, model reference and execution", async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto(`${studio}/simulation/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
   const row = page.locator('[data-sim-el="Task_18"]');
   await row.scrollIntoViewIfNeeded();
   await expect(row).toBeVisible();
@@ -316,6 +318,8 @@ test("scenario supports long activity lists, model reference and execution", asy
   await page.locator('.sim-studio-empty-process [data-element-id="Task_18"]').first().click();
   await expect(row.getByRole("spinbutton", { name: /^Durata, min/ })).toHaveValue("37");
   await expect(run).toBeDisabled();
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Risorse", exact: true }).click();
   await page.getByRole("button", { name: "Aggiungi ruolo", exact: true }).click();
   const resource = page.locator("[data-resource-id]");
   await resource.getByRole("textbox", { name: "Ruolo", exact: true }).fill("Team Operations");
@@ -345,6 +349,8 @@ test("mobile tools are reachable and scenario controls stay inside the viewport"
   await page.getByRole("button", { name: "Proprietà", exact: true }).click();
   await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
   await page.goto(`${studio}/simulation/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
   await page.locator('[data-sim-el="Task_18"]').scrollIntoViewIfNeeded();
   await expect(page.getByRole("button", { name: "Avvia simulazione", exact: true })).toBeInViewport();
   const overflow = await page.locator("main input, main [role=combobox]").evaluateAll((elements) => elements.filter((element) => {
@@ -591,6 +597,8 @@ for (const mobile of [false, true]) {
   test.setTimeout(Math.max(testInfo.timeout, 90_000));
   await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1366, height: 900 });
   await page.goto(`${studio}/simulation/workspace?panel=scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Risorse", exact: true }).click();
   const run = page.getByRole("button", { name: "Avvia simulazione", exact: true });
   await expect(page.getByText("Nessuna risorsa configurata", { exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Ruolo", exact: true })).toHaveCount(0);
@@ -611,6 +619,8 @@ for (const mobile of [false, true]) {
   await expect(run).toBeDisabled();
   await expect(page.locator("[data-resource-id]")).toHaveCount(0);
   await page.reload();
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Risorse", exact: true }).click();
   await expect(page.getByText("Nessuna risorsa configurata", { exact: true })).toBeVisible();
   await expect(run).toBeDisabled();
  });
@@ -626,6 +636,8 @@ for (const mobile of [false, true]) {
     ];
     await page.route("http://127.0.0.1:8000/**/simulation-template", (route) => route.fulfill({ json: { tasks, gateways: [], resources } }));
     await page.goto(`${studio}/simulation/workspace?panel=scenario`);
+    await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+    await page.getByRole("option", { name: "Risorse", exact: true }).click();
     const run = page.getByRole("button", { name: "Avvia simulazione", exact: true });
     await expect(page.locator("[data-resource-id]")).toHaveCount(2);
     const front = page.locator('[data-resource-id="bpmn-front"]');
@@ -639,10 +651,14 @@ for (const mobile of [false, true]) {
     await expect(run).toBeDisabled();
     await back.getByRole("button", { name: "Conferma capacità e costo", exact: true }).click();
     await expect(run).toBeEnabled();
+    await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+    await page.getByRole("option", { name: "Attività", exact: true }).click();
     const task1 = page.locator('[data-sim-el="Task_1"]');
     await expect(task1.getByRole("combobox").last()).toHaveText("Company / Operations");
     const task18 = page.locator('[data-sim-el="Task_18"]');
     await expect(task18.getByRole("combobox").last()).toHaveText("Company / Finance");
+    await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+    await page.getByRole("option", { name: "Risorse", exact: true }).click();
     await back.getByRole("spinbutton", { name: "Unità disponibili", exact: true }).fill("1.5");
     await expect(back.getByRole("button", { name: "Conferma capacità e costo", exact: true })).toBeDisabled();
     await expect(run).toBeDisabled();
@@ -662,6 +678,8 @@ for (const mobile of [false, true]) {
     expect(body.tasks.find((t: { element_id: string }) => t.element_id === "Task_1").resource_id).toBe("bpmn-front");
     expect(body.tasks.find((t: { element_id: string }) => t.element_id === "Task_18").resource_id).toBe("bpmn-back");
     await page.reload();
+    await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+    await page.getByRole("option", { name: "Risorse", exact: true }).click();
     await expect(page.locator('[data-resource-id="bpmn-front"]').getByText("Capacità e costo confermati", { exact: true })).toBeVisible();
   });
 }
@@ -685,6 +703,8 @@ test("resource configuration waits for the BPMN before claiming the model is emp
   await expect(dock.getByText("Nessun BPMN da simulare. Genera o salva un modello nel canvas.", { exact: true })).toHaveCount(0);
   await expect(dock.getByText("Nessuna risorsa configurata", { exact: true })).toHaveCount(0);
   releaseModel();
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Risorse", exact: true }).click();
   await expect(dock.getByText("Nessuna risorsa configurata", { exact: true })).toBeVisible();
 });
 

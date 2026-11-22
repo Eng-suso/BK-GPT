@@ -50,6 +50,7 @@ export function moveTarget(shapes: CanvasElement[], hover: CanvasElement | undef
       .sort((a, b) => a.width * a.height - b.width * b.height);
     for (const container of containing)
       if (canMoveElements(shapes, container, elements, delta)) return container;
+    if (containing.length) return undefined;
   }
   let candidate = hover;
   while (candidate && !/Process$|Collaboration$|Participant$|Lane$|SubProcess$/.test(candidate.type)) candidate = candidate.parent;
