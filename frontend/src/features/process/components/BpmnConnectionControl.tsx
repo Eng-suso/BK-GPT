@@ -26,7 +26,8 @@ export function BpmnConnectionControl({ host, geometryKey, selectedId, enabled, 
     let frame = 0;
     const measure = () => {
       const bounds = container.getBoundingClientRect(), rect = body.getBoundingClientRect();
-      if(rect.right<bounds.left || rect.left>bounds.right || rect.bottom<bounds.top || rect.top>bounds.bottom) {setPosition(null);return;}
+      // A clipped node must not strand its action over the canvas toolbar.
+      if(rect.right<bounds.left+56 || rect.left>bounds.right-56 || rect.bottom<bounds.top+44 || rect.top>bounds.bottom-44) {setPosition(null);return;}
       const left = rect.right + 8 - bounds.left;
       const next = { left: Math.max(4, Math.min(bounds.width - 40, left)), top: Math.max(4, Math.min(bounds.height - 40, rect.top + rect.height / 2 - bounds.top - 18)) };
       setPosition(previous => previous?.left === next.left && previous.top === next.top ? previous : next);

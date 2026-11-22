@@ -25,6 +25,7 @@
   --color-action-primary-hover: #0068d4;
   --color-action-primary-active: #005cbe;
   --primary: var(--color-action-primary);
+  --primary-foreground: #fff;
 
   /* Apple regular material: readable content, glass above it, concentric radii. */
   --radius: 20px;
