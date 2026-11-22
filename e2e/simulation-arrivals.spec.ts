@@ -105,7 +105,6 @@ test("the consultant sets how cases arrive and the run carries it", async ({ pag
   await expect(arrivals).toContainText("I casi arrivano solo negli orari del calendario scelto.");
   await arrivals.getByLabel("Distribuzione · Arrivi dei casi").selectOption("uniform");
   await expect(arrivals.getByRole("alert")).toHaveText("Indica minimo e massimo.");
-  await expect(page.getByText("Arrivi dei casi da correggere.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Avvia simulazione", exact: true })).toBeDisabled();
 
   await arrivals.getByLabel("Minimo, min · Arrivi dei casi").fill("10");

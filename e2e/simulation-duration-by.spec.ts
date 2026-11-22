@@ -101,6 +101,9 @@ async function fixture(page: Page, runs: unknown[] = []) {
 test("the consultant gives premium cases a shorter approval and the run carries it", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
+  await page.locator('[data-sim-el="T_approve"] .sim-task-advanced > summary').click();
   const block = page.locator('[data-duration-by="T_approve"]');
   await block.getByLabel("La durata cambia con · Approva").selectOption({ label: "tipo" });
   await expect(block).toContainText("Casi con tipo = premium");
@@ -130,6 +133,9 @@ test("the activity inspector lists the durations per category the run simulated"
 test("the consultant gives small amounts a faster approval with thresholds and the run carries them", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
+  await page.locator('[data-sim-el="T_approve"] .sim-task-advanced > summary').click();
   const block = page.locator('[data-duration-by="T_approve"]');
   await block.getByLabel("La durata cambia con · Approva").selectOption({ label: "importo" });
   await block.getByLabel("importo fino a · Approva · 1").fill("1000");

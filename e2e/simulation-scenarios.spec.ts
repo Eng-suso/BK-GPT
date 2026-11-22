@@ -177,6 +177,8 @@ test("the AS-IS comes from the draft and a new scenario keeps only its changes",
   const workspace = new Workspace();
   await fixture(page, workspace);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Risorse", exact: true }).click();
 
   // L'AS-IS nasce dalla bozza che il browser aveva gia'.
   await expect(tabs(page).getByRole("button", { name: "AS-IS", exact: true })).toHaveAttribute("aria-pressed", "true");
@@ -215,6 +217,7 @@ test("the AS-IS comes from the draft and a new scenario keeps only its changes",
   expect(body.resources[0].amount).toBe(3);
 
   // Ripristina: lo scenario torna uguale all'AS-IS.
+  await tabs(page).locator("[data-sim-scenario-changes] > summary").click();
   await tabs(page).getByRole("button", { name: /Riporta Ufficio acquisti · Unità/ }).click();
   await expect(tabs(page)).toContainText("Ancora uguale all'AS-IS");
   expect(workspace.alternatives[0].patch).toEqual([]);

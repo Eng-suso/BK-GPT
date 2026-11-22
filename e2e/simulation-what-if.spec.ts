@@ -114,6 +114,8 @@ test("a sentence becomes a preview, and only applying changes the draft (SIM-23)
   expect(runs).toEqual([]);
   await page.getByRole("dialog", { name: "Prova con una frase" }).getByRole("button", { name: "Close" }).click();
   await expect(page.getByRole("dialog", { name: "Prova con una frase" })).toBeHidden();
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Risorse", exact: true }).click();
   await expect(page.getByLabel("Unità disponibili").first()).toHaveValue("3");
 
   // Una capacità cambiata si riconferma, come dopo un esperimento dell'advisor; da tastiera,

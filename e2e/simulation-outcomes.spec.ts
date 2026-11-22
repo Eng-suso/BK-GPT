@@ -96,11 +96,16 @@ async function fixture(page: Page, runs: unknown[] = []) {
 test("the check gives an outcome and the decision after it routes the KO cases to the approval", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
+  await page.locator('[data-sim-el="T_receive"] .sim-task-advanced > summary').click();
   const outcome = page.locator('[data-outcome="T_receive"]');
   await outcome.getByRole("checkbox", { name: "Dà un esito · Ricevi ordine" }).click();
   await outcome.getByRole("textbox", { name: "Nome dell'esito · Ricevi ordine" }).fill("verifica");
   await expect(outcome).toContainText("Totale 100%");
 
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Decisioni", exact: true }).click();
   const gateway = page.locator('[data-sim-el="G_split"]');
   await gateway.getByRole("button", { name: "Per regola" }).click();
   const high = gateway.getByRole("group", { name: "Verso Approva" });
@@ -124,6 +129,10 @@ test("the check gives an outcome and the decision after it routes the KO cases t
 test("a name already taken blocks the run with the reason on the field", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
+  await page.locator('[data-sim-el="T_receive"] .sim-task-advanced > summary').click();
+  await page.locator('[data-sim-el="T_approve"] .sim-task-advanced > summary').click();
   for (const [id, name] of [["T_receive", "Ricevi ordine"], ["T_approve", "Approva"]]) {
     await page.locator(`[data-outcome="${id}"]`).getByRole("checkbox", { name: `Dà un esito · ${name}` }).click();
   }

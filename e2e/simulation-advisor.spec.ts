@@ -130,6 +130,9 @@ test("the advisor proposes capacity, reallocation and automation, and automation
 test("a step marked as adding no value is proposed for removal and the scenario skips it (SIM-22b)", async ({ page }) => {
   await fixture(page, [run]);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
+  await page.locator('[data-sim-el="T_receive"] .sim-task-advanced > summary').click();
   const marked = page.getByRole("checkbox", { name: "Non aggiunge valore · Ricevi ordine" });
   // Da tastiera: la barra fissa con «Avvia simulazione» copre la casella appena scrollata.
   await marked.focus();

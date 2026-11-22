@@ -96,6 +96,8 @@ async function fixture(page: Page, runs: unknown[] = []) {
 test("the consultant routes a decision by amount and the run carries the rules", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attributi del caso", exact: true }).click();
 
   const attributes = page.locator("section").filter({ has: page.getByRole("heading", { name: "Attributi del caso" }) });
   await attributes.getByRole("button", { name: "Aggiungi attributo" }).click();
@@ -104,6 +106,9 @@ test("the consultant routes a decision by amount and the run carries the rules",
   await attribute.getByRole("button", { name: "Numero" }).click();
   await attribute.getByLabel("Minimo").fill("100");
   await attribute.getByLabel("Massimo").fill("12000");
+
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Decisioni", exact: true }).click();
 
   const gateway = page.locator('[data-sim-el="G_split"]');
   await gateway.getByRole("button", { name: "Per regola" }).click();
@@ -128,19 +133,25 @@ test("the consultant routes a decision by amount and the run carries the rules",
 test("an incomplete rule blocks the run and says why", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Decisioni", exact: true }).click();
   const gateway = page.locator('[data-sim-el="G_split"]');
   await expect(gateway.getByRole("button", { name: "Per regola" })).toBeDisabled();
   await expect(gateway).toContainText("definisci prima un attributo del caso");
 
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attributi del caso", exact: true }).click();
   await page.getByRole("button", { name: "Aggiungi attributo" }).click();
   await page.locator("[data-attribute-id]").getByLabel("Categoria 1", { exact: true }).fill("premium");
   await page.locator("[data-attribute-id]").getByLabel("Categoria 2", { exact: true }).fill("standard");
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Decisioni", exact: true }).click();
   await gateway.getByRole("button", { name: "Per regola" }).click();
   const low = gateway.getByRole("group", { name: "Verso Paga" });
   await low.getByRole("button", { name: /Togli la condizione su/ }).click();
   await expect(low.getByRole("alert")).toHaveText("Ogni ramo ha bisogno di almeno una regola.");
   await expect(page.getByRole("button", { name: "Avvia simulazione", exact: true })).toBeDisabled();
-  await expect(page.getByText("Decisioni per regola da completare: 1")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Decisioni per regola da completare: 1" })).toBeVisible();
 });
 
 test("the decision inspector shows the rules the run simulated", async ({ page }) => {

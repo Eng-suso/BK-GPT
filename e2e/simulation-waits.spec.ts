@@ -126,6 +126,8 @@ test("the consultant sets how long the case waits for the customer's reply (SIM-
     { element_id: "W_reply", name: "Risposta del cliente", kind: "message" },
   ] } }));
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attese", exact: true }).click();
 
   const waits = page.locator("[data-sim-waits]");
   await waits.scrollIntoViewIfNeeded();
@@ -158,6 +160,9 @@ test("the consultant sets the instances of a multi-instance over a collection (S
     t.element_id === "T_approve" ? { ...t, multi_instance: "parallel", instances: null }
       : t.element_id === "T_pay" ? { ...t, multi_instance: "sequential", instances: 2 } : t) } }));
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
+  await page.locator('[data-sim-el="T_approve"] .sim-task-advanced > summary').click();
 
   await expect(page.locator('[data-instances="T_pay"]')).toHaveText("Multi-istanza dal BPMN: 2 istanze per caso, una dopo l'altra.");
   const field = page.locator('[data-instances="T_approve"]');

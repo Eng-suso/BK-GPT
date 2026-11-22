@@ -99,6 +99,8 @@ async function fixture(page: Page, runs: unknown[] = []) {
 test("the consultant turns a resource into a system that always works and the run carries it", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Risorse", exact: true }).click();
   const card = page.locator('[data-resource-id="r1"]');
   await card.getByRole("button", { name: "Sistema" }).click();
   await expect(card.getByRole("button", { name: "Sistema" })).toHaveAttribute("aria-pressed", "true");

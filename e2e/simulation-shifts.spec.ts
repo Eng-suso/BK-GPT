@@ -100,6 +100,8 @@ async function fixture(page: Page, runs: unknown[] = []) {
 test("the consultant adds three people in the morning and the run carries the shift", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Risorse", exact: true }).click();
 
   const shifts = page.locator('[data-resource-shifts="r1"]');
   await shifts.getByRole("button", { name: "Aggiungi un turno a Ufficio acquisti" }).click();

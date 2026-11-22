@@ -108,6 +108,9 @@ async function fixture(page: Page, runs: unknown[] = []) {
 test("the consultant slows down the end of the day and the run carries the windows (SIM-33b)", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
+  await page.locator('[data-sim-el="T_approve"] .sim-task-advanced > summary').click();
 
   const windows = page.locator('[data-duration-windows="T_approve"]');
   await windows.scrollIntoViewIfNeeded();

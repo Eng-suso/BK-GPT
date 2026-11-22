@@ -109,6 +109,9 @@ async function fixture(page: Page, runs: unknown[] = [], served: unknown = claim
 test("the consultant links a client file statement as the source of a duration", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
+  await page.locator('[data-sim-el="T_approve"] .sim-task-advanced > summary').click();
 
   const approve = page.locator('[data-sim-el="T_approve"]');
   await expect(approve).toContainText("Fonti del cliente");

@@ -98,6 +98,9 @@ async function fixture(page: Page, runs: unknown[] = []) {
 test("the consultant lets some cases skip the approval and sends others back to redo it", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
+  await page.locator('[data-sim-el="T_approve"] .sim-task-advanced > summary').click();
   const block = page.locator('[data-flow-rules="T_approve"]');
   await block.getByRole("checkbox", { name: "Alcuni casi la saltano · Approva" }).click();
   await block.getByLabel("Casi che la saltano, % · Approva").fill("30");
@@ -122,6 +125,9 @@ test("the consultant lets some cases skip the approval and sends others back to 
 test("a share of 100% sends nobody forward and blocks the run with the reason on the field", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
+  await page.locator('[data-sim-el="T_approve"] .sim-task-advanced > summary').click();
   const block = page.locator('[data-flow-rules="T_approve"]');
   await block.getByRole("checkbox", { name: "Alcuni casi la rifanno · Approva" }).click();
   const share = block.getByLabel("Tornano indietro, % a ogni passaggio · Approva");

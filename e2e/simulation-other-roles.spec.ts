@@ -105,6 +105,9 @@ async function fixture(page: Page, runs: unknown[] = []) {
 test("the consultant lets a second role do an activity, with its own duration", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
+  await page.locator('[data-sim-el="T_approve"] .sim-task-advanced > summary').click();
 
   const approve = page.locator('[data-sim-el="T_approve"]');
   await approve.getByRole("button", { name: "Aggiungi un altro ruolo a Approva" }).click();
@@ -131,10 +134,15 @@ test("the consultant lets a second role do an activity, with its own duration", 
 test("removing a role takes it off the activities it shared", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
+  await page.locator('[data-sim-el="T_approve"] .sim-task-advanced > summary').click();
   const approve = page.locator('[data-sim-el="T_approve"]');
   await approve.getByRole("button", { name: "Aggiungi un altro ruolo a Approva" }).click();
   await expect(approve.locator('[data-other-role="r2"]')).toBeVisible();
 
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Risorse", exact: true }).click();
   await page.getByRole("button", { name: "Rimuovi ruolo Responsabile" }).click();
   await expect(approve.locator("[data-other-role]")).toHaveCount(0);
   await expect(approve).toContainText("Tutti i ruoli svolgono già questa attività");

@@ -98,6 +98,9 @@ test("the consultant adds fixed costs and the run carries them", async ({ page }
   await fixture(page);
   await page.goto(`${studio}/scenario`);
   await page.getByLabel("Costo fisso per caso, €").fill("2.5");
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attività", exact: true }).click();
+  await page.locator('[data-sim-el="T_approve"] .sim-task-advanced > summary').click();
   await page.locator('[data-sim-el="T_approve"]').getByLabel("Costo fisso per esecuzione, € · Approva").fill("25");
 
   const request = page.waitForRequest((req) => req.method() === "POST" && req.url().endsWith("/simulation-runs"));

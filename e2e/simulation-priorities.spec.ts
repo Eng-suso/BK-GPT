@@ -97,10 +97,14 @@ async function fixture(page: Page, runs: unknown[] = []) {
 test("the consultant serves big orders first and the run carries the priority", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Priorità dei casi", exact: true }).click();
 
   const priorities = page.locator("[data-sim-priorities]");
   await expect(priorities.getByRole("button", { name: "Aggiungi una priorità" })).toBeDisabled();
 
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Attributi del caso", exact: true }).click();
   await page.getByRole("button", { name: "Aggiungi attributo" }).click();
   const attribute = page.locator("[data-attribute-id]");
   await attribute.getByLabel("Nome dell'attributo").fill("importo");
@@ -108,6 +112,8 @@ test("the consultant serves big orders first and the run carries the priority", 
   await attribute.getByLabel("Minimo").fill("100");
   await attribute.getByLabel("Massimo").fill("12000");
 
+  await page.getByRole("combobox", { name: "Sezioni dello scenario" }).click();
+  await page.getByRole("option", { name: "Priorità dei casi", exact: true }).click();
   await priorities.getByRole("button", { name: "Aggiungi una priorità" }).click();
   const level = priorities.getByRole("group", { name: "Priorità 1" });
   await expect(level.getByRole("alert")).toBeVisible();
