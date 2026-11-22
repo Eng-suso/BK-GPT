@@ -323,6 +323,7 @@ test("retry and stale proposal errors retain editable text", async ({ page }) =>
   await page.getByRole("button", { name: "Registra azione" }).click();
   await expect(page.getByRole("alert")).toContainText("La base della review è cambiata");
   await expect(page.getByLabel("Titolo", { exact: true })).toHaveValue("Proposta conservata");
+  await expect(page.locator('.review-agent-chat')).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Salva come ipotesi" })).toBeFocused();
 });

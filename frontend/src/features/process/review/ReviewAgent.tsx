@@ -77,7 +77,7 @@ export function ReviewAgent({ node, projectId, processId, processName, bpmnModel
       if (event.key === "Home") { event.preventDefault(); setPosition(null); }
     }}><Grip aria-hidden /></Button>
     </div>
-    <Surface ref={panel} variant="floating" id={chatId} style={size ? { width: current.width, height: current.height } : undefined} className="review-agent-chat" role="dialog" aria-label={t("review.agent.title")} hidden={!open} onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}>
+    <Surface ref={panel} variant="floating" id={chatId} style={size ? { width: current.width, height: current.height } : undefined} className="review-agent-chat" role="dialog" aria-label={t("review.agent.title")} hidden={!open} onKeyDown={event => { if (event.key === "Escape" && panel.current?.contains(event.target as Node)) { event.stopPropagation(); close(); } }}>
       <CanvasResizeHandle label={t("review.agent.resize")} hint={t("review.agent.resizeHint")} className="review-chat-resize" aria-description={`${Math.round(current.width)} × ${Math.round(current.height)} px`} onPointerDown={event => {
         if (event.button !== 0 || !panel.current) return;
         const rect = panel.current.getBoundingClientRect(); gesture.current = { x: event.clientX, y: event.clientY, width: rect.width, height: rect.height };
