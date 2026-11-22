@@ -42,7 +42,7 @@ type ProcessBpmnCanvasProps = {
   technicalPropertiesHost: HTMLDivElement | null;
   enterprisePropertiesHost?: RefObject<HTMLDivElement | null>;
   inspectorHost?: RefObject<HTMLDivElement | null>;
-  onInspectorChange?: (inspector: { title: string; closeLabel: string; close: () => void } | null) => void;
+  onInspectorChange?: (inspector: { title: string; closeLabel: string; close: () => void; showOnCompact: boolean } | null) => void;
   onCurrentXmlChange?: (xml: string) => void;
   onBaseVersionChange?: (versionId: number | null) => void;
   /** Sends the consultant to the discussion, where the model is reconstructed. */
@@ -161,7 +161,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
 
   const inspectorTitle = isEvidenceOpen ? t("canvas.evidence.title") : selectedElement && !canvasUi.isMultiple ? t("canvas.inspectorLabel") : null;
   React.useLayoutEffect(() => {
-    onInspectorChange?.(!isPropertiesOpen && inspectorTitle ? { title: inspectorTitle, closeLabel: isEvidenceOpen ? t("canvas.evidence.close") : t("canvas.inspectorClose"), close: () => { setIsEvidenceOpen(false); clearSelection(); } } : null);
+    onInspectorChange?.(!isPropertiesOpen && inspectorTitle ? { title: inspectorTitle, closeLabel: isEvidenceOpen ? t("canvas.evidence.close") : t("canvas.inspectorClose"), close: () => { setIsEvidenceOpen(false); clearSelection(); }, showOnCompact: isEvidenceOpen } : null);
   }, [onInspectorChange, isPropertiesOpen, inspectorTitle, isEvidenceOpen, clearSelection, t]);
   React.useEffect(() => () => onInspectorChange?.(null), [onInspectorChange]);
   const propertyContent = selectedElement ? canvasUi.isMultiple ? <BpmnSelectionSummary items={canvasUi.selectionItems} onSelect={selectElement} /> : <BpmnNodeInspector key={selectedElement.id} embedded={Boolean(inspectorHost)} element={selectedElement} onNameChange={updateSelectedNodeName} onDocChange={updateSelectedNodeDoc} onMetadataChange={updateSelectedMetadata} onDelete={deleteSelectedElement} versions={versions} onAsk={onOpenDiscussion} onClose={clearSelection} /> : <p className="p-4 text-sm text-muted-foreground">{t("properties.vendor.noSelection")}</p>;

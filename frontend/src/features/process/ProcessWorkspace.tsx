@@ -47,9 +47,10 @@ function ModelingProcessWorkspace({ project, process, view, propertiesOpen, onTo
   const [chatWidth, setChatWidth] = usePanelSize("process-chat", 400, 360, 520);
   const [inspectorCloseLabel, setInspectorCloseLabel] = React.useState<string | null>(null);
   const [inspectorTitle, setInspectorTitle] = React.useState<string | null>(null);
+  const [inspectorShowOnCompact, setInspectorShowOnCompact] = React.useState(false);
   const inspectorClose = React.useRef<(() => void) | null>(null);
   const inspectorHost = React.useRef<HTMLDivElement | null>(null);
-  const onInspectorChange = React.useCallback((inspector: { title: string; closeLabel: string; close: () => void } | null) => { inspectorClose.current = inspector?.close ?? null; setInspectorTitle(inspector?.title ?? null); setInspectorCloseLabel(inspector?.closeLabel ?? null); }, []);
+  const onInspectorChange = React.useCallback((inspector: { title: string; closeLabel: string; close: () => void; showOnCompact: boolean } | null) => { inspectorClose.current = inspector?.close ?? null; setInspectorTitle(inspector?.title ?? null); setInspectorCloseLabel(inspector?.closeLabel ?? null); setInspectorShowOnCompact(inspector?.showOnCompact ?? false); }, []);
   const [currentCanvasXml, setCurrentCanvasXml] = React.useState<string | null>(null);
   const [currentCanvasVersionId, setCurrentCanvasVersionId] = React.useState<number | null>(null);
   const [technicalPropertiesHost,setTechnicalPropertiesHost] = React.useState<HTMLDivElement|null>(null);
@@ -60,20 +61,20 @@ function ModelingProcessWorkspace({ project, process, view, propertiesOpen, onTo
   const bothFit = width >= availableChatWidth + 480 + 792;
   const showChat = !focusCanvas && chatOpen && (!propertiesOpen || bothFit);
   // Compact canvases keep their full height; properties open explicitly.
-  const detailsOpen = !focusCanvas && inline && Boolean(inspectorTitle) && (!showChat || bothFit);
+  const detailsOpen = !focusCanvas && (inline || inspectorShowOnCompact) && Boolean(inspectorTitle) && (!showChat || bothFit);
   const rightOpen = !focusCanvas && (propertiesOpen || detailsOpen);
-  const supportReplacesCanvas = !focusCanvas && !inline && (showChat || propertiesOpen);
+  const supportReplacesCanvas = !focusCanvas && !inline && (showChat || propertiesOpen || detailsOpen);
   const lastTrigger = React.useRef<HTMLElement | null>(null);
   const closeRef = React.useRef<HTMLButtonElement | null>(null);
 
   const restoreSupportFocus = React.useRef(false);
   React.useLayoutEffect(() => {
-    if (supportReplacesCanvas) (closeRef.current ?? ref.current?.querySelector<HTMLButtonElement>(`.process-studio-properties button[aria-label="${CSS.escape(t("actions.closeOverlays"))}"]`))?.focus();
+    if (supportReplacesCanvas) (closeRef.current ?? ref.current?.querySelector<HTMLButtonElement>(`.process-studio-properties button[aria-label="${CSS.escape(propertiesOpen ? t("actions.closeOverlays") : inspectorCloseLabel ?? t("actions.closeOverlays"))}"]`))?.focus();
     else if (restoreSupportFocus.current && !propertiesOpen && !showChat) {
       restoreSupportFocus.current = false;
       lastTrigger.current?.focus({ preventScroll: true });
     }
-  }, [supportReplacesCanvas, propertiesOpen, showChat, ref, t]);
+  }, [supportReplacesCanvas, propertiesOpen, showChat, inspectorCloseLabel, ref, t]);
 
   const closeSupport = () => {
     restoreSupportFocus.current = true;
