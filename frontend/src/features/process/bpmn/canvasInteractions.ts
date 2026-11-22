@@ -98,6 +98,13 @@ export function bindCanvasInteractions(modeler: BpmnModeler, changed: () => void
   const keyDown = (event: KeyboardEvent) => {
     const editing = event.target instanceof globalThis.Element && event.target.closest("input,textarea,select,[contenteditable=true],[role=menu],[role=listbox],[role=combobox],[role=dialog]");
     const deletionKey=event.key === "Delete" || event.key === "Backspace";
+    // diagram-js binds its defaults to the SVG only. Keep canvas commands usable
+    // after focus moves to a canvas toolbar or selection control.
+    if (!editing && !event.defaultPrevented && !event.altKey && (event.ctrlKey || event.metaKey) && shell?.contains(document.activeElement)) {
+      const key=event.key.toLowerCase();
+      const action=key === "z" ? event.shiftKey ? "redo" : "undo" : key === "y" ? "redo" : key === "c" ? "copy" : key === "v" ? "paste" : key === "x" ? "cut" : key === "d" ? "duplicate" : null;
+      if(action){event.preventDefault();event.stopImmediatePropagation();(modeler.get("editorActions") as {trigger:(id:string)=>void}).trigger(action);changed();return;}
+    }
     if (editing || event.defaultPrevented || !(host.contains(document.activeElement) || (hovered || deletionKey) && shell?.contains(document.activeElement)) || event.ctrlKey || event.metaKey || event.altKey) return;
     if(event.key === "ContextMenu" || event.shiftKey && event.key === "F10") {
       event.preventDefault();event.stopImmediatePropagation();rightGesture=false;
