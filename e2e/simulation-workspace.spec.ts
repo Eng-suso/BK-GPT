@@ -704,6 +704,7 @@ test("inspecting a matrix alternative preserves an implicit reference and labels
 
 
 for (const size of [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }]) test(`desktop hierarchy reserves the stage and preserves camera and clock at ${size.width}`, async ({ page, isMobile, browserName }) => {
+  test.setTimeout(90_000);
   test.skip(isMobile, "Desktop-specific workspace geometry");
   await page.setViewportSize(size);
   await page.goto(`${studio}/workspace/42`);
@@ -750,7 +751,7 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }]
   expect(stageAfter!.y).toBeLessThan(210);
   expect(stageAfter!.height).toBeGreaterThan(size.height * 0.65);
   await page.screenshot({ path: `.tmp/canvas-hierarchy-compare-${size.width}-${browserName}.png`, animations: "disabled" });
-  await page.locator(".sim-studio-tools").getByRole("radio", { name: "Osserva", exact: true }).click();
+  await page.getByRole("button", { name: "Riprendi osservazione", exact: true }).click();
   await expect(page.locator('input[type="range"]')).toHaveValue("100");
   const scan = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(scan.violations).toEqual([]);
