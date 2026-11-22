@@ -750,7 +750,7 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }]
   expect(stageAfter!.y).toBeLessThan(210);
   expect(stageAfter!.height).toBeGreaterThan(size.height * 0.65);
   await page.screenshot({ path: `.tmp/canvas-hierarchy-compare-${size.width}-${browserName}.png`, animations: "disabled" });
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Osserva", exact: true }).click();
+  await page.locator(".sim-studio-tools").getByRole("radio", { name: "Osserva", exact: true }).click();
   await expect(page.locator('input[type="range"]')).toHaveValue("100");
   const scan = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(scan.violations).toEqual([]);
@@ -790,15 +790,15 @@ test("desktop containers and canvas objects resize quietly without changing the 
   await openAnalysis(page, "Heatmap");
   const dock = page.locator(".sim-studio-dock");
   const splitter = page.getByRole("separator", { name: "Ridimensiona pannello di dettagli", exact: true });
-  await expect(splitter).toHaveAttribute("aria-valuenow", "400");
+  await expect(splitter).toHaveAttribute("aria-valuenow", "320");
   await splitter.press("ArrowLeft");
-  await expect(dock).toHaveCSS("width", "420px");
+  await expect(dock).toHaveCSS("width", "340px");
   const divider = await splitter.boundingBox();
   await page.mouse.move(divider!.x + divider!.width / 2, divider!.y + divider!.height / 2);
   await page.mouse.down();
   await page.mouse.move(divider!.x + divider!.width / 2 - 60, divider!.y + divider!.height / 2, { steps: 5 });
   await page.mouse.up();
-  await expect(dock).toHaveCSS("width", "480px");
+  await expect(dock).toHaveCSS("width", "400px");
   const stage = page.locator(".sim-studio-board");
   const stageBefore = await stage.boundingBox();
   const resizeStage = page.getByRole("button", { name: "Ridimensiona area canvas", exact: true });
