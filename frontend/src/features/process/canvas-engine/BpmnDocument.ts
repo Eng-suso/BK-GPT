@@ -346,6 +346,13 @@ export class BpmnDocument {
                     attr(bounds, key, label[key]);
             }
         }
+        // A reconnected flow can change between process sequence flow and
+        // collaboration message flow without replacing its XML identity.
+        for (const el of live.filter(el => el.waypoints && /SequenceFlow$|MessageFlow$/.test(el.type))) {
+            const node=nodes.get(el.id);
+            const destination=el.type === "bpmn:MessageFlow" ? all(doc,NS.bpmn,"collaboration")[0] : processFor(el);
+            if(node && destination && node.parentElement !== destination)destination.append(node);
+        }
         // Existing nodes need the same ownership update as newly created nodes.
         // Do this after creating every participant/process, regardless of registry
         // iteration order. Move the original XML node, retaining opaque payloads.
@@ -372,10 +379,11 @@ export class BpmnDocument {
             }
         }
         const flowEndpoints = new Map(live.filter(el => el.waypoints).map(el => [el.id, { source: el.source?.id, target: el.target?.id }]));
+        const sequenceIds = new Set(live.filter(el => el.type === "bpmn:SequenceFlow").map(el => el.id));
         for (const node of all(doc, NS.bpmn, "*")) {
             if (node.localName === "incoming" || node.localName === "outgoing") {
                 const endpoint = flowEndpoints.get(node.textContent ?? "");
-                if (endpoint && node.parentElement?.id !== (node.localName === "incoming" ? endpoint.target : endpoint.source))
+                if (endpoint && (!sequenceIds.has(node.textContent ?? "") || node.parentElement?.id !== (node.localName === "incoming" ? endpoint.target : endpoint.source)))
                     node.remove();
             }
             const defaultFlow = node.getAttribute("default");

@@ -359,7 +359,32 @@ export class DeliRCanvas {
             const {connection,source,target,newSource,newTarget}=(event as {context:{connection:CanvasElement;source?:CanvasElement;target?:CanvasElement;newSource?:CanvasElement;newTarget?:CanvasElement}}).context;
             if(/Data(Input|Output)Association$/.test(connection.type))return false;
             const rule=connectionRule(source ?? newSource ?? connection.source,target ?? newTarget ?? connection.target);
-            return Boolean(rule && rule.type === connection.type);
+            return Boolean(rule && (rule.type === connection.type || /SequenceFlow$|MessageFlow$/.test(connection.type) && /SequenceFlow$|MessageFlow$/.test(rule.type)));
+        });
+        type ReconnectContext={connection:CanvasElement;oldType?:string;oldParent?:CanvasElement};
+        const reparent=(connection:CanvasElement,parent:CanvasElement)=>{
+            if(connection.parent===parent)return;
+            const siblings=connection.parent?.children;
+            if(siblings)siblings.splice(siblings.indexOf(connection),1);
+            (parent.children??=[]).push(connection);
+            connection.parent=parent;
+        };
+        bus.on("commandStack.connection.reconnect.executed",2000,event=>{
+            const context=(event as {context:ReconnectContext}).context,connection=context.connection;
+            const rule=connectionRule(connection.source,connection.target);
+            if(!rule || !/SequenceFlow$|MessageFlow$/.test(connection.type) || !/SequenceFlow$|MessageFlow$/.test(rule.type))return;
+            context.oldType??=connection.type;
+            context.oldParent??=connection.parent;
+            connection.type=rule.type;
+            connection.businessObject.$type=rule.type;
+            reparent(connection,rule.type==="bpmn:MessageFlow" ? this.diagram.get<CanvasService>("canvas").getRootElement() : flowScope(connection.source?.parent) ?? context.oldParent!);
+        });
+        bus.on("commandStack.connection.reconnect.reverted",2000,event=>{
+            const {connection,oldType,oldParent}=(event as {context:ReconnectContext}).context;
+            if(!oldType || !oldParent)return;
+            connection.type=oldType;
+            connection.businessObject.$type=oldType;
+            reparent(connection,oldParent);
         });
         const actions = this.diagram.get<{
             register: (id: string, callback: () => void) => void;
