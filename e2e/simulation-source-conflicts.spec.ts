@@ -134,7 +134,8 @@ async function fixture(page: Page, runs: unknown[] = [], served: unknown = claim
 test("the readiness dialog turns sources that disagree into a question", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
-  await page.getByRole("button", { name: "Ipotesi e prontezza" }).click();
+  await page.getByRole("button", { name: "Strumenti", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Ipotesi e prontezza" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Ipotesi e prontezza" });
   const conflicts = dialog.locator("[data-readiness-conflicts]");

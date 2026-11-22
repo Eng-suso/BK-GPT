@@ -97,7 +97,8 @@ async function fixture(page: Page, runs: unknown[] = [], stored: object = draft)
 test("the readiness dialog shows the calendars and explains its formula", async ({ page }) => {
   await fixture(page);
   await page.goto(`${studio}/scenario`);
-  await page.getByRole("button", { name: "Ipotesi e prontezza" }).click();
+  await page.getByRole("button", { name: "Strumenti", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Ipotesi e prontezza" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Ipotesi e prontezza" });
   await expect(dialog.getByText("Calendari", { exact: true })).toBeVisible();

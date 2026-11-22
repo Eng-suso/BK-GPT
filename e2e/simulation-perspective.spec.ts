@@ -105,7 +105,9 @@ test("switching to Operations keeps the scenario and shows health, queues and wh
   await fixture(page, [run]);
   await page.goto(`${studio}/overview`);
   const tools = page.getByRole("group", { name: "Strumenti della simulazione" });
-  await expect(tools.getByRole("button", { name: "Scenario", exact: true })).toBeVisible();
+  await tools.locator(".sim-studio-tool-actions").getByRole("button").click();
+  await expect(page.getByRole("menuitem", { name: "Scenario", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
   const draftBefore = await page.evaluate(() => localStorage.getItem("delir-sim-scenario:ops-model"));
 
   const perspective = page.getByRole("group", { name: "Prospettiva" });
@@ -114,8 +116,10 @@ test("switching to Operations keeps the scenario and shows health, queues and wh
   await expect(page).toHaveURL(/perspective=operations/);
 
   // Niente strumenti che configurano modello o dati.
-  for (const name of ["Scenario", "Workspace", "Event log"]) await expect(tools.getByRole("button", { name, exact: true })).toHaveCount(0);
-  await expect(tools.getByRole("button", { name: "Risultati", exact: true })).toBeVisible();
+  await tools.locator(".sim-studio-tool-actions").getByRole("button").click();
+  for (const name of ["Scenario", "Workspace", "Event log"]) await expect(page.getByRole("menuitem", { name, exact: true })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Risultati", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
 
   const brief = page.locator("[data-sim-operations-brief]");
   await expect(brief.getByRole("heading", { name: "Dove si accumula il lavoro" })).toBeVisible();
@@ -139,7 +143,9 @@ test("switching to Operations keeps the scenario and shows health, queues and wh
 
   await perspective.getByRole("button", { name: "Consulente" }).click();
   await expect(page).not.toHaveURL(/perspective=/);
-  await expect(tools.getByRole("button", { name: "Scenario", exact: true })).toBeVisible();
+  await tools.locator(".sim-studio-tool-actions").getByRole("button").click();
+  await expect(page.getByRole("menuitem", { name: "Scenario", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
 });
 
 test("an experiment from Operations opens the scenario in the consultant view", async ({ page }) => {

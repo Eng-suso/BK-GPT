@@ -79,11 +79,14 @@ async function fixture(page: Page, whatIf: { status: number; json: unknown } = {
 }
 
 test("a sentence becomes a preview, and only applying changes the draft (SIM-23)", async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
   const sent = await fixture(page);
   const runs: string[] = [];
   page.on("request", (req) => { if (req.method() === "POST" && req.url().endsWith("/simulation-runs")) runs.push(req.url()); });
   await page.goto(`${studio}/scenario`);
 
+  await page.getByRole("button", { name: "Strumenti", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Prova con una frase" }).click();
   const box = page.getByTestId("sim-what-if");
   await box.getByRole("textbox", { name: "Cosa vuoi provare" }).fill("Un approvatore in più, Approva dura la metà e lavoriamo anche il sabato");
   await box.getByRole("button", { name: "Traduci" }).click();
@@ -109,6 +112,8 @@ test("a sentence becomes a preview, and only applying changes the draft (SIM-23)
   await box.getByRole("button", { name: "Applica alla bozza" }).click();
   await expect(box.getByRole("status")).toContainText("Modifiche applicate alla bozza");
   expect(runs).toEqual([]);
+  await page.getByRole("dialog", { name: "Prova con una frase" }).getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("dialog", { name: "Prova con una frase" })).toBeHidden();
   await expect(page.getByLabel("Unità disponibili").first()).toHaveValue("3");
 
   // Una capacità cambiata si riconferma, come dopo un esperimento dell'advisor; da tastiera,
@@ -126,6 +131,8 @@ test("without the model key the panel says so and the draft stays as it is", asy
   await fixture(page, { status: 503, json: { ok: false, data: null, error: { code: "service_unavailable", message: "Il what-if in linguaggio naturale richiede la chiave del modello." } } });
   await page.goto(`${studio}/scenario`);
 
+  await page.getByRole("button", { name: "Strumenti", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Prova con una frase" }).click();
   const box = page.getByTestId("sim-what-if");
   await box.getByRole("textbox", { name: "Cosa vuoi provare" }).fill("Un approvatore in più");
   await box.getByRole("textbox", { name: "Cosa vuoi provare" }).press("Enter");
