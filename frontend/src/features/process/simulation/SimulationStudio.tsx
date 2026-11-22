@@ -48,6 +48,7 @@ export function SimulationStudio(): React.JSX.Element {
   const [host, setHost] = React.useState<HTMLDivElement | null>(null);
   const triggerRef = React.useRef<HTMLElement | null>(null);
   const analysisTrigger = React.useRef<HTMLButtonElement>(null);
+  const focusAfterClose = React.useRef<"opener" | "analysis" | null>(null);
   const focusAnalysis = React.useRef(false);
   const dockRef = React.useRef<HTMLElement>(null);
   const view = analysisView ?? (panel === "compare" ? "compare" : panel === "heatmap" ? "heatmap" : panel === "overview" || panel === "insights" ? "final" : "replay");
@@ -76,9 +77,19 @@ export function SimulationStudio(): React.JSX.Element {
     openPanel?.(next);
   };
   const close = () => {
+    focusAfterClose.current = panel === "activity" || panel === "widget" ? "opener" : "analysis";
     openPanel?.(null);
-    (triggerRef.current?.isConnected ? triggerRef.current : analysisTrigger.current)?.focus({ preventScroll: true });
   };
+  React.useLayoutEffect(() => {
+    if (panel || !focusAfterClose.current) return;
+    const preferred = focusAfterClose.current;
+    focusAfterClose.current = null;
+    requestAnimationFrame(() => {
+      const opener = triggerRef.current;
+      const target = preferred === "opener" && opener?.isConnected && opener.getClientRects().length ? opener : analysisTrigger.current;
+      target?.focus({ preventScroll: true });
+    });
+  }, [panel]);
   const title = panel === "widget" ? t("simulation.studio.inspector") : panel === "activity" ? t("simulation.replay.nodeInspector") : t(`simulation.unified.tool.${panel}`);
   return <CanvasWorkspaceShell label={t("simulation.unified.title")} className="sim-studio" resizeLabel={t("simulation.workspaceHierarchy.resizeCanvas")} resizeHint={t("simulation.scene.keyboardHint")} bodyClassName={`sim-studio-body ${dockOpen ? "has-dock" : ""}`} stageClassName="sim-studio-board"
     commands={<WorkspaceCommandBar className="sim-studio-tools" label={t("simulation.unified.tools")}>

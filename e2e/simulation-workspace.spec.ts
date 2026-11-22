@@ -347,7 +347,7 @@ test("consultant investigates an activity through contextual tools without losin
       await expect(page.locator(".sim-studio-dock")).toBeHidden();
       await expect(tools.locator(".sim-studio-tool-actions").getByRole("button")).toBeFocused();
     }
-    await tools.getByRole("button", { name: "Osserva", exact: true }).click();
+    await tools.getByRole("radio", { name: "Osserva", exact: true }).click();
     await expect(page.locator('input[type="range"]')).toHaveValue("100");
   }
   await expect(process.locator(".sim-token")).not.toHaveCount(0);
@@ -390,7 +390,7 @@ test("changing run retains the tool while resetting clock and activity scope", a
   await page.getByLabel("Attivit\u00e0", { exact: true }).selectOption("A");
   await openAnalysis(page, "Risultati");
   await expect(page).toHaveURL(/panel=overview/);
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Intera esecuzione", exact: true }).click();
+  await page.locator(".sim-studio-tools").getByRole("radio", { name: "Intera esecuzione", exact: true }).click();
   await page.getByRole("combobox", { name: "Scegli una run" }).click();
   await page.getByRole("option", { name: /TO-BE/ }).click();
   await expect(page).toHaveURL(/workspace\/43.*panel=overview/);
@@ -440,10 +440,16 @@ test("a consultant observes a lane-based process and opens details without reflo
   const size = await process.boundingBox();
   await openAnalysis(page, "Scenario");
   await expect(viewer).toHaveAttribute("data-session-marker", "same-lanes");
-  expect((await process.boundingBox())!.width).toBeCloseTo(size!.width, 1);
-  expect((await process.boundingBox())!.height).toBeCloseTo(size!.height, 1);
+  if (isMobile) await expect(process).toBeHidden();
+  else {
+    expect((await process.boundingBox())!.width).toBeCloseTo(size!.width, 1);
+    expect((await process.boundingBox())!.height).toBeCloseTo(size!.height, 1);
+  }
   await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
   await expect(page.locator(".sim-studio-dock")).toBeHidden();
+  await expect(process).toBeVisible();
+  expect((await process.boundingBox())!.width).toBeCloseTo(size!.width, 1);
+  expect((await process.boundingBox())!.height).toBeCloseTo(size!.height, 1);
   await expect(page.locator('input[type="range"]')).toHaveValue("100");
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
   await page.screenshot({ path: testInfo.outputPath("analytical-canvas-lanes.png"), animations: "disabled" });
@@ -665,7 +671,7 @@ test("multiple alternatives compare against one reference and preserve the repla
   const scan = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(scan.violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("scenario-matrix.png"), animations: "disabled" });
-  await page.locator(".sim-studio-tools").getByRole("button", { name: "Osserva", exact: true }).click();
+  await page.locator(".sim-studio-tools").getByRole("radio", { name: "Osserva", exact: true }).click();
   await expect(page.locator('input[type="range"]')).toHaveValue("200");
 });
 
