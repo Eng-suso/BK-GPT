@@ -315,7 +315,7 @@
 .sim-scenario-matrix td > strong { display:block; font-variant-numeric:tabular-nums; }
 .sim-scenario-matrix td > span { display:block; margin-top:3px; }
 .sim-scenario-matrix small { display:block; margin-top:4px; color:var(--muted-foreground); font-weight:400; }
-.sim-scenario-matrix .is-better { color:var(--color-status-success); }
+.sim-scenario-matrix .is-better { color:var(--state-success-text); }
 .sim-scenario-matrix .is-worse { color:var(--color-status-danger); }
 .sim-comparison-compatibility { font-size: var(--font-size-100); padding:8px 10px; border-left:3px solid var(--sim-warning); background:var(--muted); }
 
@@ -368,7 +368,7 @@
 .sim-organization-panel { width:360px; }
 .sim-organization-panel .sim-scene-sections { display:flex; flex-direction:column; align-items:stretch; gap:12px; overflow:visible; padding:0; }
 .sim-organization-panel .sim-layout-actions { margin:0; flex-wrap:wrap; }
-.sim-scene-controls { position:absolute; left:12px; right:12px; bottom:12px; z-index:10; display:flex; justify-content:space-between; align-items:flex-end; gap:12px; padding:0; border:0; overflow:visible; pointer-events:none; }
+.sim-scene-controls { position:relative; z-index:10; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:6px 10px; border-bottom:1px solid var(--material-divider); overflow:visible; pointer-events:auto; }
 .sim-scene-navigation { display:flex; align-items:center; gap:4px; padding:4px; pointer-events:auto; }
 .sim-scene-zoom { margin-left:0; }
 .sim-scene-map { width:72px; height:32px; }
@@ -398,7 +398,7 @@
  .sim-studio-page-header > h1 { min-width:120px; }
  .sim-studio-page-header > div { max-width:100%; }
  .sim-studio-dashboard-commands { margin-left:0; width:100%; }
- .sim-scene-controls { left:4px; right:4px; bottom:4px; gap:4px; }
+ .sim-scene-controls { gap:4px; }
  .sim-scene-jump select { width:110px; }
  .sim-scene-map { display:none; }
  .sim-scene-navigation { gap:0; }
@@ -423,7 +423,7 @@
  .sim-scene-navigation { gap:0; }
 }
 @container sim-canvas (max-width:460px) {
- .sim-scene-controls { flex-direction:column; align-items:flex-start; gap:4px; }
+ .sim-scene-controls { flex-direction:column; align-items:stretch; gap:4px; }
  .sim-scene-controls > .sim-scene-navigation:last-child { align-self:flex-end; }
 }
 
