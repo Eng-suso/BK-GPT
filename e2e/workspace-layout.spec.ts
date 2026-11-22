@@ -265,7 +265,8 @@ test("product-generated diagram keeps the DeliR identity in the editable canvas"
   await expect(canvas.locator('[data-element-id="Verify"]')).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Strumenti BPMN" })).toBeVisible();
   await expect(canvas.locator(".bjs-powered-by")).toHaveCount(0);
-  await expect(canvas.locator(".delir-role-band")).toHaveCount(5);
+  await expect(canvas.locator(".delir-role-band")).toHaveCount(2);
+  await expect(canvas.locator('.djs-shape[data-delir-type="bpmn:Lane"]')).toHaveCount(3);
   await expect(canvas.locator(".djs-connection")).toHaveCount(11);
   await expect(canvas.locator('[data-element-id="Request_Document"]')).toBeVisible();
   const scan = await new AxeBuilder({ page }).include(".process-bpmn-shell").withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
@@ -492,7 +493,7 @@ test("process elements follow imports, selection and properties without rewritin
   await page.locator('.process-bpmn-file-input').setInputFiles({ name: "synthetic-import.bpmn", mimeType: "application/xml", buffer: Buffer.from(imported) });
   await page.getByRole("button", { name: "Elementi", exact: true }).click();
   await navigator.getByRole("textbox", { name: "Cerca nel processo" }).fill("Imported_2");
-  await navigator.getByRole("button", { name: /ServiceTask/ }).click();
+  await navigator.getByRole("button", { name: /Attività di servizio/ }).click();
   await expect(navigator.locator("li")).toHaveCount(1);
   await page.getByRole("button", { name: "Proprietà", exact: true }).click();
   await page.getByText("Proprietà tecniche BPMN", { exact: true }).click();
