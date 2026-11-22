@@ -105,6 +105,8 @@
 .sim-studio-start { height:100%; display:flex; flex-direction:column; gap:14px; overflow:auto; }
 .sim-studio-empty-process { min-height:340px; flex:1; display:flex; border:1px solid var(--border); border-radius: var(--radius-control); }
 .sim-studio-empty-process > .simulation-bpmn-view { width:100%; }
+.sim-studio:has(.sim-studio-dock[data-purpose="edit"]:not([hidden])) .sim-studio-start { overflow:hidden; }
+.sim-studio:has(.sim-studio-dock[data-purpose="edit"]:not([hidden])) .sim-studio-empty-process { min-height:0; border:0; border-radius:0; }
 .sim-current-insights { margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border); }
 .sim-current-insights > summary { cursor:pointer; font-size: var(--font-size-200); font-weight:600; padding:8px 0; }
 @media (max-width:1100px) { .sim-scene-instructions { display:none; } }
@@ -385,6 +387,14 @@
 .sim-studio-dock .sim-comparison-table { max-height:none; }
 @media(min-width:1200px) {
  .sim-studio-shell { overflow:hidden; }
+ .sim-studio-shell:has(.sim-studio-dock[data-purpose="edit"]:not([hidden])) .sim-studio-page-header { min-height:48px; padding-block:4px; }
+ .sim-studio:has(.sim-studio-dock[data-purpose="edit"]:not([hidden])) .sim-studio-tools { padding-block:4px; }
+ .sim-studio .sim-studio-dock[data-purpose="edit"] > header { min-height:56px; padding:8px 20px; }
+ .sim-studio .sim-studio-dock[data-purpose="edit"] [data-dock-title] { margin-top:0; font-size:var(--font-size-350); }
+ .sim-studio .sim-studio-dock[data-purpose="edit"] .ui-editor-navigation { gap:12px; padding:8px 20px; }
+ .sim-studio .sim-studio-dock[data-purpose="edit"] .ui-editor-intro { margin-bottom:12px; }
+ .sim-studio .sim-studio-dock[data-purpose="edit"] .ui-editor-body.sim-config-body { padding:12px 20px 20px; }
+ .sim-studio .sim-studio-dock[data-purpose="edit"] .ui-editor-body.sim-config-body > section { padding-block:16px; }
  .sim-studio,.sim-studio:has(.sim-comparison-bar),.sim-studio:has(.sim-multi-comparison[open]) { min-height:0; }
  .sim-studio-body,.sim-studio-board { min-height:0; }
  .sim-studio-tools { justify-content:flex-start; padding:6px 8px; gap:8px; }

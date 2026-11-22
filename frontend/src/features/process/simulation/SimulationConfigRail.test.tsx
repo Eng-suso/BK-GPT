@@ -49,6 +49,49 @@ function Harness({ initial, onRun }: { initial: ScenarioDraft; onRun?: () => voi
 const current = (): ScenarioDraft => JSON.parse(screen.getByTestId("draft").textContent ?? "{}");
 
 describe("SimulationConfigRail", () => {
+  it("shows the first concrete blocker and opens its section", async () => {
+    const user = userEvent.setup();
+    const scrollTo = vi.fn();
+    const originalScrollTo = HTMLElement.prototype.scrollTo;
+    HTMLElement.prototype.scrollTo = scrollTo;
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true });
+    try {
+      render(<SimulationConfigRail template={TEMPLATE} templateLoading={false}
+        draft={{ ...READY, resources: [] }} onDraftChange={() => undefined}
+        isRunning={false} error={null} onRun={() => undefined} focusElementId={null} workspace />);
+      expect(screen.getByText("Aggiungi un ruolo per configurare le attività.")).toHaveAttribute("role", "status");
+      await user.click(screen.getByRole("button", { name: "Apri Risorse" }));
+      expect(scrollTo).toHaveBeenCalledOnce();
+    } finally {
+      HTMLElement.prototype.scrollTo = originalScrollTo;
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it("keeps activity options available behind a disclosure in the workspace", async () => {
+    const user = userEvent.setup();
+    const originalScrollTo = HTMLElement.prototype.scrollTo;
+    HTMLElement.prototype.scrollTo = vi.fn();
+    try {
+    render(<SimulationConfigRail template={TEMPLATE} templateLoading={false}
+      draft={{ ...READY, tasks: { T1: { ...READY.tasks.T1, resourceId: "missing" } } }} onDraftChange={() => undefined}
+      isRunning={false} error={null} onRun={() => undefined} focusElementId={null} workspace />);
+    expect(screen.getByText("Generale", { selector: "h4" })).toBeVisible();
+    expect(screen.getByText(/Attività/, { selector: "h4" })).not.toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Apri Attività" }));
+    expect(screen.getByText(/Attività/, { selector: "h4" })).toBeVisible();
+    expect(screen.getByText("Generale", { selector: "h4" })).not.toBeVisible();
+    const details = document.querySelector(".sim-task-advanced") as HTMLDetailsElement;
+    expect(details).not.toHaveAttribute("open");
+    await user.click(within(details).getByText("Altre impostazioni dell'attività"));
+    expect(details).toHaveAttribute("open");
+    expect(within(details).getByLabelText("Non aggiunge valore · Verifica")).toBeVisible();
+    } finally {
+      HTMLElement.prototype.scrollTo = originalScrollTo;
+    }
+  });
+
   it("offers the six Prosimos distributions and nothing else", () => {
     render(<Harness initial={READY} />);
     const select = screen.getByLabelText("Distribuzione · Verifica");

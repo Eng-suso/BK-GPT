@@ -28,9 +28,15 @@ export function TaskDurationFields<T extends DurationDraft>({
   kind?: "duration" | "arrival";
 }): React.JSX.Element {
   const { t } = useTranslation("process");
+  const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const parameters = DISTRIBUTION_PARAMETERS[task.distribution];
   const issue = taskDurationIssue(task);
   const issueId = `sim-duration-issue-${elementId}`;
+  const explanationId = `sim-duration-explanation-${elementId}`;
+  const isArrival = kind === "arrival";
+  const interpretation = task.distribution === "uniform"
+    ? t(isArrival ? "simulation.config.durationGuide.uniformArrival" : "simulation.config.durationGuide.uniformTask", { min: task.minMinutes ?? "—", max: task.maxMinutes ?? "—" })
+    : t(`simulation.config.durationGuide.${task.distribution}${isArrival ? "Arrival" : "Task"}`, { mean: task.meanMinutes });
   const meanLabel = t(kind === "arrival" ? "simulation.config.arrivalMeanMin" : "simulation.config.durationMin");
   const hint = task.distribution === "uniform"
     ? kind === "arrival" ? "simulation.config.arrivalUniformHint" : "simulation.config.uniformHint"
@@ -57,6 +63,7 @@ export function TaskDurationFields<T extends DurationDraft>({
 
   return (
     <div className="grid gap-2">
+      {isArrival && <div className="grid gap-0.5"><strong className="text-sm text-foreground">{t("simulation.config.durationGuide.arrivalTitle")}</strong><span className="text-xs text-muted-foreground">Inter-arrival time</span></div>}
       <div className="sim-task-timing grid grid-cols-[minmax(90px,0.7fr)_minmax(0,1fr)] gap-3">
         {parameters.mean ? (
           <label className="grid gap-1">
@@ -66,6 +73,7 @@ export function TaskDurationFields<T extends DurationDraft>({
               type="number"
               min={1}
               aria-label={`${meanLabel} · ${taskName}`}
+              aria-describedby={explanationId}
               value={task.meanMinutes}
               onChange={(e) => onChange({ ...task, meanMinutes: e.target.value === "" ? 0 : Number(e.target.value) })}
             />
@@ -76,6 +84,7 @@ export function TaskDurationFields<T extends DurationDraft>({
           <select
             className={NATIVE_SELECT}
             aria-label={`${t("simulation.config.distribution")} · ${taskName}`}
+            aria-describedby={explanationId}
             value={task.distribution}
             onChange={(e) => onChange({ ...task, distribution: e.target.value as DistributionName })}
           >
@@ -85,18 +94,31 @@ export function TaskDurationFields<T extends DurationDraft>({
           </select>
         </label>
       </div>
-      {(parameters.std || parameters.bounds) && (
-        <div className="grid grid-cols-3 gap-2">
-          {parameters.std && optional("stdMinutes", t("simulation.config.stdMin"))}
-          {parameters.bounds && optional("minMinutes", t("simulation.config.minMin"))}
-          {parameters.bounds && optional("maxMinutes", t("simulation.config.maxMin"))}
-        </div>
-      )}
+      {task.distribution === "uniform" && <div className="grid grid-cols-2 gap-2">
+        {optional("minMinutes", t("simulation.config.minMin"))}
+        {optional("maxMinutes", t("simulation.config.maxMin"))}
+      </div>}
+      <p id={explanationId} className="text-xs leading-relaxed text-muted-foreground">{interpretation}</p>
+      <details className="sim-duration-details rounded-md border border-border px-3 py-2" open={advancedOpen || issue !== null} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
+          <summary className="cursor-pointer text-xs font-medium text-foreground">{t("simulation.config.durationGuide.technicalDetails")}</summary>
+          {task.distribution !== "fixed" && task.distribution !== "uniform" && <>
+          <p className="mt-2 text-xs text-muted-foreground">{t("simulation.config.durationGuide.technicalHint")}</p>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {parameters.std && optional("stdMinutes", t("simulation.config.stdMin"))}
+            {parameters.bounds && optional("minMinutes", t("simulation.config.minMin"))}
+            {parameters.bounds && optional("maxMinutes", t("simulation.config.maxMin"))}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">{t("simulation.config.durationGuide.boundsHint")}</p>
+          {hint && <p className="mt-2 text-xs text-muted-foreground">{t(hint)}</p>}
+          </>}
+          <p className="mt-2 text-xs text-muted-foreground">{t("simulation.config.durationGuide.technicalDistribution")}: <code>{task.distribution}</code> · {t("simulation.config.durationGuide.technicalUnit")}</p>
+          <p className="mt-2 break-all text-xs text-muted-foreground">{t(isArrival ? "simulation.config.durationGuide.arrivalKey" : "simulation.config.durationGuide.modelId")}: <code>{elementId}</code></p>
+        </details>
       {issue ? (
         <p id={issueId} role="alert" className="text-xs font-medium text-destructive">
           {t(`simulation.config.durationIssue.${issue}`)}
         </p>
-      ) : hint ? (
+      ) : hint && task.distribution === "uniform" ? (
         <p className="text-xs text-muted-foreground">{t(hint)}</p>
       ) : null}
     </div>

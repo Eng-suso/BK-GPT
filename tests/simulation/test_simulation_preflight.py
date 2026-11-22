@@ -100,6 +100,22 @@ def test_each_pool_requires_its_own_start_and_end():
         validate_simulation_bpmn(normalize_bpmn_for_prosimos(xml))
 
 
+def test_empty_participant_process_does_not_block_a_valid_run():
+    xml = model(extra='<process id="Empty"/><collaboration id="C"><participant id="BlackBox" processRef="Empty"/></collaboration>')
+    normalized = normalize_bpmn_for_prosimos(xml)
+    root = ElementTree.fromstring(normalized)
+    assert root.find(f".//{{{NS}}}process[@id='Empty']") is None
+    assert root.find(f".//{{{NS}}}participant").get("processRef") is None
+    validate_simulation_bpmn(normalized)
+    assert normalize_bpmn_for_prosimos(normalized) == normalized
+
+
+def test_all_empty_processes_still_fail_preflight():
+    xml = model(body="", extra='<process id="Empty"/>')
+    with pytest.raises(ValueError, match="non contiene un processo"):
+        validate_simulation_bpmn(normalize_bpmn_for_prosimos(xml))
+
+
 def test_valid_loop_with_exit_and_multiple_ends_pass():
     xml = model(
         NODES + FLOWS + '<endEvent id="E2"/>'

@@ -415,10 +415,6 @@ export function useScenarioLab(): ScenarioLab {
     return runProsimosSimulation(bpmnModelId, {
       ...scenarioToInput(latest ? { ...value, scenarioName: scenarioDisplayName(latest) } : value, bpmnXml),
       ...(ref ? { workspaceScenario: ref, seed: current?.seed ?? undefined } : {}),
-      idempotencyKey:
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `${bpmnModelId}-${Date.now()}`,
     });
   }, [bpmnModelId, bpmnXml]);
 
@@ -465,10 +461,6 @@ export function useScenarioLab(): ScenarioLab {
       const [central] = await runSensitivityStudy(bpmnModelId, {
         ...scenarioToInput(latest ? { ...draft, scenarioName: scenarioDisplayName(latest) } : draft, bpmnXml),
         ...(ref ? { workspaceScenario: ref, seed: current?.seed ?? undefined } : {}),
-        idempotencyKey:
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `${bpmnModelId}-${Date.now()}`,
       }, factors);
       setPolledRun(central);
       selectRun?.(central.id);

@@ -249,9 +249,9 @@ export const DISTRIBUTION_PARAMETERS: Record<DistributionName, { mean: boolean; 
 
 export type TaskDurationIssue = "uniformBounds" | "boundsOrder" | "meanOutsideBounds";
 
-/** Minuti in secondi interi, come arrivano al backend. */
+/** Minuti in secondi, preservando i decimali accettati dal backend. */
 const seconds = (minutes: number | undefined) =>
-  minutes === undefined ? undefined : Math.max(0, Math.round(minutes * 60));
+  minutes === undefined ? undefined : minutes * 60;
 
 /** Cosa manca alla durata per costruire la richiesta; il resto lo valida il backend. */
 export function taskDurationIssue(task: DurationDraft): TaskDurationIssue | null {
@@ -259,13 +259,13 @@ export function taskDurationIssue(task: DurationDraft): TaskDurationIssue | null
   if (task.distribution === "uniform" && (task.minMinutes === undefined || task.maxMinutes === undefined)) {
     return "uniformBounds";
   }
-  // Confronto sui secondi inviati: 1,001 e 1,002 minuti diventano entrambi 60 s.
+  // Confronto sugli stessi secondi decimali inviati al backend.
   const minimum = seconds(task.minMinutes);
   const maximum = seconds(task.maxMinutes);
   if (minimum !== undefined && maximum !== undefined && minimum >= maximum) return "boundsOrder";
   // Le regole del backend: l'esponenziale vuole la media strettamente dentro i limiti,
   // la normale anche sui limiti. Lognormale e gamma non la vincolano.
-  const mean = Math.max(1, Math.round(task.meanMinutes * 60));
+  const mean = task.meanMinutes * 60;
   if (task.distribution === "expon" && ((minimum !== undefined && mean <= minimum) || (maximum !== undefined && mean >= maximum))) {
     return "meanOutsideBounds";
   }
@@ -411,7 +411,7 @@ function taskMeanSeconds(task: DurationDraft): number {
   const minutes = task.distribution === "uniform" && task.minMinutes !== undefined && task.maxMinutes !== undefined
     ? (task.minMinutes + task.maxMinutes) / 2
     : task.meanMinutes;
-  return Math.max(1, Math.round(minutes * 60));
+  return minutes * 60;
 }
 
 function byCategory(task: TaskDraft, attributes: CaseAttributeDraft[]) {
@@ -428,7 +428,7 @@ function durationInput(duration: DurationDraft) {
   return {
     meanSeconds: taskMeanSeconds(duration),
     distribution: duration.distribution,
-    stdSeconds: parameters.std && duration.stdMinutes !== undefined ? Math.max(1, Math.round(duration.stdMinutes * 60)) : undefined,
+    stdSeconds: parameters.std && duration.stdMinutes !== undefined ? duration.stdMinutes * 60 : undefined,
     minSeconds: parameters.bounds ? seconds(duration.minMinutes) : undefined,
     maxSeconds: parameters.bounds ? seconds(duration.maxMinutes) : undefined,
   };
@@ -444,6 +444,8 @@ export function scenarioToInput(
     scenarioName: draft.scenarioName,
     totalCases: draft.totalCases,
     currentBpmnXml,
+    // Legacy fallback fields are integer seconds in the API contract. The
+    // detailed distribution below retains fractional seconds exactly.
     arrivalIntervalSeconds: Math.max(1, Math.round(draft.arrivalIntervalMinutes * 60)),
     defaultTaskDurationSeconds: Math.max(1, Math.round(draft.defaultTaskMinutes * 60)),
     defaultCostPerHour: primary?.costPerHour ?? 0,

@@ -68,6 +68,14 @@ describe("scenarioToInput", () => {
     expect(input.defaultTaskDurationSeconds).toBe(15 * 60);
   });
 
+  it("keeps precise distribution means while satisfying integer legacy API fields", () => {
+    const draft = { ...structuredClone(DEFAULT_SCENARIO), arrivalIntervalMinutes: 0.2833299934864044, defaultTaskMinutes: 1.2345 };
+    const input = scenarioToInput(draft, null);
+    expect(input.arrivalIntervalSeconds).toBe(17);
+    expect(input.defaultTaskDurationSeconds).toBe(74);
+    expect(input.arrival?.meanSeconds).toBeCloseTo(draft.arrivalIntervalMinutes * 60);
+  });
+
   it("emits structured overrides once configured", () => {
     const seeded = seedDraftFromTemplate(structuredClone(DEFAULT_SCENARIO), TEMPLATE);
     seeded.tasks.Task_A = { meanMinutes: 20, distribution: "expon", resourceId: "res-1" };
@@ -142,8 +150,8 @@ describe("duration and calendar issues", () => {
     expect(taskDurationIssue({ ...task, distribution: "norm", minMinutes: 20, maxMinutes: 20 })).toBe("boundsOrder");
     expect(taskDurationIssue({ ...task, distribution: "fixed", minMinutes: 20, maxMinutes: 5 })).toBeNull();
     expect(taskDurationIssue({ ...task, distribution: "gamma" })).toBeNull();
-    // Diversi in minuti, uguali nei secondi che arrivano al backend.
-    expect(taskDurationIssue({ ...task, distribution: "norm", minMinutes: 1.001, maxMinutes: 1.002 })).toBe("boundsOrder");
+    // I limiti decimali restano distinti fino al backend.
+    expect(taskDurationIssue({ ...task, distribution: "norm", meanMinutes: 1.0015, minMinutes: 1.001, maxMinutes: 1.002 })).toBeNull();
   });
   it("rejects a calendar without name, periods or with a period across midnight", () => {
     const period = { from_day: "MONDAY" as const, to_day: "FRIDAY" as const, begin: "09:00", end: "17:00" };

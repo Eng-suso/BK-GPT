@@ -21,7 +21,7 @@ function useCalendarSummary(): (calendar: SimCalendar) => string {
     const days = p.from_day === p.to_day
       ? t(`simulation.config.weekdayShort.${p.from_day}`)
       : `${t(`simulation.config.weekdayShort.${p.from_day}`)}–${t(`simulation.config.weekdayShort.${p.to_day}`)}`;
-    return `${days} ${p.begin.slice(0, 5)}–${p.end.slice(0, 5)}`;
+    return `${days} ${p.begin}–${p.end}`;
   }).join("; ");
 }
 
@@ -168,7 +168,8 @@ function TimeField({ label, value, invalid, describedBy, onChange }: {
       <Input
         className="h-8"
         type="time"
-        value={value.slice(0, 5)}
+        value={value}
+        step="0.001"
         aria-invalid={invalid ? true : undefined}
         aria-describedby={describedBy}
         onChange={(e) => onChange(e.target.value)}

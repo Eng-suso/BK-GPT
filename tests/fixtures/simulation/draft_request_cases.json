@@ -1,5 +1,73 @@
 [
   {
+    "name": "durate Prosimos in secondi preservate senza arrotondare",
+    "scenarioName": "Claims AS-IS",
+    "template": {
+      "resources": [],
+      "tasks": [
+        {
+          "element_id": "T1",
+          "name": "Register Claim",
+          "type": "task"
+        }
+      ],
+      "gateways": []
+    },
+    "draft": {
+      "resources": [
+        {
+          "id": "role-1",
+          "name": "Advisor",
+          "amount": 1,
+          "costPerHour": 25,
+          "parametersConfirmed": true
+        }
+      ],
+      "tasks": {
+        "T1": {
+          "resourceId": "role-1",
+          "distribution": "expon",
+          "meanMinutes": 2.05,
+          "minMinutes": 2,
+          "maxMinutes": 60,
+          "assignmentSource": "manual"
+        }
+      }
+    },
+    "expected": {
+      "scenario_name": "Claims AS-IS",
+      "total_cases": 100,
+      "arrival_interval_seconds": 1800,
+      "default_task_duration_seconds": 900,
+      "default_cost_per_hour": 25,
+      "resource_amount": 1,
+      "resource_name": "Advisor",
+      "arrival": {
+        "mean_seconds": 1800,
+        "distribution": "expon"
+      },
+      "resources": [
+        {
+          "id": "role-1",
+          "name": "Advisor",
+          "cost_per_hour": 25,
+          "amount": 1
+        }
+      ],
+      "tasks": [
+        {
+          "element_id": "T1",
+          "mean_seconds": 122.99999999999999,
+          "distribution": "expon",
+          "resource_id": "role-1",
+          "min_seconds": 120,
+          "max_seconds": 3600
+        }
+      ],
+      "gateways": []
+    }
+  },
+  {
     "name": "una bozza vuota prende i default del pannello e del BPMN",
     "scenarioName": "AS-IS",
     "template": {

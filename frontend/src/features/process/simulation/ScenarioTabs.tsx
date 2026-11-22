@@ -84,11 +84,11 @@ export function ScenarioTabs({ lab }: { lab: ScenarioLab }): React.JSX.Element |
       {workspaceError && <p role="alert" className="sim-scenario-error">{workspaceError}</p>}
 
       {selectedScenario.kind === "baseline" ? (
-        <p className="text-xs text-muted-foreground">{t("simulation.scenarios.asIsHint")}</p>
+        <details className="sim-scenario-changes"><summary>{t("simulation.scenarios.aboutBaseline")}</summary><p className="mt-2 text-xs text-muted-foreground">{t("simulation.scenarios.asIsHint")}</p></details>
       ) : list.length === 0 ? (
         <p className="text-xs text-muted-foreground" data-sim-scenario-changes>{t("simulation.scenarios.noChanges")}</p>
       ) : (
-        <details className="sim-scenario-changes" open data-sim-scenario-changes>
+        <details className="sim-scenario-changes" data-sim-scenario-changes>
           <summary>{t("simulation.scenarios.changes", { count: list.length })}</summary>
           {conflicts > 0 && (
             <p className="sim-scenario-conflicts" role="status">

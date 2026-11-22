@@ -47,6 +47,20 @@
 .sim-config-workspace { border: 0; border-radius: 0; container: scenario / inline-size; }
 .sim-config-workspace.ui-editor-workspace { container-name: editor scenario; container-type: inline-size; }
 .sim-config-body { width: 100%; max-width: 1280px; margin-inline: auto; padding: 0 24px 24px; }
+.sim-config-body > section[hidden] { display: none; }
+.sim-scenario-nav-actions { display: flex; align-items: center; gap: 8px; }
+.sim-scenario-nav-actions > button { white-space: nowrap; }
+.sim-scenario-source-list { display: grid; gap: 8px; margin-top: 8px; }
+.sim-scenario-source-option { display: flex; width: 100%; align-items: flex-start; gap: 12px; padding: 14px; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: var(--color-surface-primary); text-align: left; }
+.sim-scenario-source-option:hover { border-color: var(--primary); background: var(--muted); }
+.sim-scenario-source-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.sim-scenario-source-option > svg { flex: none; margin-top: 2px; color: var(--primary); }
+.sim-scenario-source-option > span { display: grid; gap: 4px; min-width: 0; }
+.sim-scenario-source-option strong { font-size: var(--font-size-200); font-weight: 600; }
+.sim-scenario-source-option small { color: var(--color-text-secondary); font-size: var(--font-size-100); line-height: 1.45; }
+.sim-scenario-file-drop { display: grid; justify-items: center; gap: 8px; padding: 24px; border: 1px dashed var(--color-border-subtle); border-radius: 12px; background: var(--muted); text-align: center; }
+.sim-scenario-file-drop > svg { color: var(--primary); }
+.sim-scenario-file-drop:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
 .sim-config-body > section { scroll-margin-top: 100px; padding-block: 24px; }
 .sim-config-body .eyebrow { font-size: var(--font-size-200); color: var(--foreground); }
 .sim-config-body input, .sim-config-body [role="combobox"] { min-height: 38px; font-size: var(--font-size-300); }
@@ -64,6 +78,7 @@
 .sim-config-body .sim-task-row { padding: 16px; background: var(--card); }
 .sim-config-body .sim-task-name { min-width: 0; gap: 8px; }
 .sim-config-body .sim-task-name p { white-space: normal; }
+.sim-config-body .sim-task-advanced { min-width: 0; }
 .sim-config-body [data-sim-el], .sim-config-body [data-resource-id] { scroll-margin-top: 100px; }
 @container scenario (min-width: 850px) {
   .sim-config-body .sim-task-row {
@@ -73,6 +88,7 @@
     gap: 20px;
   }
   .sim-config-body .sim-task-name { margin: 0; display: flex; flex-direction: column; align-items: flex-start; }
+  .sim-config-body .sim-task-advanced { grid-column: 1 / -1; }
   .sim-config-body .sim-task-timing { display: contents; }
   .sim-config-body .sim-task-role { margin: 0; }
   /* Gli altri ruoli (A2-2) occupano tutta la riga; ognuno tiene durata e distribuzione affiancate. */
@@ -395,13 +411,22 @@
 }
 
 /* SIM-14: workspace degli scenari AS-IS | A | B | C. */
-.sim-scenario-tabs { display: grid; gap: 8px; padding: 10px 12px; }
+.sim-scenario-tabs { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 8px 12px; }
+.sim-scenario-tabs > :not(.sim-scenario-tabs-row):not(.sim-scenario-status) { grid-column: 1 / -1; }
 .sim-scenario-tabs-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .sim-scenario-tablist { display: flex; gap: 4px; min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: thin; }
 .sim-scenario-tablist > button { flex: 0 0 auto; max-width: 180px; }
 .sim-scenario-label { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--font-size-100); font-weight: 600; }
 .sim-scenario-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sim-scenario-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+@container scenario (max-width: 650px) {
+  .sim-scenario-tabs { grid-template-columns: minmax(0, 1fr); }
+  .sim-scenario-status { min-height: 0; }
+  .sim-scenario-nav-actions { gap: 4px; }
+  .sim-config-workspace .ui-editor-navigation { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; }
+  .sim-config-workspace .ui-editor-navigation > [role="combobox"] { width: 100%; min-width: 0; }
+  .sim-scenario-nav-actions { grid-column: 1 / -1; justify-content: flex-end; }
+}
 .sim-scenario-error { font-size: var(--font-size-100); color: var(--state-invalid-text); }
 .sim-scenario-notice { font-size: var(--font-size-100); padding: 6px 10px; border-radius: var(--radius-control); color: var(--state-warning-text); background: var(--state-warning-surface); border: 1px solid var(--state-warning-border); }
 .sim-scenario-changes > summary { cursor: pointer; font-size: var(--font-size-200); font-weight: 500; color: var(--color-text-primary); }

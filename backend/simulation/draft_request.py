@@ -528,7 +528,7 @@ def _parameters(distribution: Any) -> dict[str, bool]:
 def _seconds(duration: dict[str, Any], key: str) -> Any:
     if key not in duration:
         return ...
-    return max(0, _js_round(_num(duration[key]) * 60))
+    return _num(duration[key]) * 60
 
 
 def _duration(duration: dict[str, Any]) -> dict[str, Any]:
@@ -541,9 +541,9 @@ def _duration(duration: dict[str, Any]) -> dict[str, Any]:
         minutes = _num(duration.get("meanMinutes"))
     std = duration.get("stdMinutes", ...)
     return _compact({
-        "mean_seconds": max(1, _js_round(minutes * 60)),
+        "mean_seconds": minutes * 60,
         "distribution": distribution,
-        "std_seconds": max(1, _js_round(_num(std) * 60)) if parameters["std"] and std is not ... else ...,
+        "std_seconds": _num(std) * 60 if parameters["std"] and std is not ... else ...,
         "min_seconds": _seconds(duration, "minMinutes") if parameters["bounds"] else ...,
         "max_seconds": _seconds(duration, "maxMinutes") if parameters["bounds"] else ...,
     })

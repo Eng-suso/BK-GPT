@@ -135,12 +135,27 @@ export function SimulationConfigRail({
 }: SimulationConfigRailProps): React.JSX.Element {
   const { t } = useTranslation("process");
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
+  const focusedSectionRef = React.useRef<string | null>(null);
   const sectionId = React.useId();
   const [sectionTarget, setSectionTarget] = React.useState("globals");
   const sectionKeys = ["globals", "resources", "calendars", "activities", "attributes", "priorities", ...(template?.waits?.length ? ["waits.title"] : []), ...(template?.gateways.length ? ["gateways"] : [])];
 
   React.useEffect(() => {
-    if (!focusElementId || !scrollRef.current) return;
+    if (!focusElementId || !scrollRef.current) {
+      focusedSectionRef.current = null;
+      return;
+    }
+    if (workspace) {
+      const section = template?.gateways.some((gateway) => gateway.element_id === focusElementId)
+        ? "gateways" : template?.waits?.some((wait) => wait.element_id === focusElementId) ? "waits.title" : "activities";
+      if (focusedSectionRef.current !== focusElementId && sectionTarget !== section) {
+        focusedSectionRef.current = focusElementId;
+        const frame = window.requestAnimationFrame(() => setSectionTarget(section));
+        return () => window.cancelAnimationFrame(frame);
+      }
+      if (sectionTarget !== section) return;
+    }
+    focusedSectionRef.current = focusElementId;
     const node = scrollRef.current.querySelector<HTMLElement>(
       `[data-sim-el="${CSS.escape(focusElementId)}"]`,
     );
@@ -148,7 +163,7 @@ export function SimulationConfigRail({
     node?.classList.add("sim-el-flash");
     const timer = window.setTimeout(() => node?.classList.remove("sim-el-flash"), 1200);
     return () => window.clearTimeout(timer);
-  }, [focusElementId]);
+  }, [focusElementId, sectionTarget, template, workspace]);
 
   const patch = (partial: Partial<ScenarioDraft>) =>
     onDraftChange({ ...draft, ...partial });
@@ -167,21 +182,37 @@ export function SimulationConfigRail({
     [...Object.values(draft.tasks).flatMap((task) => (task.durationBy ? [task.durationBy.attributeId] : [])),
       ...flowRuleAttributeIds(Object.values(draft.tasks))]);
   const canRun = Boolean(template) && !templateLoading && resourceIssues.ready && parameterIssues.ready && ruleIssues.ready;
+  let nextStep: { section: string; label: string } | null = null;
+  if (resourceIssues.missingResources) nextStep = { section: "resources", label: t("simulation.scenario.nextStep.addResource") };
+  else if (resourceIssues.pending > 0) nextStep = { section: "resources", label: t("simulation.scenario.nextStep.confirmResources", { count: resourceIssues.pending }) };
+  else if (resourceIssues.unassigned > 0) nextStep = { section: "activities", label: t("simulation.scenario.nextStep.assignActivities", { count: resourceIssues.unassigned }) };
+  else if (parameterIssues.arrival) nextStep = { section: "globals", label: t("simulation.config.invalidArrival") };
+  else if (parameterIssues.durations > 0) nextStep = { section: "activities", label: t("simulation.config.invalidDurations", { count: parameterIssues.durations }) };
+  else if (parameterIssues.calendars > 0) nextStep = { section: "calendars", label: t("simulation.config.invalidCalendars", { count: parameterIssues.calendars }) };
+  else if (parameterIssues.shifts > 0) nextStep = { section: "resources", label: t("simulation.config.invalidShifts", { count: parameterIssues.shifts }) };
+  else if (parameterIssues.flowRules > 0) nextStep = { section: "activities", label: t("simulation.config.invalidFlowRules", { count: parameterIssues.flowRules }) };
+  else if (parameterIssues.outcomes > 0) nextStep = { section: "activities", label: t("simulation.config.invalidOutcomes", { count: parameterIssues.outcomes }) };
+  else if (parameterIssues.sla) nextStep = { section: "globals", label: t("simulation.config.invalidSla") };
+  else if (parameterIssues.costs) nextStep = { section: "globals", label: t("simulation.config.invalidCosts") };
+  else if (parameterIssues.warmup) nextStep = { section: "globals", label: t("simulation.config.invalidWarmup") };
+  else if (parameterIssues.replications) nextStep = { section: "globals", label: t("simulation.config.invalidReplications") };
+  else if (parameterIssues.horizon) nextStep = { section: "globals", label: t("simulation.config.invalidHorizon") };
+  else if (ruleIssues.attributes > 0) nextStep = { section: "attributes", label: t("simulation.config.invalidAttributes", { count: ruleIssues.attributes }) };
+  else if (ruleIssues.gateways > 0) nextStep = { section: "gateways", label: t("simulation.config.invalidRules", { count: ruleIssues.gateways }) };
+  else if (ruleIssues.priorities > 0) nextStep = { section: "priorities", label: t("simulation.config.invalidPriorities", { count: ruleIssues.priorities }) };
   const updateResource = (id: string, fields: Partial<ScenarioDraft["resources"][number]>) =>
     patch({ resources: draft.resources.map((r) => r.id === id ? { ...r, ...fields } : r) });
 
-  const trackSection = (event: React.UIEvent<HTMLDivElement>) => {
-    const body = event.currentTarget;
-    const sections = body.querySelectorAll<HTMLElement>(":scope > section");
-    let active = sections[0];
-    for (const section of sections) {
-      if (section.getBoundingClientRect().top > body.getBoundingClientRect().top + 32) break;
-      active = section;
+  const goToSection = (key: string) => {
+    setSectionTarget(key);
+    if (workspace) {
+      scrollRef.current?.scrollTo({ top: 0 });
+      return;
     }
-    if (body.scrollTop + body.clientHeight >= body.scrollHeight - 2) active = sections[sections.length - 1];
-    if (active) setSectionTarget(active.id.slice(sectionId.length + 1));
+    const target = document.getElementById(`${sectionId}-${key}`);
+    const body = scrollRef.current;
+    if (target && body?.contains(target)) body.scrollTo({ top: target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
-
   const Root = workspace ? EditorWorkspace : "div";
   const Body = workspace ? EditorBody : "div";
   return (
@@ -192,13 +223,8 @@ export function SimulationConfigRail({
       )}
     >
       {workspace ? <div className="ui-editor-navigation">
-        <span className="shrink-0 text-sm font-medium">{t("simulation.scenario.sectionLabel")}</span>
-        <Select value={sectionKeys.includes(sectionTarget) ? sectionTarget : "globals"} onValueChange={key => {
-          setSectionTarget(key);
-          const target = document.getElementById(`${sectionId}-${key}`);
-          const body = scrollRef.current;
-          if (target && body?.contains(target)) body.scrollTo({ top: target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-        }}><SelectTrigger className="h-11 min-w-0 flex-1" aria-label={t("simulation.workspace.sections")}><SelectValue /></SelectTrigger><SelectContent>{sectionKeys.map(key => <SelectItem key={key} value={key}>{t(`simulation.config.${key}`)}</SelectItem>)}</SelectContent></Select>
+        <span className="shrink-0 text-sm font-medium">{t("simulation.scenario.sectionProgress", { current: sectionKeys.indexOf(sectionTarget) + 1, total: sectionKeys.length })}</span>
+        <Select value={sectionKeys.includes(sectionTarget) ? sectionTarget : "globals"} onValueChange={goToSection}><SelectTrigger className="h-11 min-w-0 flex-1" aria-label={t("simulation.workspace.sections")}><SelectValue /></SelectTrigger><SelectContent>{sectionKeys.map(key => <SelectItem key={key} value={key}>{t(`simulation.config.${key}`)}</SelectItem>)}</SelectContent></Select>
         {navigationActions}
       </div> : <header className="flex min-h-[52px] items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
         <div className="min-w-0"><p className="eyebrow">{t("simulation.scenario.eyebrow")}</p><h3 className="mt-0.5 truncate text-sm font-semibold text-foreground">{t("simulation.scenario.title")}</h3></div>
@@ -207,11 +233,10 @@ export function SimulationConfigRail({
 
       <Body
         ref={scrollRef}
-        onScroll={workspace ? trackSection : undefined}
         className={workspace ? "sim-config-body" : cn("px-4", embedded ? "" : "min-h-0 flex-1 overflow-auto")}
       >
         {intro && <div className="ui-editor-intro">{intro}</div>}
-        <DetailPanelSection id={workspace ? `${sectionId}-globals` : undefined} title={t("simulation.config.globals")}>
+        <DetailPanelSection id={workspace ? `${sectionId}-globals` : undefined} hidden={workspace && sectionTarget !== "globals"} title={t("simulation.config.globals")}>
           <div className="sim-general-fields grid gap-2.5">
             <label className="grid gap-1.5">
               <span className="text-xs text-muted-foreground">
@@ -252,6 +277,7 @@ export function SimulationConfigRail({
               : <p id="sim-warmup-hint" className="text-xs text-muted-foreground">{t("simulation.config.warmupHint")}</p>}
             <fieldset className="sim-arrivals mt-1 grid gap-2 rounded-md border border-border p-2.5" data-sim-arrivals>
               <legend className="px-1 text-xs font-medium text-foreground">{t("simulation.config.arrivals")}</legend>
+              {provenance && <div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">{t("simulation.config.durationGuide.source")}</span><ProvenanceChip field={provenance.globals.arrival} /></div>}
               {!draft.arrival?.bands && <>
               <p className="text-xs text-muted-foreground">{t("simulation.config.arrivalsHint")}</p>
               <TaskDurationFields
@@ -293,16 +319,13 @@ export function SimulationConfigRail({
                   label={t("simulation.fields.cases")}
                   field={provenance.globals.cases}
                 />
-                <ChipRow
-                  label={t("simulation.config.arrivals")}
-                  field={provenance.globals.arrival}
-                />
               </div>
             )}
           </div>
         </DetailPanelSection>
 
         <DetailPanelSection
+          hidden={workspace && sectionTarget !== "resources"}
           id={workspace ? `${sectionId}-resources` : undefined} title={t("simulation.config.resources")}
           action={
             <Button
@@ -427,7 +450,7 @@ export function SimulationConfigRail({
           </div>}
         </DetailPanelSection>
 
-        <DetailPanelSection id={workspace ? `${sectionId}-calendars` : undefined} title={t("simulation.config.calendars")}>
+        <DetailPanelSection id={workspace ? `${sectionId}-calendars` : undefined} hidden={workspace && sectionTarget !== "calendars"} title={t("simulation.config.calendars")}>
           <CalendarsSection
             standard={template?.standard_calendar}
             calendars={calendars}
@@ -441,6 +464,7 @@ export function SimulationConfigRail({
         </DetailPanelSection>
 
         <DetailPanelSection
+          hidden={workspace && sectionTarget !== "activities"}
           id={workspace ? `${sectionId}-activities` : undefined}
           title={`${t("simulation.config.activities")}${
             template ? ` · ${template.tasks.length}` : ""
@@ -455,6 +479,7 @@ export function SimulationConfigRail({
               {template.tasks.map((task) => {
                 const cfg = draft.tasks[task.element_id];
                 if (!cfg) return null;
+                const hasAdvanced = Boolean(cfg.durationBy || cfg.durationWindows?.length || cfg.instances || cfg.removable || cfg.outcome || cfg.skip || cfg.rework || cfg.fixedCost !== undefined || cfg.otherAssignments?.length || cfg.claims?.length);
                 return (
                   <li
                     key={task.element_id}
@@ -508,6 +533,7 @@ export function SimulationConfigRail({
                         </Select>
                       </FieldLabel>
                     </div>
+                    <ActivityAdvanced initiallyOpen={!workspace || hasAdvanced} configured={hasAdvanced}>
                     <DurationByCategory
                       elementId={task.element_id}
                       taskName={task.name}
@@ -585,6 +611,7 @@ export function SimulationConfigRail({
                         [task.element_id]: [...(draft.dismissedClaims?.[task.element_id] ?? []), claimId],
                       } })}
                     />
+                    </ActivityAdvanced>
                   </li>
                 );
               })}
@@ -592,22 +619,22 @@ export function SimulationConfigRail({
           )}
         </DetailPanelSection>
 
-        <DetailPanelSection id={workspace ? `${sectionId}-attributes` : undefined} title={t("simulation.config.attributes")}>
+        <DetailPanelSection id={workspace ? `${sectionId}-attributes` : undefined} hidden={workspace && sectionTarget !== "attributes"} title={t("simulation.config.attributes")}>
           <CaseAttributesSection attributes={attributes} usedBy={attributeUse} onChange={(next) => patch({ caseAttributes: next })} />
         </DetailPanelSection>
 
-        <DetailPanelSection id={workspace ? `${sectionId}-priorities` : undefined} title={t("simulation.config.priorities")}>
+        <DetailPanelSection id={workspace ? `${sectionId}-priorities` : undefined} hidden={workspace && sectionTarget !== "priorities"} title={t("simulation.config.priorities")}>
           <CasePrioritiesSection priorities={priorities} attributes={attributes} onChange={(next) => patch({ casePriorities: next })} />
         </DetailPanelSection>
 
         {template?.waits && template.waits.length > 0 && (
-          <DetailPanelSection id={workspace ? `${sectionId}-waits.title` : undefined} title={t("simulation.config.waits.title")}>
+          <DetailPanelSection id={workspace ? `${sectionId}-waits.title` : undefined} hidden={workspace && sectionTarget !== "waits.title"} title={t("simulation.config.waits.title")}>
             <WaitsSection waits={template.waits} values={draft.waits ?? {}} onChange={(next) => patch({ waits: next })} />
           </DetailPanelSection>
         )}
 
         {template && template.gateways.length > 0 && (
-          <DetailPanelSection id={workspace ? `${sectionId}-gateways` : undefined} title={t("simulation.config.gateways")}>
+          <DetailPanelSection id={workspace ? `${sectionId}-gateways` : undefined} hidden={workspace && sectionTarget !== "gateways"} title={t("simulation.config.gateways")}>
             <ul className="grid gap-2">
               {template.gateways.map((gateway) => {
                 const cfg = draft.gateways[gateway.element_id] ?? {};
@@ -730,7 +757,10 @@ export function SimulationConfigRail({
 
       {workspace && <EditorActions>
         {error && <p role="alert" className="basis-full text-destructive">{error}</p>}
-        <p>{t(canRun ? "simulation.scenario.readyHint" : "simulation.scenario.incompleteHint")}</p>
+        <div className="min-w-0 flex-1 text-xs text-muted-foreground">
+          <p role="status">{canRun ? t("simulation.scenario.readyHint") : nextStep?.label ?? t("simulation.scenario.incompleteHint")}</p>
+          {!canRun && nextStep && <button type="button" className="mt-1 font-medium text-foreground underline-offset-2 hover:underline focus-visible:underline" onClick={() => goToSection(nextStep.section)}>{t("simulation.scenario.nextStep.review", { section: t(`simulation.config.${nextStep.section}`) })}</button>}
+        </div>
         <Button type="button" className="min-h-11" disabled={isRunning || !canRun} onClick={onRun}>{isRunning ? runningLabel ?? t("simulation.running") : t("simulation.run")}</Button>
       </EditorActions>}
 
@@ -784,6 +814,15 @@ export function SimulationConfigRail({
       )}
     </Root>
   );
+}
+
+function ActivityAdvanced({ initiallyOpen, configured, children }: { initiallyOpen: boolean; configured: boolean; children: React.ReactNode }) {
+  const { t } = useTranslation("process");
+  const [open, setOpen] = React.useState(initiallyOpen);
+  return <details className="sim-task-advanced mt-3 rounded-md border border-border bg-card px-3 py-2" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <summary className="cursor-pointer text-xs font-medium text-foreground">{t("simulation.scenario.activityDetails")}{configured ? ` · ${t("simulation.scenario.configured")}` : ""}</summary>
+    <div className="mt-3 grid gap-3">{children}</div>
+  </details>;
 }
 
 /** Le attività senza un ruolo valido passano a ``resourceId``, che sparisce dai loro altri ruoli. */
