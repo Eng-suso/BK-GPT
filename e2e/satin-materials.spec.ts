@@ -89,7 +89,7 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole("dialog")).toBeVisible();
     const field = page.getByRole("dialog").locator('[data-slot="input"]').first();
     await field.focus();
-    expect(await field.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe("none");
+    expect(await field.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
     expect((await new AxeBuilder({ page }).include('[role="dialog"]').withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`project-form-${width}.png`) });
     await page.keyboard.press("Escape");

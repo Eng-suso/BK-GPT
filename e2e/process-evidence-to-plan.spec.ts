@@ -293,13 +293,13 @@ async function openProcessDiscussion(page: Page) {
 }
 
 /** Apre la review dalla barra, come fa il consulente. */
-async function openReview(page: Page, section?: "Come lo disegno" | "Da decidere") {
+async function openReview(page: Page, section?: "Struttura" | "Decisioni") {
   await modelingBar(page)
     .getByRole("button", { name: /^(Decidi|Apri review)$/ })
     .click();
   const sheet = page.getByRole("dialog");
   await expect(sheet).toBeVisible();
-  if (section) await sheet.getByRole("button", { name: new RegExp(section) }).click();
+  if (section) await sheet.getByRole("tab", { name: new RegExp(section) }).click();
   return sheet;
 }
 
@@ -319,11 +319,12 @@ test("il piano porta quello che le interviste hanno detto, non il solo titolo", 
   const sheet = await openReview(page);
 
   // Il colpo d'occhio del piano: quante persone e quante corsie ha capito.
+  await sheet.getByRole("tab", { name: "Sintesi" }).click();
   await expect(sheet).toContainText("Attori coinvolti");
   await expect(sheet).not.toContainText("0Attori coinvolti");
   await expect(sheet).not.toContainText("0Lane da disegnare");
 
-  await sheet.getByRole("button", { name: /Come lo disegno/ }).click();
+  await sheet.getByRole("tab", { name: "Struttura" }).click();
   for (const actor of ["Acquisti", "Produzione", "Fornitore"]) {
     await expect(sheet).toContainText(actor);
   }
@@ -337,7 +338,7 @@ test("la discussione e il piano raccontano lo stesso processo", async ({ page })
   await openProcessDiscussion(page);
 
   await expect(modelingBar(page)).toContainText("Serve una tua decisione");
-  const sheet = await openReview(page, "Da decidere");
+  const sheet = await openReview(page, "Decisioni");
   await expect(sheet.getByLabel("Domande aperte sul piano")).toBeVisible();
   await expect(sheet.getByText(GROUNDED_QUESTION)).toBeVisible();
 });
@@ -347,7 +348,7 @@ test("la domanda cita la contraddizione che l'ha generata", async ({ page }) => 
   // conformita' e soglie - temi di settore che nessuna fonte aveva nominato.
   await fixture(page);
   await openProcessDiscussion(page);
-  const sheet = await openReview(page, "Da decidere");
+  const sheet = await openReview(page, "Decisioni");
 
   const asked = sheet.getByLabel("Domande aperte sul piano");
   await expect(asked).toContainText("Paolo");
@@ -364,7 +365,7 @@ test("le alternative sono numerate in ordine e l'ultima è sempre Altro", async 
 }) => {
   await fixture(page);
   await openProcessDiscussion(page);
-  const sheet = await openReview(page, "Da decidere");
+  const sheet = await openReview(page, "Decisioni");
 
   const asked = sheet.getByLabel("Domande aperte sul piano");
   await expect(asked).toBeVisible();
@@ -380,7 +381,7 @@ test("il consulente può rispondere con parole sue, e la risposta resta scritta"
 }) => {
   const state = await fixture(page);
   await openProcessDiscussion(page);
-  const sheet = await openReview(page, "Da decidere");
+  const sheet = await openReview(page, "Decisioni");
 
   const asked = sheet.getByLabel("Domande aperte sul piano");
   await asked.getByRole("button", { name: /Altro/ }).click();
@@ -408,8 +409,8 @@ test("una risposta già data non riappare quando si riapre il processo", async (
 
   await openProcessDiscussion(page);
 
-  await expect(modelingBar(page)).toContainText("Workspace di modellazione disponibile");
-  const sheet = await openReview(page, "Da decidere");
+  await expect(modelingBar(page)).toContainText("Piano pronto per la verifica");
+  const sheet = await openReview(page, "Decisioni");
   await expect(sheet.getByLabel("Domande aperte sul piano")).toHaveCount(0);
 });
 
