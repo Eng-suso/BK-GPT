@@ -1,8 +1,11 @@
-# CodeRabbit ast-grep rules
+# ast-grep rules
 
 Deterministic AST checks for the anti-patterns in `backend/CODE_QUALITY.md`.
-Loaded via `tools.ast-grep.rule_dirs` in `.coderabbit.yaml`. Same output on
-every PR — this is the deterministic layer, not the LLM's judgement.
+Same output on every PR. `python-bare-except` and
+`python-llm-client-outside-gateway` block CI (0 findings on 2026-11-23).
+`python-broad-except-fake-success` (28 findings) and
+`python-unbounded-while-true` (7 findings) are part of the review checklist in
+`docs/vpt/WORKFLOW.md` until the existing cases are triaged; then they join CI.
 
 | Rule | Catches |
 |------|---------|
@@ -15,7 +18,7 @@ every PR — this is the deterministic layer, not the LLM's judgement.
 
 ```bash
 # one-off, no install — the package is `ast-grep-cli`, the executable `ast-grep`
-uvx --from ast-grep-cli ast-grep scan --rule .coderabbit/ast-grep-rules/python-bare-except.yml backend/
+uvx --from ast-grep-cli ast-grep scan --rule .ast-grep-rules/python-bare-except.yml backend/
 ```
 
 `uvx ast-grep` does not resolve: there is no `ast-grep` package on PyPI.

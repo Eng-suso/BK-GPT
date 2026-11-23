@@ -50,6 +50,12 @@ jobs:
       - name: Ruff check
         run: uv run ruff check backend tests
 
+      - name: Code quality rules (ast-grep)
+        run: |
+          for rule in python-bare-except python-llm-client-outside-gateway; do
+            uvx --from ast-grep-cli ast-grep scan --error --rule ".ast-grep-rules/$rule.yml" backend/
+          done
+
       - name: Mypy check
         run: uv run mypy
 
