@@ -9,26 +9,17 @@ delle voci SIM è in [`../simulation-plan.md`](../simulation-plan.md), i dataset
 
 ## Come si lavora
 
-1. **Prima di iniziare:** leggi questo file e le ultime tre voci di
-   [`LOG.md`](./LOG.md). Controlla i branch aperti rispetto a `main`, rivedi
-   quello che c'è e mergialo se è pronto.
-2. **Prendi un blocco** con stato `da fare` e dipendenze chiuse. Mettilo `in corso`
-   con la data, in un commit sul suo branch.
-3. **Itera fino alla meta.** Ogni blocco ha una meta numerica e un comando che la
-   misura. Dopo ogni tentativo lancia la misura e scrivi il numero in `LOG.md`.
-   Se la meta non è raggiunta: diagnosi, correzione, nuova misura. Il blocco non si
-   chiude finché la misura non raggiunge la meta.
-4. **La meta non si abbassa per chiudere.** Cambiarla richiede una decisione di
-   Sohayb, scritta in `LOG.md` con data e motivo. Le mete marcate *proposta* vanno
-   confermate da Sohayb alla prima sessione che le usa.
-5. **Bloccato?** Scrivi in `LOG.md` cosa blocca e chi lo sblocca, metti il blocco
-   `bloccato` e passa a un altro.
-6. **Chiusura:** test verdi, PR, merge su `main`, push. Aggiorna la tabella qui
-   sotto, `simulation-plan.md` se cambia una voce SIM, e aggiungi in cima a
-   `LOG.md` la voce di chiusura. Poi la sessione si chiude, così il prossimo
-   riparte pulito.
-7. **Commit:** piccoli e frequenti, a nome di Sohayb Raqaq, senza trailer di
-   coautore.
+Le regole complete sono in [`WORKFLOW.md`](./WORKFLOW.md). In breve:
+
+1. leggi [`HANDOFF.md`](./HANDOFF.md), questo file e le ultime voci di [`LOG.md`](./LOG.md);
+2. prendi un punto `da fare` con dipendenze chiuse e mettilo `in corso`;
+3. itera finché il comando di misura raggiunge la meta, aggiornando `HANDOFF.md` a ogni misura;
+4. test, e gate UX con screenshot se il punto tocca ciò che il cliente vede;
+5. PR con commit piccoli, CI verde, merge su `main`, branch allineato;
+6. punto `fatto`, `HANDOFF.md` riscritto, voce in `LOG.md`, sessione chiusa.
+
+La meta non si abbassa per chiudere. Le mete marcate *proposta* vanno confermate da
+Sohayb. Regola di prodotto: DeliR mangia la complessità del cliente.
 
 Binari: **Prod** = serve per vendere in sicurezza; **Ric** = ricerca, vantaggio
 tecnologico; **PV** = validazione con i clienti. Un risultato di ricerca non
@@ -44,7 +35,7 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 | --- | --- | --- | --- | --- | --- | --- |
 | B0 parità del motore | `fix/sim-engine-parity` | Prod | Nessun run `completed` senza KPI; runner con token, limiti, scadenza | test del runner e della coda in CI | — | fatto (2026-11-23) |
 | D0 dataset nel repo | `claude/funny-babbage-cw4b84` | Prod | Tutti i dataset nel manifest; ogni dataset scaricabile verifica l'MD5 | `uv run python scripts/fetch_datasets.py verify` e `fetch --all` | — | fatto (2026-11-23) |
-| B1 import Prosimos tollerante | `feat/sim-prosimos-import` | Prod | 19/19 scenari di `datasets/extraneous-delays/inputs` importati lato server senza modifiche, metadati SIMOD compresi | test che importa ogni `*.json` dei 19 scenari | — | da fare |
+| B1 import Prosimos tollerante | `feat/sim-prosimos-import` | Prod | 19/19 scenari di `datasets/extraneous-delays/inputs` importati lato server senza modifiche, metadati SIMOD compresi; gate UX sull'import | test che importa ogni `*.json` dei 19 scenari | — | da fare |
 | Track B isolamento tenant | vedi `docs/deployment-and-tenancy.md` | Prod | Test cross-tenant su API, worker, memoria e checkpoint verdi | suite cross-tenant | blocker VM e dominio (Sohayb) | bloccato |
 
 ### V1 — Misura
@@ -62,7 +53,7 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 | G3 spike SIMOD | `spike/sim-simod-discovery` | Ric | SIMOD scopre i 3 log reali dal train, valutati sul test; lo scenario prodotto si importa in DeliR; decisione G3 scritta in `LOG.md` | harness B2 sugli scenari SIMOD | B1, B2 | da fare |
 | B3 discovery dei parametri (SIM-16) | `feat/sim-discovery-core` | Ric → Prod | Sui sintetici: probabilità dei gateway entro ±0,05 e media delle durate entro ±10% della verità (*proposta*); sui reali il twin batte "B = A" su ≥ 3 log con IC 95% (H1) | harness B2 | G3 | da fare |
 | VPT-08 traccia di derivazione | `feat/sim-derivation-trace` | Prod | 100% dei parametri non Manual risale al passaggio esatto della fonte o all'osservazione | test sul contratto dei candidati | B3 | da fare |
-| B4 checklist del twin (SIM-18) | `feat/sim-discovery-ui` | Prod | E2E: un log porta a un twin validato senza toccare JSON | Playwright | B3 | da fare |
+| B4 checklist del twin (SIM-18) | `feat/sim-discovery-ui` | Prod | E2E: un log porta a un twin validato senza toccare JSON; gate UX superato con la prova del consulente | Playwright | B3 | da fare |
 | B5 ritardi estranei | `feat/sim-extraneous-delays` | Ric | Sui sintetici con 1, 3, 5 timer, distanza pari o migliore di quella del paper in `paper-results` | harness B2 | B3 | da fare |
 | VPT-07 spike object-centric | `spike/sim-ocel` | Ric | Su ≥ 2 log OCEL pubblici misurata la perdita da appiattimento; decisione scritta | script dello spike | B2 | da fare |
 

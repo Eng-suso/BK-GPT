@@ -187,12 +187,28 @@ For final frontend verification:
 
 ## VPT engineering workflow (Sohayb, 2026-11-23)
 
-Before any work on the simulator or the Verified Process Twin, read
-`docs/vpt/PLAN.md` and the last three entries of `docs/vpt/LOG.md`.
+Binding for any work on the simulator or the Verified Process Twin. Full rules:
+`docs/vpt/WORKFLOW.md`.
 
-- Pick one block, iterate until its measured target (meta) is reached, and log
-  every measurement in `docs/vpt/LOG.md`. Never lower a target to close a block.
-- When the block is done: tests, PR, merge to `main`, push, update the plan
-  table and add the closing entry at the top of the log. Then end the session.
+- Start: read `docs/vpt/HANDOFF.md` (where we are now), `docs/vpt/PLAN.md` and
+  the last three entries of `docs/vpt/LOG.md`. Check open branches against `main`.
+- Work one plan point at a time. Iterate until its measured target (meta) is
+  reached; never lower a target to close a point.
+- Write where you are in `docs/vpt/HANDOFF.md` after every measurement, before
+  long operations and before stopping, so the next person picks up immediately.
+- Product rule: DeliR eats the customer's complexity. The ordinary path speaks
+  business language to a non-technical consultant; technical terms only in
+  specialist details.
+- UX gate: any point visible to the customer closes only after Playwright
+  screenshots (desktop and mobile) have been opened and read, saved under
+  `docs/vpt/ux/<point>/`.
+- Skills: load the skills this file routes for the kind of work, every time, and
+  list them in `LOG.md`.
+- Code review is mandatory: the `code-review` skill on the local diff before the
+  PR, then CodeRabbit on the PR; resolve or answer every finding before merging.
+  Add `security-review` for auth, security or tenant isolation changes.
+- Close: many small commits, tests, PR, green CI, merge to `main`, push, branch
+  aligned with `main`; update `PLAN.md`, rewrite `HANDOFF.md`, add the `LOG.md`
+  entry, then end the session.
 - Datasets: `datasets/README.md` and `scripts/fetch_datasets.py`. The repository
   is public: only redistributable data goes into `datasets/`.
