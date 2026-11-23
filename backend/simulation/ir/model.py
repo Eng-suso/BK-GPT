@@ -78,8 +78,10 @@ class _Bounded(_Strict):
 
 
 class Fixed(_Strict):
+    """Zero e' un passo istantaneo: frequente negli scenari scoperti dai log."""
+
     kind: Literal["fixed"] = "fixed"
-    value: float = Field(gt=0)
+    value: float = Field(ge=0)
 
 
 class Exponential(_Bounded):
