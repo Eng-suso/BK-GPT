@@ -61,6 +61,23 @@ const ANALYSIS = {
   },
 };
 
+/** Il report del server: stesse definizioni osservabili sui due lati (SIM-19). */
+const kpi = (real: number, mean: number) => ({ real, mean, ci95Half: null, min: mean, max: mean, bias: mean - real, mae: Math.abs(mean - real) });
+const VALIDATION = {
+  referenceCases: 3, simulatedCases: [300], replications: 1, runIds: [42],
+  kpis: {
+    cycle: kpi(4000, 4200), p50: kpi(3900, 4000), p90: kpi(6000, 6600),
+    between: kpi(1400, 1500), processing: kpi(2600, 2700), throughput: kpi(2, 2.2),
+  },
+  distances: { cycleW1: { mean: 300, ci95Half: null, min: 300, max: 300 }, ngd: { mean: 0.05, ci95Half: null, min: 0.05, max: 0.05 } },
+  pooledCycle: { p50: 4000, p90: 6600 },
+  firstWaitSimulated: null,
+  quality: { rowsExcluded: 0, eventsWithoutStart: 0 },
+  provenance: { eventLogId: "elog_e2e", runs: [{ runId: 42, seed: 7, engine: "prosimos", engineVersion: "2.1.0", startDate: "2026-01-05T00:00:00Z", warmupCases: 0 }] },
+  initialActivities: [],
+  basis: "observable",
+};
+
 type Fixture = { mappingRequests: Request[] };
 
 async function fixture(page: Page, logs: unknown[]): Promise<Fixture> {
@@ -85,6 +102,7 @@ async function fixture(page: Page, logs: unknown[]): Promise<Fixture> {
     else if (path === "/v1/workspace/processes/eventlog-process/event-logs") data = logs;
     else if (path === "/v1/workspace/event-logs/elog_e2e/preview") data = { format: "csv", delimiter: ";", columns: COLUMNS, row_count: 9, sample_rows: [["P-1", "Verifica documentazione", "2026-01-05T09:00", "2026-01-05T09:10", "2026-01-05T09:30", "anna"]] };
     else if (path === "/v1/workspace/event-logs/elog_e2e/analysis") data = ANALYSIS;
+    else if (path === "/v1/workspace/event-logs/elog_e2e/validation") data = VALIDATION;
     else if (path === "/v1/workspace/event-logs/elog_e2e/mapping") { state.mappingRequests.push(request); data = ANALYSIS; }
     await route.fulfill({ json: data });
   });
@@ -100,16 +118,16 @@ test("the wizard maps the enablement column of an exported log", async ({ page }
   await page.goto(`${studio}/dashboard/42?panel=eventLog`);
   await dock(page).getByRole("button", { name: /^sap-export\.csv/ }).click();
 
-  const caseId = dock(page).getByRole("group", { name: "Identificativo del caso" });
-  await caseId.getByRole("combobox").selectOption("Pratica");
-  await dock(page).getByRole("group", { name: "Attività", exact: true }).getByRole("combobox").selectOption("Attivita");
-  await dock(page).getByLabel("Fine (o completamento)").selectOption("Fine");
-  await dock(page).getByLabel(/^Inizio/).selectOption("Inizio");
+  // Il wizard propone le colonne riconoscibili: il consulente controlla, non compila.
+  await expect(dock(page).getByRole("group", { name: "Identificativo del caso" }).getByRole("listitem")).toContainText(["Pratica"]);
+  await expect(dock(page).getByRole("group", { name: "Attività", exact: true }).getByRole("listitem")).toContainText(["Attivita"]);
+  await expect(dock(page).getByLabel("Fine (o completamento)")).toHaveValue("Fine");
+  await expect(dock(page).getByLabel(/^Inizio/)).toHaveValue("Inizio");
+  await expect(dock(page).getByLabel(/^Risorsa/)).toHaveValue("Utente");
   const enable = dock(page).getByLabel("Abilitazione");
   await expect(enable).toHaveAccessibleDescription(/enable_time/);
   await enable.selectOption("Pronta");
-  await dock(page).getByLabel(/^Risorsa/).selectOption("Utente");
-  await expect(dock(page).getByRole("region", { name: "Anteprima delle prime righe" }).locator("th[data-used]")).toHaveCount(6);
+  await expect(dock(page).getByRole("region", { name: "Righe dell'event log" }).locator("th[data-used]")).toHaveCount(6);
   await dock(page).getByRole("button", { name: "Avanti" }).click();
   await dock(page).getByRole("button", { name: "Applica il mapping" }).click();
 
@@ -126,10 +144,14 @@ test("real against simulated: verdict, KPIs by activity and gaps on the process"
 
   const step = dock(page).getByRole("region", { name: "Reale contro simulato" });
   await expect(step.getByLabel("Run simulato")).toHaveValue("42");
-  // Cycle medio +5%, P90 +10%: vicino al reale.
-  await expect(step.getByRole("status").filter({ hasText: "Il simulato è vicino al reale" })).toContainText("+5%");
+  // Prima il report aggregato del server, poi la diagnostica della replica scelta.
+  const report = step.getByRole("region", { name: "Validazione aggregata" });
+  await expect(report).toContainText("1 repliche confrontate con 3 casi reali");
+  await expect(report.getByRole("row", { name: /Attraversamento P90/ })).toContainText("+10 min");
+  // Cycle medio +5%, P90 +10%: la replica è vicina al log.
+  await expect(step.getByRole("status").filter({ hasText: "Questa replica è vicina al log" })).toContainText("+5%");
   await expect(step.getByText("Il log ha 3 casi, il run 300", { exact: false })).toBeVisible();
-  const processTable = step.getByRole("table").first();
+  const processTable = step.getByRole("table").filter({ has: page.getByRole("row", { name: /Tempo medio di attraversamento/ }) });
   await expect(processTable.getByRole("row", { name: /Tempo medio di attraversamento/ })).toContainText("+5%");
   await expect(processTable.getByRole("row", { name: /Costo per caso/ })).toContainText("il log non ha costi");
 
@@ -198,6 +220,11 @@ test("a log with completions only is never compared on processing, and merged ac
   await dock(page).getByRole("button", { name: /Reale contro simulato$/ }).click();
 
   const step = dock(page).getByRole("region", { name: "Reale contro simulato" });
+  // Il report aggregato spiega perché non confronta i tempi, senza errori.
+  const report = step.getByRole("region", { name: "Validazione aggregata" });
+  await expect(report).toContainText("Il log registra solo i completamenti");
+  await expect(report.getByRole("table")).toHaveCount(0);
+  await expect(step.getByText("Calcolo il confronto delle repliche")).toHaveCount(0);
   const activities = step.getByRole("table", { name: /Lavorazione e attesa medie per attività/ });
   await expect(activities.getByRole("row")).toHaveCount(3);
   await expect(activities.getByRole("row", { name: /Verifica documentazione/ })).toContainText("dal log: Verifica documentazione, Verifica integrazioni");
