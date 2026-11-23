@@ -23,7 +23,7 @@ standard non e' partito nel sandbox per il fetch di una dipendenza e per
 permessi WMI; la prova DEV e' stata eseguita direttamente con il virtualenv
 gia' installato e con i worker spenti.
 
-Resta un limite di sicurezza distinto: la trascrizione audio live passa il
-token API nella query string del WebSocket esistente. La verifica qui non
-copre quella funzione. Evitare la trascrizione live negli ambienti protetti
-finche' l'autenticazione del WebSocket non viene riprogettata.
+Aggiornamento del 2026-11-23: l'autenticazione del WebSocket di trascrizione
+live e' stata spostata nel primo messaggio della connessione. Il token non e'
+piu' nell'URL e viene verificato prima di connettersi al provider. La prova
+di questa modifica e' in [websocket-auth-evidence.md](websocket-auth-evidence.md).

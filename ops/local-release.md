@@ -27,9 +27,9 @@ In PowerShell su Windows, usare `npm.cmd run ...` se la policy blocca `npm.ps1`.
 Il token inserito resta nella `sessionStorage` dell'origine del browser: le
 porte 18000 e 28000 hanno sessioni separate. Il frontend prova l'identita'
 prima di caricare le richieste del workspace. Non mettere questi token in
-`VITE_*` o nel codice. La trascrizione audio live usa ancora un WebSocket con
-token nella query string: evitare la trascrizione live negli ambienti protetti
-finche' il protocollo non sara' corretto. STAGING e PROD-SIM usano inizialmente un
+`VITE_*` o nel codice. La trascrizione audio live invia tenant e token nel primo
+messaggio WebSocket, dopo l'apertura della connessione; l'URL non li contiene.
+Il server verifica entrambi prima di collegarsi al provider. STAGING e PROD-SIM usano inizialmente un
 placeholder per `OPENAI_API_KEY`: le verifiche locali non fanno chiamate LLM.
 Se configuri chiavi provider reali, usane una dedicata per ambiente; il
 validatore rifiuta il riuso fra STAGING, PROD-SIM e il `.env` di DEV usato da
