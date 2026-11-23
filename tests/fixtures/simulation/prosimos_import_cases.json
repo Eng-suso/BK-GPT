@@ -1,0 +1,2873 @@
+{
+  "_doc": "Casi condivisi da backend/simulation/prosimos_import.py e frontend prosimosJson.ts. Rigenerare con lo script descritto nel test Python.",
+  "template": {
+    "resources": [],
+    "tasks": [
+      {
+        "element_id": "T1",
+        "name": "Ricevi",
+        "type": "task",
+        "multi_instance": null,
+        "instances": null
+      },
+      {
+        "element_id": "T2",
+        "name": "Approva",
+        "type": "task",
+        "multi_instance": null,
+        "instances": null
+      },
+      {
+        "element_id": "T3",
+        "name": "Archivia",
+        "type": "task",
+        "multi_instance": null,
+        "instances": null
+      }
+    ],
+    "gateways": [
+      {
+        "element_id": "G1",
+        "name": "Importo?",
+        "type": "exclusiveGateway",
+        "branches": [
+          {
+            "flow_id": "f3",
+            "flow_name": "",
+            "target_name": "Approva"
+          },
+          {
+            "flow_id": "f4",
+            "flow_name": "",
+            "target_name": "Archivia"
+          }
+        ],
+        "escalation": null
+      }
+    ],
+    "waits": [
+      {
+        "element_id": "W1",
+        "name": "Attesa fornitore",
+        "kind": "timer",
+        "seconds": null
+      }
+    ],
+    "standard_calendar": {
+      "id": "delir-calendar-standard",
+      "name": "Standard office calendar",
+      "periods": [
+        {
+          "from_day": "MONDAY",
+          "to_day": "FRIDAY",
+          "begin": "09:00",
+          "end": "17:00"
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "name": "tutte le sezioni di base",
+      "source": {
+        "resource_profiles": [
+          {
+            "id": "clerks",
+            "name": "Clerks",
+            "resource_list": [
+              {
+                "id": "clerk",
+                "name": "Clerk",
+                "cost_per_hour": 30,
+                "amount": 2,
+                "calendar": "shift"
+              },
+              {
+                "id": "bot",
+                "name": "Bot",
+                "cost_per_hour": 0,
+                "amount": 1,
+                "calendar": "always"
+              }
+            ]
+          }
+        ],
+        "resource_calendars": [
+          {
+            "id": "shift",
+            "name": "shift",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00",
+                "endTime": "17:00:00"
+              }
+            ]
+          },
+          {
+            "id": "always",
+            "name": "always",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "SUNDAY",
+                "beginTime": "00:00:00",
+                "endTime": "23:59:59.999000"
+              }
+            ]
+          }
+        ],
+        "task_resource_distribution": [
+          {
+            "task_id": "T1",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "norm",
+                "distribution_params": [
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 300
+                  },
+                  {
+                    "value": 900
+                  }
+                ]
+              },
+              {
+                "resource_id": "bot",
+                "distribution_name": "fix",
+                "distribution_params": [
+                  {
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T2",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "lognorm",
+                "distribution_params": [
+                  {
+                    "value": 1200
+                  },
+                  {
+                    "value": 14400
+                  },
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 3600
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T3",
+            "resources": [
+              {
+                "resource_id": "bot",
+                "distribution_name": "expon",
+                "distribution_params": [
+                  {
+                    "value": 120
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 600
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gateway_branching_probabilities": [
+          {
+            "gateway_id": "G1",
+            "probabilities": [
+              {
+                "path_id": "f3",
+                "value": "0.3"
+              },
+              {
+                "path_id": "f4",
+                "value": "0.7"
+              }
+            ]
+          }
+        ],
+        "arrival_time_distribution": {
+          "distribution_name": "gamma",
+          "distribution_params": [
+            {
+              "value": 900
+            },
+            {
+              "value": 90000
+            },
+            {
+              "value": 60
+            },
+            {
+              "value": 7200
+            }
+          ]
+        },
+        "arrival_time_calendar": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+          }
+        ],
+        "event_distribution": [
+          {
+            "event_id": "W1",
+            "distribution_name": "uniform",
+            "distribution_params": [
+              {
+                "value": 3600
+              },
+              {
+                "value": 7200
+              }
+            ]
+          }
+        ]
+      },
+      "mapping": {},
+      "current": null,
+      "expected": {
+        "draft": {
+          "scenarioName": "Baseline AS-IS",
+          "totalCases": 100,
+          "arrivalIntervalMinutes": 15.0,
+          "defaultTaskMinutes": 15,
+          "resources": [
+            {
+              "id": "clerk",
+              "name": "Clerk",
+              "costPerHour": 30.0,
+              "amount": 2.0,
+              "parametersConfirmed": true,
+              "calendarId": "shift"
+            },
+            {
+              "id": "bot",
+              "name": "Bot",
+              "costPerHour": 0.0,
+              "amount": 1.0,
+              "parametersConfirmed": true,
+              "calendarId": "always"
+            }
+          ],
+          "tasks": {
+            "T1": {
+              "resourceId": "clerk",
+              "distribution": "norm",
+              "meanMinutes": 10.0,
+              "stdMinutes": 1.0,
+              "minMinutes": 5.0,
+              "maxMinutes": 15.0,
+              "assignmentSource": "manual",
+              "otherAssignments": [
+                {
+                  "resourceId": "bot",
+                  "distribution": "fixed",
+                  "meanMinutes": 0.0
+                }
+              ]
+            },
+            "T2": {
+              "resourceId": "clerk",
+              "distribution": "lognorm",
+              "meanMinutes": 20.0,
+              "stdMinutes": 2.0,
+              "minMinutes": 10.0,
+              "maxMinutes": 60.0,
+              "assignmentSource": "manual"
+            },
+            "T3": {
+              "resourceId": "bot",
+              "distribution": "expon",
+              "meanMinutes": 2.0,
+              "minMinutes": 1.0,
+              "maxMinutes": 10.0,
+              "assignmentSource": "manual"
+            }
+          },
+          "gateways": {
+            "G1": {
+              "f3": 30.0,
+              "f4": 70.0
+            }
+          },
+          "waits": {
+            "W1": {
+              "distribution": "uniform",
+              "meanMinutes": 90.0,
+              "minMinutes": 60.0,
+              "maxMinutes": 120.0
+            }
+          },
+          "calendars": [
+            {
+              "id": "shift",
+              "name": "shift",
+              "periods": [
+                {
+                  "from_day": "MONDAY",
+                  "to_day": "FRIDAY",
+                  "begin": "09:00:00",
+                  "end": "17:00:00"
+                }
+              ]
+            },
+            {
+              "id": "always",
+              "name": "always",
+              "periods": [
+                {
+                  "from_day": "MONDAY",
+                  "to_day": "SUNDAY",
+                  "begin": "00:00:00",
+                  "end": "23:59:59.999"
+                }
+              ]
+            }
+          ],
+          "arrival": {
+            "distribution": "gamma",
+            "stdMinutes": 5.0,
+            "minMinutes": 1.0,
+            "maxMinutes": 120.0,
+            "calendarId": "shift"
+          }
+        },
+        "warnings": []
+      }
+    },
+    {
+      "name": "scenario SIMOD: metadati, join, microsecondi, campi in piu'",
+      "source": {
+        "resource_profiles": [
+          {
+            "id": "clerks",
+            "name": "Clerks",
+            "resource_list": [
+              {
+                "id": "clerk",
+                "name": "Clerk",
+                "cost_per_hour": 30,
+                "amount": 2,
+                "calendar": "shift",
+                "assignedTasks": [
+                  "T1",
+                  "T2"
+                ]
+              },
+              {
+                "id": "bot",
+                "name": "Bot",
+                "cost_per_hour": 0,
+                "amount": 1,
+                "calendar": "always",
+                "skills": [
+                  "ocr"
+                ]
+              }
+            ]
+          }
+        ],
+        "resource_calendars": [
+          {
+            "id": "shift",
+            "name": "shift",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00",
+                "endTime": "17:00:00"
+              }
+            ]
+          },
+          {
+            "id": "always",
+            "name": "always",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "SUNDAY",
+                "beginTime": "00:00:00",
+                "endTime": "23:59:59.999000"
+              }
+            ]
+          }
+        ],
+        "task_resource_distribution": [
+          {
+            "task_id": "T1",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "norm",
+                "distribution_params": [
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 300
+                  },
+                  {
+                    "value": 900
+                  }
+                ]
+              },
+              {
+                "resource_id": "bot",
+                "distribution_name": "fix",
+                "distribution_params": [
+                  {
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T2",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "lognorm",
+                "distribution_params": [
+                  {
+                    "value": 1200
+                  },
+                  {
+                    "value": 14400
+                  },
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 3600
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T3",
+            "resources": [
+              {
+                "resource_id": "bot",
+                "distribution_name": "expon",
+                "distribution_params": [
+                  {
+                    "value": 120
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 600
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gateway_branching_probabilities": [
+          {
+            "gateway_id": "G1",
+            "probabilities": [
+              {
+                "path_id": "f3",
+                "value": "0.3"
+              },
+              {
+                "path_id": "f4",
+                "value": "0.7"
+              }
+            ]
+          },
+          {
+            "gateway_id": "GJ",
+            "probabilities": [
+              {
+                "path_id": "f7",
+                "value": 1
+              }
+            ]
+          }
+        ],
+        "arrival_time_distribution": {
+          "distribution_name": "gamma",
+          "distribution_params": [
+            {
+              "value": 900
+            },
+            {
+              "value": 90000
+            },
+            {
+              "value": 60
+            },
+            {
+              "value": 7200
+            }
+          ]
+        },
+        "arrival_time_calendar": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+          }
+        ],
+        "event_distribution": [
+          {
+            "event_id": "W1",
+            "distribution_name": "uniform",
+            "distribution_params": [
+              {
+                "value": 3600
+              },
+              {
+                "value": 7200
+              }
+            ]
+          }
+        ],
+        "process_model": "C:/simod/best.bpmn",
+        "model_type": "CRISP",
+        "granule_size": {
+          "value": 15,
+          "time_unit": "MINUTES"
+        }
+      },
+      "mapping": {},
+      "current": null,
+      "expected": {
+        "draft": {
+          "scenarioName": "Baseline AS-IS",
+          "totalCases": 100,
+          "arrivalIntervalMinutes": 15.0,
+          "defaultTaskMinutes": 15,
+          "resources": [
+            {
+              "id": "clerk",
+              "name": "Clerk",
+              "costPerHour": 30.0,
+              "amount": 2.0,
+              "parametersConfirmed": true,
+              "calendarId": "shift"
+            },
+            {
+              "id": "bot",
+              "name": "Bot",
+              "costPerHour": 0.0,
+              "amount": 1.0,
+              "parametersConfirmed": true,
+              "calendarId": "always"
+            }
+          ],
+          "tasks": {
+            "T1": {
+              "resourceId": "clerk",
+              "distribution": "norm",
+              "meanMinutes": 10.0,
+              "stdMinutes": 1.0,
+              "minMinutes": 5.0,
+              "maxMinutes": 15.0,
+              "assignmentSource": "manual",
+              "otherAssignments": [
+                {
+                  "resourceId": "bot",
+                  "distribution": "fixed",
+                  "meanMinutes": 0.0
+                }
+              ]
+            },
+            "T2": {
+              "resourceId": "clerk",
+              "distribution": "lognorm",
+              "meanMinutes": 20.0,
+              "stdMinutes": 2.0,
+              "minMinutes": 10.0,
+              "maxMinutes": 60.0,
+              "assignmentSource": "manual"
+            },
+            "T3": {
+              "resourceId": "bot",
+              "distribution": "expon",
+              "meanMinutes": 2.0,
+              "minMinutes": 1.0,
+              "maxMinutes": 10.0,
+              "assignmentSource": "manual"
+            }
+          },
+          "gateways": {
+            "G1": {
+              "f3": 30.0,
+              "f4": 70.0
+            }
+          },
+          "waits": {
+            "W1": {
+              "distribution": "uniform",
+              "meanMinutes": 90.0,
+              "minMinutes": 60.0,
+              "maxMinutes": 120.0
+            }
+          },
+          "calendars": [
+            {
+              "id": "shift",
+              "name": "shift",
+              "periods": [
+                {
+                  "from_day": "MONDAY",
+                  "to_day": "FRIDAY",
+                  "begin": "09:00:00",
+                  "end": "17:00:00"
+                }
+              ]
+            },
+            {
+              "id": "always",
+              "name": "always",
+              "periods": [
+                {
+                  "from_day": "MONDAY",
+                  "to_day": "SUNDAY",
+                  "begin": "00:00:00",
+                  "end": "23:59:59.999"
+                }
+              ]
+            }
+          ],
+          "arrival": {
+            "distribution": "gamma",
+            "stdMinutes": 5.0,
+            "minMinutes": 1.0,
+            "maxMinutes": 120.0,
+            "calendarId": "shift"
+          }
+        },
+        "warnings": [
+          {
+            "kind": "ignoredField",
+            "target": "resource_profiles[0].resource_list[1].skills"
+          },
+          {
+            "kind": "ignoredGateway",
+            "target": "GJ"
+          }
+        ]
+      }
+    },
+    {
+      "name": "sezioni non ancora rappresentate: importate le altre, dichiarate queste",
+      "source": {
+        "resource_profiles": [
+          {
+            "id": "clerks",
+            "name": "Clerks",
+            "resource_list": [
+              {
+                "id": "clerk",
+                "name": "Clerk",
+                "cost_per_hour": 30,
+                "amount": 2,
+                "calendar": "shift"
+              },
+              {
+                "id": "bot",
+                "name": "Bot",
+                "cost_per_hour": 0,
+                "amount": 1,
+                "calendar": "always"
+              }
+            ]
+          }
+        ],
+        "resource_calendars": [
+          {
+            "id": "shift",
+            "name": "shift",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00",
+                "endTime": "17:00:00"
+              }
+            ]
+          },
+          {
+            "id": "always",
+            "name": "always",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "SUNDAY",
+                "beginTime": "00:00:00",
+                "endTime": "23:59:59.999000"
+              }
+            ]
+          }
+        ],
+        "task_resource_distribution": [
+          {
+            "task_id": "T1",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "norm",
+                "distribution_params": [
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 300
+                  },
+                  {
+                    "value": 900
+                  }
+                ]
+              },
+              {
+                "resource_id": "bot",
+                "distribution_name": "fix",
+                "distribution_params": [
+                  {
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T2",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "lognorm",
+                "distribution_params": [
+                  {
+                    "value": 1200
+                  },
+                  {
+                    "value": 14400
+                  },
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 3600
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T3",
+            "resources": [
+              {
+                "resource_id": "bot",
+                "distribution_name": "expon",
+                "distribution_params": [
+                  {
+                    "value": 120
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 600
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gateway_branching_probabilities": [
+          {
+            "gateway_id": "G1",
+            "probabilities": [
+              {
+                "path_id": "f3",
+                "value": "0.3"
+              },
+              {
+                "path_id": "f4",
+                "value": "0.7"
+              }
+            ]
+          }
+        ],
+        "arrival_time_distribution": {
+          "distribution_name": "gamma",
+          "distribution_params": [
+            {
+              "value": 900
+            },
+            {
+              "value": 90000
+            },
+            {
+              "value": 60
+            },
+            {
+              "value": 7200
+            }
+          ]
+        },
+        "arrival_time_calendar": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+          }
+        ],
+        "event_distribution": [
+          {
+            "event_id": "W1",
+            "distribution_name": "uniform",
+            "distribution_params": [
+              {
+                "value": 3600
+              },
+              {
+                "value": 7200
+              }
+            ]
+          }
+        ],
+        "batch_processing": [
+          {
+            "task_id": "T2",
+            "type": "Sequential",
+            "size_distrib": []
+          }
+        ],
+        "case_attributes": [
+          {
+            "name": "importo",
+            "type": "continuous",
+            "values": {
+              "distribution_name": "norm",
+              "distribution_params": [
+                {
+                  "value": 1000
+                },
+                {
+                  "value": 100
+                },
+                {
+                  "value": 0
+                },
+                {
+                  "value": 5000
+                }
+              ]
+            }
+          }
+        ],
+        "branch_rules": [],
+        "multitask": {
+          "type": "local"
+        }
+      },
+      "mapping": {},
+      "current": null,
+      "expected": {
+        "draft": {
+          "scenarioName": "Baseline AS-IS",
+          "totalCases": 100,
+          "arrivalIntervalMinutes": 15.0,
+          "defaultTaskMinutes": 15,
+          "resources": [
+            {
+              "id": "clerk",
+              "name": "Clerk",
+              "costPerHour": 30.0,
+              "amount": 2.0,
+              "parametersConfirmed": true,
+              "calendarId": "shift"
+            },
+            {
+              "id": "bot",
+              "name": "Bot",
+              "costPerHour": 0.0,
+              "amount": 1.0,
+              "parametersConfirmed": true,
+              "calendarId": "always"
+            }
+          ],
+          "tasks": {
+            "T1": {
+              "resourceId": "clerk",
+              "distribution": "norm",
+              "meanMinutes": 10.0,
+              "stdMinutes": 1.0,
+              "minMinutes": 5.0,
+              "maxMinutes": 15.0,
+              "assignmentSource": "manual",
+              "otherAssignments": [
+                {
+                  "resourceId": "bot",
+                  "distribution": "fixed",
+                  "meanMinutes": 0.0
+                }
+              ]
+            },
+            "T2": {
+              "resourceId": "clerk",
+              "distribution": "lognorm",
+              "meanMinutes": 20.0,
+              "stdMinutes": 2.0,
+              "minMinutes": 10.0,
+              "maxMinutes": 60.0,
+              "assignmentSource": "manual"
+            },
+            "T3": {
+              "resourceId": "bot",
+              "distribution": "expon",
+              "meanMinutes": 2.0,
+              "minMinutes": 1.0,
+              "maxMinutes": 10.0,
+              "assignmentSource": "manual"
+            }
+          },
+          "gateways": {
+            "G1": {
+              "f3": 30.0,
+              "f4": 70.0
+            }
+          },
+          "waits": {
+            "W1": {
+              "distribution": "uniform",
+              "meanMinutes": 90.0,
+              "minMinutes": 60.0,
+              "maxMinutes": 120.0
+            }
+          },
+          "calendars": [
+            {
+              "id": "shift",
+              "name": "shift",
+              "periods": [
+                {
+                  "from_day": "MONDAY",
+                  "to_day": "FRIDAY",
+                  "begin": "09:00:00",
+                  "end": "17:00:00"
+                }
+              ]
+            },
+            {
+              "id": "always",
+              "name": "always",
+              "periods": [
+                {
+                  "from_day": "MONDAY",
+                  "to_day": "SUNDAY",
+                  "begin": "00:00:00",
+                  "end": "23:59:59.999"
+                }
+              ]
+            }
+          ],
+          "arrival": {
+            "distribution": "gamma",
+            "stdMinutes": 5.0,
+            "minMinutes": 1.0,
+            "maxMinutes": 120.0,
+            "calendarId": "shift"
+          }
+        },
+        "warnings": [
+          {
+            "kind": "notImported",
+            "target": "batch_processing"
+          },
+          {
+            "kind": "notImported",
+            "target": "case_attributes"
+          },
+          {
+            "kind": "notImported",
+            "target": "multitask"
+          }
+        ]
+      }
+    },
+    {
+      "name": "probabilita' che non sommano a 1: normalizzate con avviso",
+      "source": {
+        "resource_profiles": [
+          {
+            "id": "clerks",
+            "name": "Clerks",
+            "resource_list": [
+              {
+                "id": "clerk",
+                "name": "Clerk",
+                "cost_per_hour": 30,
+                "amount": 2,
+                "calendar": "shift"
+              },
+              {
+                "id": "bot",
+                "name": "Bot",
+                "cost_per_hour": 0,
+                "amount": 1,
+                "calendar": "always"
+              }
+            ]
+          }
+        ],
+        "resource_calendars": [
+          {
+            "id": "shift",
+            "name": "shift",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00",
+                "endTime": "17:00:00"
+              }
+            ]
+          },
+          {
+            "id": "always",
+            "name": "always",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "SUNDAY",
+                "beginTime": "00:00:00",
+                "endTime": "23:59:59.999000"
+              }
+            ]
+          }
+        ],
+        "task_resource_distribution": [
+          {
+            "task_id": "T1",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "norm",
+                "distribution_params": [
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 300
+                  },
+                  {
+                    "value": 900
+                  }
+                ]
+              },
+              {
+                "resource_id": "bot",
+                "distribution_name": "fix",
+                "distribution_params": [
+                  {
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T2",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "lognorm",
+                "distribution_params": [
+                  {
+                    "value": 1200
+                  },
+                  {
+                    "value": 14400
+                  },
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 3600
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T3",
+            "resources": [
+              {
+                "resource_id": "bot",
+                "distribution_name": "expon",
+                "distribution_params": [
+                  {
+                    "value": 120
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 600
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gateway_branching_probabilities": [
+          {
+            "gateway_id": "G1",
+            "probabilities": [
+              {
+                "path_id": "f3",
+                "value": 3
+              },
+              {
+                "path_id": "f4",
+                "value": 1
+              }
+            ]
+          }
+        ],
+        "arrival_time_distribution": {
+          "distribution_name": "gamma",
+          "distribution_params": [
+            {
+              "value": 900
+            },
+            {
+              "value": 90000
+            },
+            {
+              "value": 60
+            },
+            {
+              "value": 7200
+            }
+          ]
+        },
+        "arrival_time_calendar": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+          }
+        ],
+        "event_distribution": [
+          {
+            "event_id": "W1",
+            "distribution_name": "uniform",
+            "distribution_params": [
+              {
+                "value": 3600
+              },
+              {
+                "value": 7200
+              }
+            ]
+          }
+        ]
+      },
+      "mapping": {},
+      "current": null,
+      "expected": {
+        "draft": {
+          "scenarioName": "Baseline AS-IS",
+          "totalCases": 100,
+          "arrivalIntervalMinutes": 15.0,
+          "defaultTaskMinutes": 15,
+          "resources": [
+            {
+              "id": "clerk",
+              "name": "Clerk",
+              "costPerHour": 30.0,
+              "amount": 2.0,
+              "parametersConfirmed": true,
+              "calendarId": "shift"
+            },
+            {
+              "id": "bot",
+              "name": "Bot",
+              "costPerHour": 0.0,
+              "amount": 1.0,
+              "parametersConfirmed": true,
+              "calendarId": "always"
+            }
+          ],
+          "tasks": {
+            "T1": {
+              "resourceId": "clerk",
+              "distribution": "norm",
+              "meanMinutes": 10.0,
+              "stdMinutes": 1.0,
+              "minMinutes": 5.0,
+              "maxMinutes": 15.0,
+              "assignmentSource": "manual",
+              "otherAssignments": [
+                {
+                  "resourceId": "bot",
+                  "distribution": "fixed",
+                  "meanMinutes": 0.0
+                }
+              ]
+            },
+            "T2": {
+              "resourceId": "clerk",
+              "distribution": "lognorm",
+              "meanMinutes": 20.0,
+              "stdMinutes": 2.0,
+              "minMinutes": 10.0,
+              "maxMinutes": 60.0,
+              "assignmentSource": "manual"
+            },
+            "T3": {
+              "resourceId": "bot",
+              "distribution": "expon",
+              "meanMinutes": 2.0,
+              "minMinutes": 1.0,
+              "maxMinutes": 10.0,
+              "assignmentSource": "manual"
+            }
+          },
+          "gateways": {
+            "G1": {
+              "f3": 75.0,
+              "f4": 25.0
+            }
+          },
+          "waits": {
+            "W1": {
+              "distribution": "uniform",
+              "meanMinutes": 90.0,
+              "minMinutes": 60.0,
+              "maxMinutes": 120.0
+            }
+          },
+          "calendars": [
+            {
+              "id": "shift",
+              "name": "shift",
+              "periods": [
+                {
+                  "from_day": "MONDAY",
+                  "to_day": "FRIDAY",
+                  "begin": "09:00:00",
+                  "end": "17:00:00"
+                }
+              ]
+            },
+            {
+              "id": "always",
+              "name": "always",
+              "periods": [
+                {
+                  "from_day": "MONDAY",
+                  "to_day": "SUNDAY",
+                  "begin": "00:00:00",
+                  "end": "23:59:59.999"
+                }
+              ]
+            }
+          ],
+          "arrival": {
+            "distribution": "gamma",
+            "stdMinutes": 5.0,
+            "minMinutes": 1.0,
+            "maxMinutes": 120.0,
+            "calendarId": "shift"
+          }
+        },
+        "warnings": [
+          {
+            "kind": "normalizedProbabilities",
+            "target": "G1"
+          }
+        ]
+      }
+    },
+    {
+      "name": "riferimenti di un altro BPMN rimappati",
+      "source": {
+        "resource_profiles": [
+          {
+            "id": "clerks",
+            "name": "Clerks",
+            "resource_list": [
+              {
+                "id": "clerk",
+                "name": "Clerk",
+                "cost_per_hour": 30,
+                "amount": 2,
+                "calendar": "shift"
+              },
+              {
+                "id": "bot",
+                "name": "Bot",
+                "cost_per_hour": 0,
+                "amount": 1,
+                "calendar": "always"
+              }
+            ]
+          }
+        ],
+        "resource_calendars": [
+          {
+            "id": "shift",
+            "name": "shift",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00",
+                "endTime": "17:00:00"
+              }
+            ]
+          },
+          {
+            "id": "always",
+            "name": "always",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "SUNDAY",
+                "beginTime": "00:00:00",
+                "endTime": "23:59:59.999000"
+              }
+            ]
+          }
+        ],
+        "task_resource_distribution": [
+          {
+            "task_id": "Activity_OLD",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "norm",
+                "distribution_params": [
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 300
+                  },
+                  {
+                    "value": 900
+                  }
+                ]
+              },
+              {
+                "resource_id": "bot",
+                "distribution_name": "fix",
+                "distribution_params": [
+                  {
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T2",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "lognorm",
+                "distribution_params": [
+                  {
+                    "value": 1200
+                  },
+                  {
+                    "value": 14400
+                  },
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 3600
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T3",
+            "resources": [
+              {
+                "resource_id": "bot",
+                "distribution_name": "expon",
+                "distribution_params": [
+                  {
+                    "value": 120
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 600
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gateway_branching_probabilities": [
+          {
+            "gateway_id": "G_OLD",
+            "probabilities": [
+              {
+                "path_id": "old_a",
+                "value": 0.4
+              },
+              {
+                "path_id": "old_b",
+                "value": 0.6
+              }
+            ]
+          }
+        ],
+        "arrival_time_distribution": {
+          "distribution_name": "gamma",
+          "distribution_params": [
+            {
+              "value": 900
+            },
+            {
+              "value": 90000
+            },
+            {
+              "value": 60
+            },
+            {
+              "value": 7200
+            }
+          ]
+        },
+        "arrival_time_calendar": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+          }
+        ],
+        "event_distribution": [
+          {
+            "event_id": "W1",
+            "distribution_name": "uniform",
+            "distribution_params": [
+              {
+                "value": 3600
+              },
+              {
+                "value": 7200
+              }
+            ]
+          }
+        ]
+      },
+      "mapping": {
+        "tasks": {
+          "Activity_OLD": "T1"
+        },
+        "gateways": {
+          "G_OLD": "G1"
+        },
+        "flows": {
+          "G_OLD::old_a": "f3",
+          "G_OLD::old_b": "f4"
+        }
+      },
+      "current": null,
+      "expected": {
+        "draft": {
+          "scenarioName": "Baseline AS-IS",
+          "totalCases": 100,
+          "arrivalIntervalMinutes": 15.0,
+          "defaultTaskMinutes": 15,
+          "resources": [
+            {
+              "id": "clerk",
+              "name": "Clerk",
+              "costPerHour": 30.0,
+              "amount": 2.0,
+              "parametersConfirmed": true,
+              "calendarId": "shift"
+            },
+            {
+              "id": "bot",
+              "name": "Bot",
+              "costPerHour": 0.0,
+              "amount": 1.0,
+              "parametersConfirmed": true,
+              "calendarId": "always"
+            }
+          ],
+          "tasks": {
+            "T1": {
+              "resourceId": "clerk",
+              "distribution": "norm",
+              "meanMinutes": 10.0,
+              "stdMinutes": 1.0,
+              "minMinutes": 5.0,
+              "maxMinutes": 15.0,
+              "assignmentSource": "manual",
+              "otherAssignments": [
+                {
+                  "resourceId": "bot",
+                  "distribution": "fixed",
+                  "meanMinutes": 0.0
+                }
+              ]
+            },
+            "T2": {
+              "resourceId": "clerk",
+              "distribution": "lognorm",
+              "meanMinutes": 20.0,
+              "stdMinutes": 2.0,
+              "minMinutes": 10.0,
+              "maxMinutes": 60.0,
+              "assignmentSource": "manual"
+            },
+            "T3": {
+              "resourceId": "bot",
+              "distribution": "expon",
+              "meanMinutes": 2.0,
+              "minMinutes": 1.0,
+              "maxMinutes": 10.0,
+              "assignmentSource": "manual"
+            }
+          },
+          "gateways": {
+            "G1": {
+              "f3": 40.0,
+              "f4": 60.0
+            }
+          },
+          "waits": {
+            "W1": {
+              "distribution": "uniform",
+              "meanMinutes": 90.0,
+              "minMinutes": 60.0,
+              "maxMinutes": 120.0
+            }
+          },
+          "calendars": [
+            {
+              "id": "shift",
+              "name": "shift",
+              "periods": [
+                {
+                  "from_day": "MONDAY",
+                  "to_day": "FRIDAY",
+                  "begin": "09:00:00",
+                  "end": "17:00:00"
+                }
+              ]
+            },
+            {
+              "id": "always",
+              "name": "always",
+              "periods": [
+                {
+                  "from_day": "MONDAY",
+                  "to_day": "SUNDAY",
+                  "begin": "00:00:00",
+                  "end": "23:59:59.999"
+                }
+              ]
+            }
+          ],
+          "arrival": {
+            "distribution": "gamma",
+            "stdMinutes": 5.0,
+            "minMinutes": 1.0,
+            "maxMinutes": 120.0,
+            "calendarId": "shift"
+          }
+        },
+        "warnings": []
+      }
+    },
+    {
+      "name": "la bozza corrente conserva nome, casi e seed",
+      "source": {
+        "resource_profiles": [
+          {
+            "id": "clerks",
+            "name": "Clerks",
+            "resource_list": [
+              {
+                "id": "clerk",
+                "name": "Clerk",
+                "cost_per_hour": 30,
+                "amount": 2,
+                "calendar": "shift"
+              },
+              {
+                "id": "bot",
+                "name": "Bot",
+                "cost_per_hour": 0,
+                "amount": 1,
+                "calendar": "always"
+              }
+            ]
+          }
+        ],
+        "resource_calendars": [
+          {
+            "id": "shift",
+            "name": "shift",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00",
+                "endTime": "17:00:00"
+              }
+            ]
+          },
+          {
+            "id": "always",
+            "name": "always",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "SUNDAY",
+                "beginTime": "00:00:00",
+                "endTime": "23:59:59.999000"
+              }
+            ]
+          }
+        ],
+        "task_resource_distribution": [
+          {
+            "task_id": "T1",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "norm",
+                "distribution_params": [
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 300
+                  },
+                  {
+                    "value": 900
+                  }
+                ]
+              },
+              {
+                "resource_id": "bot",
+                "distribution_name": "fix",
+                "distribution_params": [
+                  {
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T2",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "lognorm",
+                "distribution_params": [
+                  {
+                    "value": 1200
+                  },
+                  {
+                    "value": 14400
+                  },
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 3600
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T3",
+            "resources": [
+              {
+                "resource_id": "bot",
+                "distribution_name": "expon",
+                "distribution_params": [
+                  {
+                    "value": 120
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 600
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gateway_branching_probabilities": [
+          {
+            "gateway_id": "G1",
+            "probabilities": [
+              {
+                "path_id": "f3",
+                "value": "0.3"
+              },
+              {
+                "path_id": "f4",
+                "value": "0.7"
+              }
+            ]
+          }
+        ],
+        "arrival_time_distribution": {
+          "distribution_name": "gamma",
+          "distribution_params": [
+            {
+              "value": 900
+            },
+            {
+              "value": 90000
+            },
+            {
+              "value": 60
+            },
+            {
+              "value": 7200
+            }
+          ]
+        },
+        "arrival_time_calendar": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+          }
+        ],
+        "event_distribution": [
+          {
+            "event_id": "W1",
+            "distribution_name": "uniform",
+            "distribution_params": [
+              {
+                "value": 3600
+              },
+              {
+                "value": 7200
+              }
+            ]
+          }
+        ]
+      },
+      "mapping": {},
+      "current": {
+        "scenarioName": "Pratiche Q3",
+        "totalCases": 500,
+        "arrivalIntervalMinutes": 10,
+        "defaultTaskMinutes": 5,
+        "resources": [],
+        "tasks": {},
+        "gateways": {},
+        "seed": 42
+      },
+      "expected": {
+        "draft": {
+          "scenarioName": "Pratiche Q3",
+          "totalCases": 500,
+          "arrivalIntervalMinutes": 15.0,
+          "defaultTaskMinutes": 5,
+          "resources": [
+            {
+              "id": "clerk",
+              "name": "Clerk",
+              "costPerHour": 30.0,
+              "amount": 2.0,
+              "parametersConfirmed": true,
+              "calendarId": "shift"
+            },
+            {
+              "id": "bot",
+              "name": "Bot",
+              "costPerHour": 0.0,
+              "amount": 1.0,
+              "parametersConfirmed": true,
+              "calendarId": "always"
+            }
+          ],
+          "tasks": {
+            "T1": {
+              "resourceId": "clerk",
+              "distribution": "norm",
+              "meanMinutes": 10.0,
+              "stdMinutes": 1.0,
+              "minMinutes": 5.0,
+              "maxMinutes": 15.0,
+              "assignmentSource": "manual",
+              "otherAssignments": [
+                {
+                  "resourceId": "bot",
+                  "distribution": "fixed",
+                  "meanMinutes": 0.0
+                }
+              ]
+            },
+            "T2": {
+              "resourceId": "clerk",
+              "distribution": "lognorm",
+              "meanMinutes": 20.0,
+              "stdMinutes": 2.0,
+              "minMinutes": 10.0,
+              "maxMinutes": 60.0,
+              "assignmentSource": "manual"
+            },
+            "T3": {
+              "resourceId": "bot",
+              "distribution": "expon",
+              "meanMinutes": 2.0,
+              "minMinutes": 1.0,
+              "maxMinutes": 10.0,
+              "assignmentSource": "manual"
+            }
+          },
+          "gateways": {
+            "G1": {
+              "f3": 30.0,
+              "f4": 70.0
+            }
+          },
+          "seed": 42,
+          "waits": {
+            "W1": {
+              "distribution": "uniform",
+              "meanMinutes": 90.0,
+              "minMinutes": 60.0,
+              "maxMinutes": 120.0
+            }
+          },
+          "calendars": [
+            {
+              "id": "shift",
+              "name": "shift",
+              "periods": [
+                {
+                  "from_day": "MONDAY",
+                  "to_day": "FRIDAY",
+                  "begin": "09:00:00",
+                  "end": "17:00:00"
+                }
+              ]
+            },
+            {
+              "id": "always",
+              "name": "always",
+              "periods": [
+                {
+                  "from_day": "MONDAY",
+                  "to_day": "SUNDAY",
+                  "begin": "00:00:00",
+                  "end": "23:59:59.999"
+                }
+              ]
+            }
+          ],
+          "arrival": {
+            "distribution": "gamma",
+            "stdMinutes": 5.0,
+            "minMinutes": 1.0,
+            "maxMinutes": 120.0,
+            "calendarId": "shift"
+          }
+        },
+        "warnings": []
+      }
+    },
+    {
+      "name": "errore: distribuzione che il motore non ha",
+      "source": {
+        "resource_profiles": [
+          {
+            "id": "clerks",
+            "name": "Clerks",
+            "resource_list": [
+              {
+                "id": "clerk",
+                "name": "Clerk",
+                "cost_per_hour": 30,
+                "amount": 2,
+                "calendar": "shift"
+              },
+              {
+                "id": "bot",
+                "name": "Bot",
+                "cost_per_hour": 0,
+                "amount": 1,
+                "calendar": "always"
+              }
+            ]
+          }
+        ],
+        "resource_calendars": [
+          {
+            "id": "shift",
+            "name": "shift",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00",
+                "endTime": "17:00:00"
+              }
+            ]
+          },
+          {
+            "id": "always",
+            "name": "always",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "SUNDAY",
+                "beginTime": "00:00:00",
+                "endTime": "23:59:59.999000"
+              }
+            ]
+          }
+        ],
+        "task_resource_distribution": [
+          {
+            "task_id": "T1",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "norm",
+                "distribution_params": [
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 300
+                  },
+                  {
+                    "value": 900
+                  }
+                ]
+              },
+              {
+                "resource_id": "bot",
+                "distribution_name": "fix",
+                "distribution_params": [
+                  {
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T2",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "lognorm",
+                "distribution_params": [
+                  {
+                    "value": 1200
+                  },
+                  {
+                    "value": 14400
+                  },
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 3600
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T3",
+            "resources": [
+              {
+                "resource_id": "bot",
+                "distribution_name": "triang",
+                "distribution_params": [
+                  {
+                    "value": 1
+                  },
+                  {
+                    "value": 2
+                  },
+                  {
+                    "value": 3
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gateway_branching_probabilities": [
+          {
+            "gateway_id": "G1",
+            "probabilities": [
+              {
+                "path_id": "f3",
+                "value": "0.3"
+              },
+              {
+                "path_id": "f4",
+                "value": "0.7"
+              }
+            ]
+          }
+        ],
+        "arrival_time_distribution": {
+          "distribution_name": "gamma",
+          "distribution_params": [
+            {
+              "value": 900
+            },
+            {
+              "value": 90000
+            },
+            {
+              "value": 60
+            },
+            {
+              "value": 7200
+            }
+          ]
+        },
+        "arrival_time_calendar": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+          }
+        ],
+        "event_distribution": [
+          {
+            "event_id": "W1",
+            "distribution_name": "uniform",
+            "distribution_params": [
+              {
+                "value": 3600
+              },
+              {
+                "value": 7200
+              }
+            ]
+          }
+        ]
+      },
+      "mapping": {},
+      "current": null,
+      "error": "task_resource_distribution[2].resources[0]: distribuzione triang non supportata dal motore."
+    },
+    {
+      "name": "errore: attivita' del BPMN senza durata",
+      "source": {
+        "resource_profiles": [
+          {
+            "id": "clerks",
+            "name": "Clerks",
+            "resource_list": [
+              {
+                "id": "clerk",
+                "name": "Clerk",
+                "cost_per_hour": 30,
+                "amount": 2,
+                "calendar": "shift"
+              },
+              {
+                "id": "bot",
+                "name": "Bot",
+                "cost_per_hour": 0,
+                "amount": 1,
+                "calendar": "always"
+              }
+            ]
+          }
+        ],
+        "resource_calendars": [
+          {
+            "id": "shift",
+            "name": "shift",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00",
+                "endTime": "17:00:00"
+              }
+            ]
+          },
+          {
+            "id": "always",
+            "name": "always",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "SUNDAY",
+                "beginTime": "00:00:00",
+                "endTime": "23:59:59.999000"
+              }
+            ]
+          }
+        ],
+        "task_resource_distribution": [
+          {
+            "task_id": "T1",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "norm",
+                "distribution_params": [
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 300
+                  },
+                  {
+                    "value": 900
+                  }
+                ]
+              },
+              {
+                "resource_id": "bot",
+                "distribution_name": "fix",
+                "distribution_params": [
+                  {
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T2",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "lognorm",
+                "distribution_params": [
+                  {
+                    "value": 1200
+                  },
+                  {
+                    "value": 14400
+                  },
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 3600
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gateway_branching_probabilities": [
+          {
+            "gateway_id": "G1",
+            "probabilities": [
+              {
+                "path_id": "f3",
+                "value": "0.3"
+              },
+              {
+                "path_id": "f4",
+                "value": "0.7"
+              }
+            ]
+          }
+        ],
+        "arrival_time_distribution": {
+          "distribution_name": "gamma",
+          "distribution_params": [
+            {
+              "value": 900
+            },
+            {
+              "value": 90000
+            },
+            {
+              "value": 60
+            },
+            {
+              "value": 7200
+            }
+          ]
+        },
+        "arrival_time_calendar": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+          }
+        ],
+        "event_distribution": [
+          {
+            "event_id": "W1",
+            "distribution_name": "uniform",
+            "distribution_params": [
+              {
+                "value": 3600
+              },
+              {
+                "value": 7200
+              }
+            ]
+          }
+        ]
+      },
+      "mapping": {},
+      "current": null,
+      "error": "Attività senza durata nel JSON: T3."
+    },
+    {
+      "name": "errore: decisione vera assente dal BPMN",
+      "source": {
+        "resource_profiles": [
+          {
+            "id": "clerks",
+            "name": "Clerks",
+            "resource_list": [
+              {
+                "id": "clerk",
+                "name": "Clerk",
+                "cost_per_hour": 30,
+                "amount": 2,
+                "calendar": "shift"
+              },
+              {
+                "id": "bot",
+                "name": "Bot",
+                "cost_per_hour": 0,
+                "amount": 1,
+                "calendar": "always"
+              }
+            ]
+          }
+        ],
+        "resource_calendars": [
+          {
+            "id": "shift",
+            "name": "shift",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00",
+                "endTime": "17:00:00"
+              }
+            ]
+          },
+          {
+            "id": "always",
+            "name": "always",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "SUNDAY",
+                "beginTime": "00:00:00",
+                "endTime": "23:59:59.999000"
+              }
+            ]
+          }
+        ],
+        "task_resource_distribution": [
+          {
+            "task_id": "T1",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "norm",
+                "distribution_params": [
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 300
+                  },
+                  {
+                    "value": 900
+                  }
+                ]
+              },
+              {
+                "resource_id": "bot",
+                "distribution_name": "fix",
+                "distribution_params": [
+                  {
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T2",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "lognorm",
+                "distribution_params": [
+                  {
+                    "value": 1200
+                  },
+                  {
+                    "value": 14400
+                  },
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 3600
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T3",
+            "resources": [
+              {
+                "resource_id": "bot",
+                "distribution_name": "expon",
+                "distribution_params": [
+                  {
+                    "value": 120
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 600
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gateway_branching_probabilities": [
+          {
+            "gateway_id": "G1",
+            "probabilities": [
+              {
+                "path_id": "f3",
+                "value": "0.3"
+              },
+              {
+                "path_id": "f4",
+                "value": "0.7"
+              }
+            ]
+          },
+          {
+            "gateway_id": "G_X",
+            "probabilities": [
+              {
+                "path_id": "a",
+                "value": 0.5
+              },
+              {
+                "path_id": "b",
+                "value": 0.5
+              }
+            ]
+          }
+        ],
+        "arrival_time_distribution": {
+          "distribution_name": "gamma",
+          "distribution_params": [
+            {
+              "value": 900
+            },
+            {
+              "value": 90000
+            },
+            {
+              "value": 60
+            },
+            {
+              "value": 7200
+            }
+          ]
+        },
+        "arrival_time_calendar": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+          }
+        ],
+        "event_distribution": [
+          {
+            "event_id": "W1",
+            "distribution_name": "uniform",
+            "distribution_params": [
+              {
+                "value": 3600
+              },
+              {
+                "value": 7200
+              }
+            ]
+          }
+        ]
+      },
+      "mapping": {},
+      "current": null,
+      "error": "Decisione non presente nel BPMN: G_X."
+    },
+    {
+      "name": "errore: probabilita' negativa",
+      "source": {
+        "resource_profiles": [
+          {
+            "id": "clerks",
+            "name": "Clerks",
+            "resource_list": [
+              {
+                "id": "clerk",
+                "name": "Clerk",
+                "cost_per_hour": 30,
+                "amount": 2,
+                "calendar": "shift"
+              },
+              {
+                "id": "bot",
+                "name": "Bot",
+                "cost_per_hour": 0,
+                "amount": 1,
+                "calendar": "always"
+              }
+            ]
+          }
+        ],
+        "resource_calendars": [
+          {
+            "id": "shift",
+            "name": "shift",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00",
+                "endTime": "17:00:00"
+              }
+            ]
+          },
+          {
+            "id": "always",
+            "name": "always",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "SUNDAY",
+                "beginTime": "00:00:00",
+                "endTime": "23:59:59.999000"
+              }
+            ]
+          }
+        ],
+        "task_resource_distribution": [
+          {
+            "task_id": "T1",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "norm",
+                "distribution_params": [
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 300
+                  },
+                  {
+                    "value": 900
+                  }
+                ]
+              },
+              {
+                "resource_id": "bot",
+                "distribution_name": "fix",
+                "distribution_params": [
+                  {
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T2",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "lognorm",
+                "distribution_params": [
+                  {
+                    "value": 1200
+                  },
+                  {
+                    "value": 14400
+                  },
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 3600
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T3",
+            "resources": [
+              {
+                "resource_id": "bot",
+                "distribution_name": "expon",
+                "distribution_params": [
+                  {
+                    "value": 120
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 600
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gateway_branching_probabilities": [
+          {
+            "gateway_id": "G1",
+            "probabilities": [
+              {
+                "path_id": "f3",
+                "value": -0.3
+              },
+              {
+                "path_id": "f4",
+                "value": "0.7"
+              }
+            ]
+          }
+        ],
+        "arrival_time_distribution": {
+          "distribution_name": "gamma",
+          "distribution_params": [
+            {
+              "value": 900
+            },
+            {
+              "value": 90000
+            },
+            {
+              "value": 60
+            },
+            {
+              "value": 7200
+            }
+          ]
+        },
+        "arrival_time_calendar": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+          }
+        ],
+        "event_distribution": [
+          {
+            "event_id": "W1",
+            "distribution_name": "uniform",
+            "distribution_params": [
+              {
+                "value": 3600
+              },
+              {
+                "value": 7200
+              }
+            ]
+          }
+        ]
+      },
+      "mapping": {},
+      "current": null,
+      "error": "Le probabilità di G1 non possono essere negative."
+    },
+    {
+      "name": "errore: calendario risorsa inesistente",
+      "source": {
+        "resource_profiles": [
+          {
+            "id": "clerks",
+            "name": "Clerks",
+            "resource_list": [
+              {
+                "id": "clerk",
+                "name": "Clerk",
+                "cost_per_hour": 30,
+                "amount": 2,
+                "calendar": "missing"
+              },
+              {
+                "id": "bot",
+                "name": "Bot",
+                "cost_per_hour": 0,
+                "amount": 1,
+                "calendar": "always"
+              }
+            ]
+          }
+        ],
+        "resource_calendars": [
+          {
+            "id": "shift",
+            "name": "shift",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "FRIDAY",
+                "beginTime": "09:00:00",
+                "endTime": "17:00:00"
+              }
+            ]
+          },
+          {
+            "id": "always",
+            "name": "always",
+            "time_periods": [
+              {
+                "from": "MONDAY",
+                "to": "SUNDAY",
+                "beginTime": "00:00:00",
+                "endTime": "23:59:59.999000"
+              }
+            ]
+          }
+        ],
+        "task_resource_distribution": [
+          {
+            "task_id": "T1",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "norm",
+                "distribution_params": [
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 300
+                  },
+                  {
+                    "value": 900
+                  }
+                ]
+              },
+              {
+                "resource_id": "bot",
+                "distribution_name": "fix",
+                "distribution_params": [
+                  {
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T2",
+            "resources": [
+              {
+                "resource_id": "clerk",
+                "distribution_name": "lognorm",
+                "distribution_params": [
+                  {
+                    "value": 1200
+                  },
+                  {
+                    "value": 14400
+                  },
+                  {
+                    "value": 600
+                  },
+                  {
+                    "value": 3600
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "task_id": "T3",
+            "resources": [
+              {
+                "resource_id": "bot",
+                "distribution_name": "expon",
+                "distribution_params": [
+                  {
+                    "value": 120
+                  },
+                  {
+                    "value": 60
+                  },
+                  {
+                    "value": 600
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gateway_branching_probabilities": [
+          {
+            "gateway_id": "G1",
+            "probabilities": [
+              {
+                "path_id": "f3",
+                "value": "0.3"
+              },
+              {
+                "path_id": "f4",
+                "value": "0.7"
+              }
+            ]
+          }
+        ],
+        "arrival_time_distribution": {
+          "distribution_name": "gamma",
+          "distribution_params": [
+            {
+              "value": 900
+            },
+            {
+              "value": 90000
+            },
+            {
+              "value": 60
+            },
+            {
+              "value": 7200
+            }
+          ]
+        },
+        "arrival_time_calendar": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00",
+            "endTime": "17:00:00"
+          }
+        ],
+        "event_distribution": [
+          {
+            "event_id": "W1",
+            "distribution_name": "uniform",
+            "distribution_params": [
+              {
+                "value": 3600
+              },
+              {
+                "value": 7200
+              }
+            ]
+          }
+        ]
+      },
+      "mapping": {},
+      "current": null,
+      "error": "Calendario risorsa non trovato: missing."
+    }
+  ]
+}
