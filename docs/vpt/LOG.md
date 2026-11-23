@@ -69,3 +69,26 @@ Modello:
   non copiati, in attesa di conferma di Sohayb. Ambiente cloud **BK-GPT** con
   `zenodo.org` e `data.4tu.nl`.
 - Prossimo passo: B1 (import Prosimos tollerante sui 19 scenari), poi B2.
+
+## 2026-11-23 — CONF-01 conformance log ↔ BPMN — fatto (backend)
+
+- Branch: `ccr-9b6e10c9-jmjsbm`. Prima: revisione e merge su `main` di
+  `fix/p0-egress-inventory` e `claude/funny-babbage-cw4b84` (pytest 2849 passati
+  con Postgres e Neo4j, vitest 822 passati, ruff, mypy, ast-grep, tsc, lint).
+- Origine: audit architetturale esterno; mancava il confronto fra i casi
+  eseguiti e il comportamento consentito dal modello (diverso dall'audit
+  fonti ↔ modello di `agents/conformance_audit.py`).
+- Cosa è cambiato:
+  - `backend/eventlog/conformance.py`: BPMN → rete di Petri, token-based replay
+    per variante con ricerca BFS delle transizioni silenti, fitness di Rozinat e
+    van der Aalst pesata per casi, deviazioni per elemento;
+  - `GET /v1/workspace/event-logs/{id}/conformance`: usa il mapping e
+    l'abbinamento confermati, avvisa se il BPMN è cambiato dopo l'abbinamento.
+- Misura: LoanApp (SIMOD) 500/500 casi conformi in 0,01 s; togliendo «Appraise
+  property» a 3 casi, 497 conformi e le 3 deviazioni attribuite all'elemento
+  giusto.
+- Limiti dichiarati nel modulo: solo flusso di controllo (le condizioni sui dati
+  non si valutano), join inclusivo approssimato, sottoprocesso atomico, casi
+  aperti con token rimanenti.
+- Gate UX: non applicabile, nessuna schermata cambiata.
+- Prossimo passo: CONF-02 (vista per il consulente) oppure B1, come da piano.
