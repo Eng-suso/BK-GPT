@@ -1,0 +1,17 @@
+Iteration params: {'Check DUR': 0.48, 'Check Insurance': 0.26, 'Enter prescription details': 1.72, 'Pack the drugs (Production)': 3.59, 'Pick-up': 3.71}
+
+Timers:
+	'Check DUR': DurationDistribution(name: lognorm, mean: 85.0206973947896, var: 150.4025993231796, std: 12.263873748664391, min: 0.0, max: 121.368)
+	'Check Insurance': DurationDistribution(name: gamma, mean: 33.87397755511022, var: 20.57601226691106, std: 4.53607895289655, min: 0.0, max: 52.330200000000005)
+	'Enter prescription details': DurationDistribution(name: norm, mean: 202.71352400000004, var: 13973.439413847023, std: 118.20930341494709, min: 0.0, max: 598.8008)
+	'Pack the drugs (Production)': DurationDistribution(name: norm, mean: 420.7263784090909, var: 58753.335019175145, std: 242.39087239245447, min: 0.0, max: 1153.7901)
+	'Pick-up': DurationDistribution(name: norm, mean: 926.8398950901803, var: 127124.90201430391, std: 356.5457923104744, min: 0.0, max: 1722.2562)
+
+Metrics:
+	Performance metric 0: 0.0037510466029649914
+	Performance metric 1: 0.013554558522642424
+	Performance metric 2: 0.005642530984996896
+	Performance metric 3: 0.02151922594866096
+	Performance metric 4: 0.022312039924648586
+
+Mean performance metric: 0.01335588039678277

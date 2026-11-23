@@ -1,0 +1,13 @@
+Iteration params: {'Send invoice': 5.3}
+
+Timers:
+	'Send invoice': DurationDistribution(name: gamma, mean: 7672.5873815331, var: 152758923.4120517, std: 12359.568091646719, min: 0.0, max: 54786.418)
+
+Metrics:
+	Performance metric 0: 138.46160317193892
+	Performance metric 1: 127.82543600388092
+	Performance metric 2: 71.23041423024596
+	Performance metric 3: 103.66177284899842
+	Performance metric 4: 95.98428347670776
+
+Mean performance metric: 107.4327019463544

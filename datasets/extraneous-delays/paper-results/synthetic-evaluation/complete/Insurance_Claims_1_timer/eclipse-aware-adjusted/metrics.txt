@@ -1,0 +1,13 @@
+Iteration params: {'Determine likelihood of the claim': 1.72}
+
+Timers:
+	'Determine likelihood of the claim': DurationDistribution(name: norm, mean: 815.7231797133405, var: 86108.42784178551, std: 293.442375674996, min: 123.4616, max: 1346.8976)
+
+Metrics:
+	Performance metric 0: 0.006936638373725157
+	Performance metric 1: 0.013442378594697768
+	Performance metric 2: 0.0006801192633908437
+	Performance metric 3: 0.004476882648028813
+	Performance metric 4: 0.00043816658563755606
+
+Mean performance metric: 0.005194837093096027

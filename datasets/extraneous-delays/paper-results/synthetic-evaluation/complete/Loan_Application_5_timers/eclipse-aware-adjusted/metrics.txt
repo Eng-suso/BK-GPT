@@ -1,0 +1,17 @@
+Iteration params: {'Applicant completes form': 8.04, 'Approve application': 5.03, 'Assess loan risk': 7.95, 'Cancel application': 4.01, 'Reject application': 5.43}
+
+Timers:
+	'Applicant completes form': DurationDistribution(name: expon, mean: 149411.02599999998, var: 22101230.21155424, std: 4701.19455155328, min: 144740.90399999998, max: 168551.766)
+	'Approve application': DurationDistribution(name: gamma, mean: 79513.61779488304, var: 17889372929.724186, std: 133751.1604799158, min: 0.0, max: 640915.9352500001)
+	'Assess loan risk': DurationDistribution(name: lognorm, mean: 29898.83616525, var: 9595543421.48312, std: 97956.84468929733, min: 0.0, max: 937502.7165)
+	'Cancel application': DurationDistribution(name: gamma, mean: 11209.700703873237, var: 670069004.3813984, std: 25885.691112686145, min: 0.0, max: 126014.6911)
+	'Reject application': DurationDistribution(name: lognorm, mean: 3491.2308122093023, var: 341033259.93545645, std: 18467.08585390387, min: 0.0, max: 162484.30635)
+
+Metrics:
+	Performance metric 0: 13.638254677392453
+	Performance metric 1: 15.335375328537257
+	Performance metric 2: 14.96412119090379
+	Performance metric 3: 15.210724311784187
+	Performance metric 4: 15.334308718524255
+
+Mean performance metric: 14.896556845428389

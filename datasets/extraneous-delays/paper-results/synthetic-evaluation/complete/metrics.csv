@@ -1,0 +1,17 @@
+dataset,naive_direct_precision,naive_direct_recall,naive_direct_sMAPE,naive_hyperopt_holdout_precision,naive_hyperopt_holdout_recall,naive_hyperopt_holdout_sMAPE,complex_direct_precision,complex_direct_recall,complex_direct_sMAPE,complex_hyperopt_holdout_precision,complex_hyperopt_holdout_recall,complex_hyperopt_holdout_sMAPE,complex_adj_direct_precision,complex_adj_direct_recall,complex_adj_direct_sMAPE,complex_adj_hyperopt_holdout_precision,complex_adj_hyperopt_holdout_recall,complex_adj_hyperopt_holdout_sMAPE
+Insurance_Claims,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0
+Insurance_Claims_1_timer,1,1,1.011934269,1,1,0.077640637,1,1,0.255371796,1,1,0.284421164,1,1,0.240470197,1,1,0.285590208
+Insurance_Claims_3_timers,1,1,0.744119597,1,1,0.539765639,1,1,0.515570718,1,1,0.614214747,1,1,0.509863659,1,1,0.937579155
+Insurance_Claims_5_timers,1,1,0.688097381,1,1,0.534066972,1,1,0.416262268,1,1,0.845708165,1,1,0.426821378,1,1,0.854957022
+Loan_Application,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0
+Loan_Application_1_timer,1,1,1.646510043,1,1,0.342148967,1,1,1.163077517,1,1,0.919641887,1,1,0.114546745,1,1,1.552839059
+Loan_Application_3_timers,1,1,1.156755499,1,1,1.095558536,1,1,0.840239338,1,1,1.070959028,1,1,0.121475135,1,1,1.566621592
+Loan_Application_5_timers,1,1,1.297038007,1,1,1.17817228,1,1,0.921813446,1,1,1.435418685,1,1,0.368894477,1,1,1.239826678
+Pharmacy,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0
+Pharmacy_1_timer,1,1,1.359771612,1,1,0.835739803,1,1,0.302493222,1,1,0.506149266,1,1,0.022257462,1,1,0.697943887
+Pharmacy_3_timers,1,1,1.116979483,1,1,0.476774928,1,1,0.444853327,1,1,0.684007263,1,1,0.121486839,1,1,0.505329355
+Pharmacy_5_timers,1,1,1.172911515,1,1,0.47669904,1,1,0.25714888,1,1,0.736573589,1,1,0.27621819,1,1,0.254788731
+Procure_to_Pay,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0
+Procure_to_Pay_1_timer,1,1,1.505622951,1,1,0.337311476,1,1,1.024610379,1,1,0.690042745,1,1,0.372748646,1,1,1.368795992
+Procure_to_Pay_3_timers,1,1,0.734801791,1,1,1.074993341,1,1,0.536554427,1,1,1.036214338,1,1,0.36923817,1,1,1.385805389
+Procure_to_Pay_5_timers,1,1,1.170086107,1,1,0.907501911,1,1,0.652488781,1,1,0.399355161,1,1,0.283513601,1,1,1.480684287

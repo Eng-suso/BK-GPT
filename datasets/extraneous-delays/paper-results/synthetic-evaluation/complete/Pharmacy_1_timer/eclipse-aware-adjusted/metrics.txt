@@ -1,0 +1,13 @@
+Iteration params: {'Pick-up': 0.51}
+
+Timers:
+	'Pick-up': DurationDistribution(name: expon, mean: 164.62305555, var: 361247.42625873844, std: 601.0386229342823, min: 0.0, max: 11160.434550000002)
+
+Metrics:
+	Performance metric 0: 0.0039301845640271615
+	Performance metric 1: 0.010750884041791586
+	Performance metric 2: 0.00012841041654665375
+	Performance metric 3: 0.011409245310425309
+	Performance metric 4: 0.0029121734905079855
+
+Mean performance metric: 0.005826179564659739
