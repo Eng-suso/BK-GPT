@@ -368,6 +368,9 @@ jobs:
           test ! -e .env
           python -m pytest --noconftest tests/simulation/test_simulation_ir_engine.py -q
 
+      - name: Dataset catalogue
+        run: python -m pytest --noconftest tests/simulation/test_dataset_manifest.py -q
+
   ci-success:
     name: All CI checks passed
     runs-on: ubuntu-latest
