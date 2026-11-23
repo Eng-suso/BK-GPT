@@ -408,3 +408,45 @@ def test_deleting_the_log_or_its_process_removes_it(client):
     deleted = client.delete(f"/v1/workspace/processes/{process_id}", headers=headers)
     assert deleted.status_code == 200, deleted.text
     assert client.get(f"/v1/workspace/event-logs/{second}", headers=headers).status_code == 404
+
+
+def test_conformance_replays_the_cases_on_the_process_model(client):
+    headers = _tenant()
+    process_id = _process(client, headers)
+    log_id = _upload(client, headers, process_id).json()["id"]
+
+    before = client.get(f"/v1/workspace/event-logs/{log_id}/conformance", headers=headers)
+    assert before.status_code == 409
+
+    matches = {"Ricevi richiesta": "T1", "Approva ordine": "T2", "Paga fornitore": "T3"}
+    mapped = client.post(
+        f"/v1/workspace/event-logs/{log_id}/mapping",
+        json={"mapping": MAPPING, "activity_matches": matches},
+        headers=headers,
+    )
+    assert mapped.status_code == 200, mapped.text
+
+    response = client.get(f"/v1/workspace/event-logs/{log_id}/conformance", headers=headers)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    # PO-1 passa dall'approvazione; PO-2 paga il fornitore senza.
+    assert body["cases"] == 2
+    assert body["fitting_cases"] == 1
+    assert 0 < body["fitness"] < 1
+    deviations = {d["element_id"]: d for d in body["deviations"]}
+    assert deviations["T3"]["executed_out_of_order"] == 1
+    assert deviations["T2"]["left_waiting"] == 1
+    assert deviations["T2"]["name"] == "Approvazione ordine"
+    assert body["bpmn_version_id"] == body["mapping_bpmn_version_id"]
+    assert body["warnings"] == []
+
+
+def test_conformance_of_another_tenant_log_is_not_found(client):
+    headers = _tenant()
+    process_id = _process(client, headers)
+    log_id = _upload(client, headers, process_id).json()["id"]
+
+    response = client.get(f"/v1/workspace/event-logs/{log_id}/conformance", headers=_tenant())
+
+    assert response.status_code == 404
