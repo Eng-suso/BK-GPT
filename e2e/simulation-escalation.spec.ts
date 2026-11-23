@@ -105,7 +105,8 @@ test("the timer decision says when it fires and asks for no percentages", async 
   await page.goto(`${studio}/scenario`);
   const note = page.locator('[data-escalation="G_split"]');
   await expect(note).toContainText("Escalation a tempo dopo 48 ore su «Ricevi ordine».");
-  await expect(page.getByLabel("Approva", { exact: true })).toHaveCount(0);
+  // Nessun campo percentuale sui rami: il canvas mostra comunque la forma "Approva".
+  await expect(page.getByRole("spinbutton", { name: "Approva", exact: true })).toHaveCount(0);
   const axe = await new AxeBuilder({ page }).include('[data-escalation="G_split"]').withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(axe.violations).toEqual([]);
 });
@@ -124,7 +125,8 @@ test("a non-interrupting timer says the activity goes on, in the panel and in th
   await page.goto(`${studio}/scenario`);
   const note = page.locator('[data-escalation="G_split"]');
   await expect(note).toContainText("Timer non interrompente dopo 48 ore su «Ricevi ordine»: l'attività continua");
-  await expect(page.getByLabel("Approva", { exact: true })).toHaveCount(0);
+  // Nessun campo percentuale sui rami: il canvas mostra comunque la forma "Approva".
+  await expect(page.getByRole("spinbutton", { name: "Approva", exact: true })).toHaveCount(0);
   const axe = await new AxeBuilder({ page }).include('[data-escalation="G_split"]').withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(axe.violations).toEqual([]);
 
