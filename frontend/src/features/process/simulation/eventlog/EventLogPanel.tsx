@@ -44,11 +44,12 @@ import {
   useSaveEventLogTemplate,
   useUploadEventLog,
 } from "./useEventLogImport";
+import { ConformanceStep } from "./ConformanceStep";
 import { RealVsSimulatedStep } from "./RealVsSimulatedStep";
 import { DATE_FORMATS, detectDateFormat, detectNumberFormat, suggestColumns } from "./eventLogSuggestions";
 import "./eventLog.css";
 
-const STEPS = ["columns", "formats", "results", "activities", "resources", "compare"] as const;
+const STEPS = ["columns", "formats", "results", "activities", "resources", "conformance", "compare"] as const;
 type Step = (typeof STEPS)[number];
 const PREVIEW_ROWS = 20;
 const ACCEPT = ".csv,.tsv,.txt,.xes";
@@ -350,7 +351,16 @@ function EventLogWizard({ log, onClose, onDecorations }: {
           pending={apply.isPending}
           withoutResource={analysis.resources.events_without_resource}
           onConfirm={(resourceMatches) => run({ resourceMatches })}
-          onNext={() => setStep("compare")}
+          onNext={() => setStep("conformance")}
+        />
+      )}
+
+      {step === "conformance" && analysis && (
+        <ConformanceStep
+          eventLogId={analysis.event_log.id}
+          mappedAt={analysis.event_log.mapped_at}
+          onDecorations={onDecorations}
+          onReviewActivities={() => setStep("activities")}
         />
       )}
 
