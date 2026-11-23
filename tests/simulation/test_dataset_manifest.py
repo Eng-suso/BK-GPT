@@ -97,3 +97,39 @@ def test_extraneous_delays_inputs_have_the_expected_processes() -> None:
                 assert (synthetic / f"{process}{variant}{ext}").exists(), (
                     f"{process}{variant}{ext}"
                 )
+
+
+def test_reextracts_when_the_archive_changes(tmp_path: Path, monkeypatch) -> None:
+    import zipfile
+
+    def make_zip(text: str) -> bytes:
+        archive = tmp_path / "src.zip"
+        with zipfile.ZipFile(archive, "w") as bundle:
+            bundle.writestr("data.txt", text)
+        return archive.read_bytes()
+
+    monkeypatch.setenv("DELIR_DATASETS_CACHE", str(tmp_path / "cache"))
+    for text in ("old", "new"):
+        payload = make_zip(text)
+        md5 = fetch_datasets.hashlib.md5(payload).hexdigest()  # noqa: S324
+        entry = {
+            "id": "demo",
+            "mode": "fetch",
+            "file": "demo.zip",
+            "url": "https://example.test/demo.zip",
+            "md5": md5,
+            "extract": True,
+        }
+
+        def fake_download(url: str, target: Path, expected: str, data=payload) -> None:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+
+        monkeypatch.setattr(fetch_datasets, "_download", fake_download)
+        out = fetch_datasets.fetch(entry)
+        assert (out / "data.txt").read_text() == text
+
+
+def test_path_of_unknown_id_is_an_error(capsys) -> None:
+    assert fetch_datasets.main(["path", "nessuno"]) == 1
+    assert "non nel manifest" in capsys.readouterr().err

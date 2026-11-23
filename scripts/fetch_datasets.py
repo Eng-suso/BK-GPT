@@ -127,7 +127,8 @@ def fetch(entry: dict, *, allow_noncommercial: bool = False) -> Path:
         _download(item["url"], archive, item["md5"])
         if item.get("extract", entry.get("extract")) and zipfile.is_zipfile(archive):
             marker = target / f".{item['file']}.extracted"
-            if not marker.exists():
+            done = marker.read_text(encoding="utf-8") if marker.exists() else ""
+            if done != item["md5"]:
                 with zipfile.ZipFile(archive) as bundle:
                     bundle.extractall(target)
                 marker.write_text(item["md5"], encoding="utf-8")
@@ -136,7 +137,7 @@ def fetch(entry: dict, *, allow_noncommercial: bool = False) -> Path:
 
 def verify(entry: dict) -> Path:
     path = dataset_path(entry)
-    if not path.exists() or not any(path.iterdir()):
+    if not path.is_dir() or not any(path.iterdir()):
         raise DatasetError(f"{entry['id']}: {path} mancante")
     return path
 
@@ -162,6 +163,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{entry['id']:34} {entry['mode']:9} {entry['license']}")
         return 0
     if args.command == "path":
+        if args.id not in manifest:
+            print(f"ERR {args.id}: non nel manifest", file=sys.stderr)
+            return 1
         print(dataset_path(manifest[args.id]))
         return 0
     if args.command == "verify":
