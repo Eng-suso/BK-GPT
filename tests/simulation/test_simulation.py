@@ -7,6 +7,7 @@ from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
 from backend.simulation.models import ProsimosSimulationResult
 from backend.simulation.scenario_builder import build_prosimos_scenario
+from tests.simulation.engine_log import ENGINE_LOG
 
 
 MINIMAL_BPMN = """<?xml version="1.0" encoding="UTF-8"?>
@@ -332,6 +333,7 @@ def test_simulation_endpoint_uses_prosimos_adapter_contract(client, monkeypatch)
         assert request.total_cases == 10
         return ProsimosSimulationResult(
             payload={"statsFile": "stats_test.csv", "logFile": "events_test.csv"},
+            event_log_csv=ENGINE_LOG,
         )
 
     monkeypatch.setattr(

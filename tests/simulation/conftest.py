@@ -55,14 +55,15 @@ def new_bpmn_model(api_client) -> Callable[..., str]:
 
 @pytest.fixture()
 def fake_engine(monkeypatch) -> list:
-    """Il motore non parte: ogni richiesta finisce nella lista e torna un risultato vuoto."""
+    """Il motore non parte: ogni richiesta finisce nella lista e torna un log minimo."""
     from backend.simulation.models import ProsimosSimulationResult
+    from tests.simulation.engine_log import ENGINE_LOG
 
     sent: list = []
 
     async def engine(request):
         sent.append(request)
-        return ProsimosSimulationResult(payload={"statsFile": "s.csv", "logFile": "e.csv"})
+        return ProsimosSimulationResult(payload={"statsFile": "s.csv", "logFile": "e.csv"}, event_log_csv=ENGINE_LOG)
 
     monkeypatch.setattr("backend.simulation.service.run_prosimos_simulation", engine)
     return sent

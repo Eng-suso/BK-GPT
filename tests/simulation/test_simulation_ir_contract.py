@@ -275,12 +275,13 @@ def _bpmn_model_id(client) -> str:
 
 def _capture_engine(monkeypatch) -> list:
     from backend.simulation.models import ProsimosSimulationResult
+    from tests.simulation.engine_log import ENGINE_LOG
 
     sent: list = []
 
     async def fake_engine(request):
         sent.append(request)
-        return ProsimosSimulationResult(payload={"statsFile": "s.csv", "logFile": "e.csv"})
+        return ProsimosSimulationResult(payload={"statsFile": "s.csv", "logFile": "e.csv"}, event_log_csv=ENGINE_LOG)
 
     monkeypatch.setattr("backend.simulation.service.run_prosimos_simulation", fake_engine)
     return sent

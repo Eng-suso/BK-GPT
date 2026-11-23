@@ -344,32 +344,41 @@ def test_replay_flow_volumes_are_marked_attributed():
 # storage + endpoint
 # --------------------------------------------------------------------------- #
 
-def test_run_completes_without_an_artifact_when_the_log_is_missing(client, monkeypatch):
+def _run_with_engine_log(client, monkeypatch, name, log):
     async def fake_run(request):
-        return ProsimosSimulationResult(
-            payload={"statsFile": "s.csv", "logFile": "l.csv"}, event_log_csv=None
-        )
+        return ProsimosSimulationResult(payload={"LogsFilename": "l.csv"}, event_log_csv=log)
 
     monkeypatch.setattr("backend.simulation.service.run_prosimos_simulation", fake_run)
 
-    cl = client.post("/v1/workspace/clients", json={"name": "NoLog"}).json()
+    cl = client.post("/v1/workspace/clients", json={"name": name}).json()
     pr = client.post(
-        "/v1/workspace/projects", json={"client_id": cl["id"], "name": "NoLog P"}
+        "/v1/workspace/projects", json={"client_id": cl["id"], "name": f"{name} P"}
     ).json()
     ps = client.post(
-        f"/v1/workspace/projects/{pr['id']}/processes", json={"name": "NoLog Proc"}
+        f"/v1/workspace/projects/{pr['id']}/processes", json={"name": f"{name} Proc"}
     ).json()
-    mid = ps["bpmn_model_id"]
-
     run = client.post(
-        f"/v1/workspace/bpmn-models/{mid}/simulation-runs",
+        f"/v1/workspace/bpmn-models/{ps['bpmn_model_id']}/simulation-runs",
         json={"total_cases": 5, "current_bpmn_xml": MINIMAL_BPMN},
     ).json()
-    finished = client.get(f"/v1/workspace/simulation-runs/{run['id']}").json()
-    assert finished["status"] == "completed"
-    assert finished["summary"] is None
-    assert "replay" not in finished
-    assert client.get(f"/v1/workspace/simulation-runs/{run['id']}/replay").status_code == 404
+    return client.get(f"/v1/workspace/simulation-runs/{run['id']}").json()
+
+
+def test_a_run_without_an_event_log_fails_instead_of_completing_empty(client, monkeypatch):
+    # Un run "completato" senza KPI ingannava il consulente: ora fallisce e dice perche'.
+    finished = _run_with_engine_log(client, monkeypatch, "NoLog", None)
+
+    assert finished["status"] == "failed"
+    assert "log" in finished["error"]
+    assert client.get(f"/v1/workspace/simulation-runs/{finished['id']}/replay").status_code == 404
+
+
+def test_a_log_that_cannot_be_analysed_fails_the_run_and_is_logged(client, monkeypatch, caplog):
+    finished = _run_with_engine_log(client, monkeypatch, "BadLog", "non,e,un\nlog,del,motore\n")
+
+    assert finished["status"] == "failed"
+    assert "non si e' potuto analizzare" in finished["error"]
+    assert any("analisi del risultato fallita" in record.getMessage() for record in caplog.records)
 
 
 def test_completed_run_stores_summary_on_the_row_and_replay_behind_its_own_endpoint(

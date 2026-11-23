@@ -576,7 +576,12 @@ async def drain_simulation_queue(worker_id: str | None = None) -> int:
     worker_id = worker_id or new_worker_id()
     done = 0
     while (claimed := await asyncio.to_thread(claim_next_run, worker_id)) is not None:
-        await execute_claimed_run(claimed)
+        try:
+            await execute_claimed_run(claimed)
+        except Exception:  # noqa: BLE001 - un run rotto non ferma la coda
+            # Anche la scrittura del fallimento e' fallita (es. database): il run
+            # resta senza battito e lo spazzino lo rimette in coda o lo chiude.
+            logger.exception("simulazione %s: esito non registrato", claimed.run_id)
         done += 1
     return done
 
@@ -609,6 +614,21 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
         with contextlib.suppress(asyncio.CancelledError):
             await heart
 
+    try:
+        return await _finish_run(claimed, result)
+    except Exception as exc:  # noqa: BLE001 - un errore dopo il motore non lascia il run "pending"
+        logger.exception("simulazione %s: analisi del risultato fallita", claimed.run_id)
+        return await asyncio.to_thread(
+            fail_simulation_run, run_id=claimed.run_id,
+            error=f"La simulazione e' finita ma il suo log non si e' potuto analizzare: {exc}",
+            worker_id=claimed.worker_id,
+        )
+
+
+async def _finish_run(claimed: ClaimedRun, result) -> dict:
+    """KPI, replay, SLA e costi dal log del motore, poi il run completato."""
+    if not getattr(result, "event_log_csv", None):
+        raise ValueError("il motore non ha restituito il log degli eventi")
     horizon = (
         (horizon_end(claimed.start_date, claimed.horizon_days), claimed.horizon_days)
         if claimed.horizon_days and claimed.start_date else None
@@ -661,23 +681,20 @@ def _process_event_log(
     warmup_cases: int = 0,
     horizon: tuple[float, int] | None = None,
 ) -> tuple[dict | None, dict | None]:
-    """Turn the Prosimos event log into the run summary + replay artifact.
-    Never raises — a log/parse failure just means no artifact for this run."""
-    csv_text = getattr(result, "event_log_csv", None)
-    if not csv_text:
-        return None, None
-    try:
-        return process_prosimos_log(
-            csv_text,
-            normalized_bpmn_xml=bpmn_xml,
-            scenario_payload=scenario.payload,
-            prosimos_stats=result.payload,
-            name_to_element_id=activity_name_to_element_id(bpmn_xml),
-            warmup_cases=warmup_cases,
-            horizon=horizon,
-        )
-    except Exception:  # noqa: BLE001 - the replay artifact is best-effort
-        return None, None
+    """Il log del motore come summary dei KPI e artifact di replay.
+
+    Un errore qui e' un difetto da vedere: risale, e il chiamante fa fallire il
+    run invece di chiuderlo "completato" senza KPI.
+    """
+    return process_prosimos_log(
+        result.event_log_csv,
+        normalized_bpmn_xml=bpmn_xml,
+        scenario_payload=scenario.payload,
+        prosimos_stats=result.payload,
+        name_to_element_id=activity_name_to_element_id(bpmn_xml),
+        warmup_cases=warmup_cases,
+        horizon=horizon,
+    )
 
 
 class SimulationLogUnavailable(LookupError):
