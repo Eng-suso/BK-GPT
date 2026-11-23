@@ -15,6 +15,10 @@ API, compatibile con ``backend/simulation/prosimos_adapter.py``:
 - ``GET /api/simulationFile?fileName=...``: il CSV prodotto da un run.
 - ``GET /health``: versioni di motore e runtime.
 
+Protezioni: ``RUNNER_API_TOKEN`` (se impostato, ``Authorization: Bearer`` su
+``/api/*``), ``RUNNER_MAX_UPLOAD_BYTES`` (413 oltre), ``RUNNER_RUN_TIMEOUT_SECONDS``
+(504 oltre, worker libero). ``inlineLog=1`` mette il log in ``EventLogCsv``.
+
 Il seed. Prosimos usa ``random`` e ``numpy.random`` globali e non ne espone uno.
 Il runner li inizializza a ogni richiesta: con il seed ricevuto, oppure con uno
 nuovo che restituisce. Cosi' ogni run, anche senza seed, si puo' rifare uguale.
@@ -26,6 +30,7 @@ richiesta alla volta, quindi lo stato globale non e' condiviso fra run.
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import json
 import os
@@ -33,8 +38,10 @@ import random
 import re
 import secrets
 import shutil
+import signal
 import sys
 import tempfile
+import threading
 import time
 from datetime import datetime
 from importlib.metadata import version
@@ -45,6 +52,7 @@ import numpy
 import pandas
 import pytz
 from flask import Flask, jsonify, request, send_file
+from werkzeug.exceptions import HTTPException
 from prosimos.exceptions import (
     InvalidBpmnModelException,
     InvalidLogFileException,
@@ -62,14 +70,66 @@ DATA_DIR = Path(os.environ.get("RUNNER_DATA_DIR", tempfile.gettempdir())) / "del
 FILE_TTL_SECONDS = int(os.environ.get("RUNNER_FILE_TTL_SECONDS", "3600"))
 MAX_CASES = int(os.environ.get("RUNNER_MAX_CASES", "100000"))
 MAX_SEED = 2**32 - 1
+# BPMN e scenario insieme: oltre questo e' un errore o un abuso, non un processo.
+MAX_UPLOAD_BYTES = int(os.environ.get("RUNNER_MAX_UPLOAD_BYTES", str(20 * 1024 * 1024)))
+# Un run che supera il tempo libera il worker: altrimenti resta occupato fino al
+# timeout di gunicorn anche dopo che l'app ha gia' dato il run per fallito.
+RUN_TIMEOUT_SECONDS = float(os.environ.get("RUNNER_RUN_TIMEOUT_SECONDS", "900"))
 _FILE_NAME = re.compile(r"^(stats|logs)_[A-Za-z0-9_]+\.csv$")
 _INPUT_ERRORS = (InvalidBpmnModelException, InvalidLogFileException, InvalidSimScenarioException)
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 
 
 class BadRequest(ValueError):
     """Input del chiamante non valido: 400 con il motivo."""
+
+
+class RunTimeout(RuntimeError):
+    """Il run ha superato ``RUN_TIMEOUT_SECONDS``."""
+
+
+def _api_token() -> str:
+    """Token condiviso con l'app; vuoto = nessun controllo (solo rete interna)."""
+    return os.environ.get("RUNNER_API_TOKEN", "")
+
+
+@app.before_request
+def _require_token():
+    token = _api_token()
+    if not token or request.path == "/health":
+        return None
+    header = request.headers.get("Authorization", "")
+    supplied = header[7:].strip() if header.casefold().startswith("bearer ") else ""
+    if not supplied or not secrets.compare_digest(supplied.encode(), token.encode()):
+        return jsonify({"success": False, "errorMessage": "token mancante o non valido"}), 401
+    return None
+
+
+@app.errorhandler(413)
+def _too_large(_exc):
+    return jsonify({"success": False, "errorMessage": f"richiesta oltre {MAX_UPLOAD_BYTES} byte"}), 413
+
+
+@contextlib.contextmanager
+def _deadline(seconds: float):
+    """Interrompe il run oltre ``seconds`` (SIGALRM: worker sync, thread principale)."""
+    usable = seconds > 0 and hasattr(signal, "SIGALRM") and threading.current_thread() is threading.main_thread()
+    if not usable:
+        yield
+        return
+
+    def _expired(_signum, _frame):
+        raise RunTimeout(f"la simulazione ha superato {seconds:g} secondi")
+
+    previous = signal.signal(signal.SIGALRM, _expired)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
 
 
 def engine_version() -> str:
@@ -132,8 +192,14 @@ def _purge_old_files(now: float | None = None) -> None:
             continue
 
 
-def simulate(model: bytes, scenario: bytes, cases: int, start_date: str | None, seed: int) -> dict:
-    """Un run di Prosimos con il seed dato; restituisce la risposta dell'API."""
+def simulate(model: bytes, scenario: bytes, cases: int, start_date: str | None, seed: int,
+             *, inline_log: bool = False) -> dict:
+    """Un run di Prosimos con il seed dato; restituisce la risposta dell'API.
+
+    Con ``inline_log`` il log viaggia nella risposta (``EventLogCsv``): con piu'
+    repliche del runner un secondo GET puo' finire su un container che il file
+    non l'ha.
+    """
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     _purge_old_files()
     with tempfile.TemporaryDirectory(dir=DATA_DIR) as work:
@@ -164,7 +230,9 @@ def simulate(model: bytes, scenario: bytes, cases: int, start_date: str | None, 
                 _simulate_with_arrivals(model_path, scenario_path, cases, start_date, bands, _band_attribute(scenario),
                                         stats_name, logs_name, months)
     resources, tasks, overall = split_stats(Path(stats_name).read_text(encoding="utf-8"))
+    extra = {"EventLogCsv": Path(logs_name).read_bytes().decode("utf-8")} if inline_log else {}
     return {
+        **extra,
         # Doppia codifica come upstream: l'adapter la decodifica gia' cosi'.
         "ResourceUtilization": json.dumps(resources),
         "IndividualTaskStatistics": json.dumps(tasks),
@@ -291,11 +359,19 @@ def api_simulate():
             raise BadRequest("servono modelFile e simScenarioFile")
         cases = _parse_cases(request.form.get("numProcesses"))
         seed = _parse_seed(request.form.get("seed"))
-        result = simulate(model.read(), scenario.read(), cases, request.form.get("startDate") or None, seed)
+        inline_log = request.form.get("inlineLog", "").lower() in {"1", "true"}
+        with _deadline(RUN_TIMEOUT_SECONDS):
+            result = simulate(model.read(), scenario.read(), cases, request.form.get("startDate") or None, seed,
+                              inline_log=inline_log)
     except BadRequest as exc:
         return jsonify({"success": False, "errorMessage": str(exc)}), 400
     except _INPUT_ERRORS as exc:
         return jsonify({"success": False, "errorMessage": str(exc)}), 400
+    except RunTimeout as exc:
+        app.logger.warning("simulazione interrotta: %s", exc)
+        return jsonify({"success": False, "errorMessage": str(exc)}), 504
+    except HTTPException:
+        raise  # 413 e simili: risposta HTTP di werkzeug, non un errore del motore
     except Exception as exc:  # noqa: BLE001 - il chiamante deve leggere il motivo, non un 500 muto
         app.logger.exception("simulazione fallita")
         return jsonify({"success": False, "errorMessage": f"{type(exc).__name__}: {exc}"}), 500

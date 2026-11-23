@@ -431,3 +431,55 @@ def test_the_factor_is_the_one_of_the_window_the_moment_falls_in():
     assert duration_windows.factor_at(intervals, datetime(2026, 1, 11, 8, 0, tzinfo=UTC)) == 1.5  # domenica
     assert duration_windows.factor_at(intervals, datetime(2026, 1, 13, 9, 0, tzinfo=UTC)) == 1.0  # martedi'
     assert duration_windows.factor_at(intervals, datetime(2026, 1, 9, 10, 0, tzinfo=UTC)) == 1.0  # fine esclusa
+
+
+def test_the_log_can_travel_in_the_response(client):
+    """Con piu' repliche del runner il GET del file puo' finire su un altro container."""
+    body = _post(client, contract_spike.base_scenario(), seed="5", inlineLog="1").get_json()
+
+    assert body["EventLogCsv"] == _log(client, body)
+
+
+def test_without_inline_log_the_response_stays_lean(client):
+    body = _post(client, contract_spike.base_scenario(), seed="5").get_json()
+
+    assert "EventLogCsv" not in body
+
+
+def test_a_configured_token_is_required_except_for_health(client, monkeypatch):
+    monkeypatch.setenv("RUNNER_API_TOKEN", "s3cret")
+    scenario = contract_spike.base_scenario()
+
+    assert _post(client, scenario).status_code == 401
+    wrong = client.post("/api/simulate", headers={"Authorization": "Bearer nope"})
+    assert wrong.status_code == 401
+    assert client.get("/api/simulationFile", query_string={"fileName": "logs_x.csv"}).status_code == 401
+    assert client.get("/health").status_code == 200
+
+    data = {
+        "modelFile": (io.BytesIO(BPMN), "model.bpmn"),
+        "simScenarioFile": (io.BytesIO(json.dumps(scenario).encode()), "scenario.json"),
+        "numProcesses": "20",
+        "startDate": START,
+    }
+    ok = client.post("/api/simulate", data=data, content_type="multipart/form-data",
+                     headers={"Authorization": "Bearer s3cret"})
+    assert ok.status_code == 200, ok.data
+
+
+def test_an_oversized_request_is_refused_before_simulating(client, monkeypatch):
+    monkeypatch.setitem(runner.app.config, "MAX_CONTENT_LENGTH", 1024)
+
+    response = _post(client, contract_spike.base_scenario())
+
+    assert response.status_code == 413
+    assert "byte" in response.get_json()["errorMessage"]
+
+
+def test_a_run_over_the_deadline_frees_the_worker(client, monkeypatch):
+    monkeypatch.setattr(runner, "RUN_TIMEOUT_SECONDS", 0.05)
+
+    response = _post(client, contract_spike.base_scenario(), cases=100000)
+
+    assert response.status_code == 504
+    assert "secondi" in response.get_json()["errorMessage"]
