@@ -18,6 +18,22 @@ Modello:
 
 ---
 
+## 2026-11-23 — B1a import Prosimos lato server — fatto
+
+- Branch / PR: `feat/sim-prosimos-import`.
+- Meta: 19/19 scenari importati nell'IR e ricompilati con gli stessi parametri,
+  differenze dichiarate → raggiunta. Misura: `uv run pytest --noconftest
+  tests/simulation/test_prosimos_import.py` → 61 passati. Controprova: alterando
+  dell'1% la conversione dell'esponenziale il test fallisce su 19 casi.
+- Iterazioni: 1) profilo dei 19 scenari: 640 durate `fix 0`, 47 orari con
+  microsecondi, 48 porte d'unione, 4 calendari non usati; 2) IR esteso (durata zero,
+  microsecondi) invece di riscrivere i dati; 3) prima implementazione: 44/44;
+  4) code review (skill `code-review`): 9 rilievi, tutti corretti con un test ciascuno.
+- Decisioni: l'IR accetta attività istantanee e orari al microsecondo, vieta arrivi a
+  intervallo zero; i calendari FUZZY di SIMOD si rifiutano (DeliR non li esegue).
+- Skill: `code-review`. Gate UX: non applicabile (solo backend), si applica in B1b.
+- Prossimo passo: B1b.
+
 ## 2026-11-23 — CI di main verde — fatto
 
 - Branch / PR: `claude/funny-babbage-cw4b84`, [Eng-suso/BK-GPT#168](https://github.com/Eng-suso/BK-GPT/pull/168).

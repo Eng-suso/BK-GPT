@@ -4,23 +4,23 @@ Aggiornato: 2026-11-23, fine della sessione che ha preparato dataset e workflow.
 
 ## Punto attivo
 
-**B1a, import Prosimos lato server**, branch `feat/sim-prosimos-import` (partito da
-`claude/funny-babbage-cw4b84`, PR #168 non ancora mergiata). In corso dal 2026-11-23.
+Nessuno. **B1a è fatto** sul branch `feat/sim-prosimos-import` (PR aperta, base
+`claude/funny-babbage-cw4b84` finché la #168 non è mergiata). Il prossimo è
+**B1b**: l'editor importa gli scenari passando da `import_prosimos` lato server,
+con il report d'import in linguaggio di business e il gate UX. In alternativa
+**UX-01**.
 
-Decisioni prese all'avvio, dai dati dei 19 scenari:
-- 640 durate `fix 0` (attività istantanee, quasi tutte in AcademicCredentials):
-  l'IR accetta la durata zero invece di riscriverla;
-- 47 orari con microsecondi (`23:59:59.999000`): l'IR accetta fino a 6 decimali;
-- 48 decisioni con un solo ramo a probabilità 1 sono porte di unione: si ricostruiscono
-  dal BPMN, nessuna probabilità da importare;
-- 4 calendari non usati da nessuna risorsa: il report li segnala.
-
-Dopo B1a: **B1b** (frontend tramite il server) o **UX-01**.
+Cosa sa fare B1a (`backend/simulation/ir/from_prosimos.py`):
+- scenari Prosimos e SIMOD con il loro BPMN → `SimulationModel`, più note per il consulente;
+- porte d'unione, calendari non usati, attività istantanee: note informative;
+- rami senza probabilità, probabilità arrotondate: note di approssimazione;
+- batch, calendari FUZZY, sezioni sconosciute, organici frazionari, elementi assenti
+  o del tipo sbagliato nel BPMN: import rifiutato con il motivo.
 
 ## Ultima misura
 
-D0 dataset: `scripts/fetch_datasets.py verify` → 3/3 dataset nel repo presenti;
-`fetch` di BPIC 2012, BPIC 2013, BPIC 2020 → MD5 coincidente.
+B1a: `uv run pytest --noconftest tests/simulation/test_prosimos_import.py` → 61/61;
+19/19 scenari importati e ricompilati con gli stessi parametri, nessuna approssimazione.
 
 ## Come riprendere B1
 
