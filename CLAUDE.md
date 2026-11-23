@@ -205,9 +205,10 @@ Binding for any work on the simulator or the Verified Process Twin. Full rules:
   `docs/vpt/ux/<point>/`.
 - Skills: load the skills this file routes for the kind of work, every time, and
   list them in `LOG.md`.
-- Code review is mandatory: the `code-review` skill on the local diff before the
-  PR, then CodeRabbit on the PR; resolve or answer every finding before merging.
-  Add `security-review` for auth, security or tenant isolation changes.
+- Code review is mandatory before every merge, done by whoever closes the point:
+  run the `code-review` skill on the diff against `main`, apply
+  `backend/CODE_QUALITY.md` and the rules in `.ast-grep-rules/`, run `simplify`, add `security-review`
+  for auth, security or tenant isolation. Fix or answer every finding.
 - Close: many small commits, tests, PR, green CI, merge to `main`, push, branch
   aligned with `main`; update `PLAN.md`, rewrite `HANDOFF.md`, add the `LOG.md`
   entry, then end the session.

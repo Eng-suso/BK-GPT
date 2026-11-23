@@ -34,7 +34,7 @@ Chi arriva legge `HANDOFF.md` per primo: in un minuto deve sapere da dove ripart
 5. **Verifica del punto**
    - **test:** i test del dominio toccato, più quelli nuovi che dimostrano la meta;
    - **gate UX:** se il punto tocca qualcosa che il cliente vede, vedi sotto;
-   - **code review:** skill `code-review` sul diff, poi CodeRabbit sulla PR (sezione sotto).
+   - **code review:** skill `code-review`, checklist, ast-grep e `simplify` (sezione sotto).
 6. **Chiusura**
    - PR con tanti commit piccoli e la misura finale nel testo;
    - CI verde, poi merge su `main` e push;
@@ -61,14 +61,17 @@ Commit a nome di Sohayb Raqaq, senza trailer di coautore.
   | backend, simulazione, ricerca | nessuna skill di frontend; per l'API dei modelli `claude-api` |
 
   Scrivi in `LOG.md` quali skill hai usato.
-- **Code review sempre, prima del merge.** Ogni PR passa da due revisioni:
-  1. la skill `code-review` sul diff locale prima di aprire la PR, con i rilievi
-     corretti o motivati;
-  2. la revisione di CodeRabbit sulla PR (configurata in `.coderabbit.yaml`): i suoi
-     rilievi si risolvono o si motivano con un commento prima del merge (skill
-     `autofix` per applicarli).
-  Per cambiamenti a sicurezza, autenticazione o isolamento fra clienti si aggiunge
-  `security-review`. Nessun merge con rilievi aperti e senza risposta.
+- **Code review sempre, prima del merge.** La fa chi chiude il punto, sul diff
+  completo rispetto a `main`, e la scrive nella PR:
+  1. skill `code-review` sul diff (correttezza e regole di `CLAUDE.md`), poi
+     rileggi ogni file come un revisore esigente: casi limite, errori gestiti,
+     test che dimostrano la meta, nessun codice morto;
+  2. per il backend applica la checklist di `backend/CODE_QUALITY.md` e lancia le
+     regole ast-grep (`.ast-grep-rules/README.md`); due sono già bloccanti in CI;
+  3. skill `simplify` sul diff per riuso, semplicità ed efficienza;
+  4. skill `security-review` se il punto tocca autenticazione, sicurezza o
+     isolamento fra clienti;
+  5. ogni rilievo si corregge o si motiva nella PR. Nessun merge con rilievi aperti.
 
 ## Regola di prodotto: mangiare la complessità del cliente
 

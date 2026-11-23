@@ -24,9 +24,10 @@ Modello:
 - Cosa è cambiato: `WORKFLOW.md` (ciclo di un punto, checkpoint, regola "mangiare la
   complessità", gate UX con screenshot, skill e code review obbligatorie),
   `HANDOFF.md` (dove siamo adesso), rimando in `CLAUDE.md` e `AGENTS.md`.
-- Skill usate: `code-review`. La CLI di CodeRabbit non è installata nel container:
-  revisione manuale del diff, poi CodeRabbit sulla PR. Rilievi corretti: id
-  duplicati nel manifest non rilevati; `noqa` sulla riga sbagliata. Verificato il
+- Code review: revisione manuale del diff completo. Rilievi corretti: id
+  duplicati nel manifest non rilevati; `noqa` sulla riga sbagliata. CodeRabbit
+  rimosso su richiesta di Sohayb: config, skill `code-review` e `autofix`; le sue
+  regole ast-grep restano in `.ast-grep-rules/`, due bloccanti in CI. Verificato il
   download git di SIMOD e Prosimos (commit fissato, MD5 di `input_output_files.zip`).
 - Gate UX: non applicabile, nessuna schermata cambiata.
 - Prossimo passo: B1.

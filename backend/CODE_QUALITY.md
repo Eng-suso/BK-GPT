@@ -1,10 +1,10 @@
 # AI Code Quality — Backend
 
-> **How this file is used.** `.coderabbit.yaml` loads this as a code guideline and
-> points `backend/**` `path_instructions` at it. Every **MUST / MUST NOT** here is a
-> blocking review finding. Every **SHOULD** is a suggestion. Cite the section name
-> (e.g. "Errors", "Deterministic Decisions") when raising a finding.
-> Local review (`/code-review`, `/simplify`) uses the same checklist.
+> **How this file is used.** It is the checklist of the mandatory code review in
+> `docs/vpt/WORKFLOW.md`. Every **MUST / MUST NOT** here is a blocking review
+> finding. Every **SHOULD** is a suggestion. Cite the section name (e.g.
+> "Errors", "Deterministic Decisions") when raising a finding. The deterministic
+> part runs as ast-grep rules in `.ast-grep-rules/`.
 
 ## Mission
 
