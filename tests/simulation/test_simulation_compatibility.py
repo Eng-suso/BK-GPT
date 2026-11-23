@@ -22,7 +22,7 @@ RICH_BPMN = f"""<?xml version="1.0" encoding="UTF-8"?>
     <bpmn:boundaryEvent id="B_timer" attachedToRef="T_user"><bpmn:timerEventDefinition /></bpmn:boundaryEvent>
     <bpmn:boundaryEvent id="B_deco" attachedToRef="T_loop" />
     <bpmn:task id="T_escalate" name="Sollecita" />
-    <bpmn:intermediateCatchEvent id="IC_timer" name="Attendi 2 giorni"><bpmn:timerEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="IC_timer" name="Attendi fino al 2 gennaio"><bpmn:timerEventDefinition><bpmn:timeDate>2026-01-02T09:00:00Z</bpmn:timeDate></bpmn:timerEventDefinition></bpmn:intermediateCatchEvent>
     <bpmn:intermediateThrowEvent id="IT_none" />
     <bpmn:complexGateway id="G_complex" />
     <bpmn:subProcess id="SP" name="Approvazione">

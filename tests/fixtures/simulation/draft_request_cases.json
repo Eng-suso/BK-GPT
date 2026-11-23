@@ -931,6 +931,11 @@
           "mean_seconds": 86400,
           "distribution": "expon",
           "max_seconds": 604800
+        },
+        {
+          "element_id": "W_timer",
+          "mean_seconds": 300,
+          "distribution": "fixed"
         }
       ],
       "model_patch": {

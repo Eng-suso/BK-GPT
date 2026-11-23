@@ -81,7 +81,7 @@ def test_normalize_bpmn_maps_every_element_to_prosimos_vocabulary():
     <bpmn:startEvent id="S1"><bpmn:outgoing>f1</bpmn:outgoing></bpmn:startEvent>
     <bpmn:startEvent id="S2"><bpmn:outgoing>f1b</bpmn:outgoing></bpmn:startEvent>
     <bpmn:userTask id="T_U"><bpmn:incoming>f1</bpmn:incoming><bpmn:incoming>f1b</bpmn:incoming><bpmn:outgoing>f2</bpmn:outgoing></bpmn:userTask>
-    <bpmn:intermediateCatchEvent id="IC"><bpmn:timerEventDefinition/><bpmn:incoming>f2</bpmn:incoming><bpmn:outgoing>f3</bpmn:outgoing></bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="IC"><bpmn:timerEventDefinition><bpmn:timeDate>2026-01-01T09:00:00Z</bpmn:timeDate></bpmn:timerEventDefinition><bpmn:incoming>f2</bpmn:incoming><bpmn:outgoing>f3</bpmn:outgoing></bpmn:intermediateCatchEvent>
     <bpmn:subProcess id="SP"><bpmn:incoming>f3</bpmn:incoming><bpmn:outgoing>f4</bpmn:outgoing>
       <bpmn:startEvent id="sp_s"/><bpmn:task id="sp_t"/><bpmn:endEvent id="sp_e"/>
     </bpmn:subProcess>
@@ -127,6 +127,28 @@ def test_normalize_bpmn_maps_every_element_to_prosimos_vocabulary():
     assert {"sp_s", "sp_t", "sp_e"}.isdisjoint(
         {el.get("id") for el in root.iter()}
     )
+
+
+def test_normalize_bpmn_keeps_bare_timer_for_scenario_duration():
+    # Prosimos models (SIMOD, extraneous-delay discovery) declare the timer
+    # without timeDuration and give its delay in event_distribution.
+    bpmn = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:startEvent id="S"><bpmn:outgoing>f1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="T"><bpmn:incoming>f1</bpmn:incoming><bpmn:outgoing>f2</bpmn:outgoing></bpmn:task>
+    <bpmn:intermediateCatchEvent id="Wait"><bpmn:incoming>f2</bpmn:incoming><bpmn:outgoing>f3</bpmn:outgoing><bpmn:timerEventDefinition/></bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="E"><bpmn:incoming>f3</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="f1" sourceRef="S" targetRef="T"/>
+    <bpmn:sequenceFlow id="f2" sourceRef="T" targetRef="Wait"/>
+    <bpmn:sequenceFlow id="f3" sourceRef="Wait" targetRef="E"/>
+  </bpmn:process>
+</bpmn:definitions>
+"""
+    root = ElementTree.fromstring(normalize_bpmn_for_prosimos(bpmn))
+
+    kept = root.findall(f".//{{{_BPMN_NS}}}intermediateCatchEvent")
+    assert [event.get("id") for event in kept] == ["Wait"]
 
 
 def test_normalize_bpmn_downcasts_activities_and_drops_boundary_events():
