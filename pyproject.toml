@@ -93,6 +93,8 @@ files = [
     "backend/api",
     "backend/services",
     "backend/workers",
+    # Conformance del log contro il BPMN: nata tipata, resta tipata.
+    "backend/eventlog/conformance.py",
     # Fuori copertura per ora, con gli errori contati il 2026-10-03:
     # backend/memory (25), backend/toolsets (9), backend/agents (4).
     # Entrano uno per volta, a zero errori; questa lista puo' solo accorciarsi.
