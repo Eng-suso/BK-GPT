@@ -71,6 +71,26 @@ _EVENT_KINDS = {
     "signalEventDefinition": "signal",
     "conditionalEventDefinition": "conditional",
 }
+_ACTIVITY_TAGS = {
+    "task",
+    "userTask",
+    "serviceTask",
+    "scriptTask",
+    "businessRuleTask",
+    "manualTask",
+    "sendTask",
+    "receiveTask",
+    "callActivity",
+    "subProcess",
+}
+_GATEWAY_TAGS = {
+    "exclusiveGateway",
+    "inclusiveGateway",
+    "parallelGateway",
+    "complexGateway",
+    "eventBasedGateway",
+}
+_EVENT_TAGS = {"intermediateCatchEvent", "intermediateThrowEvent", "boundaryEvent"}
 # Tolleranza per probabilita' scritte arrotondate (es. 0.3333 + 0.6667).
 _ROUNDING = 1e-3
 
@@ -106,7 +126,23 @@ class _Bpmn:
 
 
 def import_prosimos(scenario: dict, bpmn_xml: str) -> ImportResult:
-    """Il modello IR equivalente a ``scenario``, con le note per il consulente."""
+    """Il modello IR equivalente a ``scenario``, con le note per il consulente.
+
+    Solleva sempre ``ProsimosImportError`` con il motivo, mai un errore grezzo.
+    """
+    try:
+        return _import(scenario, bpmn_xml)
+    except ProsimosImportError:
+        raise
+    except ValidationError as exc:
+        raise ProsimosImportError(_explain(exc)) from exc
+    except (KeyError, TypeError, AttributeError, ValueError) as exc:
+        raise ProsimosImportError(
+            f"Una parte dello scenario non ha la forma attesa da Prosimos ({exc})."
+        ) from exc
+
+
+def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
     if not isinstance(scenario, dict):
         raise ProsimosImportError("Lo scenario Prosimos deve essere un oggetto JSON.")
     _check_sections(scenario)
@@ -167,7 +203,7 @@ def import_prosimos(scenario: dict, bpmn_xml: str) -> ImportResult:
             activities=tuple(activities),
             gateways=tuple(gateways),
             case_attributes=tuple(
-                _case_attribute(entry, i)
+                _case_attribute(entry, i, notes)
                 for i, entry in enumerate(scenario.get("case_attributes") or [])
             ),
             priority_rules=tuple(
@@ -187,6 +223,12 @@ def import_prosimos(scenario: dict, bpmn_xml: str) -> ImportResult:
 
 
 def _check_sections(scenario: dict) -> None:
+    model_type = scenario.get("model_type")
+    if model_type is not None and str(model_type).upper() != "CRISP":
+        raise ProsimosImportError(
+            f"Lo scenario usa calendari «{model_type}» (disponibilita' probabilistica delle "
+            "risorse): DeliR importa solo calendari fissi (CRISP). Riscoprilo con calendari fissi."
+        )
     for key, reason in _NOT_YET.items():
         if scenario.get(key):
             raise ProsimosImportError(
@@ -240,7 +282,7 @@ def _activities(
     for index, entry in enumerate(_list(scenario, "task_resource_distribution")):
         path = f"task_resource_distribution[{index}]"
         task_id = _text(entry, "task_id", path)
-        if task_id not in bpmn.tags:
+        if bpmn.tags.get(task_id) not in _ACTIVITY_TAGS:
             raise ProsimosImportError(f"{path}: l'attivita' {task_id} non e' nel BPMN.")
         assignments = []
         for j, resource in enumerate(_items(entry, "resources", path)):
@@ -289,7 +331,7 @@ def _gateways(
     ):
         path = f"gateway_branching_probabilities[{index}]"
         gateway_id = _text(entry, "gateway_id", path)
-        if gateway_id not in bpmn.tags:
+        if bpmn.tags.get(gateway_id) not in _GATEWAY_TAGS:
             raise ProsimosImportError(
                 f"{path}: la decisione {gateway_id} non e' nel BPMN."
             )
@@ -321,26 +363,17 @@ def _gateways(
                 ImportNote(
                     "approximated",
                     "missing_branch",
-                    f"{len(missing)} percorsi senza probabilita' nello scenario: valgono 0, nessun caso li prende.",
+                    f"{len(missing)} {'percorso' if len(missing) == 1 else 'percorsi'} senza probabilita' "
+                    "nello scenario: valgono 0, nessun caso li prende.",
                     gateway_id,
                 )
             )
-        values = {flow: declared.get(flow, 0.0) for flow in outgoing}
-        total = sum(values.values())
-        if abs(total - 1.0) > 1e-6:
-            if abs(total - 1.0) > _ROUNDING or total <= 0:
-                raise ProsimosImportError(
-                    f"{path}: le probabilita' di {gateway_id} sommano {total:.4f}, non 1."
-                )
-            values = {flow: value / total for flow, value in values.items()}
-            notes.append(
-                ImportNote(
-                    "approximated",
-                    "rounded_probabilities",
-                    f"Probabilita' arrotondate (somma {total:.4f}): riportate a 1 in proporzione.",
-                    gateway_id,
-                )
-            )
+        values = _to_one(
+            {flow: declared.get(flow, 0.0) for flow in outgoing},
+            f"{path}: le probabilita' di {gateway_id}",
+            gateway_id,
+            notes,
+        )
         gateways.append(
             Gateway(
                 element_id=gateway_id,
@@ -358,13 +391,19 @@ def _waits(scenario: dict, bpmn: _Bpmn, provenance: Provenance) -> list[Wait]:
     for index, entry in enumerate(scenario.get("event_distribution") or []):
         path = f"event_distribution[{index}]"
         event_id = _text(entry, "event_id", path)
-        if event_id not in bpmn.tags:
+        if bpmn.tags.get(event_id) not in _EVENT_TAGS:
             raise ProsimosImportError(f"{path}: l'evento {event_id} non e' nel BPMN.")
+        kind = bpmn.event_kind.get(event_id)
+        if kind is None:
+            raise ProsimosImportError(
+                f"{path}: l'evento {event_id} non e' un timer, un messaggio, un segnale o una condizione: "
+                "DeliR non sa quanto lo aspetta il caso."
+            )
         waits.append(
             Wait(
                 element_id=event_id,
                 name=bpmn.names.get(event_id, ""),
-                kind=bpmn.event_kind.get(event_id, "timer"),  # type: ignore[arg-type]
+                kind=kind,  # type: ignore[arg-type]
                 duration=_distribution(entry, path),
                 provenance=provenance,
             )
@@ -385,7 +424,7 @@ def _pool(entry: Any, index: int, provenance: Provenance) -> ResourcePool:
                     cost_per_hour=_number(
                         item.get("cost_per_hour", 0), f"{where}.cost_per_hour"
                     ),
-                    amount=int(_number(item.get("amount"), f"{where}.amount")),
+                    amount=_integer(item.get("amount"), f"{where}.amount"),
                     calendar_id=_text(item, "calendar", where),
                     provenance=provenance,
                 )
@@ -421,6 +460,11 @@ def _calendar(entry: Any, index: int) -> Calendar:
 def _period(entry: Any, path: str) -> CalendarPeriod:
     if not isinstance(entry, dict):
         raise ProsimosImportError(f"{path}: periodo del calendario non valido.")
+    extra = sorted(set(entry) - {"from", "to", "beginTime", "endTime"})
+    if extra:
+        raise ProsimosImportError(
+            f"{path}: campi del calendario che DeliR non sa usare ({', '.join(extra)})."
+        )
     try:
         return CalendarPeriod(
             from_day=entry.get("from"),
@@ -432,18 +476,28 @@ def _period(entry: Any, path: str) -> CalendarPeriod:
         raise ProsimosImportError(f"{path}: {_explain(exc)}") from exc
 
 
-def _case_attribute(entry: Any, index: int) -> CaseAttribute:
+def _case_attribute(entry: Any, index: int, notes: list[ImportNote]) -> CaseAttribute:
     path = f"case_attributes[{index}]"
     name = _text(entry, "name", path)
     kind = entry.get("type")
     try:
         if kind == "discrete":
-            options = tuple(
-                DiscreteOption(
-                    value=str(option["key"]),
-                    probability=_number(option.get("value"), f"{path}.values"),
+            declared: dict[str, float] = {}
+            for j, option in enumerate(_items(entry, "values", path)):
+                where = f"{path}.values[{j}]"
+                if not isinstance(option, dict) or option.get("key") in (None, ""):
+                    raise ProsimosImportError(
+                        f"{where}: ogni categoria ha una chiave e una probabilita'."
+                    )
+                declared[str(option["key"])] = _number(
+                    option.get("value"), f"{where}.value"
                 )
-                for option in _items(entry, "values", path)
+            values = _to_one(
+                declared, f"{path}: le probabilita' di {name}", name, notes
+            )
+            options = tuple(
+                DiscreteOption(value=key, probability=value)
+                for key, value in values.items()
             )
             return CaseAttribute(name=name, options=options)
         if kind == "continuous":
@@ -460,23 +514,27 @@ def _priority(entry: Any, index: int) -> PriorityRule:
     path = f"prioritisation_rules[{index}]"
     if not isinstance(entry, dict):
         raise ProsimosImportError(f"{path}: regola di priorita' non valida.")
-    groups = []
-    for group in _items(entry, "rules", path):
-        if not isinstance(group, list):
-            raise ProsimosImportError(f"{path}: ogni gruppo di regole e' un elenco.")
-        groups.append(
-            tuple(
-                Rule(
-                    attribute=str(rule.get("attribute")),
-                    operator=rule.get("comparison"),
-                    value=_rule_value(rule.get("value")),
-                )
-                for rule in group
-            )
-        )
     try:
+        groups = []
+        for g, group in enumerate(_items(entry, "rules", path)):
+            if not isinstance(group, list) or not all(
+                isinstance(rule, dict) for rule in group
+            ):
+                raise ProsimosImportError(
+                    f"{path}.rules[{g}]: ogni gruppo e' un elenco di regole."
+                )
+            groups.append(
+                tuple(
+                    Rule(
+                        attribute=_text(rule, "attribute", f"{path}.rules[{g}]"),
+                        operator=rule.get("comparison"),
+                        value=_rule_value(rule.get("value")),
+                    )
+                    for rule in group
+                )
+            )
         return PriorityRule(
-            level=int(_number(entry.get("priority_level"), f"{path}.priority_level")),
+            level=_integer(entry.get("priority_level"), f"{path}.priority_level"),
             condition=Condition(any_of=tuple(groups)),
         )
     except ValidationError as exc:
@@ -568,11 +626,42 @@ def _number(value: Any, path: str) -> float:
     return number
 
 
+def _to_one(
+    values: dict[str, float], what: str, element_id: str, notes: list[ImportNote]
+) -> dict[str, float]:
+    """Probabilita' che sommano 1; un arrotondamento si riporta a 1 e si dichiara."""
+    if any(value < 0 or value > 1 for value in values.values()):
+        raise ProsimosImportError(f"{what}: ogni probabilita' sta fra 0 e 1.")
+    total = sum(values.values())
+    if abs(total - 1.0) <= 1e-6:
+        return values
+    if abs(total - 1.0) > _ROUNDING or total <= 0:
+        raise ProsimosImportError(f"{what} sommano {total:.4f}, non 1.")
+    notes.append(
+        ImportNote(
+            "approximated",
+            "rounded_probabilities",
+            f"Probabilita' arrotondate (somma {total:.4f}): riportate a 1 in proporzione.",
+            element_id,
+        )
+    )
+    return {key: value / total for key, value in values.items()}
+
+
+def _integer(value: Any, path: str) -> int:
+    number = _number(value, path)
+    if not number.is_integer():
+        raise ProsimosImportError(f"{path}: serve un numero intero, trovato {value!r}.")
+    return int(number)
+
+
 def _rule_value(value: Any) -> str | float:
-    try:
+    # Un testo resta testo: "007" e' una categoria, non il numero 7.
+    if isinstance(value, bool) or value is None:
+        raise ProsimosImportError(f"valore di una regola non valido ({value!r}).")
+    if isinstance(value, (int, float)):
         return float(value)
-    except TypeError, ValueError:
-        return str(value)
+    return str(value)
 
 
 def _free_id(base: str, taken: set[str]) -> str:
