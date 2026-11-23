@@ -634,9 +634,8 @@ def _splice_passthrough_events(process: ElementTree.Element) -> bool:
 def wait_event_ids(process: ElementTree.Element) -> set[str]:
     """SIM-11c/d: gli eventi intermedi che il motore simula come un'attesa.
 
-    Un timer con una durata fissa (``PT48H``) resta nel BPMN: il caso aspetta
-    quella durata, a qualsiasi ora (il timer conta l'orologio, non il
-    calendario). Restano anche messaggi, segnali e condizioni: quanto si
+    Un timer con una durata fissa (``PT48H``) o senza durata resta nel BPMN:
+    nel secondo caso la durata deve arrivare dalla configurazione. Restano anche messaggi, segnali e condizioni: quanto si
     aspetta lo dice il consulente nel pannello, e finche' non lo dice il caso
     prosegue subito, come prima. Si tolgono i timer con una data o un ciclo e
     ogni evento dopo un gateway a eventi, dove l'evento decide il ramo.
@@ -650,7 +649,9 @@ def wait_event_ids(process: ElementTree.Element) -> set[str]:
         definitions = {_local(child.tag) for child in event}
         timer = event.find(_q(BPMN_MODEL_NS, "timerEventDefinition"))
         if timer is not None:
-            if duration_seconds(timer.findtext(_q(BPMN_MODEL_NS, "timeDuration"))) is not None:
+            # A bare timer definition gets its duration from event_distribution.
+            # Date/cycle timers still need a separate mapping and are spliced out.
+            if len(timer) == 0 or duration_seconds(timer.findtext(_q(BPMN_MODEL_NS, "timeDuration"))) is not None:
                 waits.add(event.get("id", ""))
         elif len(definitions & WAITING_DEFINITIONS) == 1:
             waits.add(event.get("id", ""))

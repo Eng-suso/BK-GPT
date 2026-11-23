@@ -19,6 +19,8 @@ import { ReadinessSummary } from "../ReadinessSummary";
 import { useScenarioLab } from "../useScenarioLab";
 import { ScenarioTabs } from "../ScenarioTabs";
 import { exportScenarioJson, importScenarioJson } from "../scenarioJson";
+import { ProsimosReferenceMapping, prosimosReferenceFields } from "../ProsimosReferenceMapping";
+import type { ProsimosIdMapping } from "../prosimosJson";
 import { applyNumericJsonMapping, numericJsonFields, type NumericJsonField, type NumericMapping } from "../scenarioJsonMapping";
 import { changedElements } from "../scenarioWorkspace";
 import { uncertainFactors } from "../sensitivity";
@@ -41,6 +43,8 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
   const [importError, setImportError] = React.useState<string | null>(null);
   const [importName, setImportName] = React.useState<string | null>(null);
   const [genericSource, setGenericSource] = React.useState<{ name: string; fields: NumericJsonField[] } | null>(null);
+  const [prosimosSource, setProsimosSource] = React.useState<{ name: string; data: Record<string, unknown> } | null>(null);
+  const [prosimosMapping, setProsimosMapping] = React.useState<ProsimosIdMapping>({});
   const [mappingOpen, setMappingOpen] = React.useState(false);
   const [mapping, setMapping] = React.useState<NumericMapping>({ arrivalUnit: "minutes", defaultTaskUnit: "minutes", taskUnit: "minutes", tasks: {} });
   const [mappingConfirmed, setMappingConfirmed] = React.useState(false);
@@ -73,6 +77,8 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
     setImportError(null);
     setImportName(file?.name ?? null);
     setGenericSource(null);
+    setProsimosSource(null);
+    setProsimosMapping({});
     setMappingOpen(false);
     setMappingConfirmed(false);
     if (!file) return;
@@ -90,6 +96,10 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
         toast.success(t("simulation.scenario.importApplied"), { description: t("simulation.scenario.importAppliedDraft", { name: file.name }) });
         setImportOpen(false);
       } else if (source && "resource_profiles" in source && "task_resource_distribution" in source) {
+        if (template && prosimosReferenceFields(source, template, {}).length > 0) {
+          setProsimosSource({ name: file.name, data: source });
+          return;
+        }
         const candidate = importScenarioJson(text, lab.bpmnModelId, template, draft);
         updateDraft(candidate);
         toast.success(t("simulation.scenario.importApplied"), { description: t("simulation.scenario.importAppliedProsimos", {
@@ -121,6 +131,23 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
       setImportError(cause instanceof Error ? cause.message : t("simulation.scenario.jsonInvalid"));
     }
   };
+  const applyProsimosImport = () => {
+    if (!prosimosSource) return;
+    try {
+      const candidate = importScenarioJson(JSON.stringify(prosimosSource.data), lab.bpmnModelId, template, draft, prosimosMapping);
+      updateDraft(candidate);
+      setProsimosSource(null);
+      setImportOpen(false);
+      toast.success(t("simulation.scenario.importApplied"), { description: t("simulation.scenario.importAppliedProsimos", {
+        name: prosimosSource.name, activities: Object.keys(candidate.tasks).length, resources: candidate.resources.length,
+        decisions: Object.keys(candidate.gateways).length,
+      }) });
+    } catch (cause) {
+      setImportError(cause instanceof Error ? cause.message : t("simulation.scenario.jsonInvalid"));
+    }
+  };
+  const prosimosFields = prosimosSource && template ? prosimosReferenceFields(prosimosSource.data, template, prosimosMapping) : [];
+  const prosimosMappingReady = prosimosFields.length > 0 && prosimosFields.every((field) => Boolean(prosimosMapping[field.kind]?.[field.key]));
   const downloadScenario = () => {
     const blob = new Blob([exportScenarioJson(draft, lab.bpmnModelId)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -242,7 +269,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
         </DialogContent>
       </Dialog>
 
-      <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) { setGenericSource(null); setImportError(null); if (importInput.current) importInput.current.value = ""; } }}>
+      <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) { setGenericSource(null); setProsimosSource(null); setImportError(null); if (importInput.current) importInput.current.value = ""; } }}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl">
           <DialogTitle>{t("simulation.scenario.sourceFile")}</DialogTitle>
           <DialogDescription>{t("simulation.scenario.importDescription")}</DialogDescription>
@@ -258,6 +285,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
             <p className="mt-1 text-muted-foreground">{t("simulation.scenario.importNotAppliedHint", { name: importName })}</p>
             <details className="mt-2"><summary className="cursor-pointer text-foreground">{t("simulation.scenario.importTechnicalReason")}</summary><p className="mt-2 break-words text-muted-foreground">{importError}</p></details>
           </div>}
+          {prosimosSource && template && <ProsimosReferenceMapping source={prosimosSource.data} template={template} mapping={prosimosMapping} onChange={(next) => { setProsimosMapping(next); setImportError(null); }} />}
           {genericSource && <div className="grid gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm" role="status">
             <div>
               <p className="font-semibold">{t("simulation.scenario.fileRead")}: {genericSource.name}</p>
@@ -305,6 +333,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
             {genericSource && <Button type="button" variant="outline" onClick={() => setImportOpen(false)}>{t("simulation.scenario.configureInEditor")}</Button>}
             <Button type="button" variant="ghost" onClick={() => setImportOpen(false)}>{t("simulation.scenarios.cancel")}</Button>
             {genericSource && mappingOpen && <Button type="button" disabled={!mappingConfirmed || mappedCount === 0} onClick={applyImport}>{t("simulation.scenario.applyMappedJson")}</Button>}
+            {prosimosSource && <Button type="button" disabled={!prosimosMappingReady} onClick={applyProsimosImport}>{t("simulation.scenario.applyMappedJson")}</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

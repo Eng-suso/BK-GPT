@@ -335,6 +335,12 @@ class _ProcessReport:
     def _intermediate(self, element: ElementTree.Element, local: str) -> BpmnElementCompatibility:
         definitions = {_local(child.tag) for child in element}
         if element.get("id") in self.after.tags and "timerEventDefinition" in definitions:
+            timer = next((child for child in element if _local(child.tag) == "timerEventDefinition"), None)
+            if timer is not None and len(timer) == 0:
+                return _entry(
+                    element, local, "preserved", "medium", simulated_as="timer",
+                    note="Il timer resta nel processo; imposta la sua durata nella configurazione prima della simulazione.",
+                )
             # SIM-11c: un timer con durata fissa resta nel BPMN e il caso aspetta.
             return _entry(
                 element, local, "preserved", "none", simulated_as="timer",

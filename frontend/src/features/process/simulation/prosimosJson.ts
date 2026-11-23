@@ -2,10 +2,17 @@ import { DEFAULT_SCENARIO, type DurationDraft, type ScenarioDraft } from "./simu
 import type { DistributionName, ScenarioTemplate, SimCalendar } from "./simulationTypes";
 
 type JsonObject = Record<string, unknown>;
+export type ProsimosIdMapping = {
+  tasks?: Record<string, string>;
+  gateways?: Record<string, string>;
+  flows?: Record<string, string>;
+  waits?: Record<string, string>;
+};
+export const flowMappingKey = (gatewayId: string, flowId: string): string => `${gatewayId}::${flowId}`;
 const KNOWN_SECTIONS = new Set([
   "resource_profiles", "arrival_time_distribution", "arrival_time_calendar",
   "gateway_branching_probabilities", "task_resource_distribution", "resource_calendars",
-  "batch_processing", "case_attributes",
+  "batch_processing", "case_attributes", "event_distribution",
 ]);
 const DISTRIBUTIONS: Record<string, DistributionName> = {
   fix: "fixed", fixed: "fixed", expon: "expon", uniform: "uniform",
@@ -71,7 +78,7 @@ function period(value: unknown, path: string): SimCalendar["periods"][number] {
 }
 
 /** Convert the six core Prosimos sections only when every nonempty section is representable. */
-export function importProsimosJson(value: JsonObject, current: ScenarioDraft | null, template: ScenarioTemplate | null): ScenarioDraft {
+export function importProsimosJson(value: JsonObject, current: ScenarioDraft | null, template: ScenarioTemplate | null, mapping: ProsimosIdMapping = {}): ScenarioDraft {
   if (!template) throw new Error("Il modello BPMN deve essere caricato prima di importare un JSON Prosimos.");
   const extra = Object.entries(value).filter(([key, item]) => !KNOWN_SECTIONS.has(key) && item != null && (!Array.isArray(item) || item.length > 0));
   for (const key of ["batch_processing", "case_attributes"]) {
@@ -114,8 +121,10 @@ export function importProsimosJson(value: JsonObject, current: ScenarioDraft | n
   for (const [index, item] of list(value.task_resource_distribution, "task_resource_distribution").entries()) {
     const row = object(item, `task_resource_distribution[${index}]`);
     keys(row, ["task_id", "resources"], `task_resource_distribution[${index}]`);
-    const id = string(row.task_id, "task_id");
+    const sourceId = string(row.task_id, "task_id");
+    const id = mapping.tasks?.[sourceId] || sourceId;
     if (!taskIds.has(id)) throw new Error(`Attività non presente nel BPMN: ${id}.`);
+    if (tasks[id]) throw new Error(`Attività ${id} assegnata da più elementi del JSON.`);
     const assignments = list(row.resources, `${id}.resources`).map((entry, i) => {
       const assignment = object(entry, `${id}.resources[${i}]`);
       keys(assignment, ["resource_id", "distribution_name", "distribution_params"], `${id}.resources[${i}]`);
@@ -134,15 +143,19 @@ export function importProsimosJson(value: JsonObject, current: ScenarioDraft | n
   for (const [index, item] of list(value.gateway_branching_probabilities, "gateway_branching_probabilities").entries()) {
     const row = object(item, `gateway_branching_probabilities[${index}]`);
     keys(row, ["gateway_id", "probabilities"], `gateway_branching_probabilities[${index}]`);
-    const id = string(row.gateway_id, "gateway_id");
+    const sourceId = string(row.gateway_id, "gateway_id");
+    const id = mapping.gateways?.[sourceId] || sourceId;
     const flows = gatewayIds.get(id);
     if (!flows) throw new Error(`Decisione non presente nel BPMN: ${id}.`);
+    if (gateways[id]) throw new Error(`Decisione ${id} assegnata da più elementi del JSON.`);
     gateways[id] = {};
     for (const branch of list(row.probabilities, `${id}.probabilities`)) {
       const probability = object(branch, `${id}.probabilities`);
       keys(probability, ["path_id", "value"], `${id}.probabilities`);
-      const flowId = string(probability.path_id, "path_id");
+      const sourceFlowId = string(probability.path_id, "path_id");
+      const flowId = mapping.flows?.[flowMappingKey(sourceId, sourceFlowId)] || sourceFlowId;
       if (!flows.has(flowId)) throw new Error(`Flusso non presente nel BPMN: ${flowId}.`);
+      if (flowId in gateways[id]) throw new Error(`Flusso ${flowId} assegnato da più percorsi del JSON.`);
       gateways[id][flowId] = number(probability.value, "probability") * 100;
     }
     const missingFlows = [...flows].filter((flowId) => !(flowId in gateways[id]));
@@ -150,6 +163,27 @@ export function importProsimosJson(value: JsonObject, current: ScenarioDraft | n
     if (Math.abs(Object.values(gateways[id]).reduce((sum, probability) => sum + probability, 0) - 100) > 0.001) throw new Error(`Le probabilità di ${id} devono sommare a 1.`);
   }
   const arrival = duration(value.arrival_time_distribution, "arrival_time_distribution");
+  const templateWaits = new Map((template.waits ?? []).map((wait) => [wait.element_id, wait]));
+  const waits: NonNullable<ScenarioDraft["waits"]> = {};
+  const seenWaits = new Set<string>();
+  for (const [index, item] of list(value.event_distribution ?? [], "event_distribution").entries()) {
+    const path = `event_distribution[${index}]`;
+    const row = object(item, path);
+    keys(row, ["event_id", "distribution_name", "distribution_params"], path);
+    const sourceId = string(row.event_id, `${path}.event_id`);
+    const id = mapping.waits?.[sourceId] || sourceId;
+    const templateWait = templateWaits.get(id);
+    if (!templateWait) throw new Error(`${path}: evento ${id} non presente tra le attese del BPMN corrente.`);
+    if (seenWaits.has(id)) throw new Error(`${path}: evento ${id} duplicato.`);
+    seenWaits.add(id);
+    const parsed = duration({ distribution_name: row.distribution_name, distribution_params: row.distribution_params }, path);
+    // Prosimos represents an unset message/signal wait as a fixed zero duration.
+    if (parsed.distribution === "fixed" && parsed.meanMinutes === 0) {
+      if (templateWait.kind === "timer") throw new Error(`${path}: il timer ${id} ha durata zero; non può sostituire la durata del BPMN.`);
+      continue;
+    }
+    waits[id] = parsed;
+  }
   const arrivalPeriods = list(value.arrival_time_calendar, "arrival_time_calendar").map((entry, index) => period(entry, `arrival_time_calendar[${index}]`));
   const samePeriods = (a: SimCalendar["periods"], b: SimCalendar["periods"]) => {
     const normalized = (periods: SimCalendar["periods"]) => periods.map((item) => ({
@@ -170,7 +204,7 @@ export function importProsimosJson(value: JsonObject, current: ScenarioDraft | n
     }
   }
   return {
-    ...base, resources, tasks, gateways, calendars: customCalendars,
+    ...base, resources, tasks, gateways, waits, calendars: customCalendars,
     arrivalIntervalMinutes: arrival.meanMinutes,
     arrival: { distribution: arrival.distribution, stdMinutes: arrival.stdMinutes, minMinutes: arrival.minMinutes, maxMinutes: arrival.maxMinutes, calendarId: arrivalCalendarId },
   };

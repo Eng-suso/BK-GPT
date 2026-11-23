@@ -84,6 +84,7 @@ def build_prosimos_scenario(
     model = with_band_attribute(model, request)
     model = with_flow_rules(model, request)
     model = with_bpmn_waits(with_request_waits(model, request), parse_bpmn_waits(bpmn_xml))
+    _require_timer_durations(model)
     return _scenario(bpmn_xml, model, tasks, gateways)
 
 
@@ -125,14 +126,21 @@ def build_prosimos_scenario_from_model(*, bpmn_xml: str, model: SimulationModel)
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     check_model_against_bpmn(model, tasks, gateways)
     model = with_bpmn_waits(model, parse_bpmn_waits(bpmn_xml))
+    _require_timer_durations(model)
     return _scenario(bpmn_xml, model, tasks, gateways)
+
+
+def _require_timer_durations(model: SimulationModel) -> None:
+    missing = [wait.name or wait.element_id for wait in model.waits if wait.kind == "timer" and wait.duration is None]
+    if missing:
+        raise ValueError(f"Imposta la durata dei timer senza durata nel BPMN: {', '.join(missing)}.")
 
 
 def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = None) -> ScenarioTemplateResponse:
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     return ScenarioTemplateResponse(
         waits=[
-            ScenarioTemplateWait(element_id=wait.id, name=wait.name or wait.id, kind=wait.kind, seconds=wait.seconds)
+            ScenarioTemplateWait(element_id=wait.id, name=wait.name or ("Timer" if wait.kind == "timer" else wait.id), kind=wait.kind, seconds=wait.seconds)
             for wait in parse_bpmn_waits(bpmn_xml)
             if not wait.internal
         ],
@@ -207,7 +215,7 @@ def parse_bpmn_waits(bpmn_xml: str) -> list[BpmnWait]:
         if kind == "timer":
             text = next((c.text for c in definitions[0] if _local_name(c.tag) == "timeDuration"), None)
             seconds = duration_seconds(text)
-            if seconds is None:
+            if seconds is None and len(definitions[0]) != 0:
                 continue
         waits.append(BpmnWait(id=element.attrib["id"], name=element.attrib.get("name") or "", kind=kind, seconds=seconds,
                               internal=bool(element.attrib.get(TIMER_OF))))

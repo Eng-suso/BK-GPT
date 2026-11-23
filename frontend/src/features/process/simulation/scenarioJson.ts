@@ -1,6 +1,6 @@
 import { parseScenarioDraft, type ScenarioDraft } from "./simulationScenario";
 import type { ScenarioTemplate } from "./simulationTypes";
-import { importProsimosJson } from "./prosimosJson";
+import { importProsimosJson, type ProsimosIdMapping } from "./prosimosJson";
 
 const FORMAT = "delir-scenario-draft";
 const VERSION = 1;
@@ -28,11 +28,12 @@ export function importScenarioJson(
   bpmnModelId: string,
   template: ScenarioTemplate | null,
   currentDraft: ScenarioDraft | null = null,
+  idMapping: ProsimosIdMapping = {},
 ): ScenarioDraft {
   const file: unknown = JSON.parse(text);
   if (!file || typeof file !== "object" || Array.isArray(file)) throw new Error("Il file deve contenere un oggetto JSON.");
   const data = file as Record<string, unknown>;
-  if ("resource_profiles" in data && "task_resource_distribution" in data) return importProsimosJson(data, currentDraft, template);
+  if ("resource_profiles" in data && "task_resource_distribution" in data) return importProsimosJson(data, currentDraft, template, idMapping);
   if (data.format !== FORMAT || data.version !== VERSION) throw new Error("Struttura JSON non associata automaticamente. Mappa i campi dello scenario prima di applicarli.");
   if (data.bpmnModelId !== bpmnModelId) throw new Error("Il file appartiene a un altro modello BPMN.");
   if (!data.draft || typeof data.draft !== "object" || Array.isArray(data.draft)) throw new Error("Il file non contiene uno scenario valido.");

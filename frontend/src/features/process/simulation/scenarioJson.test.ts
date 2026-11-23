@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_SCENARIO, scenarioToInput, type ScenarioDraft } from "./simulationScenario";
 import { exportScenarioJson, importScenarioJson } from "./scenarioJson";
+import { flowMappingKey } from "./prosimosJson";
+import { prosimosReferenceFields } from "./ProsimosReferenceMapping";
 import { applyNumericJsonMapping, numericJsonFields } from "./scenarioJsonMapping";
 import type { ScenarioTemplate } from "./simulationTypes";
 import golden from "../../../../../tests/fixtures/simulation/builder_scenarios_golden.json";
@@ -102,6 +104,64 @@ describe("scenario JSON", () => {
     expect(Object.keys(imported.tasks)).toHaveLength(3);
     expect(imported.gateways.G).toEqual({ F_high: 50, F_low: 50 });
     expect(scenarioToInput(imported, null).tasks?.[0]).toMatchObject({ meanSeconds: 900, stdSeconds: 90, minSeconds: 630, maxSeconds: 1170 });
+  });
+
+  it("imports event distributions for BPMN waits and timers without losing them", () => {
+    const source = structuredClone(golden.default) as typeof golden.default & { event_distribution: unknown[] };
+    source.event_distribution = [
+      { event_id: "W_timer", distribution_name: "norm", distribution_params: [{ value: 600 }, { value: 60 }, { value: 0 }, { value: 3600 }] },
+      { event_id: "W_message", distribution_name: "expon", distribution_params: [{ value: 3600 }, { value: 0 }, { value: 86400 }] },
+    ];
+    const template: ScenarioTemplate = {
+      resources: [],
+      standard_calendar: { id: "delir-calendar-standard", name: "Standard office calendar", periods: [{ from_day: "MONDAY", to_day: "FRIDAY", begin: "09:00", end: "17:00" }] },
+      tasks: ["T_receive", "T_approve", "T_pay"].map((element_id) => ({ element_id, name: element_id, type: "task" })),
+      gateways: [{ element_id: "G", name: "G", type: "exclusiveGateway", branches: [
+        { flow_id: "F_high", flow_name: "high", target_name: "high" }, { flow_id: "F_low", flow_name: "low", target_name: "low" },
+      ] }],
+      waits: [
+        { element_id: "W_timer", name: "Timer", kind: "timer" },
+        { element_id: "W_message", name: "Message", kind: "message" },
+      ],
+    };
+    const imported = importScenarioJson(JSON.stringify(source), "model-1", template, draft);
+    expect(imported.waits).toEqual({
+      W_timer: { distribution: "norm", meanMinutes: 10, stdMinutes: 1, minMinutes: 0, maxMinutes: 60 },
+      W_message: { distribution: "expon", meanMinutes: 60, minMinutes: 0, maxMinutes: 1440 },
+    });
+    expect(scenarioToInput(imported, null).waits).toMatchObject([
+      { elementId: "W_timer", meanSeconds: 600, stdSeconds: 60, minSeconds: 0, maxSeconds: 3600 },
+      { elementId: "W_message", meanSeconds: 3600 },
+    ]);
+    expect(importScenarioJson(JSON.stringify(source), "model-1", template, imported)).toEqual(imported);
+    expect(() => importScenarioJson(JSON.stringify({ ...source, event_distribution: [{ event_id: "unknown", distribution_name: "fix", distribution_params: [{ value: 1 }] }] }), "model-1", template, draft)).toThrow("non presente");
+  });
+
+  it("requires explicit mappings for stale timer, decision and branch IDs", () => {
+    const source = structuredClone(golden.default) as typeof golden.default & { event_distribution: unknown[] };
+    source.event_distribution = [{ event_id: "Event_old", distribution_name: "fix", distribution_params: [{ value: 600 }] }];
+    const template: ScenarioTemplate = {
+      resources: [],
+      standard_calendar: { id: "delir-calendar-standard", name: "Standard", periods: [{ from_day: "MONDAY", to_day: "FRIDAY", begin: "09:00", end: "17:00" }] },
+      tasks: ["T_receive", "T_approve", "T_pay"].map((element_id) => ({ element_id, name: element_id, type: "task" })),
+      gateways: [{ element_id: "G_new", name: "Decision", type: "exclusiveGateway", branches: [
+        { flow_id: "F_new_high", flow_name: "high", target_name: "high" },
+        { flow_id: "F_new_low", flow_name: "low", target_name: "low" },
+      ] }],
+      waits: [{ element_id: "Event_new", name: "Timer", kind: "timer" }],
+    };
+    const fields = prosimosReferenceFields(source, template, {});
+    expect(fields.map((field) => field.kind)).toEqual(["gateways", "waits"]);
+    expect(() => importScenarioJson(JSON.stringify(source), "model-1", template, draft)).toThrow("Decisione non presente");
+    const mapping = {
+      gateways: { G: "G_new" }, waits: { Event_old: "Event_new" },
+      flows: { [flowMappingKey("G", "F_high")]: "F_new_high", [flowMappingKey("G", "F_low")]: "F_new_low" },
+    };
+    expect(prosimosReferenceFields(source, template, mapping).map((field) => field.kind)).toEqual(["gateways", "flows", "flows", "waits"]);
+    const imported = importScenarioJson(JSON.stringify(source), "model-1", template, draft, mapping);
+    expect(imported.gateways.G_new).toEqual({ F_new_high: 50, F_new_low: 50 });
+    expect(imported.waits?.Event_new).toEqual({ distribution: "fixed", meanMinutes: 10 });
+    expect(() => importScenarioJson(JSON.stringify(source), "model-1", template, draft, { gateways: mapping.gateways, waits: mapping.waits })).toThrow("Flusso non presente");
   });
 
   it("imports multiple resource profiles without changing task assignments or durations", () => {

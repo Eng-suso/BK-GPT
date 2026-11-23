@@ -42,7 +42,7 @@ export function WaitsSection({ waits, values, onChange }: {
                 <p className="text-sm font-medium text-foreground">{wait.name}</p>
                 <span className="text-xs text-muted-foreground">{t(`simulation.config.waits.kind.${wait.kind}`)}</span>
               </div>
-              {wait.kind === "timer" ? (
+              {wait.kind === "timer" && !value && wait.seconds != null ? (
                 <p className="text-xs text-muted-foreground">
                   {t("simulation.config.waits.timer", { duration: formatParameterDuration(wait.seconds ?? 0, lang) })}
                 </p>
@@ -51,14 +51,14 @@ export function WaitsSection({ waits, values, onChange }: {
                   <TaskDurationFields elementId={`wait-${wait.element_id}`} taskName={wait.name} task={value}
                     onChange={(next) => set(wait.element_id, next)} />
                   <Button type="button" size="sm" variant="ghost" className="h-7 w-fit px-2 text-xs"
-                    aria-label={t("simulation.config.waits.remove", { name: wait.name })}
+                    aria-label={t(wait.kind === "timer" ? "simulation.config.waits.restoreTimer" : "simulation.config.waits.remove", { name: wait.name })}
                     onClick={() => set(wait.element_id, undefined)}>
-                    {t("simulation.config.waits.removeShort")}
+                    {t(wait.kind === "timer" ? "simulation.config.waits.restoreTimerShort" : "simulation.config.waits.removeShort")}
                   </Button>
                 </>
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground">{t("simulation.config.waits.unset")}</p>
+                  <p className="text-xs text-muted-foreground">{t(wait.kind === "timer" ? "simulation.config.waits.timerNeedsDuration" : "simulation.config.waits.unset")}</p>
                   <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs"
                     aria-label={t("simulation.config.waits.set", { name: wait.name })}
                     onClick={() => set(wait.element_id, NEW_WAIT)}>

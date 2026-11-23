@@ -58,11 +58,10 @@ def test_a_timer_with_a_fixed_duration_stays_and_becomes_a_wait():
 
 
 @pytest.mark.parametrize("bpmn", [
-    _bpmn(""),
     _bpmn("<bpmn:timeDate>2026-12-25T00:00:00Z</bpmn:timeDate>"),
     _bpmn("<bpmn:timeCycle>R3/PT1H</bpmn:timeCycle>"),
     _bpmn(after_event_gateway=True),
-], ids=["senza durata", "una data", "un ciclo", "dopo un gateway a eventi"])
+], ids=["una data", "un ciclo", "dopo un gateway a eventi"])
 def test_other_timers_are_still_left_out(bpmn):
     normalized = normalize_bpmn_for_prosimos(bpmn)
     scenario = build_prosimos_scenario(bpmn_xml=normalized, request=_request())
@@ -72,12 +71,32 @@ def test_other_timers_are_still_left_out(bpmn):
     assert "event_distribution" not in scenario.payload
 
 
+def test_a_timer_without_bpmn_duration_uses_the_scenario_distribution():
+    bpmn = normalize_bpmn_for_prosimos(_bpmn(""))
+    assert [(w.id, w.seconds) for w in parse_bpmn_waits(bpmn)] == [("W", None)]
+    with pytest.raises(ValueError, match="Imposta la durata dei timer"):
+        build_prosimos_scenario(bpmn_xml=bpmn, request=_request())
+    request = CreateSimulationRunRequest.model_validate({
+        **_request().model_dump(),
+        "waits": [{"element_id": "W", "distribution": "norm", "mean_seconds": 600,
+                   "std_seconds": 60, "min_seconds": 0, "max_seconds": 3600}],
+    })
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    assert scenario.payload["event_distribution"] == [{
+        "event_id": "W", "distribution_name": "norm",
+        "distribution_params": [{"value": 600.0}, {"value": 60.0}, {"value": 0.0}, {"value": 3600.0}],
+    }]
+
+
 def test_the_report_says_the_timer_is_simulated_and_the_others_are_not():
     kept = {e.element_id: e for e in bpmn_compatibility_report(_bpmn()).elements}["W"]
+    configurable = {e.element_id: e for e in bpmn_compatibility_report(_bpmn("")).elements}["W"]
     dated = {e.element_id: e for e in bpmn_compatibility_report(_bpmn("<bpmn:timeDate>2026-12-25T00:00:00Z</bpmn:timeDate>")).elements}["W"]
 
     assert (kept.status, kept.impact, kept.simulated_as) == ("preserved", "none", "timer")
     assert "orologio" in kept.note
+    assert (configurable.status, configurable.impact) == ("preserved", "medium")
+    assert "configurazione" in configurable.note
     assert (dated.status, dated.impact) == ("removed", "high")
 
 

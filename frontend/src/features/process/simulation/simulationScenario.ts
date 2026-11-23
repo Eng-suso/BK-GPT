@@ -583,8 +583,8 @@ export function seedDraftFromTemplate(
     if (rules && flows.length === Object.keys(rules).length && flows.every((f) => f in rules)) gatewayRules[gateway.element_id] = rules;
   }
 
-  // SIM-11d: restano le attese dei messaggi e segnali ancora nel BPMN; un timer ha la sua durata.
-  const settable = new Set((template.waits ?? []).filter((w) => w.kind !== "timer").map((w) => w.element_id));
+  // Keep imported event durations, including timer overrides, when refreshing the BPMN template.
+  const settable = new Set((template.waits ?? []).map((w) => w.element_id));
   const waits = draft.waits ? { waits: Object.fromEntries(Object.entries(draft.waits).filter(([id]) => settable.has(id))) } : {};
 
   return { ...draft, resources, tasks, gateways, gatewayRules, ...waits };

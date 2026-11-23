@@ -419,8 +419,8 @@ def seed_draft_from_template(draft: dict[str, Any], template: ScenarioTemplateRe
         if rules and len(flows) == len(rules) and all(flow in rules for flow in flows):
             gateway_rules[gateway.element_id] = rules
 
-    # SIM-11d: restano le attese dei messaggi e segnali ancora nel BPMN.
-    settable = {wait.element_id for wait in template.waits if wait.kind != "timer"}
+    # Keep imported event durations, including timer overrides, when refreshing the BPMN template.
+    settable = {wait.element_id for wait in template.waits}
     waits = {"waits": {k: v for k, v in draft["waits"].items() if k in settable}} if _truthy(draft.get("waits")) else {}
 
     return {**draft, "resources": resources, "tasks": tasks, "gateways": gateways, "gatewayRules": gateway_rules, **waits}
