@@ -72,13 +72,18 @@ def chat_openai_kwargs(
             deve ricevere kwargs che *sembrano* validi: senza chiave
             `langchain_openai` ricadrebbe su `OPENAI_API_KEY` dell'ambiente, e
             l'errore arriverebbe dal provider invece che da qui.
+        EgressBlocked: Se l'endpoint della chat e' esterno e non autorizzato
+            (`backend/llm/egress.py`). E' una `MissingProviderKey`: stessa via.
     """
+    from backend.llm.egress import Destination, require
+
     if not settings.openai_api_key:
         raise MissingProviderKey(
             "OPENAI_API_KEY non configurata: nessun client del modello puo' essere "
             "costruito. Nei test e' il comportamento atteso — un test che deve "
             "spendere si marca `live_llm` e gira con DELIR_LIVE_LLM=1."
         )
+    require(Destination.LLM_CHAT)
     kwargs: dict[str, Any] = {
         "api_key": settings.openai_api_key,
         "model": settings.openai_model,

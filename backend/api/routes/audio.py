@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, W
 
 from backend.llm import LlmTask, OperationKind, operation, profile_for, transcribe
 from backend.schemas.chat_api import TranscriptionResponse
+from backend.llm.egress import Destination, EgressBlocked, require
 from backend.security import AuthPrincipal, authenticate_websocket, require_principal
 from backend.services.transcription import (
     build_live_transcription_options,
@@ -200,7 +201,12 @@ async def live_audio_transcription(websocket: WebSocket):
         await websocket.close(code=1011)
         return
 
-    openai_url = "wss://api.openai.com/v1/realtime?intent=transcription"
+    try:
+        openai_url = require(Destination.TRANSCRIPTION_LIVE).url
+    except EgressBlocked as exc:
+        await send_ws_event(websocket, "error", detail=str(exc))
+        await websocket.close(code=1011)
+        return
     headers = {
         "Authorization": f"Bearer {settings.openai_api_key}",
     }

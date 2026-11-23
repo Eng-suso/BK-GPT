@@ -1,6 +1,7 @@
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
 
+from backend.llm.egress import Destination, EgressBlocked, require
 from backend.settings import settings
 from backend.toolsets.common import format_web_results
 
@@ -16,6 +17,10 @@ def web_research(query: str, reason: str) -> str:
     """
     if settings.tavily_api_key is None:
         return "Web research is disabled: TAVILY_API_KEY is missing."
+    try:
+        require(Destination.WEB_SEARCH)
+    except EgressBlocked:
+        return "Web research is disabled: the search provider is not an authorised destination."
 
     tavily = TavilySearch(
         max_results=settings.tavily_max_results,
