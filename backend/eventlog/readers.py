@@ -55,6 +55,12 @@ def read_csv(payload: bytes, delimiter: str | None = None) -> Table:
     if duplicates:
         raise EventLogFileError(f"Colonne con lo stesso nome: {', '.join(duplicates)}.")
     width = len(header)
+    for line_number, row in enumerate(rows[1:], start=2):
+        if len(row) > width:
+            raise EventLogFileError(
+                f"La riga {line_number} contiene {len(row)} valori, ma il file ha {width} colonne. "
+                "Controlla il separatore o le virgolette nell'export."
+            )
     body = tuple(tuple(cell.strip() for cell in (row + [""] * (width - len(row)))[:width]) for row in rows[1:])
     return Table(header=header, rows=body, delimiter=sep, format="csv")
 

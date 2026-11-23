@@ -67,6 +67,8 @@ def summarize(log: EventLog, name_to_element_id: dict[str, str] | None = None) -
     summary["byResource"] = []
     summary.pop("prosimosCrossCheck", None)
     summary["timing"] = timing(log)
+    summary["firstEnableObserved"] = all(events[0].enabled is not None for events in log.cases().values())
+    summary["enablementObserved"] = all(event.enabled is not None for event in log.events)
     summary["source"] = log.origin
     return summary
 

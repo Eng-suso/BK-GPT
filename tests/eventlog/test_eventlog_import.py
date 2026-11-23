@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from backend.eventlog.bpmn_match import ModelElement, apply_confirmed, normalize, suggest_matches
+from backend.eventlog.analysis import preview
 from backend.eventlog.kpi import summarize, timing
 from backend.eventlog.mapping import AttributeColumn, ColumnMapping, MappingError, NumberFormat, TimestampFormat, apply_mapping
 from backend.eventlog.readers import EventLogFileError, read_csv, read_table, read_xes
@@ -44,6 +45,20 @@ ERP_MAPPING = ColumnMapping(
 
 def _import(text: str = ERP_CSV, mapping: ColumnMapping = ERP_MAPPING):
     return apply_mapping(read_csv(text.encode("utf-8")), mapping, source_name="erp.csv")
+
+
+def test_preview_pages_cover_the_whole_file_without_repeating_rows():
+    table = read_csv(ERP_CSV.encode("utf-8"))
+    first = preview(table, rows=4, offset=0)
+    second = preview(table, rows=4, offset=4)
+    last = preview(table, rows=4, offset=8)
+    assert first.row_count == 9
+    assert first.sample_rows + second.sample_rows + last.sample_rows == table.rows
+
+
+def test_csv_with_extra_values_reports_the_row_instead_of_dropping_data():
+    with pytest.raises(EventLogFileError, match="riga 2 contiene 3 valori"):
+        read_csv(b"case;activity\n1;review;unexpected\n")
 
 
 # --------------------------------------------------------------------------- #

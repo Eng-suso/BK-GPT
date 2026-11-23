@@ -43,13 +43,13 @@ class Analysis:
     summary: dict[str, Any] | None
 
 
-def preview(table: Table, rows: int = PREVIEW_ROWS) -> Preview:
+def preview(table: Table, rows: int = PREVIEW_ROWS, offset: int = 0) -> Preview:
     return Preview(
         format=table.format,
         delimiter=table.delimiter,
         columns=table.header,
         row_count=len(table.rows),
-        sample_rows=table.rows[:rows],
+        sample_rows=table.rows[offset:offset + rows],
     )
 
 

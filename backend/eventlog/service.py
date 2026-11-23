@@ -89,10 +89,10 @@ def upload_event_log(
     return UploadedEventLogResponse(**log.model_dump(), created=created, preview=_preview_response(preview(table)))
 
 
-def preview_event_log(event_log_id: str, delimiter: str | None = None) -> EventLogPreviewResponse:
+def preview_event_log(event_log_id: str, delimiter: str | None = None, *, offset: int = 0, limit: int = 20) -> EventLogPreviewResponse:
     """L'anteprima del file con un altro separatore, senza cambiare nulla."""
     _log, table = _read(event_log_id, delimiter)
-    return _preview_response(preview(table))
+    return _preview_response(preview(table, rows=limit, offset=offset))
 
 
 def apply_mapping(event_log_id: str, request: ApplyEventLogMappingRequest) -> EventLogAnalysisResponse:
