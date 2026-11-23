@@ -44,6 +44,8 @@ services:
       DELIR_ADMIN_TOKEN: ""
       LANGSMITH_TRACING: "false"
       LANGSMITH_API_KEY: ""
+      # Fornitori esterni registrati: vedi docs/compliance/fornitori-e-invii-dati.md.
+      DELIR_EGRESS_ALLOWED_HOSTS: ${DELIR_EGRESS_ALLOWED_HOSTS:-api.openai.com}
 
 volumes:
   delir_pgdata:
