@@ -620,7 +620,7 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
         logger.exception("simulazione %s: analisi del risultato fallita", claimed.run_id)
         return await asyncio.to_thread(
             fail_simulation_run, run_id=claimed.run_id,
-            error=f"La simulazione e' finita ma il suo log non si e' potuto analizzare: {exc}",
+            error=f"La simulazione e' finita ma il risultato non si e' potuto elaborare: {str(exc)[:300]}",
             worker_id=claimed.worker_id,
         )
 

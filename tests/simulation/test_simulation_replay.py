@@ -377,7 +377,7 @@ def test_a_log_that_cannot_be_analysed_fails_the_run_and_is_logged(client, monke
     finished = _run_with_engine_log(client, monkeypatch, "BadLog", "non,e,un\nlog,del,motore\n")
 
     assert finished["status"] == "failed"
-    assert "non si e' potuto analizzare" in finished["error"]
+    assert "non si e' potuto elaborare" in finished["error"]
     assert any("analisi del risultato fallita" in record.getMessage() for record in caplog.records)
 
 
