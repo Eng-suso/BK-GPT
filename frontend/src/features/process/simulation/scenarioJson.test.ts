@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SCENARIO, scenarioToInput, type ScenarioDraft } from "./simulationScenario";
 import { exportScenarioJson, importScenarioJson } from "./scenarioJson";
 import { flowMappingKey } from "./prosimosJson";
-import { prosimosReferenceFields } from "./ProsimosReferenceMapping";
+import { prosimosReferenceFields } from "./prosimosReferences";
 import { applyNumericJsonMapping, numericJsonFields } from "./scenarioJsonMapping";
 import type { ScenarioTemplate } from "./simulationTypes";
 import golden from "../../../../../tests/fixtures/simulation/builder_scenarios_golden.json";
