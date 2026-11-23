@@ -73,8 +73,9 @@ MAX_SEED = 2**32 - 1
 # BPMN e scenario insieme: oltre questo e' un errore o un abuso, non un processo.
 MAX_UPLOAD_BYTES = int(os.environ.get("RUNNER_MAX_UPLOAD_BYTES", str(20 * 1024 * 1024)))
 # Un run che supera il tempo libera il worker: altrimenti resta occupato fino al
-# timeout di gunicorn anche dopo che l'app ha gia' dato il run per fallito.
-RUN_TIMEOUT_SECONDS = float(os.environ.get("RUNNER_RUN_TIMEOUT_SECONDS", "900"))
+# timeout di gunicorn anche dopo che l'app ha gia' dato il run per fallito. Sotto
+# i 900 s dell'app (PROSIMOS_TIMEOUT_SECONDS): il motivo arriva prima del timeout HTTP.
+RUN_TIMEOUT_SECONDS = float(os.environ.get("RUNNER_RUN_TIMEOUT_SECONDS", "870"))
 _FILE_NAME = re.compile(r"^(stats|logs)_[A-Za-z0-9_]+\.csv$")
 _INPUT_ERRORS = (InvalidBpmnModelException, InvalidLogFileException, InvalidSimScenarioException)
 
