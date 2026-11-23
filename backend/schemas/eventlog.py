@@ -154,6 +154,46 @@ class EventLogAnalysisResponse(BaseModel):
     summary: dict[str, Any] | None
 
 
+class ConformanceDeviationResponse(BaseModel):
+    element_id: str
+    name: str
+    # Casi in cui l'elemento e' stato eseguito senza che il modello lo consentisse.
+    executed_out_of_order: int
+    # Casi finiti con il modello ancora in attesa di questo elemento.
+    left_waiting: int
+
+
+class ConformanceVariantResponse(BaseModel):
+    activities: list[str]
+    cases: int
+    fitness: float
+    fits: bool
+    out_of_order: list[str]
+    waiting: list[str]
+    unmodeled: list[str]
+
+
+class EventLogConformanceResponse(BaseModel):
+    """Token-based replay dei casi reali sul BPMN corrente del processo."""
+
+    event_log: EventLogResponse
+    # La versione del BPMN riprodotta e quella su cui e' stato confermato
+    # l'abbinamento: se differiscono, il risultato va riletto con cautela.
+    bpmn_version_id: int | None
+    mapping_bpmn_version_id: int | None
+    fitness: float
+    cases: int
+    fitting_cases: int
+    fitting_share: float
+    deviations: list[ConformanceDeviationResponse]
+    variants: list[ConformanceVariantResponse]
+    unmodeled_activities: dict[str, int]
+    unobserved_elements: list[ModelElementResponse]
+    excluded_variants: int
+    excluded_cases: int
+    warnings: list[str]
+
+
 class SaveEventLogTemplateRequest(BaseModel):
     """Salva un mapping. Con ``template_key`` aggiunge una versione a un template esistente."""
 
