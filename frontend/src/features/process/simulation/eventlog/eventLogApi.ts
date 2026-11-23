@@ -39,9 +39,10 @@ export async function fetchEventLogs(processId: string): Promise<EventLog[]> {
   return eventLogListSchema.parse(raw);
 }
 
-export async function fetchEventLogPreview(eventLogId: string, delimiter?: Delimiter): Promise<EventLogPreview> {
-  const query = delimiter ? `?delimiter=${encodeURIComponent(delimiter)}` : "";
-  const raw = await http<unknown>(`${BASE}/event-logs/${encodeURIComponent(eventLogId)}/preview${query}`);
+export async function fetchEventLogPreview(eventLogId: string, delimiter?: Delimiter, offset = 0, limit = 20): Promise<EventLogPreview> {
+  const query = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+  if (delimiter) query.set("delimiter", delimiter);
+  const raw = await http<unknown>(`${BASE}/event-logs/${encodeURIComponent(eventLogId)}/preview?${query}`);
   return eventLogPreviewSchema.parse(raw);
 }
 

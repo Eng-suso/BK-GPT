@@ -17,7 +17,6 @@ import {
   addAttribute,
   draftFromMapping,
   draftIssues,
-  emptyDraft,
   matchesFrom,
   missingTemplateColumns,
   toColumnMapping,
@@ -46,11 +45,12 @@ import {
   useUploadEventLog,
 } from "./useEventLogImport";
 import { RealVsSimulatedStep } from "./RealVsSimulatedStep";
+import { DATE_FORMATS, detectDateFormat, detectNumberFormat, suggestColumns } from "./eventLogSuggestions";
 import "./eventLog.css";
 
 const STEPS = ["columns", "formats", "results", "activities", "resources", "compare"] as const;
 type Step = (typeof STEPS)[number];
-const PREVIEW_ROWS = 5;
+const PREVIEW_ROWS = 20;
 const ACCEPT = ".csv,.tsv,.txt,.xes";
 
 /**
@@ -65,7 +65,6 @@ export function EventLogPanel({ onDecorations }: { onDecorations?: (items: NodeD
   const upload = useUploadEventLog(processId);
   const remove = useDeleteEventLog(processId);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
-  const [uploadDelimiter, setUploadDelimiter] = React.useState<Delimiter | "">("");
   // Il log da eliminare: si chiede prima, il file e l'analisi non si recuperano.
   const [deleting, setDeleting] = React.useState<EventLog | null>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -76,7 +75,7 @@ export function EventLogPanel({ onDecorations }: { onDecorations?: (items: NodeD
     event.target.value = "";
     if (!file) return;
     upload.mutate(
-      { file, delimiter: uploadDelimiter || undefined },
+      { file },
       { onSuccess: (log) => setSelectedId(log.id) },
     );
   };
@@ -89,15 +88,7 @@ export function EventLogPanel({ onDecorations }: { onDecorations?: (items: NodeD
     <div className="sim-eventlog">
       <p className="sim-eventlog-hint">{t("simulation.eventLog.intro")}</p>
       <div className="sim-eventlog-upload">
-        <label className="sim-field">
-          <span>{t("simulation.eventLog.delimiter")}</span>
-          <select value={uploadDelimiter} onChange={(event) => setUploadDelimiter(event.target.value as Delimiter | "")}>
-            <option value="">{t("simulation.eventLog.delimiterAuto")}</option>
-            {DELIMITERS.map((value) => (
-              <option key={value} value={value}>{t(`simulation.eventLog.delimiterName.${delimiterKey(value)}`)}</option>
-            ))}
-          </select>
-        </label>
+        <span className="sim-eventlog-hint">{t("simulation.eventLog.autoRead")}</span>
         <input ref={fileRef} type="file" accept={ACCEPT} className="sr-only" aria-label={t("simulation.eventLog.file")} onChange={onFile} />
         <Button size="sm" onClick={() => fileRef.current?.click()} disabled={upload.isPending}>
           <Upload aria-hidden className="size-4" />
@@ -169,9 +160,16 @@ function EventLogWizard({ log, onClose, onDecorations }: {
   const { processId, process } = useSimulationSection();
   const [step, setStep] = React.useState<Step>(log.status === "mapped" ? "results" : "columns");
   const [delimiter, setDelimiter] = React.useState<Delimiter | null>(null);
-  const [draft, setDraft] = React.useState<MappingDraft>(() => (log.mapping ? draftFromMapping(log.mapping) : emptyDraft()));
+  const [draftInput, setDraft] = React.useState<MappingDraft>(() => (log.mapping ? draftFromMapping(log.mapping) : suggestColumns(log.columns)));
+  const [showAllRows, setShowAllRows] = React.useState(false);
+  const [page, setPage] = React.useState(0);
+  const [dateConfirmed, setDateConfirmed] = React.useState(Boolean(log.mapping));
+  const [manualDateFormat, setManualDateFormat] = React.useState(Boolean(log.mapping));
+  const [manualNumberFormat, setManualNumberFormat] = React.useState(Boolean(log.mapping));
   const [templateId, setTemplateId] = React.useState<number | null>(log.template?.id ?? null);
-  const preview = useEventLogPreview(log.id, delimiter);
+  const pageSize = showAllRows ? 50 : PREVIEW_ROWS;
+  const sample = useEventLogPreview(log.id, delimiter);
+  const preview = useEventLogPreview(log.id, delimiter, page * pageSize, pageSize);
   const stored = useEventLogAnalysis(log.id, log.status === "mapped");
   const apply = useApplyEventLogMapping(processId, log.id);
   const templates = useEventLogTemplates();
@@ -182,9 +180,29 @@ function EventLogWizard({ log, onClose, onDecorations }: {
     retry: false,
   });
   const analysis: EventLogAnalysis | null = apply.data ?? stored.data ?? null;
-  const columns = preview.data?.columns ?? log.columns;
+  const columns = sample.data?.columns ?? log.columns;
+  const dateColumn = draftInput.timeShape === "interval" ? draftInput.end : draftInput.timestamp;
+  const dateValues = sample.data?.sample_rows.map((row) => row[columns.indexOf(dateColumn)] ?? "") ?? [];
+  const detectedDate = detectDateFormat(dateValues);
+  const costColumn = draftInput.cost || draftInput.caseAttributes.find((item) => item.type === "number")?.column || draftInput.eventAttributes.find((item) => item.type === "number")?.column;
+  const numberFormat = sample.data && costColumn
+    ? detectNumberFormat(sample.data.sample_rows.map((row) => row[columns.indexOf(costColumn)] ?? ""))
+    : null;
+  const draft: MappingDraft = {
+    ...draftInput,
+    ...(!manualDateFormat && dateColumn && sample.data && !detectedDate.ambiguous ? { pattern: detectedDate.pattern } : {}),
+    ...(!manualNumberFormat && numberFormat ? numberFormat : {}),
+  };
   const issues = draftIssues(draft);
+  const needsDateChoice = Boolean(dateColumn && dateValues.some(Boolean) && detectedDate.ambiguous && !dateConfirmed);
   const update = (patch: Partial<MappingDraft>) => {
+    if (patch.timestamp !== undefined || patch.end !== undefined || patch.timeShape !== undefined) {
+      setManualDateFormat(false);
+      setDateConfirmed(false);
+    }
+    if (patch.cost !== undefined || patch.caseAttributes !== undefined || patch.eventAttributes !== undefined) setManualNumberFormat(false);
+    if (patch.pattern !== undefined) setManualDateFormat(true);
+    if (patch.decimal !== undefined || patch.thousands !== undefined) setManualNumberFormat(true);
     setDraft((current) => ({ ...current, ...patch }));
     setTemplateId(null);
   };
@@ -201,6 +219,8 @@ function EventLogWizard({ log, onClose, onDecorations }: {
       { onSuccess: () => setStep((current) => (current === "formats" || current === "columns" ? "results" : current)) },
     );
   const applyTemplate = (template: EventLogTemplate) => {
+    setManualDateFormat(true);
+    setManualNumberFormat(true);
     setDraft(draftFromMapping(template.mapping));
     setTemplateId(template.id);
     apply.mutate({ templateId: template.id, delimiter: delimiter ?? undefined }, { onSuccess: () => setStep("results") });
@@ -236,18 +256,30 @@ function EventLogWizard({ log, onClose, onDecorations }: {
       {step === "columns" && (
         <section className="sim-eventlog-step" aria-label={t("simulation.eventLog.step.columns")}>
           <TemplatePicker templates={templates.data ?? []} columns={columns} disabled={apply.isPending} onApply={applyTemplate} />
-          {log.format === "csv" && (
+          {log.format === "csv" && <p className="sim-eventlog-hint">{t("simulation.eventLog.detectedSeparator", { separator: t(`simulation.eventLog.delimiterName.${delimiterKey(delimiter ?? log.delimiter ?? ",")}`) })}</p>}
+          {log.format === "csv" && <details className="sim-eventlog-advanced" open={preview.isError}>
+            <summary>{t("simulation.eventLog.correctSeparator")}</summary>
             <label className="sim-field">
               <span>{t("simulation.eventLog.delimiter")}</span>
-              <select value={delimiter ?? log.delimiter ?? ""} onChange={(event) => setDelimiter(event.target.value as Delimiter)}>
-                {DELIMITERS.map((value) => (
-                  <option key={value} value={value}>{t(`simulation.eventLog.delimiterName.${delimiterKey(value)}`)}</option>
-                ))}
+              <select value={delimiter ?? log.delimiter ?? ""} onChange={(event) => { setDelimiter(event.target.value as Delimiter); setPage(0); }}>
+                {DELIMITERS.map((value) => <option key={value} value={value}>{t(`simulation.eventLog.delimiterName.${delimiterKey(value)}`)}</option>)}
               </select>
             </label>
-          )}
+          </details>}
           {preview.isError && <InlineNotice tone="warning" title={httpErrorMessage(preview.error, t("simulation.eventLog.previewFailed"))} />}
-          {preview.data && <PreviewTable columns={preview.data.columns} rows={preview.data.sample_rows.slice(0, PREVIEW_ROWS)} used={usedColumns(draft)} />}
+          {preview.isPending && <Skeleton className="h-28 w-full" aria-hidden />}
+          {preview.data && <>
+            <div className="sim-eventlog-preview-head">
+              <strong>{t("simulation.eventLog.fileRows", { count: preview.data.row_count })}</strong>
+              {!showAllRows && preview.data.row_count > PREVIEW_ROWS && <Button size="sm" variant="outline" onClick={() => { setShowAllRows(true); setPage(0); }}>{t("simulation.eventLog.viewAll")}</Button>}
+            </div>
+            <PreviewTable columns={preview.data.columns} rows={preview.data.sample_rows} used={usedColumns(draft)} start={page * pageSize} />
+            {showAllRows && preview.data.row_count > pageSize && <div className="sim-eventlog-pagination">
+              <span>{t("simulation.eventLog.rowRange", { from: page * pageSize + 1, to: Math.min((page + 1) * pageSize, preview.data.row_count), total: preview.data.row_count })}</span>
+              <Button size="sm" variant="outline" disabled={page === 0 || preview.isFetching} onClick={() => setPage((value) => value - 1)}>{t("simulation.eventLog.previousPage")}</Button>
+              <Button size="sm" variant="outline" disabled={(page + 1) * pageSize >= preview.data.row_count || preview.isFetching} onClick={() => setPage((value) => value + 1)}>{t("simulation.eventLog.nextPage")}</Button>
+            </div>}
+          </>}
           <ColumnsForm draft={draft} columns={columns} onChange={update} />
           <div className="sim-eventlog-actions">
             <Button size="sm" onClick={() => setStep("formats")}>{t("simulation.eventLog.next")}</Button>
@@ -257,7 +289,7 @@ function EventLogWizard({ log, onClose, onDecorations }: {
 
       {step === "formats" && (
         <section className="sim-eventlog-step" aria-label={t("simulation.eventLog.step.formats")}>
-          <FormatsForm draft={draft} onChange={update} />
+          <FormatsForm draft={draft} dateValues={dateValues} needsDateChoice={needsDateChoice} onDateConfirmed={() => setDateConfirmed(true)} onChange={update} />
           {issues.length > 0 && (
             <InlineNotice tone="warning" title={t("simulation.eventLog.incomplete")}>
               <ul>{issues.map((issue) => <li key={issue}>{t(`simulation.eventLog.issue.${issue}`)}</li>)}</ul>
@@ -265,7 +297,7 @@ function EventLogWizard({ log, onClose, onDecorations }: {
           )}
           <div className="sim-eventlog-actions">
             <Button size="sm" variant="ghost" onClick={() => setStep("columns")}>{t("simulation.eventLog.previous")}</Button>
-            <Button size="sm" disabled={issues.length > 0 || apply.isPending} onClick={() => run()}>
+            <Button size="sm" disabled={issues.length > 0 || needsDateChoice || apply.isPending} onClick={() => run()}>
               {apply.isPending ? t("simulation.eventLog.applying") : t("simulation.eventLog.apply")}
             </Button>
           </div>
@@ -324,7 +356,7 @@ function EventLogWizard({ log, onClose, onDecorations }: {
 
       {step === "compare" && analysis && (
         analysis.summary
-          ? <RealVsSimulatedStep summary={analysis.summary} realCases={analysis.quality.cases} onDecorations={onDecorations} />
+          ? <RealVsSimulatedStep eventLogId={analysis.event_log.id} summary={analysis.summary} realCases={analysis.quality.cases} onDecorations={onDecorations} />
           : <InlineNotice tone="warning" title={t("simulation.eventLog.noKpis")} />
       )}
     </div>
@@ -361,16 +393,16 @@ function TemplatePicker({ templates, columns, disabled, onApply }: {
   );
 }
 
-function PreviewTable({ columns, rows, used }: { columns: string[]; rows: string[][]; used: Set<string> }): React.JSX.Element {
+function PreviewTable({ columns, rows, used, start }: { columns: string[]; rows: string[][]; used: Set<string>; start: number }): React.JSX.Element {
   const { t } = useTranslation("process");
   return (
     <div className="sim-eventlog-preview" role="region" aria-label={t("simulation.eventLog.preview")} tabIndex={0}>
       <table>
         <thead>
-          <tr>{columns.map((column) => <th key={column} scope="col" data-used={used.has(column) || undefined}>{column}</th>)}</tr>
+          <tr><th scope="col">#</th>{columns.map((column) => <th key={column} scope="col" data-used={used.has(column) || undefined}>{column}</th>)}</tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}
+          {rows.map((row, index) => <tr key={start + index}><th scope="row">{start + index + 2}</th>{columns.map((column, cellIndex) => <td key={column}>{row[cellIndex] ?? ""}</td>)}</tr>)}
         </tbody>
       </table>
     </div>
@@ -441,8 +473,12 @@ function ColumnsForm({ draft, columns, onChange }: {
   const { t } = useTranslation("process");
   return (
     <div className="sim-eventlog-form">
+      <p className="sim-eventlog-hint">{t("simulation.eventLog.mappingHelp")}</p>
+      <h3 className="sim-eventlog-title">{t("simulation.eventLog.requiredColumns")}</h3>
       <MultiColumn label={t("simulation.eventLog.field.caseId")} values={draft.caseId} columns={columns} onChange={(caseId) => onChange({ caseId })} />
+      <p className="sim-eventlog-hint">{t("simulation.eventLog.caseHelp")}</p>
       <MultiColumn label={t("simulation.eventLog.field.activity")} values={draft.activity} columns={columns} onChange={(activity) => onChange({ activity })} />
+      <p className="sim-eventlog-hint">{t("simulation.eventLog.activityHelp")}</p>
       <fieldset className="sim-eventlog-shape">
         <legend>{t("simulation.eventLog.field.timeShape")}</legend>
         {(["interval", "transition"] as const).map((shape) => (
@@ -464,11 +500,14 @@ function ColumnsForm({ draft, columns, onChange }: {
           <ColumnSelect label={t("simulation.eventLog.field.lifecycle")} value={draft.lifecycle} columns={columns} optional onChange={(lifecycle) => onChange({ lifecycle })} />
         </>
       )}
-      <ColumnSelect label={t("simulation.eventLog.field.resource")} value={draft.resource} columns={columns} optional onChange={(resource) => onChange({ resource })} />
-      <ColumnSelect label={t("simulation.eventLog.field.role")} value={draft.role} columns={columns} optional onChange={(role) => onChange({ role })} />
-      <ColumnSelect label={t("simulation.eventLog.field.cost")} value={draft.cost} columns={columns} optional onChange={(cost) => onChange({ cost })} />
-      <AttributeList level="case" items={draft.caseAttributes} columns={columns} onChange={(caseAttributes) => onChange({ caseAttributes })} />
-      <AttributeList level="event" items={draft.eventAttributes} columns={columns} onChange={(eventAttributes) => onChange({ eventAttributes })} />
+      <details className="sim-eventlog-advanced">
+        <summary>{t("simulation.eventLog.optionalColumns")}</summary>
+        <ColumnSelect label={t("simulation.eventLog.field.resource")} value={draft.resource} columns={columns} optional onChange={(resource) => onChange({ resource })} />
+        <ColumnSelect label={t("simulation.eventLog.field.role")} value={draft.role} columns={columns} optional onChange={(role) => onChange({ role })} />
+        <ColumnSelect label={t("simulation.eventLog.field.cost")} value={draft.cost} columns={columns} optional onChange={(cost) => onChange({ cost })} />
+        <AttributeList level="case" items={draft.caseAttributes} columns={columns} onChange={(caseAttributes) => onChange({ caseAttributes })} />
+        <AttributeList level="event" items={draft.eventAttributes} columns={columns} onChange={(eventAttributes) => onChange({ eventAttributes })} />
+      </details>
     </div>
   );
 }
@@ -513,36 +552,47 @@ function AttributeList({ level, items, columns, onChange }: {
   );
 }
 
-function FormatsForm({ draft, onChange }: { draft: MappingDraft; onChange: (patch: Partial<MappingDraft>) => void }): React.JSX.Element {
+function FormatsForm({ draft, dateValues, needsDateChoice, onDateConfirmed, onChange }: { draft: MappingDraft; dateValues: string[]; needsDateChoice: boolean; onDateConfirmed: () => void; onChange: (patch: Partial<MappingDraft>) => void }): React.JSX.Element {
   const { t } = useTranslation("process");
   return (
     <div className="sim-eventlog-form">
+      <p className="sim-eventlog-hint">{t("simulation.eventLog.formatsHelp")}</p>
       <label className="sim-field">
         <span>{t("simulation.eventLog.field.pattern")}</span>
-        <input value={draft.pattern} placeholder="%d/%m/%Y %H:%M" onChange={(event) => onChange({ pattern: event.target.value })} aria-describedby="eventlog-pattern-hint" />
-        <small id="eventlog-pattern-hint">{t("simulation.eventLog.field.patternHint")}</small>
-      </label>
-      <label className="sim-field">
-        <span>{t("simulation.eventLog.field.timezone")}</span>
-        <input value={draft.timezone} onChange={(event) => onChange({ timezone: event.target.value })} />
-      </label>
-      <label className="sim-field">
-        <span>{t("simulation.eventLog.field.decimal")}</span>
-        <select value={draft.decimal} onChange={(event) => onChange({ decimal: event.target.value as "." | "," })}>
-          <option value=".">{t("simulation.eventLog.separator.dot")}</option>
-          <option value=",">{t("simulation.eventLog.separator.comma")}</option>
+        <select value={needsDateChoice ? "__choose__" : draft.pattern} onChange={(event) => { onChange({ pattern: event.target.value }); onDateConfirmed(); }}>
+          {needsDateChoice && <option value="__choose__">{t("simulation.eventLog.chooseDateFormat")}</option>}
+          {!DATE_FORMATS.some((format) => format.value === draft.pattern) && <option value={draft.pattern}>{draft.pattern}</option>}
+          {DATE_FORMATS.map((format) => <option key={format.value} value={format.value}>{format.sample}</option>)}
         </select>
+        <small>{dateValues.find(Boolean) ? t("simulation.eventLog.dateExample", { value: dateValues.find(Boolean) }) : t("simulation.eventLog.noDateExample")}</small>
       </label>
-      <label className="sim-field">
-        <span>{t("simulation.eventLog.field.thousands")}</span>
-        <select value={draft.thousands} onChange={(event) => onChange({ thousands: event.target.value as Thousands })}>
-          <option value="">{t("simulation.eventLog.separator.none")}</option>
-          <option value=".">{t("simulation.eventLog.separator.dot")}</option>
-          <option value=",">{t("simulation.eventLog.separator.comma")}</option>
-          <option value=" ">{t("simulation.eventLog.separator.space")}</option>
-          <option value="'">{t("simulation.eventLog.separator.apostrophe")}</option>
-        </select>
-      </label>
+      <details className="sim-eventlog-advanced">
+        <summary>{t("simulation.eventLog.advancedFormats")}</summary>
+        <label className="sim-field">
+          <span>{t("simulation.eventLog.field.timezone")}</span>
+          <select value={draft.timezone} onChange={(event) => onChange({ timezone: event.target.value })}>
+            {(["Europe/Rome", "UTC", "Europe/London", "America/New_York", "America/Los_Angeles", "Asia/Dubai"] as const).map((zone) => <option key={zone} value={zone}>{zone}</option>)}
+            {!(["Europe/Rome", "UTC", "Europe/London", "America/New_York", "America/Los_Angeles", "Asia/Dubai"] as string[]).includes(draft.timezone) && <option value={draft.timezone}>{draft.timezone}</option>}
+          </select>
+        </label>
+        <label className="sim-field">
+          <span>{t("simulation.eventLog.field.decimal")}</span>
+          <select value={draft.decimal} onChange={(event) => onChange({ decimal: event.target.value as "." | "," })}>
+            <option value=".">{t("simulation.eventLog.separator.dot")}</option>
+            <option value=",">{t("simulation.eventLog.separator.comma")}</option>
+          </select>
+        </label>
+        <label className="sim-field">
+          <span>{t("simulation.eventLog.field.thousands")}</span>
+          <select value={draft.thousands} onChange={(event) => onChange({ thousands: event.target.value as Thousands })}>
+            <option value="">{t("simulation.eventLog.separator.none")}</option>
+            <option value=".">{t("simulation.eventLog.separator.dot")}</option>
+            <option value=",">{t("simulation.eventLog.separator.comma")}</option>
+            <option value=" ">{t("simulation.eventLog.separator.space")}</option>
+            <option value="'">{t("simulation.eventLog.separator.apostrophe")}</option>
+          </select>
+        </label>
+      </details>
     </div>
   );
 }
@@ -565,6 +615,7 @@ function ResultsStep({ analysis, draft, templateId, columns, onNext }: {
   return (
     <section className="sim-eventlog-step" aria-label={t("simulation.eventLog.step.results")}>
       <h3 className="sim-eventlog-title">{t("simulation.eventLog.quality")}</h3>
+      <InlineNotice tone={quality.rows_excluded > 0 ? "warning" : undefined} title={quality.rows_excluded > 0 ? t("simulation.eventLog.qualityNeedsReview", { count: quality.rows_excluded }) : t("simulation.eventLog.qualityReady")}>{t("simulation.eventLog.qualitySummary", { read: quality.rows_read, used: quality.events })}</InlineNotice>
       <div className="sim-eventlog-tiles">
         <StatTile label={t("simulation.eventLog.kpi.events")} value={quality.events} hint={t("simulation.eventLog.kpi.rowsRead", { count: quality.rows_read })} />
         <StatTile label={t("simulation.eventLog.kpi.excluded")} value={quality.rows_excluded} tone={quality.rows_excluded > 0 ? "warning" : "ok"} />

@@ -35,6 +35,15 @@
 .sim-eventlog-preview th, .sim-eventlog-preview td { padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; text-align: left; }
 .sim-eventlog-preview th { font-weight: 600; background: var(--muted); }
 .sim-eventlog-preview th[data-used] { color: var(--primary); }
+.sim-eventlog-preview-head, .sim-eventlog-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: var(--font-size-100); }
+.sim-eventlog-preview-head strong { font-weight: 600; }
+.sim-eventlog-preview tbody th { font-variant-numeric: tabular-nums; color: var(--muted-foreground); font-weight: 400; }
+.sim-eventlog-advanced { display: grid; min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); }
+.sim-eventlog-advanced summary { cursor: pointer; font-size: var(--font-size-100); font-weight: 600; }
+.sim-eventlog-advanced[open] { gap: 10px; }
+.sim-eventlog-advanced > .sim-field, .sim-eventlog-advanced > .sim-eventlog-attributes { margin-top: 10px; }
+.sim-eventlog-preview { max-height: min(54vh, 600px); overflow: auto; }
+.sim-eventlog-preview thead { position: sticky; top: 0; z-index: 1; }
 .sim-eventlog-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .sim-eventlog-issues { display: grid; gap: 6px; font-size: var(--font-size-100); }
 /* Qualita' del log con i token di dominio: righe escluse = fail, valori corretti o scartati = warning. */

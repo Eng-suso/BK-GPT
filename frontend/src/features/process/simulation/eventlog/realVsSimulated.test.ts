@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SimulationSummary } from "../simulationTypes";
 import type { EventLogSummary } from "./eventLogTypes";
-import { compareRealToSimulated, fidelityOf, relativeGap, worstFidelity } from "./realVsSimulated";
+import { compareRealToSimulated, fidelityOf, relativeGap, withComparableKpis, worstFidelity } from "./realVsSimulated";
 
 const activity = (el: string | null, name: string, wait: number, processing: number, count = 10) => ({
   el,
@@ -21,6 +21,8 @@ function real(overrides: Partial<EventLogSummary> = {}): EventLogSummary {
     throughputPerHour: 2,
     cost: null,
     timing: "start_and_end",
+    firstEnableObserved: true,
+    enablementObserved: true,
     byActivity: [activity("Task_A", "Approva", 600, 1200), activity("Task_B", "Paga", 600, 1200), activity(null, "Archivia", 0, 60), activity("Task_D", "Sollecita", 0, 60)],
     ...overrides,
   } as EventLogSummary;
@@ -77,6 +79,28 @@ describe("compareRealToSimulated", () => {
     expect(result.process.find((row) => row.key === "waitingAvg")?.notComparable).toBe("noStart");
     expect(result.process.find((row) => row.key === "processingAvg")?.notComparable).toBe("noStart");
     expect(result.activities.every((row) => row.processingGap === null && row.realWait === null && row.realProcessing === null)).toBe(true);
+  });
+
+  it("does not judge raw cycle and waiting gaps when initial enablement is unobserved", () => {
+    const result = compareRealToSimulated(real({ firstEnableObserved: false, enablementObserved: false }), simulated());
+    for (const key of ["cycleAvg", "cycleP50", "cycleP90", "waitingAvg"]) {
+      expect(result.process.find((row) => row.key === key)?.notComparable).toBe("noFirstEnable");
+    }
+    expect(result.fidelity).toBeNull();
+  });
+
+  it("uses the validator's matching definitions for one run instead of raw enable-to-end times", () => {
+    const raw = compareRealToSimulated(real({ firstEnableObserved: false, enablementObserved: false }), simulated());
+    const matched = withComparableKpis(raw, {
+      cycle: { real: 2160, mean: 2100 }, p50: { real: 2400, mean: 2400 },
+      p90: { real: 2940, mean: 2880 }, between: { real: 360, mean: 330 },
+      processing: { real: 1860, mean: 1830 }, throughput: { real: 173, mean: 174 },
+    }, ["Task_A"]);
+    expect(matched.process.find((row) => row.key === "cycleAvg")).toMatchObject({ real: 2160, simulated: 2100 });
+    expect(matched.process.find((row) => row.key === "cycleAvg")?.notComparable).toBeUndefined();
+    expect(matched.process.find((row) => row.key === "waitingAvg")?.gap).toBeCloseTo(-1 / 12);
+    expect(matched.fidelity).toBe("close");
+    expect(matched.activities.find((row) => row.el === "Task_A")).toMatchObject({ realWait: null, simulatedWait: 700, initialWaitUnobserved: true });
   });
 
   it("joins activities on the BPMN element, largest gap first", () => {

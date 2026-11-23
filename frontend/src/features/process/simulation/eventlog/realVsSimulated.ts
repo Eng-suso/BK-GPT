@@ -13,7 +13,7 @@ import type { SimulationSummary } from "../simulationTypes";
 
 export type Fidelity = "close" | "calibrate" | "far";
 export type GapFormat = "duration" | "rate" | "currency";
-export type NotComparable = "noStart" | "noCost" | "missing";
+export type NotComparable = "noStart" | "noCost" | "noFirstEnable" | "missing";
 
 export type KpiGap = {
   key: "cycleAvg" | "cycleP50" | "cycleP90" | "waitingAvg" | "processingAvg" | "throughput" | "costPerCase";
@@ -40,6 +40,7 @@ export type ActivityGap = {
   simulatedProcessing: number;
   processingGap: number | null;
   waitGap: number | null;
+  initialWaitUnobserved?: boolean;
   fidelity: Fidelity | null;
 };
 
@@ -55,6 +56,28 @@ export type RealVsSimulated = {
   /** Giudizio complessivo: il peggiore fra cycle time medio e P90. */
   fidelity: Fidelity | null;
 };
+
+export type ComparableKpis = Record<"cycle" | "p50" | "p90" | "between" | "processing" | "throughput", { real: number; mean: number }>;
+
+/** Replace raw enable-to-end run KPIs with the same observable definitions on both sides. */
+export function withComparableKpis(comparison: RealVsSimulated, kpis: ComparableKpis, initialActivities: string[] = []): RealVsSimulated {
+  const keys: Partial<Record<KpiGap["key"], keyof ComparableKpis>> = {
+    cycleAvg: "cycle", cycleP50: "p50", cycleP90: "p90", waitingAvg: "between",
+    processingAvg: "processing", throughput: "throughput",
+  };
+  const process = comparison.process.map((row) => {
+    const key = keys[row.key];
+    return key ? gapRow(row.key, row.format, kpis[key].real, kpis[key].mean) : row;
+  });
+  return {
+    ...comparison,
+    process,
+    activities: comparison.activities.map((row) => initialActivities.includes(row.el)
+      ? { ...row, realWait: null, waitGap: null, initialWaitUnobserved: true }
+      : row),
+    fidelity: worstFidelity(process.filter((row) => row.key === "cycleAvg" || row.key === "cycleP90").map((row) => row.fidelity)),
+  };
+}
 
 /** Soglie dello scarto relativo: entro il 10% vicino, entro il 25% da calibrare. */
 export const FIDELITY_CLOSE = 0.1;
@@ -114,11 +137,13 @@ export function compareRealToSimulated(real: EventLogSummary, simulated: Simulat
   // Con il solo completamento l'attesa non si separa dalla lavorazione: il log
   // mette tutto in lavorazione, quindi nessuno dei due si confronta.
   const noStart: NotComparable | undefined = real.timing === "complete_only" ? "noStart" : undefined;
+  const noFirstEnable: NotComparable | undefined = real.firstEnableObserved !== true ? "noFirstEnable" : undefined;
+  const noEnable: NotComparable | undefined = real.enablementObserved !== true ? "noFirstEnable" : undefined;
   const process: KpiGap[] = [
-    gapRow("cycleAvg", "duration", at(real, "cycle", "avg"), at(simulated, "cycle", "avg")),
-    gapRow("cycleP50", "duration", at(real, "cycle", "p50"), at(simulated, "cycle", "p50")),
-    gapRow("cycleP90", "duration", at(real, "cycle", "p90"), at(simulated, "cycle", "p90")),
-    gapRow("waitingAvg", "duration", at(real, "waiting", "avg"), at(simulated, "waiting", "avg"), noStart),
+    gapRow("cycleAvg", "duration", at(real, "cycle", "avg"), at(simulated, "cycle", "avg"), noFirstEnable),
+    gapRow("cycleP50", "duration", at(real, "cycle", "p50"), at(simulated, "cycle", "p50"), noFirstEnable),
+    gapRow("cycleP90", "duration", at(real, "cycle", "p90"), at(simulated, "cycle", "p90"), noFirstEnable),
+    gapRow("waitingAvg", "duration", at(real, "waiting", "avg"), at(simulated, "waiting", "avg"), noStart ?? noEnable),
     gapRow("processingAvg", "duration", at(real, "processing", "avg"), at(simulated, "processing", "avg"), noStart),
     gapRow("throughput", "rate", num(real.throughputPerHour), num(simulated.throughputPerHour)),
     gapRow("costPerCase", "currency", real.cost ? num(real.cost.perCase) : null, at(simulated, "cost", "perCase"), real.cost ? undefined : "noCost"),
@@ -174,7 +199,7 @@ export function compareRealToSimulated(real: EventLogSummary, simulated: Simulat
       realProcessing,
       simulatedProcessing,
       processingGap,
-      waitGap: relativeGap(realWait, simulatedWait),
+      waitGap: noEnable ? null : relativeGap(realWait, simulatedWait),
       fidelity: fidelityOf(processingGap),
     };
   });

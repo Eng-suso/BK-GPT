@@ -122,6 +122,14 @@ function routes(overrides: Record<string, unknown> = {}) {
     switch (key) {
       case "GET /v1/workspace/processes/acquisti/event-logs": return [LOG];
       case "GET /v1/workspace/event-logs/elog_1/preview": return PREVIEW;
+      case "GET /v1/workspace/event-logs/elog_1/validation": return {
+        referenceCases: 1, simulatedCases: [1], replications: 1, runIds: [7], basis: "first_observed_start_and_between_activities", initialActivities: ["T1"],
+        kpis: Object.fromEntries(["cycle", "p50", "p90", "between", "processing", "throughput"].map((key) => [key, { real: 100, mean: 105, ci95Half: null, min: 105, max: 105, bias: 5, mae: 5 }])),
+        distances: { cycleW1: { mean: 0, ci95Half: null, min: 0, max: 0 }, ngd: { mean: 0, ci95Half: null, min: 0, max: 0 } },
+        pooledCycle: { p50: 1, p90: 1 },
+        firstWaitSimulated: null, quality: { rowsExcluded: 0, eventsWithoutStart: 0 },
+        provenance: { eventLogId: "elog_1", runs: [{ runId: 7, seed: 1, engine: "Prosimos", engineVersion: "1", startDate: "2026-11-23T00:00:00+00:00", warmupCases: 0 }] },
+      };
       case "GET /v1/workspace/event-log-templates": return [];
       case "POST /v1/workspace/bpmn-models/acquisti-bpmn/simulation-template": return MODEL;
       case "POST /v1/workspace/event-logs/elog_1/mapping": return ANALYSIS;
@@ -151,6 +159,8 @@ const TIMED_ANALYSIS = {
     waiting: { avg: 1800 },
     processing: { avg: 5400 },
     timing: "start_and_end",
+    firstEnableObserved: true,
+    enablementObserved: true,
     byActivity: [activityKpis("T1", "Ricevi richiesta", 600, 1800), activityKpis(null, "Approva", 1200, 3600)],
   },
 };
@@ -171,7 +181,7 @@ const RUN = {
 };
 
 function calls(method: string, path: string) {
-  return http.mock.calls.filter(([p, o]) => p === path && ((o as { method?: string } | undefined)?.method ?? "GET") === method);
+  return http.mock.calls.filter(([p, o]) => p.split("?")[0] === path && ((o as { method?: string } | undefined)?.method ?? "GET") === method);
 }
 
 afterEach(() => {
@@ -179,7 +189,7 @@ afterEach(() => {
 });
 
 describe("EventLogPanel", () => {
-  it("uploads a file with the chosen separator and opens the wizard", async () => {
+  it("uploads a file with automatic separator detection and opens the wizard", async () => {
     routes({
       "GET /v1/workspace/processes/acquisti/event-logs": [],
       "POST /v1/workspace/processes/acquisti/event-logs": { ...LOG, created: true, preview: PREVIEW },
@@ -188,12 +198,11 @@ describe("EventLogPanel", () => {
     renderPanel();
 
     expect(await screen.findByText("Nessun event log")).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("Separatore"), ";");
     await user.upload(screen.getByLabelText("File dell'event log"), new File(["a;b"], "erp.csv", { type: "text/csv" }));
 
     await waitFor(() => expect(calls("POST", "/v1/workspace/processes/acquisti/event-logs")).toHaveLength(1));
     const body = (calls("POST", "/v1/workspace/processes/acquisti/event-logs")[0][1] as { body: FormData }).body;
-    expect(body.get("delimiter")).toBe(";");
+    expect(body.get("delimiter")).toBeNull();
     expect((body.get("file") as File).name).toBe("erp.csv");
   });
 
@@ -203,14 +212,13 @@ describe("EventLogPanel", () => {
     renderPanel();
 
     await user.click(await screen.findByRole("button", { name: /^erp\.csv/ }));
-    expect(await screen.findByRole("region", { name: "Anteprima delle prime righe" })).toHaveTextContent("PO-1");
+    expect(await screen.findByRole("region", { name: "Righe dell'event log" })).toHaveTextContent("PO-1");
 
     const caseId = screen.getByRole("group", { name: "Identificativo del caso" });
-    await user.selectOptions(within(caseId).getByRole("combobox"), "Ordine");
+    expect(caseId).toHaveTextContent("Ordine");
     const activity = screen.getByRole("group", { name: "Attività" });
-    await user.selectOptions(within(activity).getByRole("combobox"), "Attivita");
-    await user.selectOptions(screen.getByLabelText("Fine (o completamento)"), "Fine");
-    await user.selectOptions(screen.getByLabelText("Risorsa"), "Utente");
+    expect(activity).toHaveTextContent("Attivita");
+    expect(screen.getByLabelText("Fine (o completamento)")).toHaveValue("Fine");
     await user.click(screen.getByRole("button", { name: "Avanti" }));
     await user.click(screen.getByRole("button", { name: "Applica il mapping" }));
 
@@ -225,7 +233,7 @@ describe("EventLogPanel", () => {
   });
 
   it("does not apply an incomplete mapping and says what is missing", async () => {
-    routes();
+    routes({ "GET /v1/workspace/processes/acquisti/event-logs": [{ ...LOG, columns: ["A", "B", "C", "D"] }] });
     const user = userEvent.setup();
     renderPanel();
 
@@ -267,7 +275,10 @@ describe("EventLogPanel", () => {
   it("compares the real log with a completed run and paints the gaps on the process", async () => {
     routes({
       "GET /v1/workspace/processes/acquisti/event-logs": [ANALYSIS.event_log],
-      "GET /v1/workspace/event-logs/elog_1/analysis": TIMED_ANALYSIS,
+      "GET /v1/workspace/event-logs/elog_1/analysis": {
+        ...TIMED_ANALYSIS,
+        summary: { ...TIMED_ANALYSIS.summary, firstEnableObserved: false, enablementObserved: false },
+      },
     });
     const onDecorations = vi.fn();
     const user = userEvent.setup();
@@ -276,13 +287,17 @@ describe("EventLogPanel", () => {
     await user.click(await screen.findByRole("button", { name: /^erp\.csv/ }));
     await user.click(await screen.findByRole("button", { name: /Reale contro simulato$/ }));
 
-    expect(screen.getByText("Il simulato è vicino al reale")).toBeInTheDocument();
-    const process = screen.getAllByRole("table")[0];
+    expect(await screen.findByText("Validazione aggregata")).toBeInTheDocument();
+
+    expect(screen.getByText("Questa replica è vicina al log")).toBeInTheDocument();
+    const process = screen.getAllByRole("table").find((table) => within(table).queryByRole("row", { name: /Tempo medio di attraversamento/ }))!;
     expect(within(within(process).getByRole("row", { name: /Tempo medio di attraversamento/ })).getByText("+5%")).toBeInTheDocument();
     expect(within(process).getByRole("row", { name: /Costo per caso/ })).toHaveTextContent("il log non ha costi");
+    expect(screen.getByText(/Attraversamento completo, solo simulato/)).toBeInTheDocument();
 
     const activities = screen.getByRole("table", { name: /Lavorazione e attesa medie per attività/ });
     expect(within(activities).getByRole("row", { name: /Ricevi richiesta/ })).toHaveTextContent("+50%");
+    expect(within(activities).getByRole("row", { name: /Ricevi richiesta/ })).toHaveTextContent("attesa iniziale non osservabile");
     expect(screen.getByText(/1 attività del log senza elemento del modello/).closest("section")).toHaveTextContent("Approva");
     expect(screen.getByText(/1 attività simulate che il log non ha mai visto/)).toBeInTheDocument();
 
@@ -291,6 +306,42 @@ describe("EventLogPanel", () => {
     expect(onDecorations).toHaveBeenLastCalledWith([
       { elementId: "T1", markers: ["sim-fidelity-far"], badge: "+50%", badgeTone: "danger" },
     ]);
+  });
+
+  it("requests one aggregate report for the selected replication group", async () => {
+    routes({
+      "GET /v1/workspace/processes/acquisti/event-logs": [ANALYSIS.event_log],
+      "GET /v1/workspace/event-logs/elog_1/analysis": TIMED_ANALYSIS,
+    });
+    const first = { ...RUN, request: { replication_group: "batch-a", replication_index: 1 } };
+    const second = { ...RUN, id: 8, request: { replication_group: "batch-a", replication_index: 2 } };
+    const user = userEvent.setup();
+    renderPanel({ ...SECTION, runs: [first, second], activeRunId: 8 } as unknown as SimulationSectionValue);
+
+    await user.click(await screen.findByRole("button", { name: /^erp\.csv/ }));
+    await user.click(await screen.findByRole("button", { name: /Reale contro simulato$/ }));
+    await waitFor(() => expect(calls("GET", "/v1/workspace/event-logs/elog_1/validation")).toHaveLength(2));
+    expect(http.mock.calls.some(([path]) => path.includes("run_ids=7&run_ids=8"))).toBe(true);
+  });
+
+  it("flags legacy runs without a fixed start and hides their misleading aggregate KPIs", async () => {
+    routes({
+      "GET /v1/workspace/processes/acquisti/event-logs": [ANALYSIS.event_log],
+      "GET /v1/workspace/event-logs/elog_1/analysis": TIMED_ANALYSIS,
+      "GET /v1/workspace/event-logs/elog_1/validation": {
+        referenceCases: 1000, replications: 1, simulatedCases: [1000],
+        firstWaitSimulated: null, quality: { rowsExcluded: 0, eventsWithoutStart: 0 },
+        provenance: { eventLogId: "elog_1", runs: [{ runId: 7, seed: 1, engine: "Prosimos", engineVersion: "1", startDate: null, warmupCases: 0 }] },
+      },
+    });
+    const user = userEvent.setup();
+    renderPanel({ ...SECTION, runs: [{ ...RUN, request: { start_date: null } }], activeRunId: 7 } as unknown as SimulationSectionValue);
+
+    await user.click(await screen.findByRole("button", { name: /^erp\.csv/ }));
+    await user.click(await screen.findByRole("button", { name: /Reale contro simulato$/ }));
+    expect((await screen.findAllByText("Repliche avviate senza data iniziale")).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("row", { name: /Attraversamento osservabile/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /Tempo medio di attraversamento/ })).not.toBeInTheDocument();
   });
 
   it("asks for a run when there is nothing to compare yet", async () => {
@@ -335,6 +386,6 @@ describe("EventLogPanel", () => {
     await user.click(await screen.findByRole("button", { name: /^erp\.csv/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Non riesco a leggere il report");
     await user.click(screen.getByRole("button", { name: "Rivedi le colonne" }));
-    expect(await screen.findByRole("region", { name: "Anteprima delle prime righe" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Righe dell'event log" })).toBeInTheDocument();
   });
 });

@@ -141,6 +141,8 @@ export const eventLogSummarySchema = z
     throughputPerHour: z.number(),
     cost: z.object({ total: z.number(), perCase: z.number().nullable() }).loose().nullable(),
     timing: z.enum(["start_and_end", "complete_only", "mixed"]),
+    firstEnableObserved: z.boolean().optional(),
+    enablementObserved: z.boolean().optional(),
   })
   .loose();
 export type EventLogSummary = z.infer<typeof eventLogSummarySchema>;

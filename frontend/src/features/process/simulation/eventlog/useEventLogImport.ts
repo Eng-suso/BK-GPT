@@ -14,7 +14,7 @@ import type { ApplyMappingInput, ColumnMapping, Delimiter } from "./eventLogType
 
 export const eventLogKeys = {
   list: (processId: string) => ["workspace", "event-logs", processId] as const,
-  preview: (eventLogId: string, delimiter: Delimiter | null) => ["workspace", "event-log-preview", eventLogId, delimiter] as const,
+  preview: (eventLogId: string, delimiter: Delimiter | null, offset: number, limit: number) => ["workspace", "event-log-preview", eventLogId, delimiter, offset, limit] as const,
   analysis: (eventLogId: string) => ["workspace", "event-log-analysis", eventLogId] as const,
   templates: ["workspace", "event-log-templates"] as const,
 };
@@ -23,10 +23,10 @@ export function useEventLogs(processId: string) {
   return useQuery({ queryKey: eventLogKeys.list(processId), queryFn: () => fetchEventLogs(processId) });
 }
 
-export function useEventLogPreview(eventLogId: string | null, delimiter: Delimiter | null) {
+export function useEventLogPreview(eventLogId: string | null, delimiter: Delimiter | null, offset = 0, limit = 20) {
   return useQuery({
-    queryKey: eventLogKeys.preview(eventLogId ?? "", delimiter),
-    queryFn: () => fetchEventLogPreview(eventLogId!, delimiter ?? undefined),
+    queryKey: eventLogKeys.preview(eventLogId ?? "", delimiter, offset, limit),
+    queryFn: () => fetchEventLogPreview(eventLogId!, delimiter ?? undefined, offset, limit),
     enabled: Boolean(eventLogId),
   });
 }
