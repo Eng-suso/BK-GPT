@@ -1432,6 +1432,8 @@
           "title": "Aggregate validation",
           "loading": "Comparing the replications…",
           "error": "Could not calculate validation",
+          "completeOnlyTitle": "The log records completions only",
+          "completeOnly": "Comparing cycle times needs the start of every activity. Below you find the comparison by activity for what the log does record.",
           "scope": "{{runs}} replications compared with {{cases}} real cases",
           "basis": "Comparable times: cycle from first observed start; waiting between activities. Waiting before the first activity is shown separately.",
           "calibration": "This report measures fit to the log. If the same log calibrated the scenario, it does not measure predictive performance on independent data.",

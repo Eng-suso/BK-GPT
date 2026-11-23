@@ -38,7 +38,8 @@ export function RealVsSimulatedStep({ eventLogId, summary, realCases, onDecorati
   const selectedValidation = useQuery({
     queryKey: ["event-log-validation", eventLogId, String(run?.id ?? "")],
     queryFn: () => http<{ kpis: ComparableKpis; initialActivities: string[] }>(`/v1/workspace/event-logs/${encodeURIComponent(eventLogId!)}/validation?run_ids=${run!.id}`),
-    enabled: Boolean(eventLogId && run && run.request?.start_date !== null),
+    // Il server confronta solo log con inizio e fine: per i soli completamenti non si chiede.
+    enabled: Boolean(eventLogId && run && run.request?.start_date !== null && summary.timing !== "complete_only"),
   });
 
   const decorations = React.useMemo<NodeDecoration[]>(
@@ -79,14 +80,15 @@ export function RealVsSimulatedStep({ eventLogId, summary, realCases, onDecorati
     );
   }
 
-  const comparable = selectedValidation.data
-    ? withComparableKpis(comparison, selectedValidation.data.kpis, selectedValidation.data.initialActivities)
-    : eventLogId ? null : comparison;
+  const validated = selectedValidation.data?.kpis ? selectedValidation.data : null;
+  const comparable = validated
+    ? withComparableKpis(comparison, validated.kpis, validated.initialActivities)
+    : !eventLogId || summary.timing === "complete_only" ? comparison : null;
   const cycle = comparable?.process.find((row) => row.key === "cycleAvg");
   const p90 = comparable?.process.find((row) => row.key === "cycleP90");
   return (
     <section className="sim-eventlog-step" aria-label={t("simulation.eventLog.step.compare")}>
-      {eventLogId && <ValidationReport eventLogId={eventLogId} run={run} runs={runs} />}
+      {eventLogId && <ValidationReport eventLogId={eventLogId} run={run} runs={runs} completeOnly={summary.timing === "complete_only"} />}
       <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.intro")}</p>
       <label className="sim-field">
         <span>{t("simulation.eventLog.compare.run")}</span>
@@ -106,7 +108,7 @@ export function RealVsSimulatedStep({ eventLogId, summary, realCases, onDecorati
       </p>
 
       <h3 className="sim-eventlog-title">{t("simulation.eventLog.compare.process")}</h3>
-      {selectedValidation.isPending && eventLogId && <p role="status">{t("simulation.eventLog.compare.validation.loading")}</p>}
+      {selectedValidation.isLoading && <p role="status">{t("simulation.eventLog.compare.validation.loading")}</p>}
       {selectedValidation.isError && <InlineNotice tone="error" title={t("simulation.eventLog.compare.validation.error")}>
         {httpErrorMessage(selectedValidation.error, t("simulation.eventLog.compare.validation.error"))}
       </InlineNotice>}
