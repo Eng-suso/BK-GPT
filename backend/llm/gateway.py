@@ -47,6 +47,7 @@ from backend.llm.usage import (
     record,
     tokens_from_usage_metadata,
 )
+from backend.llm.egress import Destination, EgressBlocked, require
 from backend.llm.local_tracer import local_callbacks
 from backend.llm_config import MissingProviderKey, chat_openai_kwargs, timeout_for_input
 from backend.services import degradation_counters
@@ -224,7 +225,7 @@ def run(
 
     try:
         client = _client(profile, input_characters)
-    except MissingProviderKey:
+    except MissingProviderKey as exc:
         # Non e' una chiamata: e' una chiamata che non e' partita. Va comunque
         # registrata, altrimenti un'installazione senza chiave sembra
         # un'installazione che non spende perche' e' efficiente.
@@ -233,7 +234,7 @@ def run(
             task=task.value,
             model=model,
             outcome=Outcome.REFUSED,
-            error_kind="MissingProviderKey",
+            error_kind=type(exc).__name__,
             prompt_version=prompt_version,
             reasoning_effort=profile.reasoning_effort,
         )
@@ -600,6 +601,7 @@ def _embedding_client() -> Any:
             "OPENAI_API_KEY non configurata: nessun client di embedding puo' "
             "essere costruito."
         )
+    require(Destination.LLM_EMBEDDING)
     from openai import OpenAI
 
     profile = profile_for(LlmTask.EMBEDDING)
@@ -644,13 +646,13 @@ def embed(*, texts: list[str], dimensions: int) -> list[list[float]]:
 
     try:
         client = _embedding_client()
-    except MissingProviderKey:
+    except MissingProviderKey as exc:
         record(
             operation=operation,
             task=LlmTask.EMBEDDING.value,
             model=model,
             outcome=Outcome.REFUSED,
-            error_kind="MissingProviderKey",
+            error_kind=type(exc).__name__,
             reasoning_effort=profile.reasoning_effort,
         )
         raise
@@ -762,6 +764,19 @@ async def transcribe(*, file: Any, options: dict[str, Any]) -> Any:
             reasoning_effort=profile.reasoning_effort,
         )
         raise MissingProviderKey("OPENAI_API_KEY non configurata: trascrizione non eseguibile.")
+
+    try:
+        require(Destination.TRANSCRIPTION)
+    except EgressBlocked as exc:
+        record(
+            operation=operation,
+            task=LlmTask.TRANSCRIPTION.value,
+            model=model,
+            outcome=Outcome.REFUSED,
+            error_kind=type(exc).__name__,
+            reasoning_effort=profile.reasoning_effort,
+        )
+        raise
 
     client = _transcription_client_for(settings.openai_api_key)
 

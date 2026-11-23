@@ -121,6 +121,41 @@ class TestCosaFinisceSulFile:
         assert "risposta" not in eventi[1]
         assert eventi[1]["token"]["total_tokens"] == 25
 
+    @pytest.mark.parametrize("ambiente", ["staging", "prod", "produzione"])
+    def test_fuori_dallo_sviluppo_i_testi_non_finiscono_su_disco(self, cartella, monkeypatch, ambiente):
+        """SEC-08: in staging e prod un prompt e' l'intervista di un cliente. Un
+        file su disco senza scadenza e senza confini di tenant non e' il suo
+        posto - neanche se qualcuno ha lasciato `DELIR_LOCAL_TRACE_PAYLOAD=1`."""
+        from uuid import uuid4
+
+        from backend.settings import settings
+
+        monkeypatch.setattr(settings, "delir_environment", ambiente)
+        monkeypatch.setenv("DELIR_LOCAL_TRACE_PAYLOAD", "1")
+        h = self._handler(monkeypatch)
+        run = uuid4()
+        h.on_llm_start({"name": "ChatOpenAI"}, ["intervista a Mario Rossi"], run_id=run)
+        h.on_chat_model_start({"name": "ChatOpenAI"}, [[_Messaggio()]], run_id=uuid4())
+        h.on_llm_end(_risposta_finta(), run_id=run)
+        h.on_llm_error(ValueError("output non valido: Mario Rossi"), run_id=uuid4())
+
+        eventi = self._righe(cartella)
+        testo = json.dumps(eventi, ensure_ascii=False)
+        assert "Mario Rossi" not in testo
+        assert [e["evento"] for e in eventi] == ["llm_start", "chat_start", "llm_end", "llm_error"]
+        # Tempi, token ed esiti restano: sono la parte che serve piu' spesso.
+        assert eventi[2]["token"]["total_tokens"] == 25
+        assert eventi[3]["errore"] == "ValueError"
+        assert local_tracer.writes_payloads() is False
+
+    def test_in_sviluppo_il_messaggio_d_errore_resta(self, cartella, monkeypatch):
+        from uuid import uuid4
+
+        h = self._handler(monkeypatch)
+        h.on_llm_error(ValueError("schema rotto"), run_id=uuid4())
+
+        assert self._righe(cartella)[-1]["messaggio"] == "schema rotto"
+
     def test_scrivere_non_solleva_mai(self, monkeypatch, tmp_path):
         """Uno strumento di osservazione che rompe la cosa osservata viene spento
         al primo incidente, e allora non osserva piu' niente."""
@@ -132,6 +167,10 @@ class TestCosaFinisceSulFile:
         h = self._handler(monkeypatch)
 
         h.on_llm_start({"name": "ChatOpenAI"}, ["x"], run_id=uuid4())  # non deve sollevare
+
+
+class _Messaggio:
+    content = "Mario Rossi approva le fatture"
 
 
 def _esplode():

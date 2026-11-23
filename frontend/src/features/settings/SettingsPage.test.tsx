@@ -16,6 +16,8 @@ vi.mock("@/features/status/api", async () => {
     ...actual,
     fetchDegradation: () => Promise.resolve({ status: "ok", counters: {} }),
     fetchQueueHealth: () => Promise.resolve({ status: "not_configured" }),
+    fetchEgressInventory: () =>
+      Promise.resolve({ environment: "dev", enforced: false, localTracePayload: false, routes: [] }),
   };
 });
 
@@ -67,5 +69,12 @@ describe("SettingsPage", () => {
 
     expect(await screen.findByText(/Il backend risponde/)).toBeInTheDocument();
     expect(screen.getByText(/Code non configurate/)).toBeInTheDocument();
+  });
+
+  it("says where customer data goes", async () => {
+    renderPage();
+
+    expect(screen.getByRole("heading", { name: "Dati inviati all'esterno" })).toBeInTheDocument();
+    expect(await screen.findByText(/Nessun fornitore esterno riceve dati/)).toBeInTheDocument();
   });
 });

@@ -95,6 +95,13 @@ def get_memory():
         return Mem0Disabled("manca OPENAI_API_KEY")
     if not settings.mem0_database_url:
         return Mem0Disabled("manca MEM0_DATABASE_URL (database mem0 non configurato)")
+    from backend.llm.egress import Destination, EgressBlocked, require
+
+    try:
+        require(Destination.MEMORY_EXTRACTION)
+        require(Destination.MEMORY_EMBEDDING)
+    except EgressBlocked as exc:
+        return Mem0Disabled(str(exc))
     try:
         from mem0 import Memory
 
