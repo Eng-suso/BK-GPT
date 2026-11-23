@@ -38,6 +38,12 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 | B1 import Prosimos tollerante | `feat/sim-prosimos-import` | Prod | 19/19 scenari di `datasets/extraneous-delays/inputs` importati lato server senza modifiche, metadati SIMOD compresi; gate UX sull'import | test che importa ogni `*.json` dei 19 scenari | — | da fare |
 | Track B isolamento tenant | vedi `docs/deployment-and-tenancy.md` | Prod | Test cross-tenant su API, worker, memoria e checkpoint verdi | suite cross-tenant | blocker VM e dominio (Sohayb) | bloccato |
 
+### UX — Leggibilità (regola: mangiare la complessità)
+
+| Blocco | Branch | Binario | Meta | Misura | Dipende da | Stato |
+| --- | --- | --- | --- | --- | --- | --- |
+| UX-01 reale contro simulato leggibile | `fix/ux-real-vs-simulated` | Prod | Nel percorso ordinario nessun termine tecnico (IC 95%, P50/P90, 2-grammi, warm-up, errore assoluto medio, "repliche" al plurale con 1): ognuno diventa una frase o va nei dettagli per specialisti; plurali corretti; su mobile il pannello si legge senza scorrere oltre il canvas; gate UX superato | screenshot in `docs/vpt/ux/complete-only-log/` come "prima", nuovi screenshot desktop e mobile, prova del consulente | — | da fare |
+
 ### V1 — Misura
 
 | Blocco | Branch | Binario | Meta | Misura | Dipende da | Stato |

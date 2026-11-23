@@ -18,6 +18,21 @@ Modello:
 
 ---
 
+## 2026-11-23 — CI di main verde — fatto
+
+- Branch / PR: `claude/funny-babbage-cw4b84`, [Eng-suso/BK-GPT#168](https://github.com/Eng-suso/BK-GPT/pull/168).
+- Meta: 5/5 e2e rossi su `main` (stesso shard, stessi test) → 8/8 passati in
+  `simulation-escalation` e `simulation-eventlog` (chromium, locale).
+- Iterazioni: 1) mock `/validation` mancante → crash `reading 'cycle'`; 2) log con
+  soli completamenti: il confronto per attività spariva (difetto vero, corretto nel
+  componente); 3) test fermi al copy e al wizard precedenti; 4) gate UX: messaggio
+  "Calcolo il confronto…" bloccato per sempre (`isPending` su query disabilitata),
+  corretto con `isLoading`.
+- Gate UX: screenshot prima/dopo desktop e mobile in `docs/vpt/ux/complete-only-log/`,
+  letti. Emerso il gergo nel percorso ordinario e il layout mobile: nuovo punto UX-01.
+- Skill: `code-review`, verifica visiva con screenshot.
+- Prossimo passo: merge della PR, poi B1 o UX-01.
+
 ## 2026-11-23 — Workflow di ingegneria — fatto
 
 - Branch / PR: `claude/funny-babbage-cw4b84`, [Eng-suso/BK-GPT#168](https://github.com/Eng-suso/BK-GPT/pull/168).
