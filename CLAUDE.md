@@ -184,3 +184,15 @@ For final frontend verification:
 - ogni volta che inizi un nuovo task, devi controllare i branch precdenti e vedere quanto sono inidetro e avanti rispetto a main. poi guardi cosa c'è che non va, fai delle code review e poi mergi su main per poi pushare su github.
 
 -devi fare tanti piccoli commit quando si fa un grande lavoro
+
+## VPT engineering workflow (Sohayb, 2026-11-23)
+
+Before any work on the simulator or the Verified Process Twin, read
+`docs/vpt/PLAN.md` and the last three entries of `docs/vpt/LOG.md`.
+
+- Pick one block, iterate until its measured target (meta) is reached, and log
+  every measurement in `docs/vpt/LOG.md`. Never lower a target to close a block.
+- When the block is done: tests, PR, merge to `main`, push, update the plan
+  table and add the closing entry at the top of the log. Then end the session.
+- Datasets: `datasets/README.md` and `scripts/fetch_datasets.py`. The repository
+  is public: only redistributable data goes into `datasets/`.

@@ -134,16 +134,18 @@ Nessuno di questi numeri è ancora misurato in modo ripetibile.
 
 ## Dataset di valutazione
 
-`C:\Users\sohay\Desktop\eval simulatore` (fuori dal repo, si passa con una
-variabile d'ambiente): dati del paper Chapela-Campa e Dumas sui ritardi estranei
-all'attività.
+Nel repo, in `datasets/extraneous-delays/` (CC BY 4.0, Zenodo 10435849): dati del
+paper Chapela-Campa e Dumas sui ritardi estranei all'attività. Catalogo completo
+e script di download in [`../datasets/README.md`](../datasets/README.md); piano
+operativo dei blocchi in [`vpt/PLAN.md`](./vpt/PLAN.md).
 
 - `inputs/synthetic`: Insurance Claims, Loan Application, Pharmacy, Procure to Pay,
   ciascuno con 0, 1, 3, 5 timer. BPMN, scenario Prosimos e log: la verità è nota,
   quindi misura la qualità della discovery.
 - `inputs/real-life`: AcademicCredentials, BPIC 2012 W, BPIC 2017 W. Scenari
   scoperti da SIMOD, log con split train/test.
-- `outputs/`: log simulati e `metrics.txt` del paper. Sono la baseline da battere.
+- `paper-results/`: le metriche del paper, la baseline da battere. I log simulati
+  completi (`outputs.zip`) si scaricano con `scripts/fetch_datasets.py fetch extraneous-delays-outputs`.
 
 ## Problemi di produzione aperti
 

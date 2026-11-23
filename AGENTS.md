@@ -189,3 +189,15 @@ For final frontend verification:
 - Copy complete skill folders when adding a skill, including `SKILL.md`, `references/`, `scripts/`, `assets/`, and any other local files.
 - Do not store secrets, credentials, tokens, private keys, customer raw data, health data, banking data, or non-anonymized PII in `.claude`.
 - When a task spans backend, storage, security, or deployment, do not expand this file automatically. Add those routing sections only when Sohay explicitly asks for them.
+
+## VPT engineering workflow (Sohayb, 2026-11-23)
+
+Before any work on the simulator or the Verified Process Twin, read
+`docs/vpt/PLAN.md` and the last three entries of `docs/vpt/LOG.md`.
+
+- Pick one block, iterate until its measured target (meta) is reached, and log
+  every measurement in `docs/vpt/LOG.md`. Never lower a target to close a block.
+- When the block is done: tests, PR, merge to `main`, push, update the plan
+  table and add the closing entry at the top of the log. Then end the session.
+- Datasets: `datasets/README.md` and `scripts/fetch_datasets.py`. The repository
+  is public: only redistributable data goes into `datasets/`.
