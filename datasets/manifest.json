@@ -1,0 +1,189 @@
+{
+  "schema": 1,
+  "updated": "2026-11-23",
+  "notes": "Catalogo dei dataset di DeliR. 'vendored' = nel repo, sotto 'path'. 'fetch' = si scarica con scripts/fetch_datasets.py nella cache locale, verificato con MD5 o commit. 'academic' = licenza non commerciale: si usa per ricerca e pubblicazioni, mai per numeri in materiali commerciali; si scarica con --allow-noncommercial.",
+  "datasets": [
+    {
+      "id": "extraneous-delays-inputs",
+      "title": "Extraneous Activity Delays: event log, modelli BPS e scenari (sintetici e reali)",
+      "mode": "vendored",
+      "path": "datasets/extraneous-delays/inputs",
+      "license": "CC-BY-4.0",
+      "source": "https://doi.org/10.5281/zenodo.10435849",
+      "origin_file": {
+        "name": "inputs.zip",
+        "md5": "4328addf237dd05dc631e5e7b341552b",
+        "bytes": 8692860
+      },
+      "use": [
+        "B1 import degli scenari Prosimos",
+        "B2 harness di valutazione",
+        "B3 discovery (verità nota sui sintetici)",
+        "B5 ritardi estranei"
+      ]
+    },
+    {
+      "id": "extraneous-delays-paper-metrics",
+      "title": "Extraneous Activity Delays: metriche riportate dal paper (baseline da battere)",
+      "mode": "vendored",
+      "path": "datasets/extraneous-delays/paper-results",
+      "license": "CC-BY-4.0",
+      "source": "https://doi.org/10.5281/zenodo.10435849",
+      "origin_file": {
+        "name": "outputs.zip",
+        "md5": "59d0067795637e8e369bc0b4526db9a3",
+        "bytes": 99586694
+      },
+      "use": [
+        "B2 confronto con il paper",
+        "B5"
+      ]
+    },
+    {
+      "id": "simod-samples",
+      "title": "SIMOD: configurazioni e log di esempio",
+      "mode": "vendored",
+      "path": "datasets/simod",
+      "license": "Apache-2.0",
+      "source": "https://github.com/AutomatedProcessImprovement/Simod",
+      "git_commit": "7e5de02e1b81ca4abb8d8dcd28b0ad315520b43e",
+      "use": [
+        "spike G3",
+        "B5"
+      ]
+    },
+    {
+      "id": "extraneous-delays-outputs",
+      "title": "Extraneous Activity Delays: tutti gli output del paper, log simulati compresi",
+      "mode": "fetch",
+      "license": "CC-BY-4.0",
+      "source": "https://doi.org/10.5281/zenodo.10435849",
+      "url": "https://zenodo.org/api/records/10435849/files/outputs.zip/content",
+      "file": "outputs.zip",
+      "md5": "59d0067795637e8e369bc0b4526db9a3",
+      "bytes": 99586694,
+      "extract": true,
+      "use": [
+        "B2 confronto distribuzione per distribuzione con i log simulati del paper"
+      ]
+    },
+    {
+      "id": "camargo-2022-reproducibility",
+      "title": "Learning Accurate Business Process Simulation Models from Event Logs (Camargo, Dumas, González-Rojas): reproducibility package",
+      "mode": "fetch",
+      "license": "CC-BY-4.0",
+      "source": "https://zenodo.org/records/5734443",
+      "url": "https://zenodo.org/api/records/5734443/files/reproducibility_package.zip/content",
+      "file": "reproducibility_package.zip",
+      "md5": "b445b97d2274076b9a7d165da2b0e9a5",
+      "bytes": 282752653,
+      "extract": true,
+      "use": [
+        "validazione predittiva e confronto con approcci pubblicati (H1)"
+      ]
+    },
+    {
+      "id": "bpic2012",
+      "title": "BPI Challenge 2012 (richieste di prestito)",
+      "mode": "fetch",
+      "license": "4TU General Terms of Use",
+      "source": "https://doi.org/10.4121/uuid:3926db30-f712-4394-aebc-75976070e91f",
+      "url": "https://data.4tu.nl/file/533f66a4-8911-4ac7-8612-1235d65d1f37/3276db7f-8bee-4f2b-88ee-92dbffb5a893",
+      "file": "BPI_Challenge_2012.xes.gz",
+      "md5": "74c7ba9aba85bfcb181a22c9d565e5b5",
+      "bytes": 3342406,
+      "extract": false,
+      "use": [
+        "SIM-36 benchmark A → B",
+        "processo complesso con routing e attività ripetute"
+      ]
+    },
+    {
+      "id": "bpic2013-incidents",
+      "title": "BPI Challenge 2013, incidenti (Volvo IT)",
+      "mode": "fetch",
+      "license": "4TU General Terms of Use",
+      "source": "https://doi.org/10.4121/uuid:500573e6-accc-4b0c-9576-aa5468b10cee",
+      "url": "https://data.4tu.nl/file/0fc5c579-e544-4fab-9143-fab1f5192432/aa51ffbb-25fd-4b5a-b0b8-9aba659b7e8c",
+      "file": "BPI_Challenge_2013_incidents.xes.gz",
+      "md5": "d4809bd55e3e1c15b017ab4e58228297",
+      "bytes": 1322247,
+      "extract": false,
+      "use": [
+        "SIM-36 benchmark A → B"
+      ]
+    },
+    {
+      "id": "prosimos",
+      "title": "Prosimos: repository del motore, test e input_output_files.zip degli esperimenti BPM 2022",
+      "mode": "fetch",
+      "license": "nessun file di licenza nel repository: solo riferimento, non ridistribuire",
+      "source": "https://github.com/AutomatedProcessImprovement/Prosimos",
+      "git": "https://github.com/AutomatedProcessImprovement/Prosimos",
+      "git_commit": "766368862136b21b78da50547268e4feb228240b",
+      "files_md5": {
+        "input_output_files.zip": "449fc19490d16e01187843d172ddff15"
+      },
+      "use": [
+        "compatibilità e correttezza dell'integrazione DeliR",
+        "scenari di esempio per B1"
+      ]
+    },
+    {
+      "id": "simod",
+      "title": "SIMOD: repository completo (codice, test, benchmarking)",
+      "mode": "fetch",
+      "license": "Apache-2.0",
+      "source": "https://github.com/AutomatedProcessImprovement/Simod",
+      "git": "https://github.com/AutomatedProcessImprovement/Simod",
+      "git_commit": "7e5de02e1b81ca4abb8d8dcd28b0ad315520b43e",
+      "use": [
+        "spike G3: SIMOD come discovery",
+        "baseline di H1"
+      ]
+    },
+    {
+      "id": "bpic2020",
+      "title": "BPI Challenge 2020 (note spese di viaggio, 5 log)",
+      "mode": "academic",
+      "license": "CC-BY-NC-4.0",
+      "source": "https://data.4tu.nl/collections/6bcb71ec-6e2e-4837-a899-624367f1c36b",
+      "files": [
+        {
+          "file": "PrepaidTravelCost.xes.gz",
+          "url": "https://data.4tu.nl/file/fb84cf2d-166f-4de2-87be-62ee317077e5/612068f6-14d0-4a82-b118-1b51db52e73a",
+          "md5": "b6ab8ee749e2954f09a4fef030960598",
+          "bytes": 370047
+        },
+        {
+          "file": "PermitLog.xes.gz",
+          "url": "https://data.4tu.nl/file/db35afac-2133-40f3-a565-2dc77a9329a3/12b48cc1-18a8-4089-ae01-7078fc5e8f90",
+          "md5": "b6e9ff00d946f6ad4c91eb6fb550aee4",
+          "bytes": 1938192
+        },
+        {
+          "file": "InternationalDeclarations.xes.gz",
+          "url": "https://data.4tu.nl/file/91fd1fa8-4df4-4b1a-9a3f-0116c412378f/d45ee7dc-952c-4885-b950-4579a91ef426",
+          "md5": "1ec65e046f70bb399cc6d2c154cd615a",
+          "bytes": 1581144
+        },
+        {
+          "file": "DomesticDeclarations.xes.gz",
+          "url": "https://data.4tu.nl/file/6a0a26d2-82d0-4018-b1cd-89afb0e8627f/6eeb0328-f991-48c7-95f2-35033504036e",
+          "md5": "6a78c39491498363ce4788e0e8ca75ef",
+          "bytes": 933930
+        },
+        {
+          "file": "RequestForPayment.xes.gz",
+          "url": "https://data.4tu.nl/file/a6f651a7-5ce0-4bc6-8be1-a7747effa1cc/7b1f2e56-e4a8-43ee-9a09-6e64f45a1a98",
+          "md5": "2eb4dd20e70b8de4e32cc3c239bde7f2",
+          "bytes": 696896
+        }
+      ],
+      "use": [
+        "ricerca e pubblicazioni accademiche (R1, R6, benchmark A → B)",
+        "mai nei numeri commerciali di DeliR"
+      ]
+    }
+  ]
+}

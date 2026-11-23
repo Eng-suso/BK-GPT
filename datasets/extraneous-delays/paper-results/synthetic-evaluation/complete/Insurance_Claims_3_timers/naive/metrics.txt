@@ -1,0 +1,15 @@
+Iteration params: {'Close Claim': 8.77, 'Determine likelihood of the claim': 2.82, 'Initiate Payment': 3.85}
+
+Timers:
+	'Close Claim': DurationDistribution(name: norm, mean: 1342.1202567213118, var: 21224.99581916111, std: 145.688008494732, min: 658.1885, max: 2050.9522)
+	'Determine likelihood of the claim': DurationDistribution(name: expon, mean: 574.988485619469, var: 141590.73229086841, std: 376.2854399134631, min: 245.53739999999996, max: 2110.9956)
+	'Initiate Payment': DurationDistribution(name: lognorm, mean: 325.67440327868854, var: 9863.665250370155, std: 99.31598688212364, min: 145.10649999999998, max: 716.177)
+
+Metrics:
+	Performance metric 0: 0.007106193404677663
+	Performance metric 1: 0.003008486609034078
+	Performance metric 2: 0.0019359962468838976
+	Performance metric 3: 0.0007730186914916004
+	Performance metric 4: 0.008828040482833255
+
+Mean performance metric: 0.004330347086984099

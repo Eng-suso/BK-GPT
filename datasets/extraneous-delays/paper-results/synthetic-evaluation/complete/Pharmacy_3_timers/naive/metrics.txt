@@ -1,0 +1,15 @@
+Iteration params: {'Enter prescription details': 2.46, 'Pack the drugs (Production)': 6.95, 'Pick-up': 7.72}
+
+Timers:
+	'Enter prescription details': DurationDistribution(name: gamma, mean: 155.87863800000002, var: 12662.639573239834, std: 112.52839451996032, min: 0.0, max: 507.35040000000004)
+	'Pack the drugs (Production)': DurationDistribution(name: gamma, mean: 425.08156030927836, var: 92813.65853573581, std: 304.65334157979595, min: 0.0, max: 1519.826)
+	'Pick-up': DurationDistribution(name: gamma, mean: 514.2151495999999, var: 143799.9352188778, std: 379.20961910120076, min: 0.0, max: 2760.9036)
+
+Metrics:
+	Performance metric 0: 0.011069883644223677
+	Performance metric 1: 0.004889800891094587
+	Performance metric 2: 0.009618359585706115
+	Performance metric 3: 0.007986110101957378
+	Performance metric 4: 0.007524777390301773
+
+Mean performance metric: 0.008217786322656706

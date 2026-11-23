@@ -1,0 +1,17 @@
+Iteration params: {'Advise Claimant on Reimbursement': 1.52, 'Assess Claim': 3.5, 'Close Claim': 1.16, 'Determine likelihood of the claim': 3.35, 'Initiate Payment': 2.8}
+
+Timers:
+	'Advise Claimant on Reimbursement': DurationDistribution(name: lognorm, mean: 127.85554608985025, var: 6888.423082701653, std: 82.99652452182352, min: 3.8304, max: 819.5383999999999)
+	'Assess Claim': DurationDistribution(name: lognorm, mean: 668.6981167108753, var: 43918.97521734182, std: 209.56854539110066, min: 281.155, max: 1775.2)
+	'Close Claim': DurationDistribution(name: norm, mean: 179.28851913477538, var: 424.7275390870381, std: 20.608918920871083, min: 89.784, max: 249.7828)
+	'Determine likelihood of the claim': DurationDistribution(name: lognorm, mean: 753.8565942668137, var: 211492.6124963199, std: 459.88325963913917, min: 256.14099999999996, max: 2529.518)
+	'Initiate Payment': DurationDistribution(name: lognorm, mean: 530.9181098169717, var: 27963.15016635732, std: 167.22185911643646, min: 226.93999999999997, max: 1194.844)
+
+Metrics:
+	Performance metric 0: 0.009716431908596168
+	Performance metric 1: 0.006878288970619595
+	Performance metric 2: 0.0073441486470056105
+	Performance metric 3: 0.004803526421416682
+	Performance metric 4: 0.0030295139795600834
+
+Mean performance metric: 0.0063543819854396276

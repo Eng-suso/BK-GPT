@@ -945,7 +945,8 @@ for (const mobile of [false, true]) test(`selection actions use the existing BPM
   await expect(canvas.locator('.delir-type-task')).toHaveCount(18);
   await task.click();
   await page.getByRole('button',{name:'Collega elemento',exact:true}).click();
-  await canvas.locator('[data-element-id="Task_3"]').first().click();
+  // Il canvas apre al 100%: su un telefono Task_3 è fuori schermo, Task_7 (sotto Task_1) no.
+  await canvas.locator('[data-element-id="Task_7"]').first().click();
   await expect(canvas.locator('.djs-connection')).toHaveCount(18);
   await page.getByRole('button',{name:'Annulla modifica',exact:true}).click();
   await expect(canvas.locator('.djs-connection')).toHaveCount(17);
@@ -1207,7 +1208,8 @@ test.describe("touch connection gestures",()=>{
     await expect(task).toBeVisible();await task.tap();const control=page.getByRole("button",{name:"Collega elemento",exact:true});await expect(control).toBeVisible();await control.tap();
     await expect(page.locator(".process-bpmn-shell")).toHaveAttribute("data-connecting","true");
     await page.getByRole("button",{name:"Annulla collegamento",exact:true}).tap();await expect(task).toHaveClass(/selected/);await expect(canvas.locator(".djs-connection")).toHaveCount(17);
-    await control.tap();await canvas.locator('[data-element-id="Task_3"]').first().tap();await expect(canvas.locator(".djs-connection")).toHaveCount(18);
+    // Il canvas apre al 100%: Task_7, sotto Task_1, è nello schermo del telefono.
+    await control.tap();await canvas.locator('[data-element-id="Task_7"]').first().tap();await expect(canvas.locator(".djs-connection")).toHaveCount(18);
   });
 });
 
@@ -1391,7 +1393,8 @@ test("bulk deletion handles lanes and explicitly selected work in one undoable c
   const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
   await page.route("**/v1/workspace/bpmn-models/layout-model",async route=>{if(route.request().method()==="PUT")saved=route.request().postDataJSON().xml;await route.fulfill({json:{id:"layout-model",process_id:"layout-process",name:"Bulk deletion",xml:saved,version_id:1}});});
   await page.goto(canvasView);const canvas=page.locator(".process-bpmn-canvas"),node=(id:string)=>canvas.locator('.djs-element[data-element-id="'+id+'"]').first();await expect(node("TaskA")).toBeVisible();
-  await node("LaneA").click({position:{x:8,y:40}});await node("LaneB").click({position:{x:8,y:40},modifiers:["Shift"]});await node("TaskA").click({modifiers:["Shift"]});
+  // LaneB si tocca a metà della fascia del nome: su touch le maniglie di LaneA, selezionata, coprono il suo bordo alto.
+  await node("LaneA").click({position:{x:8,y:40}});await node("LaneB").click({position:{x:8,y:120},modifiers:["Shift"]});await node("TaskA").click({modifiers:["Shift"]});
   await expect(page.getByRole("button",{name:"3 elementi selezionati",exact:true})).toBeVisible();await page.getByRole("button",{name:"Elimina selezione",exact:true}).click();
   await expect(node("LaneA")).toHaveCount(0);await expect(node("LaneB")).toHaveCount(0);await expect(node("TaskA")).toHaveCount(0);await expect(node("TaskB")).toBeVisible();await expect(node("TaskC")).toBeVisible();await expect(canvas.locator(".djs-connection")).toHaveCount(1);
   await page.getByRole("button",{name:"Salva",exact:true}).click();await info.attach("bulk-delete.xml",{body:Buffer.from(saved),contentType:"application/xml"});expect(saved).not.toContain('id="TaskA"');expect(saved).not.toContain('>TaskA<');expect(saved).not.toContain('sourceRef="TaskA"');

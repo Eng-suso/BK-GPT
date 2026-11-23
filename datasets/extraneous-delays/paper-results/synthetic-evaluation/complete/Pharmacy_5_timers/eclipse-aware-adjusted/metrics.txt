@@ -1,0 +1,17 @@
+Iteration params: {'Check DUR': 1.0, 'Check Insurance': 1.0, 'Enter prescription details': 1.0, 'Pack the drugs (Production)': 1.0, 'Pick-up': 1.0}
+
+Timers:
+	'Check DUR': DurationDistribution(name: expon, mean: 223.60993486973948, var: 927169.7933529266, std: 962.8965642024727, min: 0.0, max: 21756.7)
+	'Check Insurance': DurationDistribution(name: expon, mean: 177.32741482965932, var: 931859.1349074452, std: 965.3285113925959, min: 0.0, max: 21720.73)
+	'Enter prescription details': DurationDistribution(name: expon, mean: 147.1859, var: 469098.50119919004, std: 684.9076588848967, min: 0.0, max: 21698.155)
+	'Pack the drugs (Production)': DurationDistribution(name: expon, mean: 146.10087293388432, var: 482847.87585437763, std: 694.872560873127, min: 0.0, max: 21661.27)
+	'Pick-up': DurationDistribution(name: expon, mean: 433.9579108216433, var: 3692803.7597653503, std: 1921.6669221707882, min: 0.0, max: 21979.2)
+
+Metrics:
+	Performance metric 0: 0.009093850508583134
+	Performance metric 1: 0.027378136272413478
+	Performance metric 2: 0.013158609494777207
+	Performance metric 3: 0.004431289219693824
+	Performance metric 4: 0.008064971189672088
+
+Mean performance metric: 0.012425371337027947

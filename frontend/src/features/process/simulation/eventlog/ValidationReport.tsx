@@ -25,10 +25,12 @@ type Report = {
   basis: string;
 };
 
-export function ValidationReport({ eventLogId, run, runs }: {
+export function ValidationReport({ eventLogId, run, runs, completeOnly = false }: {
   eventLogId: string;
   run: SimulationRun;
   runs: SimulationRun[];
+  /** Il log registra solo i completamenti: il server non confronta i tempi, lo si spiega. */
+  completeOnly?: boolean;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
@@ -39,7 +41,7 @@ export function ValidationReport({ eventLogId, run, runs }: {
   const report = useQuery({
     queryKey: ["event-log-validation", eventLogId, key],
     queryFn: async () => http<Report>(`/v1/workspace/event-logs/${encodeURIComponent(eventLogId)}/validation?${ids.map((id) => `run_ids=${id}`).join("&")}`),
-    enabled: ids.length > 0,
+    enabled: ids.length > 0 && !completeOnly,
   });
   const number = (value: number) => value.toLocaleString(lang === "it" ? "it-IT" : "en-US", { maximumFractionDigits: 2 });
   const duration = (seconds: number) => formatDuration(seconds, lang);
@@ -50,7 +52,10 @@ export function ValidationReport({ eventLogId, run, runs }: {
   return (
     <section className="rounded-md border border-border p-3" aria-label={t("simulation.eventLog.compare.validation.title")}>
       <h3 className="sim-eventlog-title">{t("simulation.eventLog.compare.validation.title")}</h3>
-      {report.isPending && <p role="status">{t("simulation.eventLog.compare.validation.loading")}</p>}
+      {completeOnly && <InlineNotice title={t("simulation.eventLog.compare.validation.completeOnlyTitle")}>
+        {t("simulation.eventLog.compare.validation.completeOnly")}
+      </InlineNotice>}
+      {report.isPending && !completeOnly && <p role="status">{t("simulation.eventLog.compare.validation.loading")}</p>}
       {report.isError && <InlineNotice tone="error" title={t("simulation.eventLog.compare.validation.error")}>
         {httpErrorMessage(report.error, t("simulation.eventLog.compare.validation.error"))}
       </InlineNotice>}

@@ -184,3 +184,33 @@ For final frontend verification:
 - ogni volta che inizi un nuovo task, devi controllare i branch precdenti e vedere quanto sono inidetro e avanti rispetto a main. poi guardi cosa c'è che non va, fai delle code review e poi mergi su main per poi pushare su github.
 
 -devi fare tanti piccoli commit quando si fa un grande lavoro
+
+## VPT engineering workflow (Sohayb, 2026-11-23)
+
+Binding for any work on the simulator or the Verified Process Twin. Full rules:
+`docs/vpt/WORKFLOW.md`.
+
+- Start: read `docs/vpt/HANDOFF.md` (where we are now), `docs/vpt/PLAN.md` and
+  the last three entries of `docs/vpt/LOG.md`. Check open branches against `main`.
+- Work one plan point at a time. Iterate until its measured target (meta) is
+  reached; never lower a target to close a point.
+- Write where you are in `docs/vpt/HANDOFF.md` after every measurement, before
+  long operations and before stopping, so the next person picks up immediately.
+- Product rule: DeliR eats the customer's complexity. The ordinary path speaks
+  business language to a non-technical consultant; technical terms only in
+  specialist details. The UI components already exist: reuse them and work on
+  how things read (words, labels, order, grouping, units, explanations).
+- UX gate: any point visible to the customer closes only after Playwright
+  screenshots (desktop and mobile) have been opened and read, saved under
+  `docs/vpt/ux/<point>/`.
+- Skills: load the skills this file routes for the kind of work, every time, and
+  list them in `LOG.md`.
+- Code review is mandatory before every merge, done by whoever closes the point:
+  run the `code-review` skill on the diff against `main`, apply
+  `backend/CODE_QUALITY.md` and the rules in `.ast-grep-rules/`, run `simplify`, add `security-review`
+  for auth, security or tenant isolation. Fix or answer every finding.
+- Close: many small commits, tests, PR, green CI, merge to `main`, push, branch
+  aligned with `main`; update `PLAN.md`, rewrite `HANDOFF.md`, add the `LOG.md`
+  entry, then end the session.
+- Datasets: `datasets/README.md` and `scripts/fetch_datasets.py`. The repository
+  is public: only redistributable data goes into `datasets/`.

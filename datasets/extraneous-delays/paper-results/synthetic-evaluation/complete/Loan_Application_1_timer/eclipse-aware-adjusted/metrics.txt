@@ -1,0 +1,13 @@
+Iteration params: {'Assess loan risk': 9.01}
+
+Timers:
+	'Assess loan risk': DurationDistribution(name: lognorm, mean: 28983.731103, var: 12145272243.681757, std: 110205.59080047508, min: 0.0, max: 1063733.0338)
+
+Metrics:
+	Performance metric 0: 20.962512239205306
+	Performance metric 1: 17.410617455074515
+	Performance metric 2: 15.275276723592665
+	Performance metric 3: 21.247457363226985
+	Performance metric 4: 18.56281832210319
+
+Mean performance metric: 18.69173642064053

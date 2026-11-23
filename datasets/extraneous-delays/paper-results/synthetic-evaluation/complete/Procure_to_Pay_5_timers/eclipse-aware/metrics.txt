@@ -1,0 +1,17 @@
+Iteration params: {'Analyze Purchase Requisition': 3.93, 'Analyze Request for Quotation': 2.25, 'Confirm Purchase Order': 1.54, 'Pay invoice': 1.69, 'Send invoice': 5.8}
+
+Timers:
+	'Analyze Purchase Requisition': DurationDistribution(name: norm, mean: 4694.244066350711, var: 1129662.928048577, std: 1062.8560241390066, min: 0.0, max: 7257.7275)
+	'Analyze Request for Quotation': DurationDistribution(name: expon, mean: 2710.4477643442624, var: 7358872.756344045, std: 2712.7242315325834, min: 0.0, max: 8644.59)
+	'Confirm Purchase Order': DurationDistribution(name: uniform, mean: 1494.4058339869282, var: 1305086.1847679797, std: 1142.4036873049647, min: 0.0, max: 3664.1066)
+	'Pay invoice': DurationDistribution(name: norm, mean: 9296.061469117647, var: 48300421.938485205, std: 6949.850497563612, min: 0.0, max: 22496.7392)
+	'Send invoice': DurationDistribution(name: gamma, mean: 16195.02564379085, var: 384465576.97311985, std: 19607.79378137989, min: 0.0, max: 60282.996)
+
+Metrics:
+	Performance metric 0: 131.33415297413518
+	Performance metric 1: 94.28035859409924
+	Performance metric 2: 110.16189829004074
+	Performance metric 3: 119.82225294565185
+	Performance metric 4: 130.22931144135507
+
+Mean performance metric: 117.16559484905642

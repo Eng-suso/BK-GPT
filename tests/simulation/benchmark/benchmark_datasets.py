@@ -6,9 +6,9 @@ coincide con quello che 4TU dichiara nei metadati del file: nessun MD5 scritto a
 mano qui, nessun mirror non verificato. Con 4TU in manutenzione (503
 ``StorageMaintenance``) il download fallisce e il benchmark si riprova dopo.
 
-Da verificare al primo accesso alla rete: l'API dei file di 4TU (Djehuty,
+Verificato il 2026-11-23: l'API dei file di 4TU (Djehuty,
 ``/v2/articles/<uuid>/files``) restituisce per ogni file ``name``,
-``download_url`` e l'MD5 in ``computed_md5`` o ``supplied_md5``. Se la forma
+``download_url`` e l'MD5 in ``computed_md5`` e ``supplied_md5``. Se la forma
 cambia, ``_file_entry`` lo dice invece di scaricare alla cieca.
 """
 
@@ -44,7 +44,9 @@ class Dataset:
     key: str
     title: str
     doi: str
-    # L'uuid dell'articolo su 4TU, lo stesso del DOI storico.
+    # L'uuid dell'articolo nell'API attuale di 4TU (Djehuty). Non e' quello del
+    # DOI storico: con l'uuid del DOI l'API risponde "This resource does not
+    # exist". Si ricava da /v2/articles?doi=<doi>.
     article_uuid: str
     file_name: str
     license: str
@@ -55,7 +57,7 @@ DATASETS: dict[str, Dataset] = {
         key="bpic2012",
         title="BPI Challenge 2012 (richieste di prestito)",
         doi="10.4121/uuid:3926db30-f712-4394-aebc-75976070e91f",
-        article_uuid="3926db30-f712-4394-aebc-75976070e91f",
+        article_uuid="533f66a4-8911-4ac7-8612-1235d65d1f37",
         file_name="BPI_Challenge_2012.xes.gz",
         license="4TU General Terms of Use",
     ),
@@ -63,7 +65,7 @@ DATASETS: dict[str, Dataset] = {
         key="bpic2013_incidents",
         title="BPI Challenge 2013, incidenti (Volvo IT)",
         doi="10.4121/uuid:500573e6-accc-4b0c-9576-aa5468b10cee",
-        article_uuid="500573e6-accc-4b0c-9576-aa5468b10cee",
+        article_uuid="0fc5c579-e544-4fab-9143-fab1f5192432",
         file_name="BPI_Challenge_2013_incidents.xes.gz",
         license="4TU General Terms of Use",
     ),

@@ -50,6 +50,12 @@ jobs:
       - name: Ruff check
         run: uv run ruff check backend tests
 
+      - name: Code quality rules (ast-grep)
+        run: |
+          for rule in python-bare-except python-llm-client-outside-gateway; do
+            uvx --from ast-grep-cli==0.51.3 ast-grep scan --error --rule ".ast-grep-rules/$rule.yml" backend/
+          done
+
       - name: Mypy check
         run: uv run mypy
 
@@ -367,6 +373,9 @@ jobs:
         run: |
           test ! -e .env
           python -m pytest --noconftest tests/simulation/test_simulation_ir_engine.py -q
+
+      - name: Dataset catalogue
+        run: python -m pytest --noconftest tests/simulation/test_dataset_manifest.py -q
 
   ci-success:
     name: All CI checks passed

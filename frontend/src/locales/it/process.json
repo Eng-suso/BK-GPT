@@ -1432,6 +1432,8 @@
           "title": "Validazione aggregata",
           "loading": "Calcolo il confronto delle repliche…",
           "error": "Impossibile calcolare la validazione",
+          "completeOnlyTitle": "Il log registra solo i completamenti",
+          "completeOnly": "Per confrontare i tempi di attraversamento serve l'inizio di ogni attività. Qui sotto trovi il confronto per attività su ciò che il log registra.",
           "scope": "{{runs}} repliche confrontate con {{cases}} casi reali",
           "basis": "Tempi confrontabili: attraversamento dal primo inizio osservato; attesa fra attività. L'attesa prima della prima attività è separata.",
           "calibration": "Questo report misura l'aderenza al log. Se lo stesso log ha calibrato lo scenario, non misura la capacità predittiva su dati indipendenti.",
