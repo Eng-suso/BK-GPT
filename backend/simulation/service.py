@@ -293,6 +293,8 @@ def prepare_simulation_model_run(
         request = request.model_copy(update={
             "start_date": start, "total_cases": horizon_cases(model, start, request.horizon_days),
         })
+    else:
+        request = request.model_copy(update={"start_date": horizon_start(request.start_date)})
     idempotency_key = request.idempotency_key or _derive_model_idempotency_key(
         bpmn_model_id=bpmn_model.id,
         bpmn_xml=bpmn_xml,
@@ -454,17 +456,19 @@ def prepare_sensitivity_runs(
 
 
 def _with_horizon(bpmn_model: BpmnModelResponse, request: CreateSimulationRunRequest) -> CreateSimulationRunRequest:
-    """SIM-03: con un periodo, l'inizio si fissa e i casi si stimano dagli arrivi dello scenario.
+    """Fissa l'inizio anche per i run a numero di casi.
 
-    Tutte le ripetizioni condividono inizio e numero di casi: cambia solo il seed.
+    Il motore altrimenti parte all'ora del worker: due repliche lanciate in ore
+    diverse possono attraversare chiusure di calendario diverse. Tutte le
+    ripetizioni condividono inizio e numero di casi; cambia solo il seed.
     """
+    start = horizon_start(request.start_date)
     if request.horizon_days is None:
-        return request
+        return request.model_copy(update={"start_date": start})
     bpmn_xml = (request.current_bpmn_xml or bpmn_model.xml or "").strip()
     if not bpmn_xml:
         return request  # _plan_run lo rifiuta con il suo messaggio
     scenario = build_prosimos_scenario(bpmn_xml=normalize_bpmn_for_prosimos(bpmn_xml), request=request)
-    start = horizon_start(request.start_date)
     cases = horizon_cases(SimulationModel.model_validate(scenario.model), start, request.horizon_days)
     return request.model_copy(update={"start_date": start, "total_cases": cases})
 
@@ -509,7 +513,9 @@ def prepare_simulation_run(
     identical simulation is still in flight, scenario is None and the caller
     must not launch execution.
     """
-    request = request.model_copy(update={"bpmn_fingerprint": bpmn_fingerprint(request.current_bpmn_xml or bpmn_model.xml)})
+    request = _with_horizon(bpmn_model, request).model_copy(update={
+        "bpmn_fingerprint": bpmn_fingerprint(request.current_bpmn_xml or bpmn_model.xml),
+    })
     bpmn_xml, scenario, idempotency_key = _plan_run(bpmn_model=bpmn_model, request=request)
     return _register_run(
         bpmn_model=bpmn_model,

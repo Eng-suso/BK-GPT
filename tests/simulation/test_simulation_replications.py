@@ -16,9 +16,12 @@ def test_replications_become_runs_with_consecutive_seeds_in_one_group(api_client
     runs = sorted(api_client.get(url).json(), key=lambda run: run["request"]["replication_index"])
     assert [run["request"]["seed"] for run in runs] == [100, 101, 102]
     assert len({run["request"]["replication_group"] for run in runs}) == 1
+    assert len({run["request"]["start_date"] for run in runs}) == 1
+    assert runs[0]["request"]["start_date"] is not None
     assert [run["scenario_name"] for run in runs] == ["Base · 1/3", "Base · 2/3", "Base · 3/3"]
     assert first.json()["request"]["replication_index"] == 1
     assert sorted(request.seed for request in fake_engine) == [100, 101, 102]
+    assert len({request.start_date for request in fake_engine}) == 1
 
 
 def test_a_single_run_has_no_group(api_client, new_bpmn_model, fake_engine):
