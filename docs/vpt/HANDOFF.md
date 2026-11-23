@@ -4,18 +4,17 @@ Aggiornato: 2026-11-23, fine della sessione che ha preparato dataset e workflow.
 
 ## Punto attivo
 
-Nessuno. **B1a è fatto** sul branch `feat/sim-prosimos-import` (PR aperta, base
-`claude/funny-babbage-cw4b84` finché la #168 non è mergiata). Il prossimo è
-**B1b**: l'editor importa gli scenari passando da `import_prosimos` lato server,
-con il report d'import in linguaggio di business e il gate UX. In alternativa
-**UX-01**.
+**B1b**, branch `feat/sim-prosimos-import-ui` (impilato su `feat/sim-prosimos-import`,
+PR #169). In corso dal 2026-11-23.
 
-Cosa sa fare B1a (`backend/simulation/ir/from_prosimos.py`):
-- scenari Prosimos e SIMOD con il loro BPMN → `SimulationModel`, più note per il consulente;
-- porte d'unione, calendari non usati, attività istantanee: note informative;
-- rami senza probabilità, probabilità arrotondate: note di approssimazione;
-- batch, calendari FUZZY, sezioni sconosciute, organici frazionari, elementi assenti
-  o del tipo sbagliato nel BPMN: import rifiutato con il motivo.
+- Fatto: endpoint `POST /v1/workspace/bpmn-models/{id}/prosimos-import` con test API
+  (import SIMOD, 400 con motivo, 404, run "così com'è" che arriva al motore).
+- Da fare: nel dialogo "Importa da file" dell'editor, quando l'import locale non
+  riesce (scenari SIMOD), chiamare l'endpoint, mostrare il report in linguaggio di
+  business e offrire "Simula così com'è" (`simulation-model-runs` con `model`);
+  e2e con mock e gate UX.
+
+B1a (`backend/simulation/ir/from_prosimos.py`) è fatto: vedi `LOG.md`.
 
 ## Ultima misura
 
@@ -45,6 +44,14 @@ attività) e test con copy e mock vecchi.
 - Sessioni cloud sull'ambiente **BK-GPT** (consente zenodo.org e data.4tu.nl).
 - I test che non toccano il database girano con `uv run pytest --noconftest ...`;
   la suite completa richiede Postgres (`cd ops && docker compose up -d`) o la CI.
+- Postgres in cloud senza Docker (il daemon non c'è): `apt-get install -y
+  postgresql-16-pgvector`, poi come utente `postgres` `initdb -U delir_super
+  --auth=trust` in `/var/lib/postgresql/delir-test/data`, `pg_ctl ... -o '-p 5432
+  -c listen_addresses=127.0.0.1' start`, `CREATE DATABASE delir`, gli script
+  `ops/postgres/init/*.sh` con `POSTGRES_USER=delir_super POSTGRES_DB=delir` e le
+  password di test della CI, poi `alembic upgrade head` e
+  `alembic -c alembic_workspace.ini upgrade head` con le URL della CI. Con questo la
+  suite `tests/simulation` gira intera (655 test il 2026-11-23).
 - Playwright in cloud: il repo fissa una versione diversa da quella preinstallata.
   Usa una config locale non committata che estende `playwright.config.ts` con
   `launchOptions.executablePath: '/opt/pw-browsers/chromium'`.
