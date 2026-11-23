@@ -61,9 +61,9 @@ _SECTIONS = {
 _SIMOD_METADATA = ("process_model", "model_type", "granule_size")
 # Sezioni che il motore esegue ma DeliR non ancora: con contenuto bloccano l'import.
 _NOT_YET = {
-    "batch_processing": "l'elaborazione a lotti (batch) non e' ancora supportata da DeliR",
+    "batch_processing": "l'elaborazione a lotti (batch) non è ancora supportata da DeliR",
     "branch_rules": "le regole sui rami vanno mappate sugli attributi del caso",
-    "event_attributes": "gli aggiornamenti degli attributi alle attivita' vanno mappati",
+    "event_attributes": "gli aggiornamenti degli attributi alle attività vanno mappati",
 }
 _EVENT_KINDS = {
     "timerEventDefinition": "timer",
@@ -179,7 +179,7 @@ def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
                 ImportNote(
                     "info",
                     "unused_calendar",
-                    f"Il calendario «{calendar.name}» non e' usato da nessuna risorsa: resta nel modello ma il motore non lo riceve.",
+                    f"Il calendario «{calendar.name}» non è usato da nessuna risorsa: resta nel modello ma il motore non lo riceve.",
                     calendar.id,
                 )
             )
@@ -226,13 +226,13 @@ def _check_sections(scenario: dict) -> None:
     model_type = scenario.get("model_type")
     if model_type is not None and str(model_type).upper() != "CRISP":
         raise ProsimosImportError(
-            f"Lo scenario usa calendari «{model_type}» (disponibilita' probabilistica delle "
+            f"Lo scenario usa calendari «{model_type}» (disponibilità probabilistica delle "
             "risorse): DeliR importa solo calendari fissi (CRISP). Riscoprilo con calendari fissi."
         )
     for key, reason in _NOT_YET.items():
         if scenario.get(key):
             raise ProsimosImportError(
-                f"Sezione «{key}»: {reason}. Lo scenario non e' stato importato."
+                f"Sezione «{key}»: {reason}. Lo scenario non è stato importato."
             )
     unknown = sorted(
         key
@@ -244,7 +244,7 @@ def _check_sections(scenario: dict) -> None:
     )
     if unknown:
         raise ProsimosImportError(
-            f"Sezioni che DeliR non sa ancora leggere: {', '.join(unknown)}. Lo scenario non e' stato importato."
+            f"Sezioni che DeliR non sa ancora leggere: {', '.join(unknown)}. Lo scenario non è stato importato."
         )
 
 
@@ -283,7 +283,7 @@ def _activities(
         path = f"task_resource_distribution[{index}]"
         task_id = _text(entry, "task_id", path)
         if bpmn.tags.get(task_id) not in _ACTIVITY_TAGS:
-            raise ProsimosImportError(f"{path}: l'attivita' {task_id} non e' nel BPMN.")
+            raise ProsimosImportError(f"{path}: l'attività {task_id} non è nel BPMN.")
         assignments = []
         for j, resource in enumerate(_items(entry, "resources", path)):
             where = f"{path}.resources[{j}]"
@@ -296,7 +296,7 @@ def _activities(
             )
         if not assignments:
             raise ProsimosImportError(
-                f"{path}: l'attivita' {task_id} non ha nessuna risorsa che la svolga."
+                f"{path}: l'attività {task_id} non ha nessuna risorsa che la svolga."
             )
         instant = sum(
             isinstance(a.duration, Fixed) and a.duration.value == 0 for a in assignments
@@ -308,7 +308,7 @@ def _activities(
                     "info",
                     "instant_activity",
                     f"«{name}»: {instant} {'risorsa' if instant == 1 else 'risorse'} su {len(assignments)} "
-                    "la svolgono in 0 secondi (attivita' istantanea nei dati).",
+                    "la svolgono in 0 secondi (attività istantanea nei dati).",
                     task_id,
                 )
             )
@@ -333,7 +333,7 @@ def _gateways(
         gateway_id = _text(entry, "gateway_id", path)
         if bpmn.tags.get(gateway_id) not in _GATEWAY_TAGS:
             raise ProsimosImportError(
-                f"{path}: la decisione {gateway_id} non e' nel BPMN."
+                f"{path}: la decisione {gateway_id} non è nel BPMN."
             )
         declared = {}
         for j, item in enumerate(_items(entry, "probabilities", path)):
@@ -352,7 +352,7 @@ def _gateways(
                 ImportNote(
                     "info",
                     "merge_gateway",
-                    "Porta d'unione: un solo percorso in uscita, nessuna probabilita' da impostare.",
+                    "Porta d'unione: un solo percorso in uscita, nessuna probabilità da impostare.",
                     gateway_id,
                 )
             )
@@ -363,14 +363,17 @@ def _gateways(
                 ImportNote(
                     "approximated",
                     "missing_branch",
-                    f"{len(missing)} {'percorso' if len(missing) == 1 else 'percorsi'} senza probabilita' "
-                    "nello scenario: valgono 0, nessun caso li prende.",
+                    (
+                        "1 percorso senza probabilità nello scenario: vale 0, nessun caso lo prende."
+                        if len(missing) == 1
+                        else f"{len(missing)} percorsi senza probabilità nello scenario: valgono 0, nessun caso li prende."
+                    ),
                     gateway_id,
                 )
             )
         values = _to_one(
             {flow: declared.get(flow, 0.0) for flow in outgoing},
-            f"{path}: le probabilita' di {gateway_id}",
+            f"{path}: le probabilità di {gateway_id}",
             gateway_id,
             notes,
         )
@@ -392,11 +395,11 @@ def _waits(scenario: dict, bpmn: _Bpmn, provenance: Provenance) -> list[Wait]:
         path = f"event_distribution[{index}]"
         event_id = _text(entry, "event_id", path)
         if bpmn.tags.get(event_id) not in _EVENT_TAGS:
-            raise ProsimosImportError(f"{path}: l'evento {event_id} non e' nel BPMN.")
+            raise ProsimosImportError(f"{path}: l'evento {event_id} non è nel BPMN.")
         kind = bpmn.event_kind.get(event_id)
         if kind is None:
             raise ProsimosImportError(
-                f"{path}: l'evento {event_id} non e' un timer, un messaggio, un segnale o una condizione: "
+                f"{path}: l'evento {event_id} non è un timer, un messaggio, un segnale o una condizione: "
                 "DeliR non sa quanto lo aspetta il caso."
             )
         waits.append(
@@ -487,14 +490,12 @@ def _case_attribute(entry: Any, index: int, notes: list[ImportNote]) -> CaseAttr
                 where = f"{path}.values[{j}]"
                 if not isinstance(option, dict) or option.get("key") in (None, ""):
                     raise ProsimosImportError(
-                        f"{where}: ogni categoria ha una chiave e una probabilita'."
+                        f"{where}: ogni categoria ha una chiave e una probabilità."
                     )
                 declared[str(option["key"])] = _number(
                     option.get("value"), f"{where}.value"
                 )
-            values = _to_one(
-                declared, f"{path}: le probabilita' di {name}", name, notes
-            )
+            values = _to_one(declared, f"{path}: le probabilità di {name}", name, notes)
             options = tuple(
                 DiscreteOption(value=key, probability=value)
                 for key, value in values.items()
@@ -513,7 +514,7 @@ def _case_attribute(entry: Any, index: int, notes: list[ImportNote]) -> CaseAttr
 def _priority(entry: Any, index: int) -> PriorityRule:
     path = f"prioritisation_rules[{index}]"
     if not isinstance(entry, dict):
-        raise ProsimosImportError(f"{path}: regola di priorita' non valida.")
+        raise ProsimosImportError(f"{path}: regola di priorità non valida.")
     try:
         groups = []
         for g, group in enumerate(_items(entry, "rules", path)):
@@ -521,7 +522,7 @@ def _priority(entry: Any, index: int) -> PriorityRule:
                 isinstance(rule, dict) for rule in group
             ):
                 raise ProsimosImportError(
-                    f"{path}.rules[{g}]: ogni gruppo e' un elenco di regole."
+                    f"{path}.rules[{g}]: ogni gruppo è un elenco di regole."
                 )
             groups.append(
                 tuple(
@@ -563,7 +564,7 @@ def _distribution(entry: Any, path: str):
     shapes = {"fix": 1, "expon": 3, "uniform": 2, "norm": 4, "lognorm": 4, "gamma": 4}
     if name not in shapes:
         raise ProsimosImportError(
-            f"{path}: la distribuzione «{name}» non e' supportata da DeliR."
+            f"{path}: la distribuzione «{name}» non è supportata da DeliR."
         )
     if len(values) != shapes[name]:
         raise ProsimosImportError(
@@ -599,7 +600,7 @@ def _distribution(entry: Any, path: str):
 def _list(scenario: dict, key: str) -> list:
     value = scenario.get(key)
     if not isinstance(value, list):
-        raise ProsimosImportError(f"Sezione «{key}» mancante o non e' un elenco.")
+        raise ProsimosImportError(f"Sezione «{key}» mancante o non è un elenco.")
     return value
 
 
@@ -631,7 +632,7 @@ def _to_one(
 ) -> dict[str, float]:
     """Probabilita' che sommano 1; un arrotondamento si riporta a 1 e si dichiara."""
     if any(value < 0 or value > 1 for value in values.values()):
-        raise ProsimosImportError(f"{what}: ogni probabilita' sta fra 0 e 1.")
+        raise ProsimosImportError(f"{what}: ogni probabilità sta fra 0 e 1.")
     total = sum(values.values())
     if abs(total - 1.0) <= 1e-6:
         return values

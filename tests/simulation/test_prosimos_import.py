@@ -337,7 +337,7 @@ def test_a_wait_must_be_an_event_that_the_case_waits_for() -> None:
     source["event_distribution"][0]["event_id"] = source["task_resource_distribution"][
         0
     ]["task_id"]
-    with pytest.raises(ProsimosImportError, match="non e' nel BPMN"):
+    with pytest.raises(ProsimosImportError, match="non è nel BPMN"):
         import_prosimos(source, bpmn)
 
 
