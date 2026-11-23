@@ -9,6 +9,7 @@ export const statusKeys = {
   all: ["service-status"] as const,
   degradation: () => [...statusKeys.all, "degradation"] as const,
   queues: () => [...statusKeys.all, "queues"] as const,
+  egress: () => [...statusKeys.all, "egress"] as const,
 };
 
 export type DegradationReport = {
@@ -47,3 +48,36 @@ export const QUEUE_NAMES = [
   "graph_outbox",
   "mem0_projection_log",
 ] as const;
+
+export type EgressDataCategory =
+  | "customer_content"
+  | "audio"
+  | "prompt_trace"
+  | "search_query"
+  | "process_model";
+
+export type EgressRoute = {
+  destination: string;
+  purpose: string;
+  host: string;
+  /** Self-hosted: i dati non lasciano il perimetro di chi installa. */
+  internal: boolean;
+  active: boolean;
+  allowed: boolean;
+  data: EgressDataCategory[];
+  tasks: string[];
+};
+
+export type EgressInventory = {
+  environment: string;
+  /** Vero quando la lista degli host autorizzati viene applicata. */
+  enforced: boolean;
+  /** Se i testi dei prompt finiscono nelle tracce locali su disco. */
+  localTracePayload: boolean;
+  routes: EgressRoute[];
+};
+
+/** Where customer data leaves the product, resolved from the live configuration. */
+export function fetchEgressInventory(): Promise<EgressInventory> {
+  return http<EgressInventory>("/v1/observability/egress", { cache: "no-store" });
+}

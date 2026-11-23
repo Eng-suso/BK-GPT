@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 
 import { PageHeader } from "@/components/layout";
 import { useIdentityQuery } from "@/features/identity/api";
+import { DataEgressPanel } from "@/features/status/DataEgressPanel";
 import { ServiceStatusPanel } from "@/features/status/ServiceStatusDialog";
 import { SUPPORTED_LANGUAGES, type Language } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -105,6 +106,14 @@ export function SettingsPage(): React.JSX.Element {
         description={t("serviceStatus.description")}
       >
         <ServiceStatusPanel footer={StatusFooter} />
+      </SettingsSection>
+
+      <SettingsSection
+        id="settings-egress"
+        title={t("dataEgress.title")}
+        description={t("dataEgress.description")}
+      >
+        <DataEgressPanel />
       </SettingsSection>
     </div>
   );

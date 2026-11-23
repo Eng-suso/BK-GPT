@@ -200,6 +200,28 @@
     "model": "Modello della conversazione",
     "refresh": "Aggiorna"
   },
+  "dataEgress": {
+    "title": "Dati inviati all'esterno",
+    "description": "Quali servizi ricevono i dati del cliente con la configurazione di questo ambiente, e cosa ricevono.",
+    "summary_one": "{{count}} fornitore esterno riceve dati.",
+    "summary_other": "{{count}} fornitori esterni ricevono dati.",
+    "noneExternal": "Nessun fornitore esterno riceve dati.",
+    "enforced": "Solo gli host autorizzati possono ricevere dati: gli altri vengono bloccati.",
+    "notEnforced": "Ambiente di sviluppo: nessuna lista di host autorizzati è applicata.",
+    "external": "Fornitore esterno autorizzato",
+    "internal": "Servizio interno: i dati restano su questa infrastruttura",
+    "blocked": "Non autorizzato: le chiamate vengono bloccate",
+    "dataLabel": "Dati inviati",
+    "failed": "Elenco dei destinatari non leggibile.",
+    "localTracePayload": "Le tracce locali salvano su disco i testi di prompt e risposte. Succede solo in sviluppo.",
+    "category": {
+      "customer_content": "Contenuti del cliente",
+      "audio": "Audio",
+      "prompt_trace": "Prompt e risposte",
+      "search_query": "Query di ricerca",
+      "process_model": "Modelli di processo"
+    }
+  },
   "settings": {
     "description": "Preferenze dell'interfaccia e stato del servizio.",
     "language": {
