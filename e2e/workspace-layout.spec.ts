@@ -39,6 +39,108 @@ async function fixture(page: Page) {
 
 test.beforeEach(async ({ page }) => { await fixture(page); });
 
+test("wide imported BPMN opens at its authored scale and fit remains explicit", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1000, height: 760 });
+  const wide = xml.replace('x="1130" y="440"', 'x="4130" y="440"');
+  await page.goto(canvasView);
+  await page.locator(".process-bpmn-file-input").setInputFiles({
+    name: "wide-external.bpmn", mimeType: "application/xml", buffer: Buffer.from(wide),
+  });
+  const canvas = page.locator(".process-bpmn-canvas");
+  await expect(canvas.locator('[data-element-id="Task_18"]').first()).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Zoom 100%" })).toBeVisible();
+  const taskLabel = canvas.locator('[data-element-id="Task_1"] .delir-node-label').first();
+  const labelBounds = await taskLabel.evaluate((element) => {
+    const box = (element as SVGGraphicsElement).getBBox();
+    return { y: box.y, height: box.height };
+  });
+  expect(labelBounds.y).toBeGreaterThanOrEqual(0);
+  expect(labelBounds.y + labelBounds.height).toBeLessThanOrEqual(90);
+  await page.screenshot({ path: info.outputPath("wide-import-at-100-percent.png") });
+  await page.getByRole("button", { name: "Centra e adatta diagramma" }).click();
+  await expect(page.getByRole("button", { name: /Zoom (?!100%)\d+%/ })).toBeVisible();
+});
+
+test("foreign BPMN import keeps the authored geometry through save and reopen", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1600, height: 900 });
+  const source = `<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="urn:foreign"><bpmn:process id="Foreign"><bpmn:startEvent id="ForeignStart" name="Begin"/><bpmn:task id="ForeignTask" name="Review"/><bpmn:sequenceFlow id="ForeignFlow" sourceRef="ForeignStart" targetRef="ForeignTask"/></bpmn:process><bpmndi:BPMNDiagram id="Diagram"><bpmndi:BPMNPlane id="Plane" bpmnElement="Foreign"><bpmndi:BPMNShape id="Start_di" bpmnElement="ForeignStart"><dc:Bounds x="70" y="140" width="36" height="36"/><bpmndi:BPMNLabel><dc:Bounds x="50" y="185" width="90" height="30"/></bpmndi:BPMNLabel></bpmndi:BPMNShape><bpmndi:BPMNShape id="Task_di" bpmnElement="ForeignTask"><dc:Bounds x="260" y="115" width="180" height="90"/></bpmndi:BPMNShape><bpmndi:BPMNEdge id="Flow_di" bpmnElement="ForeignFlow"><di:waypoint x="106" y="158"/><di:waypoint x="180" y="158"/><di:waypoint x="180" y="160"/><di:waypoint x="260" y="160"/></bpmndi:BPMNEdge></bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>`;
+  let saved = xml;
+  await page.route("**/v1/workspace/bpmn-models/layout-model", async route => {
+    if (route.request().method() === "PUT") saved = route.request().postDataJSON().xml;
+    await route.fulfill({ json: { id: "layout-model", process_id: "layout-process", name: "Foreign", xml: saved, version_id: 1 } });
+  });
+  await page.goto(canvasView);
+  await page.locator(".process-bpmn-file-input").setInputFiles({ name: "foreign.bpmn", mimeType: "application/xml", buffer: Buffer.from(source) });
+  const canvas = page.locator(".process-bpmn-canvas");
+  const geometry = async () => ({
+    start: await canvas.locator('[data-element-id="ForeignStart"]').first().getAttribute("transform"),
+    task: await canvas.locator('[data-element-id="ForeignTask"]').first().getAttribute("transform"),
+    flow: await canvas.locator('[data-element-id="ForeignFlow"] .djs-visual > path').first().getAttribute("d"),
+    label: await canvas.locator('[data-element-id="ForeignStart_label"]').first().getAttribute("transform"),
+  });
+  await expect(canvas.locator('[data-element-id="ForeignTask"]').first()).toBeVisible();
+  const before = await geometry();
+  expect(before.flow).toContain("180");
+  await page.getByRole("button", { name: "Salva", exact: true }).click();
+  expect(saved).toBe(source);
+  await page.reload();
+  await expect(canvas.locator('[data-element-id="ForeignTask"]').first()).toBeVisible();
+  expect(await geometry()).toEqual(before);
+});
+
+test("semantic BPMN without DI opens as a stable editable diagram", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1600, height: 900 });
+  const source = '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="urn:semantic"><bpmn:process id="P"><bpmn:startEvent id="A"/><bpmn:task id="B" name="Check"/><bpmn:endEvent id="C"/><bpmn:sequenceFlow id="AB" sourceRef="A" targetRef="B"/><bpmn:sequenceFlow id="BC" sourceRef="B" targetRef="C"/></bpmn:process></bpmn:definitions>';
+  let saved = xml;
+  await page.route("**/v1/workspace/bpmn-models/layout-model", async route => {
+    if (route.request().method() === "PUT") saved = route.request().postDataJSON().xml;
+    await route.fulfill({ json: { id: "layout-model", process_id: "layout-process", name: "Semantic", xml: saved, version_id: 1 } });
+  });
+  await page.goto(canvasView);
+  await page.locator(".process-bpmn-file-input").setInputFiles({ name: "semantic.bpmn", mimeType: "application/xml", buffer: Buffer.from(source) });
+  const canvas = page.locator(".process-bpmn-canvas");
+  const nodes = canvas.locator('.djs-shape[data-element-id="A"], .djs-shape[data-element-id="B"], .djs-shape[data-element-id="C"]');
+  await expect(nodes).toHaveCount(3);
+  const before = await nodes.evaluateAll(items => items.map(item => item.getAttribute("transform")));
+  await page.getByRole("button", { name: "Salva", exact: true }).click();
+  expect(saved).toBe(source);
+  await page.reload();
+  await expect(nodes).toHaveCount(3);
+  expect(await nodes.evaluateAll(items => items.map(item => item.getAttribute("transform")))).toEqual(before);
+});
+
+test("external BPMN label can be widened and keeps its size after reload", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1600, height: 900 });
+  const source = `<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" targetNamespace="urn:label"><bpmn:process id="P"><bpmn:startEvent id="Start" name="Incoming customer request"/></bpmn:process><bpmndi:BPMNDiagram id="D"><bpmndi:BPMNPlane id="Plane" bpmnElement="P"><bpmndi:BPMNShape id="Start_di" bpmnElement="Start"><dc:Bounds x="120" y="140" width="36" height="36"/><bpmndi:BPMNLabel><dc:Bounds x="90" y="190" width="90" height="32"/></bpmndi:BPMNLabel></bpmndi:BPMNShape></bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>`;
+  let saved = source;
+  await page.route("**/v1/workspace/bpmn-models/layout-model", async route => {
+    if (route.request().method() === "PUT") saved = route.request().postDataJSON().xml;
+    await route.fulfill({ json: { id: "layout-model", process_id: "layout-process", name: "Label", xml: saved, version_id: 1 } });
+  });
+  await page.goto(canvasView);
+  const canvas = page.locator(".process-bpmn-canvas");
+  const label = canvas.locator('.djs-shape[data-element-id="Start_label"]');
+  await expect(label).toBeVisible();
+  await label.click();
+  const handle = canvas.locator('.delir-resizer.djs-resizer-e[data-resize-element="Start_label"] .djs-resizer-hit');
+  await expect(handle).toBeVisible();
+  const box = (await handle.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await page.getByRole("button", { name: "Salva", exact: true }).click();
+  const width = await page.evaluate(sourceXml => new DOMParser().parseFromString(sourceXml, "application/xml").getElementsByTagNameNS("http://www.omg.org/spec/DD/20100524/DC", "Bounds")[1].getAttribute("width"), saved);
+  expect(Number(width)).toBeGreaterThan(90);
+  await page.reload();
+  await expect(label).toBeVisible();
+  await label.click();
+  expect(await label.locator(".djs-outline").evaluate(node => Math.round((node as SVGGraphicsElement).getBBox().width))).toBe(Number(width) + 4);
+});
+
 // Aprire un processo porta alla discussione: il canvas si chiede, con `?view=canvas`.
 const canvasView = `${studio}?view=canvas`;
 
@@ -86,6 +188,7 @@ test("pool backgrounds never hide loose process lanes and their work",async({pag
 });
 
 test("repeated canvas cycles preserve camera, label editors, connections and XML",async({page},info)=>{
+  test.setTimeout(90_000);
   await page.setViewportSize({width:1600,height:1000});await page.addInitScript(()=>localStorage.setItem("delir-language","en"));
   const source=readFileSync(join(process.cwd(),"docs/design/proofs/canvas-connection-2026-11-04/collaboration.xml"),"utf8");let saved=source;
   const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
@@ -110,6 +213,7 @@ test("repeated canvas cycles preserve camera, label editors, connections and XML
   for(let i=0;i<5;i++){
     const before=await node("TaskA").getAttribute("transform"),body=(await node("TaskA").locator(".djs-visual > rect").first().boundingBox())!;
     await page.mouse.move(body.x+body.width/2,body.y+body.height/2);await page.mouse.down();await page.mouse.move(body.x+body.width/2+16,body.y+body.height/2+10,{steps:8});await page.mouse.up();await expect(canvas.locator(".djs-dragger")).toHaveCount(0);
+    await expect(node("TaskA")).not.toHaveAttribute("transform",before!);
     await page.getByRole("button",{name:"Undo change",exact:true}).click();await expect(node("TaskA")).toHaveAttribute("transform",before!);expect(await paths()).toEqual(originalPaths);await expect(page.getByRole("button",{name:"Save",exact:true})).toBeDisabled();
   }
   await page.screenshot({path:info.outputPath("repeated-canvas.png")});expect(saved).toBe(source);expect(errors).toEqual([]);

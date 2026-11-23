@@ -37,6 +37,7 @@ export function canMoveElements(shapes: CanvasElement[], target: CanvasElement |
  * current parent when a drop cannot legally transfer the selection. */
 export function moveTarget(shapes: CanvasElement[], hover: CanvasElement | undefined, elements: CanvasElement[], delta?: Point): CanvasElement | undefined {
   const roots = shapes.filter(shape => !shape.labelTarget && !shape.waypoints);
+  if (!roots.length && shapes.length && shapes.every(shape => shape.labelTarget)) return shapes[0].parent;
   const current = roots[0]?.parent;
   // Hover is the element under the pointer, which can be a connection, label,
   // or a sibling node. Resolve ownership from the dropped bounds as well so a

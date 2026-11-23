@@ -15,6 +15,11 @@ describe("subgraph pool adoption",()=>{
     expect(moveTarget([a],b,elements,{x:150,y:0})).toBe(root);
     expect(moveTarget([a],edge,elements,{x:150,y:0})).toBe(root);
   });
+  it("keeps an external label movable within its graphical parent",()=>{
+    const {root,a,b,elements}=graph();
+    const label={...shape("a_label","label",root),labelTarget:a};
+    expect(moveTarget([label],b,[...elements,label],{x:30,y:0})).toBe(root);
+  });
   it.each(["bpmn:Task", "bpmn:StartEvent", "bpmn:ExclusiveGateway", "bpmn:TextAnnotation"])("keeps a %s movable across another element", type=>{
     const {root,b,edge,elements}=graph();
     const moving=shape("moving",type,root);

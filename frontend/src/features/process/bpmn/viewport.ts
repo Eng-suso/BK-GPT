@@ -47,7 +47,7 @@ export function fitCanvas(modeler: Pick<BpmnModeler, "get">): void {
   );
 }
 
-/** Start at a readable scale when the complete process would become tiny. */
+/** Open at the BPMN diagram's own pixel scale; overview is an explicit action. */
 export function frameCanvasForReading(modeler: BpmnModeler): void {
   const canvasService = canvas(modeler);
   canvasService.resized?.();
@@ -64,17 +64,17 @@ export function readableViewbox(
   outer: { width: number; height: number },
   start?: BpmnDiagramElement,
 ): BpmnCanvasViewbox {
-  const overview = withViewportPadding(bounds, outer.width / outer.height);
-  const overviewScale = outer.width / overview.width;
-  const minimumScale = 1;
-  if (overviewScale >= minimumScale) return overview;
-
-  const width = outer.width / minimumScale;
-  const height = outer.height / minimumScale;
+  const width = outer.width;
+  const height = outer.height;
   const firstX = start?.x ?? bounds.x;
+  const firstY = start?.y ?? bounds.y;
   return {
-    x: Math.max(bounds.x - 40, firstX - width * 0.16),
-    y: bounds.y - 20,
+    x: bounds.width <= width - 80
+      ? bounds.x - (width - bounds.width) / 2
+      : Math.max(bounds.x - 40, firstX - width * 0.16),
+    y: bounds.height <= height - 80
+      ? bounds.y - (height - bounds.height) / 2
+      : Math.max(bounds.y - 40, firstY - height * 0.16),
     width,
     height,
   };

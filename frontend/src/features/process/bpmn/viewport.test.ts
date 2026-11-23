@@ -91,10 +91,12 @@ describe("readableViewbox", () => {
   const bounds = { x: 110, y: 160, width: 1828, height: 870 };
   const start = { x: 298, y: 264, width: 36, height: 36, type: "bpmn:StartEvent" };
 
-  it("keeps a fit overview on a large desktop viewport", () => {
-    const view = readableViewbox(bounds, { width: 2200, height: 1100 }, start);
-    expect(view.width).toBeGreaterThan(bounds.width);
-    expect(view.x).toBeLessThan(bounds.x);
+  it("keeps authored dimensions at 100% on a large desktop viewport", () => {
+    const outer = { width: 2200, height: 1100 };
+    const view = readableViewbox(bounds, outer, start);
+    expect(view.width).toBe(outer.width);
+    expect(view.height).toBe(outer.height);
+    expect(view.x + view.width / 2).toBeCloseTo(bounds.x + bounds.width / 2);
   });
 
   it("holds a legible scale and shows the first step in a narrow pane", () => {

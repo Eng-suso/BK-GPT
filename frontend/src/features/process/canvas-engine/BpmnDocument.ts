@@ -33,6 +33,7 @@ export class BpmnDocument {
     readonly records: ShapeRecord[] = [];
     readonly rootId: string;
     readonly rootType: string;
+    private readonly planeId: string | null;
     private baseline = "";
     private readonly originalIds = new Set<string>();
     constructor(readonly source: string) {
@@ -41,7 +42,9 @@ export class BpmnDocument {
             throw new Error("XML BPMN non valido.");
         const semantic = all(this.document, NS.bpmn, "*");
         const byId = new Map(semantic.filter(el => el.id).map(el => [el.id, el]));
-        const activePlane = all(this.document, NS.bpmndi, "BPMNPlane")[0];
+        const planes = all(this.document, NS.bpmndi, "BPMNPlane");
+        const activePlane = planes.find(plane => all(plane, NS.bpmndi, "BPMNShape").length + all(plane, NS.bpmndi, "BPMNEdge").length > 0) ?? planes[0];
+        this.planeId = activePlane?.id ?? null;
         const root = byId.get(activePlane?.getAttribute("bpmnElement") ?? "") ?? all(this.document, NS.bpmn, "collaboration")[0] ?? all(this.document, NS.bpmn, "process")[0];
         if (!root)
             throw new Error("Il documento non contiene un processo BPMN.");
@@ -90,8 +93,42 @@ export class BpmnDocument {
                 parentId = owner?.localName === "lane" || owner?.localName === "subProcess" ? owner.id : poolByProcess.get(owner?.id ?? null) ?? this.rootId;
             }
             const labelBounds = direct(di, NS.bpmndi, "BPMNLabel")[0]?.getElementsByTagNameNS(NS.dc, "Bounds")[0];
+            bo.hasExternalLabel = Boolean(labelBounds);
             this.records.push({ id, type, businessObject: bo, x: bounds ? number(bounds, "x") : 100 + index * 180, y: bounds ? number(bounds, "y") : 150, width: bounds ? number(bounds, "width", 120) : 120, height: bounds ? number(bounds, "height", 80) : 80, parentId, sourceId: el.getAttribute("sourceRef") ?? direct(el, NS.bpmn, "sourceRef")[0]?.textContent ?? undefined, targetId: el.getAttribute("targetRef") ?? direct(el, NS.bpmn, "targetRef")[0]?.textContent ?? undefined, waypoints: points.length ? points.map(p => ({ x: number(p, "x"), y: number(p, "y") })) : undefined, label: labelBounds ? { x: number(labelBounds, "x"), y: number(labelBounds, "y"), width: number(labelBounds, "width", 90), height: number(labelBounds, "height", 30) } : undefined, di: { get: key => di.getAttribute(key) ?? (key.startsWith("bioc:") ? di.getAttributeNS("http://bpmn.io/schema/bpmn/biocolor/1.0", key.slice(5)) : key.startsWith("color:") ? di.getAttributeNS("http://www.omg.org/spec/BPMN/non-normative/color/1.0", key.slice(6)) : null) } });
             this.originalIds.add(id);
+        }
+        // BPMN 2.0 permits semantic models without Diagram Interchange. Give
+        // such files a deterministic first view rather than an empty canvas.
+        // The original XML remains untouched until the consultant edits it.
+        if (graphical.length === 0) {
+            const participants = all(this.document, NS.bpmn, "participant");
+            const processNodes = all(this.document, NS.bpmn, "process");
+            const visible = (owner: Element) => Array.from(owner.children).filter(child => child.namespaceURI === NS.bpmn && child.id && /^(?:.*task|callActivity|subProcess|.*Event|.*Gateway|dataObjectReference|dataStoreReference|textAnnotation|group)$/i.test(child.localName));
+            const synthetic = (el: Element, x: number, y: number, width: number, height: number, parentId: string) => {
+                const type = "bpmn:" + el.localName[0].toUpperCase() + el.localName.slice(1);
+                this.records.push({ id: el.id, type, businessObject: businessObject(type, { id: el.id, name: el.getAttribute("name") ?? (el.localName === "textAnnotation" ? direct(el, NS.bpmn, "text")[0]?.textContent ?? "" : "") }), x, y, width, height, parentId });
+                this.originalIds.add(el.id);
+            };
+            for (const [poolIndex, participant] of participants.entries()) {
+                const process = byId.get(participant.getAttribute("processRef") ?? "");
+                const nodes = process ? visible(process) : [];
+                const y = 100 + poolIndex * 300;
+                synthetic(participant, 80, y, Math.max(600, nodes.length * 190 + 100), 220, this.rootId);
+                nodes.forEach((node, index) => synthetic(node, 140 + index * 190, y + 70, /Event$/.test(node.localName) ? 36 : /Gateway$/.test(node.localName) ? 50 : 160, /Event$/.test(node.localName) ? 36 : /Gateway$/.test(node.localName) ? 50 : 88, participant.id));
+            }
+            if (!participants.length) {
+                const process = root.localName === "process" ? root : processNodes[0];
+                if (process) visible(process).forEach((node, index) => synthetic(node, 100 + index * 190, 170, /Event$/.test(node.localName) ? 36 : /Gateway$/.test(node.localName) ? 50 : 160, /Event$/.test(node.localName) ? 36 : /Gateway$/.test(node.localName) ? 50 : 88, this.rootId));
+            }
+            const visibleShapes = new Map(this.records.map(record => [record.id, record]));
+            for (const el of semantic.filter(item => /^(sequenceFlow|messageFlow|association)$/.test(item.localName))) {
+                const source = visibleShapes.get(el.getAttribute("sourceRef") ?? ""), target = visibleShapes.get(el.getAttribute("targetRef") ?? "");
+                if (!source || !target) continue;
+                const type = "bpmn:" + el.localName[0].toUpperCase() + el.localName.slice(1);
+                const start = { x: source.x + source.width, y: source.y + source.height / 2 }, end = { x: target.x, y: target.y + target.height / 2 };
+                this.records.push({ id: el.id, type, businessObject: businessObject(type, { id: el.id, name: el.getAttribute("name") ?? "" }), x: 0, y: 0, width: 0, height: 0, sourceId: source.id, targetId: target.id, waypoints: [start, end] });
+                this.originalIds.add(el.id);
+            }
         }
         const shapeIds = new Set(this.records.filter(record => !record.waypoints).map(record => record.id));
         const visibleOwner = (id: string | undefined) => { let el = id ? byId.get(id) : undefined; while (el && !shapeIds.has(el.id))
@@ -111,7 +148,7 @@ export class BpmnDocument {
     private project(elements: CanvasElement[]): string {
         const doc = this.document.cloneNode(true) as Document, definitions = doc.documentElement;
         const nodes = new Map(all(doc, NS.bpmn, "*").filter(el => el.id).map(el => [el.id, el]));
-        const activePlane = all(doc, NS.bpmndi, "BPMNPlane")[0];
+        const activePlane = all(doc, NS.bpmndi, "BPMNPlane").find(plane => plane.id === this.planeId);
         const shapes = new Map(activePlane ? [...all(activePlane, NS.bpmndi, "BPMNShape"), ...all(activePlane, NS.bpmndi, "BPMNEdge")].map(el => [el.getAttribute("bpmnElement"), el]) : []);
         const live = elements.filter(el => !el.labelTarget && el.type !== "label" && el.type.startsWith("bpmn:") && el.id !== this.rootId);
         const liveIds = new Set(live.map(el => el.id));
@@ -139,7 +176,7 @@ export class BpmnDocument {
             process.id = "DeliR_Process";
             appendRoot(process);
         }
-        let plane = all(doc, NS.bpmndi, "BPMNPlane")[0];
+        let plane = activePlane;
         if (!plane) {
             const diagram = make(NS.bpmndi, "bpmndi:BPMNDiagram");
             diagram.id = "DeliR_Diagram";

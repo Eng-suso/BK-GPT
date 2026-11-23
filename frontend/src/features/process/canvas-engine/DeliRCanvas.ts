@@ -150,10 +150,12 @@ export class DeliRCanvas {
         return this.diagram.get(name);
     }
     on(name: string, callback: (event: unknown) => void) { this.diagram.get<Bus>("eventBus").on(name, callback); }
-    async importXML(xml: string) {
+    async importXML(xml: string, recover = true) {
         const document = new BpmnDocument(xml);
         if (this.disposed)
             return { warnings: [] };
+        const previous = recover && this.document ? this.document.serialize(this.diagram.get<Registry>("elementRegistry").getAll()) : null;
+        try {
         this.diagram.clear();
         this.document = document;
         const factory = this.diagram.get<Factory>("elementFactory"), canvas = this.diagram.get<CanvasService>("canvas"), registry = this.diagram.get<Registry>("elementRegistry");
@@ -184,7 +186,8 @@ export class DeliRCanvas {
             if (!source || !target)
                 throw new Error("Il collegamento " + record.id + " riferisce un elemento non rappresentato nel diagramma.");
             const connection = factory.createConnection({ id: record.id, type: record.type, businessObject: record.businessObject, di: record.di, waypoints: record.waypoints, source, target });
-            connection.waypoints = this.diagram.get<{getCroppedWaypoints:(connection:CanvasElement)=>Point[]}>("connectionDocking").getCroppedWaypoints(connection);
+            // Imported DI is the authored layout. Cropping here changes a
+            // foreign diagram even when the consultant has made no edit.
             canvas.addConnection(connection, connection.type === "bpmn:MessageFlow" ? root : flowScope(source.parent) ?? root);
         }
         for (const record of document.records) {
@@ -204,6 +207,11 @@ export class DeliRCanvas {
         document.setBaseline(registry.getAll());
         this.diagram.get<Bus>("eventBus").fire("import.done", { warnings: [] });
         return { warnings: [] };
+        } catch (error) {
+            if (previous) await this.importXML(previous, false);
+            else { this.diagram.clear(); this.document = null; }
+            throw error;
+        }
     }
     async saveXML(_options?: {
         format?: boolean;
@@ -276,15 +284,9 @@ export class DeliRCanvas {
             const point = element.waypoints?.[Math.floor(element.waypoints.length / 2)];
             this.diagram.get<{createLabel:(owner:CanvasElement,position:Point,attributes:Record<string,unknown>,parent?:CanvasElement)=>void}>("modeling").createLabel(element, {x:point?.x ?? element.x + element.width/2, y:point ? point.y-16 : element.y+element.height+22}, {type:"label",businessObject:element.businessObject,width:92,height:32}, element.waypoints ? element.parent : element);
         });
-        bus.on("selection.changed", 2000, event => {
-            const chosen = (event as {
-                newSelection: CanvasElement[];
-            }).newSelection;
-            if (chosen.some(el => el.labelTarget)) {
-                this.diagram.get<Selection>("selection").select([...new Set(chosen.map(el => el.labelTarget ?? el))]);
-                return false;
-            }
-        });
+        // Keep an external label selectable as geometry. The inspector still
+        // resolves it to its BPMN owner, while diagram-js can expose its resize
+        // handles and persist its BPMNLabel Bounds.
         bus.on("commandStack.shape.attach.canExecute", 2000, event => { const { shape, target } = (event as {
             context: {
                 shape?: CanvasElement;
@@ -299,8 +301,9 @@ export class DeliRCanvas {
                     height: number;
                 };
             };
-        }).context; if (shape.labelTarget || !/Participant$|Lane$|SubProcess$|Group$|TextAnnotation$/.test(shape.type))
+        }).context; if (!shape.labelTarget && !/Participant$|Lane$|SubProcess$|Group$|TextAnnotation$/.test(shape.type))
             return false;
+            if(shape.labelTarget) return !newBounds || newBounds.width >= 48 && newBounds.height >= 20;
             if((event as {context:{hints?:{delirLanes?:boolean}}}).context.hints?.delirLanes)return true;
             if(newBounds && partitionShape(shape))return validPartitionResize(partitionResize(shape,newBounds as Bounds));
             return !newBounds || newBounds.width >= 100 && newBounds.height >= 60; });

@@ -17,6 +17,15 @@ function importDocument(source = xml) {
 }
 const parse = (source: string) => new DOMParser().parseFromString(source, "application/xml");
 describe("DeliR BPMN document contract", () => {
+    it("gives a foreign semantic-only BPMN a stable visible layout across imports", () => {
+        const source = `<?xml version="1.0"?><bpmn:definitions xmlns:bpmn="${NS.bpmn}" targetNamespace="urn:foreign"><bpmn:process id="P"><bpmn:startEvent id="Start"/><bpmn:task id="Work" name="Review"/><bpmn:endEvent id="End"/><bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Work"/><bpmn:sequenceFlow id="F2" sourceRef="Work" targetRef="End"/></bpmn:process></bpmn:definitions>`;
+        const first = new BpmnDocument(source), second = new BpmnDocument(source);
+        expect(first.records.map(({id,x,y,width,height}) => ({id,x,y,width,height}))).toEqual(second.records.map(({id,x,y,width,height}) => ({id,x,y,width,height})));
+        expect(first.records.map(record => record.id)).toEqual(["Start", "Work", "End", "F1", "F2"]);
+        const elements = first.records.map(record => ({...record})) as unknown as CanvasElement[];
+        first.setBaseline(elements);
+        expect(first.serialize(elements)).toBe(source);
+    });
     it("returns the exact source, including prolog and comments, for navigation and an undone edit", () => {
         const { doc, elements } = importDocument();
         expect(doc.serialize(elements)).toBe(xml);
@@ -75,6 +84,16 @@ describe("DeliR BPMN document contract", () => {
         const saved = parse(doc.serialize(elements));
         expect(saved.getElementById("alternate_task_di")!.getElementsByTagNameNS(NS.dc, "Bounds")[0].getAttribute("x")).toBe("900");
         expect(saved.getElementById("task_di")!.getElementsByTagNameNS(NS.dc, "Bounds")[0].getAttribute("x")).toBe("175");
+    });
+    it("uses a populated foreign diagram when an empty DI plane comes first", () => {
+        const empty = '<bpmndi:BPMNDiagram id="empty"><bpmndi:BPMNPlane id="empty_plane" bpmnElement="process"/></bpmndi:BPMNDiagram>';
+        const source = xml.replace('<bpmndi:BPMNDiagram id="diagram">', empty + '<bpmndi:BPMNDiagram id="diagram">');
+        const {doc,elements} = importDocument(source);
+        expect(doc.records.find(record => record.id === "task")?.x).toBe(150);
+        elements.find(element => element.id === "task")!.x = 190;
+        const saved = parse(doc.serialize(elements));
+        expect(saved.getElementById("empty_plane")!.getElementsByTagNameNS(NS.bpmndi, "BPMNShape")).toHaveLength(0);
+        expect(saved.getElementById("task_di")!.getElementsByTagNameNS(NS.dc, "Bounds")[0].getAttribute("x")).toBe("190");
     });
     it("updates incoming and outgoing references when a connection is reattached", () => {
         const { doc, elements } = importDocument();

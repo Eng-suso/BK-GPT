@@ -16,7 +16,7 @@ export function shapePath(el: CanvasElement): string {
     }
     return "M" + x + "," + y + "h" + w + "v" + h + "h-" + w + "Z";
 }
-function text(parent: SVGElement, value: string, x: number, y: number, width: number, fontSize = 14, anchor = "middle") {
+function labelLines(value: string, width: number, fontSize: number): string[] {
     const max = Math.max(4, Math.floor(width / (fontSize * .51))), lines: string[] = [];
     for (const paragraph of value.split("\n")) {
         let line = "";
@@ -30,8 +30,24 @@ function text(parent: SVGElement, value: string, x: number, y: number, width: nu
         }
         lines.push(line);
     }
-    const label = node("text", { "font-size": fontSize, "font-family": "var(--font-family-geist, sans-serif)", "text-anchor": anchor, fill: "var(--color-text-primary)", class: "delir-node-label" }, parent);
-    lines.forEach((line, index) => { const span = node("tspan", { x, y: y + (index - (lines.length - 1) / 2) * fontSize * 1.3 }, label); span.textContent = line + (index < lines.length - 1 ? " " : ""); });
+    return lines;
+}
+function fittingTaskFont(value: string, width: number, height: number, compact: boolean): number {
+    for (const font of compact ? [12, 11, 10] : [16, 14, 12, 11]) {
+        if (labelLines(value, width, font).length <= Math.max(1, Math.floor(height / (font * 1.3)))) return font;
+    }
+    return compact ? 10 : 11;
+}
+function text(parent: SVGElement, value: string, x: number, y: number, width: number, fontSize = 14, anchor = "middle", maxHeight = Number.POSITIVE_INFINITY) {
+    const max = Math.max(4, Math.floor(width / (fontSize * .51)));
+    const lines = labelLines(value, width, fontSize);
+    const maxLines = Math.max(1, Math.floor(maxHeight / (fontSize * 1.3)));
+    const visible = lines.slice(0, maxLines);
+    const truncated = lines.length > maxLines;
+    if (truncated) visible[visible.length - 1] = visible[visible.length - 1].slice(0, Math.max(1, max - 1)).trimEnd() + "…";
+    const label = node("text", { "font-size": fontSize, "font-family": "var(--font-family-geist, sans-serif)", "text-anchor": anchor, fill: "var(--color-text-primary)", class: "delir-node-label", "aria-label": value }, parent);
+    if (truncated) node("title", {}, label).textContent = value;
+    visible.forEach((line, index) => { const span = node("tspan", { x, y: y + (index - (visible.length - 1) / 2) * fontSize * 1.3 }, label); span.textContent = line + (index < visible.length - 1 ? " " : ""); });
     return label;
 }
 /** Original DeliR BPMN graphics. Generic diagram-js supplies SVG lifecycle only. */
@@ -55,7 +71,7 @@ export class DeliRRenderer {
     drawShape(gfx: SVGElement, el: CanvasElement) {
         const w = el.width, h = el.height, t = el.type, fill = el.di?.get("bioc:fill") || el.di?.get("color:background-color") || "var(--color-surface-primary)", stroke = el.di?.get("bioc:stroke") || el.di?.get("color:border-color") || "var(--domain-process-task-border)";
         if (t === "label")
-            return text(gfx, el.businessObject.name ?? "", w / 2, h / 2, w, 12);
+            return text(gfx, el.businessObject.name ?? "", w / 2, h / 2, w, 12, "middle", h - 4);
         let body: SVGElement;
         const common = { fill, stroke, "stroke-width": 1.5, "stroke-linejoin": "round" };
         if (/Event$/.test(t)) {
@@ -108,12 +124,13 @@ export class DeliRRenderer {
         }
         else if (/Participant|Lane/.test(t)) {
             body = node("rect", { width: w, height: h, ...common, "stroke-width": 1 }, gfx);
+            const horizontal = el.di?.get("isHorizontal") !== "false";
             // The participant has a separate title band. A leaf lane label is
             // inside its partition, without another separating vertical line
             // (BPMN 2.0.2 §10.8). Nested lane borders provide their own divider.
-            if(t === "bpmn:Participant")node("path", { d: "M30 0V" + h, stroke, "stroke-width": 1 }, gfx);
-            const label = text(gfx, el.businessObject.name ?? "", 0, 0, Math.max(100, h - 24), 13);
-            label.setAttribute("transform", "translate(19," + h / 2 + ") rotate(-90)");
+            if(t === "bpmn:Participant")node("path", { d: horizontal ? "M30 0V" + h : "M0 30H" + w, stroke, "stroke-width": 1 }, gfx);
+            const label = text(gfx, el.businessObject.name ?? "", 0, 0, horizontal ? Math.max(100, h - 24) : Math.max(100, w - 24), 13);
+            label.setAttribute("transform", horizontal ? "translate(19," + h / 2 + ") rotate(-90)" : "translate(" + w / 2 + ",19)");
             return body;
         }
         else if (/TextAnnotation/.test(t)) {
@@ -165,8 +182,16 @@ export class DeliRRenderer {
             } else if (kind === "loop") node("path", { d:"M"+(x+4)+","+(y+3)+"a5,5 0 1,1 0,-6m0 -3v4h-4", fill:"none", stroke, "stroke-width":1.3 }, gfx);
             if(el.businessObject.isForCompensation) node("path", { d:"M"+(x-12)+","+(y-5)+"l-6 5 6 5Zm-7 0-6 5 6 5Z", fill:"none", stroke }, gfx);
         }
-        if (el.businessObject.name && !/Event$|Gateway$/.test(t))
-            text(gfx, el.businessObject.name, w / 2, /SubProcess/.test(t) && el.di?.get("isExpanded") === "true" ? 20 : h / 2 + 4, w - 24, 16);
+        if (el.businessObject.name && !el.businessObject.hasExternalLabel && !/Event$|Gateway$/.test(t)) {
+            // Imported and native tasks share this renderer. Use the largest
+            // label size that fits the task bounds without hiding its name.
+            const compactTask = /Task$|Activity$/.test(t) && w < 130;
+            const labelWidth = w - (compactTask ? 16 : 24);
+            const labelHeight = h - (compactTask ? 12 : 24);
+            text(gfx, el.businessObject.name, w / 2, /SubProcess/.test(t) && el.di?.get("isExpanded") === "true" ? 20 : h / 2 + 4,
+                labelWidth, /Task$|Activity$/.test(t) ? fittingTaskFont(el.businessObject.name, labelWidth, labelHeight, compactTask) : 16,
+                "middle", labelHeight);
+        }
         return body;
     }
     drawConnection(gfx: SVGElement, el: CanvasElement) {

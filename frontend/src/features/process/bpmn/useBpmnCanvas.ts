@@ -28,6 +28,7 @@ import {
 } from "./viewport";
 import { applyProvenanceMarkers, splitTraceability, withTraceability } from "./provenance";
 import { assertBpmnXml, downloadBpmn, loadInitialModel } from "./xml";
+import { normalizeImportedBpmn } from "./normalizeImportedBpmn";
 import type {
   BpmnCanvasService,
   BpmnElementRegistry,
@@ -226,13 +227,13 @@ export function useBpmnCanvas({
     }, 120);
   }, [bpmnModelId, scheduleLocalDraftSave]);
 
-  // Fit after importing a document. Resizing panes preserves the user camera.
-  const scheduleCanvasFit = useCallback(() => {
+  // Open imported and restored diagrams at their authored 1:1 scale.
+  const scheduleCanvasOpening = useCallback(() => {
     if (fitTimerRef.current) window.clearTimeout(fitTimerRef.current);
     fitTimerRef.current = window.setTimeout(() => {
       fitTimerRef.current = null;
       if (document.hidden || !modelerRef.current) return;
-      fitCanvas(modelerRef.current);
+      frameCanvasForReading(modelerRef.current);
       if (focusedElementIdRef.current) {
         const registry = modelerRef.current.get("elementRegistry") as BpmnElementRegistry;
         const element = registry.get?.(focusedElementIdRef.current);
@@ -347,7 +348,7 @@ export function useBpmnCanvas({
           const element=selected?.labelTarget??selected;
           if(element?.businessObject&&!["bpmn:Process","bpmn:Collaboration"].includes(element.type))setRenameTarget({id:element.id,name:element.businessObject.name??""});
         });
-        scheduleCanvasFit();
+        scheduleCanvasOpening();
 
         if (isMounted) {
           setIsReady(true);
@@ -384,7 +385,7 @@ export function useBpmnCanvas({
     reloadKey,
     loadVersions,
     scheduleUnsavedCheck,
-    scheduleCanvasFit,
+    scheduleCanvasOpening,
     syncEmptiness,
   ]);
 
@@ -431,7 +432,7 @@ export function useBpmnCanvas({
         onCurrentXmlChangeRef.current?.(xml);
         isImportingRef.current = false;
         syncEmptiness();
-        scheduleCanvasFit();
+        scheduleCanvasOpening();
         lastSavedXmlRef.current = xml;
         markUnsaved(false);
         setStatus("Aggiornato dal backend");
@@ -446,7 +447,7 @@ export function useBpmnCanvas({
         );
       }
     });
-  }, [bpmnModelId, processName, loadVersions, scheduleCanvasFit, syncEmptiness]);
+  }, [bpmnModelId, processName, loadVersions, scheduleCanvasOpening, syncEmptiness]);
 
   const save = useCallback(async () => {
     if (!modelerRef.current) return;
@@ -506,7 +507,7 @@ export function useBpmnCanvas({
       onCurrentXmlChangeRef.current?.(loaded.xml);
       isImportingRef.current = false;
       syncEmptiness();
-      scheduleCanvasFit();
+      scheduleCanvasOpening();
       lastSavedXmlRef.current = loaded.xml;
       setBaseVersion(loaded.versionId);
       markUnsaved(false);
@@ -518,7 +519,7 @@ export function useBpmnCanvas({
       isImportingRef.current = false;
       setError(err instanceof Error ? err.message : i18n.t("process:canvas.conflict.reloadFailed"));
     }
-  }, [bpmnModelId, processName, loadVersions, scheduleCanvasFit, syncEmptiness]);
+  }, [bpmnModelId, processName, loadVersions, scheduleCanvasOpening, syncEmptiness]);
 
   const restoreVersion = useCallback(
     async (versionId: number) => {
@@ -549,7 +550,7 @@ export function useBpmnCanvas({
         clearLocalBpmnDraft(bpmnModelId);
         lastSavedXmlRef.current = xml;
         markUnsaved(false);
-        scheduleCanvasFit();
+        scheduleCanvasOpening();
         setStatus(`Ripristinata versione ${versionId}`);
         await loadVersions();
       } catch (err) {
@@ -559,7 +560,7 @@ export function useBpmnCanvas({
         setRestoringVersionId(null);
       }
     },
-    [bpmnModelId, loadVersions, scheduleCanvasFit, syncEmptiness],
+    [bpmnModelId, loadVersions, scheduleCanvasOpening, syncEmptiness],
   );
 
   const exportXml = useCallback(async () => {
@@ -582,14 +583,15 @@ export function useBpmnCanvas({
       try {
         const xml = await file.text();
         assertBpmnXml(file, xml);
+        const importedXml = normalizeImportedBpmn(xml);
         isImportingRef.current = true;
-        await modelerRef.current.importXML(xml);
-        onCurrentXmlChangeRef.current?.(xml);
+        await modelerRef.current.importXML(importedXml);
+        onCurrentXmlChangeRef.current?.(importedXml);
         isImportingRef.current = false;
         syncEmptiness();
-        scheduleCanvasFit();
+        scheduleCanvasOpening();
         markUnsaved(true);
-        writeLocalBpmnDraft(bpmnModelId, xml, savedVersionIdRef.current);
+        writeLocalBpmnDraft(bpmnModelId, importedXml, savedVersionIdRef.current);
         setStatus("Importato, non salvato");
         setError(null);
       } catch (err) {
@@ -602,7 +604,7 @@ export function useBpmnCanvas({
         }
       }
     },
-    [bpmnModelId, scheduleCanvasFit, syncEmptiness],
+    [bpmnModelId, scheduleCanvasOpening, syncEmptiness],
   );
 
   useEffect(() => {
