@@ -19,9 +19,13 @@ che esiste solo su un servizio esterno e' una traccia che si perde proprio nel
 giorno storto.
 
 **I payload sono dati veri**: i prompt contengono le interviste dei clienti.
-`data/` e' gitignored, i testi sono troncati, e chi non li vuole affatto mette
-`DELIR_LOCAL_TRACE_PAYLOAD=0` - restano tempi, token ed esiti, che sono la parte
-che serve piu' spesso.
+Per questo i testi si scrivono **solo su una macchina di sviluppo**
+(`DELIR_ENVIRONMENT` dev, local o test). In staging e prod restano tempi, token
+ed esiti, che sono la parte che serve piu' spesso, e `DELIR_LOCAL_TRACE_PAYLOAD=1`
+non li riaccende: un file su disco senza scadenza, senza controllo d'accesso per
+tenant e fuori da ogni cancellazione non e' un posto per un'intervista (SEC-08).
+In sviluppo `data/` e' gitignored, i testi sono troncati, e chi non li vuole
+affatto mette `DELIR_LOCAL_TRACE_PAYLOAD=0`.
 """
 
 from __future__ import annotations
@@ -73,12 +77,22 @@ def _acceso() -> bool:
 
 
 def _con_payload() -> bool:
+    """Se scrivere i testi di prompt e risposte. Mai fuori da una macchina di sviluppo."""
+    from backend.settings import environment_is_open
+
+    if not environment_is_open():
+        return False
     return os.environ.get("DELIR_LOCAL_TRACE_PAYLOAD", "1").strip().lower() not in {
         "0",
         "false",
         "no",
         "off",
     }
+
+
+def writes_payloads() -> bool:
+    """Se in questo processo i testi dei prompt finiscono su disco. Per il pannello."""
+    return _acceso() and _con_payload()
 
 
 def percorso_del_giorno() -> Path:
@@ -214,16 +228,18 @@ def _handler_locale():
             _scrivi(evento)
 
         def on_llm_error(self, error, *, run_id=None, parent_run_id=None, **kw):
-            _scrivi(
-                {
-                    "evento": "llm_error",
-                    "run_id": _chiave(run_id),
-                    "parent_run_id": _chiave(parent_run_id) if parent_run_id else None,
-                    "durata_ms": self._durata(run_id),
-                    "errore": type(error).__name__,
-                    "messaggio": _tronca(str(error)),
-                }
-            )
+            evento: dict[str, Any] = {
+                "evento": "llm_error",
+                "run_id": _chiave(run_id),
+                "parent_run_id": _chiave(parent_run_id) if parent_run_id else None,
+                "durata_ms": self._durata(run_id),
+                "errore": type(error).__name__,
+            }
+            # Il messaggio di un errore di parsing ripete l'uscita del modello:
+            # e' payload come la risposta, e segue la stessa regola.
+            if _con_payload():
+                evento["messaggio"] = _tronca(str(error))
+            _scrivi(evento)
 
         def _durata(self, run_id) -> int:
             with _GUARD:
