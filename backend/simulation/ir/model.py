@@ -520,6 +520,9 @@ class Arrival(_Strict):
 
     @model_validator(mode="after")
     def _bands_apart(self):
+        if isinstance(self.interarrival, Fixed) and self.interarrival.value == 0:
+            # Un'attivita' puo' essere istantanea; gli arrivi no: infiniti casi nello stesso istante.
+            raise ValueError("gli arrivi non possono essere a intervallo zero")
         if self.band_attribute and not self.bands:
             raise ValueError("la fascia di arrivo come attributo richiede delle fasce degli arrivi")
         _check_apart(self.bands, "due fasce degli arrivi si sovrappongono")
