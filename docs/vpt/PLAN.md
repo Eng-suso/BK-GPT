@@ -42,7 +42,7 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 
 | Blocco | Branch | Binario | Meta | Misura | Dipende da | Stato |
 | --- | --- | --- | --- | --- | --- | --- |
-| B2 harness di valutazione | `feat/sim-eval-harness` | Ric | Per i 19 scenari: run replicati sugli scenari del paper, W1 del cycle time, NGD, RED/CED/CAR salvati in `baseline.json`; stesso seed → risultati identici; scarto dalle metriche di `paper-results` entro il 10% (*proposta*) | `uv run python tests/simulation/benchmark/run_baseline.py` + confronto con `datasets/extraneous-delays/paper-results` | B1 | da fare |
+| B2 harness di valutazione | `feat/sim-eval-harness` | Ric | Per i 19 scenari: run replicati sugli scenari del paper, W1 del cycle time, NGD, RED/CED/CAR salvati in `baseline.json`; stesso seed → risultati identici; scarto dalle metriche di `paper-results` entro il 10% (*proposta*) | il comando dell'harness, consegna di B2 (oggi `run_baseline.py` copre solo il gemello ingenuo su BPIC), confrontato con `datasets/extraneous-delays/paper-results` | B1 | da fare |
 | SIM-36 baseline pubblica | `feat/sim-benchmark-baseline` | Ric | Baseline "B = A" misurata su BPIC 2012 e BPIC 2013 e salvata | `run_baseline.py bpic2012`, `run_baseline.py bpic2013_incidents` | D0 | da fare |
 | VPT-10 regimi stazionari | `feat/sim-steady-state` | Ric | Ogni riga del benchmark riporta il regime di A e di B; errore riportato anche solo sulle coppie nello stesso regime | campo `regime` in `baseline.json` | B2 | da fare |
 

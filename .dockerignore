@@ -19,6 +19,8 @@ frontend/dist
 frontend/coverage
 frontend/storybook-static
 data
+datasets
+.ast-grep-rules
 tests
 e2e
 e2e-fullstack

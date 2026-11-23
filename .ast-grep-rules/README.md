@@ -18,7 +18,7 @@ Same output on every PR. `python-bare-except` and
 
 ```bash
 # one-off, no install — the package is `ast-grep-cli`, the executable `ast-grep`
-uvx --from ast-grep-cli ast-grep scan --rule .ast-grep-rules/python-bare-except.yml backend/
+uvx --from ast-grep-cli==0.51.3 ast-grep scan --rule .ast-grep-rules/python-bare-except.yml backend/
 ```
 
 `uvx ast-grep` does not resolve: there is no `ast-grep` package on PyPI.

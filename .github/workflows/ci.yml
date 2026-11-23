@@ -53,7 +53,7 @@ jobs:
       - name: Code quality rules (ast-grep)
         run: |
           for rule in python-bare-except python-llm-client-outside-gateway; do
-            uvx --from ast-grep-cli ast-grep scan --error --rule ".ast-grep-rules/$rule.yml" backend/
+            uvx --from ast-grep-cli==0.51.3 ast-grep scan --error --rule ".ast-grep-rules/$rule.yml" backend/
           done
 
       - name: Mypy check
