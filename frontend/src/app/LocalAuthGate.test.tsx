@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 
 import { i18n } from "@/lib/i18n";
-import { authHeaders, clearSessionCredentials } from "@/lib/security";
+import { authHeaders, clearSessionCredentials, websocketAuthMessage } from "@/lib/security";
 import { HttpError } from "@/lib/http";
 import { LocalAuthGate } from "./LocalAuthGate";
 
@@ -42,6 +42,9 @@ describe("LocalAuthGate", () => {
     await waitFor(() => expect(screen.getByText("Workspace pronto")).toBeInTheDocument());
     expect(authHeaders().get("Authorization")).toBe("Bearer synthetic-token");
     expect(authHeaders().get("X-DeliR-Tenant-ID")).toBe("prod_sim");
+    expect(JSON.parse(websocketAuthMessage())).toEqual({
+      type: "auth", tenant_id: "prod_sim", api_token: "synthetic-token",
+    });
     expect(window.sessionStorage.getItem("delir:session-api-token")).toBe("synthetic-token");
   });
 });

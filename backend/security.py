@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
+import json
 import re
 from contextvars import ContextVar, Token
 from hmac import compare_digest
 
-from fastapi import Depends, Header, HTTPException, Request, WebSocket, status
+from fastapi import Depends, Header, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
@@ -134,10 +136,27 @@ def require_admin_principal(
 
 
 async def authenticate_websocket(websocket: WebSocket) -> AuthPrincipal | None:
+    await websocket.accept()
     try:
-        tenant_id = normalize_tenant_id(websocket.query_params.get("tenant_id"))
+        raw = await asyncio.wait_for(websocket.receive_text(), timeout=5)
+        if len(raw) > 4096:
+            raise ValueError("oversized authentication message")
+        credentials = json.loads(raw)
+        if not isinstance(credentials, dict) or credentials.get("type") != "auth":
+            raise ValueError("invalid authentication message")
+        supplied_tenant = credentials.get("tenant_id")
+        supplied_token = credentials.get("api_token")
+        if (
+            not isinstance(supplied_tenant, str)
+            or not supplied_tenant.strip()
+            or not isinstance(supplied_token, str)
+        ):
+            raise ValueError("invalid authentication fields")
+        tenant_id = normalize_tenant_id(supplied_tenant)
         assert_allowed_tenant(tenant_id)
-    except HTTPException:
+    except WebSocketDisconnect:
+        return None
+    except (HTTPException, ValueError, asyncio.TimeoutError):
         await websocket.close(code=1008)
         return None
 
@@ -145,11 +164,6 @@ async def authenticate_websocket(websocket: WebSocket) -> AuthPrincipal | None:
         principal = AuthPrincipal(user_id="local-dev", tenant_id=tenant_id, is_admin=True)
         set_current_tenant_id(tenant_id)
         return principal
-
-    supplied_token = websocket.query_params.get("api_token")
-    auth_header = websocket.headers.get("authorization")
-    if auth_header and auth_header.casefold().startswith("bearer "):
-        supplied_token = auth_header[7:].strip()
 
     expected_token = _configured_api_token()
     if not supplied_token or not compare_digest(supplied_token, expected_token):

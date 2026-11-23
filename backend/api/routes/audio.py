@@ -195,8 +195,6 @@ async def live_audio_transcription(websocket: WebSocket):
     if principal is None:
         return
 
-    await websocket.accept()
-
     if not settings.openai_api_key:
         await send_ws_event(websocket, "error", detail="OPENAI_API_KEY non configurata.")
         await websocket.close(code=1011)

@@ -494,6 +494,7 @@ def test_live_session_wires_language_vad_and_filtered_completion(monkeypatch):
     client, connect_calls = _live_client(monkeypatch, openai_ws)
 
     with client.websocket_connect("/v1/audio/live-transcription") as websocket:
+        websocket.send_json({"type": "auth", "tenant_id": "local", "api_token": ""})
         ready = websocket.receive_json()
         completed = websocket.receive_json()
 
@@ -542,6 +543,7 @@ def test_live_upstream_failures_are_sanitized(monkeypatch, upstream_event_type: 
     client, _connect_calls = _live_client(monkeypatch, openai_ws)
 
     with client.websocket_connect("/v1/audio/live-transcription") as websocket:
+        websocket.send_json({"type": "auth", "tenant_id": "local", "api_token": ""})
         assert websocket.receive_json()["type"] == "ready"
         error = websocket.receive_json()
 
@@ -554,6 +556,7 @@ def test_live_server_vad_ignores_manual_commit_and_closes_cleanly(monkeypatch):
     client, _connect_calls = _live_client(monkeypatch, openai_ws)
 
     with client.websocket_connect("/v1/audio/live-transcription") as websocket:
+        websocket.send_json({"type": "auth", "tenant_id": "local", "api_token": ""})
         assert websocket.receive_json()["type"] == "ready"
         websocket.send_json({"type": "audio", "audio": "cGNt"})
         websocket.send_json({"type": "commit"})
@@ -575,9 +578,49 @@ def test_live_websocket_requires_authentication_before_connecting_upstream(monke
     monkeypatch.setattr(settings, "delir_auth_enabled", True)
     monkeypatch.setattr(settings, "delir_api_token", "expected-token")
 
-    with pytest.raises(WebSocketDisconnect) as exc_info:
-        with client.websocket_connect("/v1/audio/live-transcription"):
-            pass
+    # A legacy query parameter must not authorize a socket by itself.
+    with client.websocket_connect("/v1/audio/live-transcription?api_token=expected-token") as websocket:
+        websocket.send_json({"type": "auth", "tenant_id": "local", "api_token": "wrong"})
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            websocket.receive_json()
+
+    assert exc_info.value.code == 1008
+    assert connect_calls == []
+
+
+def test_live_websocket_authenticates_first_message_for_allowed_tenant(monkeypatch):
+    from backend.settings import settings
+
+    openai_ws = _FakeOpenAIWebSocket()
+    client, connect_calls = _live_client(monkeypatch, openai_ws)
+    monkeypatch.setattr(settings, "delir_auth_enabled", True)
+    monkeypatch.setattr(settings, "delir_api_token", "expected-token")
+    monkeypatch.setattr(settings, "delir_allowed_tenant_ids", "staging")
+
+    with client.websocket_connect("/v1/audio/live-transcription") as websocket:
+        websocket.send_json(
+            {"type": "auth", "tenant_id": "staging", "api_token": "expected-token"}
+        )
+        assert websocket.receive_json()["type"] == "ready"
+
+    assert len(connect_calls) == 1
+
+
+def test_live_websocket_rejects_tenant_outside_allowlist(monkeypatch):
+    from backend.settings import settings
+
+    openai_ws = _FakeOpenAIWebSocket()
+    client, connect_calls = _live_client(monkeypatch, openai_ws)
+    monkeypatch.setattr(settings, "delir_auth_enabled", True)
+    monkeypatch.setattr(settings, "delir_api_token", "expected-token")
+    monkeypatch.setattr(settings, "delir_allowed_tenant_ids", "staging")
+
+    with client.websocket_connect("/v1/audio/live-transcription") as websocket:
+        websocket.send_json(
+            {"type": "auth", "tenant_id": "prod_sim", "api_token": "expected-token"}
+        )
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            websocket.receive_json()
 
     assert exc_info.value.code == 1008
     assert connect_calls == []

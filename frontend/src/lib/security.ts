@@ -69,13 +69,7 @@ export function authHeaders(
   return next;
 }
 
-export function appendAuthQueryParams(url: URL): URL {
-  const token = apiToken();
-
-  url.searchParams.set("tenant_id", tenantId());
-  if (token) {
-    url.searchParams.set("api_token", token);
-  }
-
-  return url;
+/** Sent as the first WebSocket frame so credentials never enter the URL. */
+export function websocketAuthMessage(): string {
+  return JSON.stringify({ type: "auth", tenant_id: tenantId(), api_token: apiToken() });
 }

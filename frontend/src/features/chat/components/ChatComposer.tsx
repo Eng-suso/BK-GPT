@@ -30,7 +30,7 @@ import {
 } from "@/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { API_BASE } from "../../../lib/api";
-import { appendAuthQueryParams } from "../../../lib/security";
+import { websocketAuthMessage } from "../../../lib/security";
 import {
   MAX_CHAT_ATTACHMENTS,
   chatAttachmentKey,
@@ -113,7 +113,7 @@ registerProcessor("live-capture", LiveCaptureProcessor);
 `;
 
 /**
- * Builds the authenticated WebSocket URL for live audio transcription.
+ * Builds the WebSocket URL for live audio transcription without credentials.
  *
  * @returns The WebSocket URL for the live transcription endpoint.
  */
@@ -124,7 +124,7 @@ function buildLiveTranscriptionUrl(): string {
   url.pathname = "/v1/audio/live-transcription";
   url.search = "";
   url.hash = "";
-  return appendAuthQueryParams(url).toString();
+  return url.toString();
 }
 
 function downsampleBuffer(buffer: Float32Array, inputRate: number, outputRate: number): Float32Array {
@@ -516,6 +516,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       websocketRef.current = ws;
 
       ws.onopen = () => {
+        ws.send(websocketAuthMessage());
         setIsLiveConnected(true);
         setIsRecording(true);
         setAudioStatus(t("composer.audio.liveActive"));
