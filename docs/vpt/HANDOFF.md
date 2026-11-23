@@ -4,9 +4,18 @@ Aggiornato: 2026-11-23, fine della sessione che ha preparato dataset e workflow.
 
 ## Punto attivo
 
-Nessuno. Il prossimo da prendere è **B1, import Prosimos tollerante**
-(`feat/sim-prosimos-import`, vedi [`PLAN.md`](./PLAN.md)). In parallelo si può
-prendere **UX-01** (leggibilità di "Reale contro simulato"), emerso dal gate UX.
+**B1a, import Prosimos lato server**, branch `feat/sim-prosimos-import` (partito da
+`claude/funny-babbage-cw4b84`, PR #168 non ancora mergiata). In corso dal 2026-11-23.
+
+Decisioni prese all'avvio, dai dati dei 19 scenari:
+- 640 durate `fix 0` (attività istantanee, quasi tutte in AcademicCredentials):
+  l'IR accetta la durata zero invece di riscriverla;
+- 47 orari con microsecondi (`23:59:59.999000`): l'IR accetta fino a 6 decimali;
+- 48 decisioni con un solo ramo a probabilità 1 sono porte di unione: si ricostruiscono
+  dal BPMN, nessuna probabilità da importare;
+- 4 calendari non usati da nessuna risorsa: il report li segnala.
+
+Dopo B1a: **B1b** (frontend tramite il server) o **UX-01**.
 
 ## Ultima misura
 
