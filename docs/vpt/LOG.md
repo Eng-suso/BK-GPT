@@ -18,6 +18,19 @@ Modello:
 
 ---
 
+## 2026-11-23 — Workflow di ingegneria — fatto
+
+- Branch / PR: `claude/funny-babbage-cw4b84`, [Eng-suso/BK-GPT#168](https://github.com/Eng-suso/BK-GPT/pull/168).
+- Cosa è cambiato: `WORKFLOW.md` (ciclo di un punto, checkpoint, regola "mangiare la
+  complessità", gate UX con screenshot, skill e code review obbligatorie),
+  `HANDOFF.md` (dove siamo adesso), rimando in `CLAUDE.md` e `AGENTS.md`.
+- Skill usate: `code-review`. La CLI di CodeRabbit non è installata nel container:
+  revisione manuale del diff, poi CodeRabbit sulla PR. Rilievi corretti: id
+  duplicati nel manifest non rilevati; `noqa` sulla riga sbagliata. Verificato il
+  download git di SIMOD e Prosimos (commit fissato, MD5 di `input_output_files.zip`).
+- Gate UX: non applicabile, nessuna schermata cambiata.
+- Prossimo passo: B1.
+
 ## 2026-11-23 — D0 dataset nel repo — fatto
 
 - Branch / PR: `claude/funny-babbage-cw4b84`, PR verso `main`.

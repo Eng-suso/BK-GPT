@@ -77,6 +77,10 @@ spesso con formazione tecnica ma senza il gergo della simulazione e del process
 mining. DeliR assorbe la complessità dei dati e degli strumenti del cliente: il
 consulente pensa al problema e alla decisione, mai all'interfaccia.
 
+- **I componenti ci sono già: il lavoro è su come si leggono le cose.** Non si
+  creano componenti nuovi per un punto del piano; si usano quelli del design
+  system. Si lavora su parole, etichette, ordine, raggruppamento, unità, numeri
+  arrotondati in modo leggibile, spiegazioni accanto al dato e stati vuoti.
 - **Linguaggio di business.** Il percorso ordinario parla di casi, tempi, persone,
   costi, rischi e decisioni. Termini come distribuzione lognormale, seed, gateway,
   ID BPMN, JSON, W1, NGD compaiono solo nei dettagli per specialisti, aperti su

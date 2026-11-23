@@ -25,7 +25,17 @@ COMMIT = re.compile(r"^[0-9a-f]{40}$")
 REDISTRIBUTABLE = {"CC-BY-4.0", "Apache-2.0"}
 
 
-def test_ids_are_unique_and_modes_known() -> None:
+def test_duplicate_ids_are_rejected(tmp_path: Path) -> None:
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        '{"datasets": [{"id": "a", "mode": "fetch"}, {"id": "a", "mode": "fetch"}]}',
+        encoding="utf-8",
+    )
+    with pytest.raises(fetch_datasets.DatasetError):
+        fetch_datasets.load_manifest(manifest)
+
+
+def test_modes_licences_and_sources_are_declared() -> None:
     assert MANIFEST, "manifest vuoto"
     for entry in MANIFEST.values():
         assert entry["mode"] in {"vendored", "fetch", "academic"}, entry["id"]

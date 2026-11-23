@@ -198,7 +198,8 @@ Binding for any work on the simulator or the Verified Process Twin. Full rules:
   long operations and before stopping, so the next person picks up immediately.
 - Product rule: DeliR eats the customer's complexity. The ordinary path speaks
   business language to a non-technical consultant; technical terms only in
-  specialist details.
+  specialist details. The UI components already exist: reuse them and work on
+  how things read (words, labels, order, grouping, units, explanations).
 - UX gate: any point visible to the customer closes only after Playwright
   screenshots (desktop and mobile) have been opened and read, saved under
   `docs/vpt/ux/<point>/`.

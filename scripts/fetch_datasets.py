@@ -38,7 +38,10 @@ class DatasetError(RuntimeError):
 
 def load_manifest(path: Path = MANIFEST) -> dict[str, dict]:
     data = json.loads(path.read_text(encoding="utf-8"))
-    return {entry["id"]: entry for entry in data["datasets"]}
+    entries = {entry["id"]: entry for entry in data["datasets"]}
+    if len(entries) != len(data["datasets"]):
+        raise DatasetError("id duplicati nel manifest")
+    return entries
 
 
 def cache_dir() -> Path:
@@ -65,10 +68,11 @@ def _download(url: str, target: Path, md5: str) -> None:
         return
     partial = target.with_suffix(target.suffix + ".part")
     target.parent.mkdir(parents=True, exist_ok=True)
+    # URL fisso dal manifest, verificato con l'MD5 qui sotto.
     with (
-        urllib.request.urlopen(url, timeout=120) as response,
+        urllib.request.urlopen(url, timeout=120) as response,  # noqa: S310
         partial.open("wb") as out,
-    ):  # noqa: S310
+    ):
         shutil.copyfileobj(response, out)
     got = md5_of(partial)
     if got != md5:
