@@ -147,16 +147,14 @@ all'attività.
 
 ## Problemi di produzione aperti
 
-1. `scripts/dev.ps1` avvia Prosimos 1.2.6 (`prosimos-api`), la prod il runner 2.1.0.
-   La 1.2.6 ignora in silenzio `branch_rules` ed `event_attributes`.
-2. `_process_event_log` in `backend/simulation/service.py` ingoia le eccezioni senza
-   log: un run può risultare `completed` senza KPI. Lo stesso per il download del log
-   nell'adapter.
-3. Il log si scarica con una seconda chiamata HTTP: con più repliche del runner può
-   finire su un altro container.
-4. Il runner non ha autenticazione, limite sul body né timeout per run.
-5. In `execute_claimed_run` gli errori dopo il motore (`sla_outcome`,
-   `complete_simulation_run`) sono fuori dal `try`.
+Chiusi da B0 (2026-11-23): sviluppo sul runner 2.1.0 e adapter che rifiuta motori
+non 2.x; run senza log o con log non analizzabile → `failed` con motivo e traceback;
+log in linea nella risposta; runner con token condiviso, limite sul body e scadenza
+per run; errori dopo il motore gestiti e coda che non si ferma. Nota: `scripts/dev.ps1`
+è escluso da git (`.gitignore`), la modifica vive nella copia locale.
+
+Aperti:
+
 6. L'import di scenari Prosimos JSON esiste solo nel frontend ed è rigido: rifiuta i
    metadati degli scenari SIMOD (`process_model`, `model_type`, `granule_size`).
 7. Test vitest instabili sotto carico: `shareIsolation`, `CaseRules.ui`.
@@ -168,7 +166,7 @@ aggiorna la tabella di stato qui sopra.
 
 | Blocco | Branch | Contenuto |
 | --- | --- | --- |
-| B0 | `fix/sim-engine-parity` | dev sul runner 2.1.0; adapter esige `EngineVersion` ≥ 2; log restituito inline; errori loggati, run senza KPI marcato; protezioni del runner (problemi 1–5) |
+| ~~B0~~ ✅ | `fix/sim-engine-parity` | dev sul runner 2.1.0; adapter esige `EngineVersion` ≥ 2; log restituito inline; errori loggati, run senza KPI marcato; protezioni del runner (problemi 1–5) |
 | B1 | `feat/sim-prosimos-import` | import Prosimos JSON tollerante, anche lato server; test sui 19 scenari del dataset eval (problema 6) |
 | B2 | `feat/sim-eval-harness` | harness `DELIR_SIM_EVAL_DIR`: run replicati, metriche W1, NGD, RED/CED/CAR, throughput; baseline salvata e confronto con il paper (SIM-19, SIM-36) |
 | B3 | `feat/sim-discovery-core` | SIM-16: arrivi, durate per attività con scelta della distribuzione, probabilità dei gateway, risorse e calendari come candidati con fit e alternative (G3) |

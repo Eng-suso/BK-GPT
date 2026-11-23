@@ -50,11 +50,13 @@ docker build -f runner/Dockerfile -t delir-prosimos-runner .
 docker run --rm -p 5000:5000 delir-prosimos-runner
 ```
 
-`PROSIMOS_BASE_URL` resta lo stesso. Il microservizio patchato qui sotto è il
-percorso precedente: resta finché il runner non è il default dell'avvio locale,
-poi `sync-mode.patch` si dismette.
+`PROSIMOS_BASE_URL` resta lo stesso. Dal 2026-11-23 il runner è il default anche
+in sviluppo (`scripts/dev.ps1`) e l'adapter rifiuta un motore che non dichiara
+`EngineVersion` 2.x: il microservizio 1.2.6 qui sotto è dismesso. L'adapter chiede
+il log nella risposta (`inlineLog=1`), fa fallire un run senza log e manda
+`PROSIMOS_API_TOKEN` se impostato (stesso valore di `RUNNER_API_TOKEN` nel runner).
 
-## Local Prosimos Service (precedente, 1.2.6)
+## Local Prosimos Service (dismesso, 1.2.6)
 
 The sync-mode changes DeliR needs (see below) are versioned as a patch:
 [`ops/prosimos/`](../ops/prosimos/) — patch file, pinned upstream commit
@@ -244,8 +246,8 @@ GET /v1/workspace/simulation-runs/{id}/replay   -> { run_id, schema_version, rep
 GET /v1/workspace/bpmn-models/{id}/simulation-runs -> runs + summary each
 ```
 
-Log fetch / parse failure ⇒ warning, run still `completed`, no artifact
-(`/replay` → 404).
+Log mancante o non analizzabile ⇒ run `failed` con il motivo e il traceback nei
+log del backend (fino al 2026-11-23 il run restava `completed` senza KPI).
 
 ## Later phases
 

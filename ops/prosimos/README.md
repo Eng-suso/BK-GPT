@@ -1,4 +1,9 @@
-# Prosimos — sync-mode patch
+# Prosimos — sync-mode patch (dismessa)
+
+> **Non usare.** Il motore di DeliR e' il runner Prosimos 2.1.0 di
+> [`runner/`](runner/README.md), anche in sviluppo. La 1.2.6 accetta regole di
+> routing e attributi d'evento e li ignora; l'adapter ora la rifiuta. Questa
+> patch resta solo come storia.
 
 DeliR calls [prosimos-microservice] as its simulation engine. Upstream is
 **async** (`POST /api/simulate` enqueues a Celery task, needs RabbitMQ + Redis +

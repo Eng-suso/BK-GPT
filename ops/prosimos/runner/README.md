@@ -8,7 +8,7 @@ Python 3.9): il perché è in [docs/simulation-prosimos-2x-spike.md](../../../do
 
 | Metodo | Percorso | Note |
 | --- | --- | --- |
-| `POST` | `/api/simulate` | multipart: `modelFile`, `simScenarioFile`, `numProcesses`, `startDate`, `seed` opzionale |
+| `POST` | `/api/simulate` | multipart: `modelFile`, `simScenarioFile`, `numProcesses`, `startDate`, `seed` opzionale, `inlineLog=1` per avere il log nella risposta |
 | `GET` | `/api/simulationFile?fileName=` | solo `stats_*.csv` / `logs_*.csv` scritti dal runner; scadono dopo `RUNNER_FILE_TTL_SECONDS` |
 | `GET` | `/health` | versione del motore e di Python |
 
@@ -32,11 +32,18 @@ come stringhe JSON doppiamente codificate, `StatsFilename`, `LogsFilename`) più
   (`duration_windows.py`). La patch è scritta per prosimos 2.1.0: con un'altra
   versione la sezione si rifiuta con un `400`.
 
-L'adapter confronta questi conteggi con le sezioni che ha mandato e rifiuta un
-motore che le ignorerebbe in silenzio.
+- `EventLogCsv` (solo con `inlineLog=1`): il log degli eventi. L'adapter lo
+  chiede sempre: con piu' repliche del runner un secondo `GET` del file puo'
+  finire su un container che il file non l'ha.
 
-Errori: `400` per input non valido (parametri, BPMN o scenario rifiutati dal
-motore), `500` per il resto, sempre con `errorMessage` leggibile.
+L'adapter confronta questi conteggi con le sezioni che ha mandato e rifiuta un
+motore che le ignorerebbe in silenzio. Rifiuta anche un motore che non dichiara
+`EngineVersion` 2.x (la 1.2.6 accetta `branch_rules` e li ignora) e un run che
+non restituisce il log: un run completato senza KPI non esiste.
+
+Errori, sempre con `errorMessage` leggibile: `400` input non valido (parametri,
+BPMN o scenario rifiutati dal motore), `401` token mancante o sbagliato, `413`
+richiesta troppo grande, `504` run oltre la scadenza, `500` il resto.
 
 ## Avvio
 
@@ -48,7 +55,15 @@ docker run --rm -p 5000:5000 delir-prosimos-runner
 
 Variabili: `GUNICORN_WORKERS` (6, un run concorrente per worker),
 `GUNICORN_TIMEOUT` (1800 s), `RUNNER_FILE_TTL_SECONDS` (3600),
-`RUNNER_MAX_CASES` (100000).
+`RUNNER_MAX_CASES` (100000), `RUNNER_API_TOKEN` (vuoto = nessun controllo; con
+un valore serve `Authorization: Bearer` su `/api/*`, lo stesso valore va in
+`PROSIMOS_API_TOKEN` dell'app), `RUNNER_MAX_UPLOAD_BYTES` (20 MiB),
+`RUNNER_RUN_TIMEOUT_SECONDS` (870: sotto i 900 s dell'app, cosi' il motivo arriva
+prima del timeout HTTP e il worker si libera).
+
+In sviluppo `scripts/dev.ps1` costruisce e avvia questo runner (immagine
+`delir-prosimos-runner:dev`, container `delir-prosimos-runner-dev`): lo stesso
+motore di staging e produzione.
 
 I worker sono sync di proposito: Prosimos usa `random` e `numpy.random` globali,
 e un worker che serve un run alla volta non mescola lo stato fra run.
