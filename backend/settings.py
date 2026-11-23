@@ -223,6 +223,9 @@ class Settings(BaseSettings):
     delir_cors_origins: str = "http://127.0.0.1:3030,http://localhost:3030"
 
     prosimos_base_url: str = "http://127.0.0.1:5000"
+    # Token condiviso con il runner (RUNNER_API_TOKEN): vuoto = nessun header,
+    # il runner e' raggiungibile solo dalla rete interna.
+    prosimos_api_token: str = ""
     # Quante simulazioni possono girare insieme. Prosimos e' un servizio solo,
     # con sei worker gunicorn (ops/prosimos/README.md) e un worker per
     # simulazione: oltre quel numero le richieste non vengono rifiutate, restano
