@@ -1481,14 +1481,6 @@
           "bias": "Mean bias",
           "mae": "Mean absolute error",
           "uncertainty": "The 95% CI measures variation across simulations, not uncertainty in the real log. A gap can be systematic even when values are close.",
-          "metric": {
-            "cycle": "Average case duration",
-            "p50": "Half of the cases finish within",
-            "p90": "9 cases in 10 finish within",
-            "between": "Average waiting per case",
-            "processing": "Work time per case",
-            "throughput": "Cases completed per hour"
-          },
           "pooled": "Across all simulated cases together: P50 {{p50}}, P90 {{p90}}. The table instead shows the mean of each simulation's percentiles.",
           "distances": "Distributions: mean cycle distance {{cycle}}; path distance {{ngd}} (2-grams).",
           "firstWaitTitle": "Initial waiting cannot be compared",

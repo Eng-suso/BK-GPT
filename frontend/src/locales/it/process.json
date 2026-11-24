@@ -1481,14 +1481,6 @@
           "bias": "Scarto medio",
           "mae": "Errore assoluto medio",
           "uncertainty": "L'IC 95% misura la variabilità fra simulazioni, non l'incertezza del log reale. Uno scarto può essere sistematico anche quando i valori sono vicini.",
-          "metric": {
-            "cycle": "Durata media di un caso",
-            "p50": "Metà dei casi si chiude entro",
-            "p90": "9 casi su 10 si chiudono entro",
-            "between": "Attesa media per caso",
-            "processing": "Tempo di lavoro per caso",
-            "throughput": "Casi completati all'ora"
-          },
           "pooled": "Su tutti i casi simulati insieme: P50 {{p50}}, P90 {{p90}}. La tabella mostra invece la media dei percentili delle singole simulazioni.",
           "distances": "Distribuzioni: distanza media dei tempi {{cycle}}; distanza dei percorsi {{ngd}} (2-grammi).",
           "firstWaitTitle": "Attesa iniziale non confrontabile",
