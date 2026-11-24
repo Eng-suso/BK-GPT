@@ -2,8 +2,10 @@
 
 from dataclasses import replace
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import JSONResponse
 
+from backend.api.errors import api_error_response
 from backend.eventlog import storage
 from backend.eventlog.mapping import MappingError, apply_mapping as read_mapped_events
 from backend.eventlog.model import EventLog
@@ -198,8 +200,8 @@ def get_event_log_analysis(event_log_id: str) -> EventLogAnalysisResponse:
     raise HTTPException(status_code=409, detail="Il log non è ancora stato mappato.")
 
 
-@router.get("/event-logs/{event_log_id}/conformance")
-def get_event_log_conformance(event_log_id: str) -> EventLogConformanceResponse:
+@router.get("/event-logs/{event_log_id}/conformance", response_model=EventLogConformanceResponse)
+def get_event_log_conformance(event_log_id: str, request: Request) -> EventLogConformanceResponse | JSONResponse:
     """I casi reali riprodotti sul BPMN: quanti lo seguono e dove ne escono."""
     try:
         return conformance(event_log_id)
@@ -210,7 +212,8 @@ def get_event_log_conformance(event_log_id: str) -> EventLogConformanceResponse:
     except MappingError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ConformanceUnavailable as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        # Codice stabile nella busta d'errore: il client lo traduce (not_mapped, no_model, ...).
+        return api_error_response(request, status_code=409, code=exc.code, message=str(exc))
 
 
 @router.delete("/event-logs/{event_log_id}", status_code=204)

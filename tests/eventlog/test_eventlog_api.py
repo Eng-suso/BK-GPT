@@ -417,6 +417,7 @@ def test_conformance_replays_the_cases_on_the_process_model(client):
 
     before = client.get(f"/v1/workspace/event-logs/{log_id}/conformance", headers=headers)
     assert before.status_code == 409
+    assert before.json()["error"]["code"] == "not_mapped"
 
     matches = {"Ricevi richiesta": "T1", "Approva ordine": "T2", "Paga fornitore": "T3"}
     mapped = client.post(
@@ -438,6 +439,7 @@ def test_conformance_replays_the_cases_on_the_process_model(client):
     assert deviations["T3"]["executed_out_of_order"] == 1
     assert deviations["T2"]["left_waiting"] == 1
     assert deviations["T2"]["name"] == "Approvazione ordine"
+    assert deviations["T2"]["cases_affected"] == 1
     assert body["bpmn_version_id"] == body["mapping_bpmn_version_id"]
     assert body["warnings"] == []
 

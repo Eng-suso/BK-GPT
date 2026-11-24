@@ -23,6 +23,7 @@ from backend.schemas.eventlog import (
     ActivityMatchReportResponse,
     ApplyEventLogMappingRequest,
     ConformanceDeviationResponse,
+    ConformanceWarningResponse,
     ConformanceVariantResponse,
     EventLogAnalysisResponse,
     EventLogConformanceResponse,
@@ -216,7 +217,15 @@ def period_summary(event_log_id: str, *, since: date | None = None, before: date
 
 
 class ConformanceUnavailable(ValueError):
-    """Mancano il mapping o il modello: la conformance non si puo' calcolare."""
+    """Mancano il mapping o il modello: la conformance non si puo' calcolare.
+
+    ``code`` e' stabile (``not_mapped``, ``no_model``, ``model_not_replayable``):
+    il client lo traduce, il messaggio resta per i log e per le API.
+    """
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 #: Le varianti restituite nella risposta: le piu' frequenti. Il calcolo le usa tutte.
@@ -240,13 +249,13 @@ def conformance(event_log_id: str) -> EventLogConformanceResponse:
     analysis = storage.get_analysis(event_log_id)
     if log.mapping is None or analysis is None:
         raise ConformanceUnavailable(
-            f"Il log «{log.name}» non è ancora mappato: completa il mapping nel wizard."
+            "not_mapped", f"Il log «{log.name}» non è ancora mappato: completa il mapping nel wizard."
         )
     process = get_process(log.process_id)
     model = get_bpmn_model(process["bpmn_model_id"]) if process else None
     xml = (model or {}).get("xml") or ""
     if not xml.strip():
-        raise ConformanceUnavailable("Il processo non ha ancora un BPMN da confrontare con il log.")
+        raise ConformanceUnavailable("no_model", "Il processo non ha ancora un BPMN da confrontare con il log.")
 
     canonical, _ = map_table(table, log.mapping, source_name=log.name)
     matches = {m.activity: m.element_id for m in analysis.activities.matches}
@@ -255,16 +264,10 @@ def conformance(event_log_id: str) -> EventLogConformanceResponse:
         # motore (``_model_targets``): si riproduce lo stesso.
         result = check_conformance(canonical, normalize_bpmn_for_prosimos(xml), matches)
     except ConformanceModelError as exc:
-        raise ConformanceUnavailable(str(exc)) from exc
+        raise ConformanceUnavailable("model_not_replayable", str(exc)) from exc
 
+    # Un BPMN cambiato dopo l'abbinamento si legge dalle due versioni nella risposta.
     bpmn_version_id = (model or {}).get("version_id")
-    warnings = list(result.warnings)
-    if analysis.activities.bpmn_version_id != bpmn_version_id:
-        warnings.insert(
-            0,
-            "Il BPMN è cambiato dopo l'abbinamento delle attività: rivedi l'abbinamento prima di "
-            "leggere questo risultato.",
-        )
     names = {m.element_id: m.name for m in analysis.activities.unobserved_elements}
     names.update({d.element_id: d.name for d in result.deviations})
     return EventLogConformanceResponse(
@@ -281,6 +284,7 @@ def conformance(event_log_id: str) -> EventLogConformanceResponse:
                 name=d.name,
                 executed_out_of_order=d.executed_out_of_order,
                 left_waiting=d.left_waiting,
+                cases_affected=d.cases_affected,
             )
             for d in result.deviations
         ],
@@ -303,7 +307,7 @@ def conformance(event_log_id: str) -> EventLogConformanceResponse:
         ],
         excluded_variants=result.excluded_variants,
         excluded_cases=result.excluded_cases,
-        warnings=warnings,
+        warnings=[ConformanceWarningResponse(code=w.code, params=dict(w.params)) for w in result.warnings],
     )
 
 

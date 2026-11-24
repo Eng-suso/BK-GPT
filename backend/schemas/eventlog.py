@@ -161,6 +161,8 @@ class ConformanceDeviationResponse(BaseModel):
     executed_out_of_order: int
     # Casi finiti con il modello ancora in attesa di questo elemento.
     left_waiting: int
+    # Casi distinti con almeno una delle due deviazioni.
+    cases_affected: int
 
 
 class ConformanceVariantResponse(BaseModel):
@@ -171,6 +173,13 @@ class ConformanceVariantResponse(BaseModel):
     out_of_order: list[str]
     waiting: list[str]
     unmodeled: list[str]
+
+
+class ConformanceWarningResponse(BaseModel):
+    """Codice stabile e parametri: il testo lo scrive il client nella sua lingua."""
+
+    code: str
+    params: dict[str, str | int]
 
 
 class EventLogConformanceResponse(BaseModel):
@@ -191,7 +200,7 @@ class EventLogConformanceResponse(BaseModel):
     unobserved_elements: list[ModelElementResponse]
     excluded_variants: int
     excluded_cases: int
-    warnings: list[str]
+    warnings: list[ConformanceWarningResponse]
 
 
 class SaveEventLogTemplateRequest(BaseModel):
