@@ -88,12 +88,16 @@ test `event type selection…` cliccava. Il test ora tocca l'arco visibile.
 
 ## Decisioni aperte per Sohayb
 
-- Impostare `DELIR_ADMIN_TOKEN` in staging e prod: senza, le cancellazioni ora
-  rispondono 403 (SEC-ADMIN).
 - Copiare comunque nel repo pubblico BPIC 2012/2013/2020 e Prosimos?
-- Confermare la meta marcata *proposta* di B3 in `PLAN.md` (gateway ±0,05, durate
-  ±10%).
-- Arrivi `expon` di Procure_to_Pay: vedi "Richieste per Sohayb" nella sezione B2.
+
+Decise da Sohayb il 2026-11-24 (motivi in `LOG.md`):
+
+- Benchmark A→B: i 3 log reali train/test del paper sono il banco principale
+  (SIM-36b); BPIC 2012 resta; BPIC 2013 incidents non serve a giudicare un twin.
+- Meta di B3 confermata, con "batte B = A" misurato sui 3 log train/test.
+- Arrivi `expon` di Procure_to_Pay: l'import avvisa il consulente (IMP-01).
+- `DELIR_ADMIN_TOKEN` in staging e prod e la VM per l'isolamento fra clienti: li
+  fa Sohayb; nessun agente può farlo dal repo.
 
 ## B2 (fatto il 2026-11-24, PR #174)
 

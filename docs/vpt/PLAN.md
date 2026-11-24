@@ -39,7 +39,8 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 | B1b import dal frontend tramite il server | `feat/sim-prosimos-import-ui` | Prod | Uno scenario che l'editor non sa rappresentare (oggi tutti quelli SIMOD) si importa dal server e si simula così com'è; il report d'import si legge in linguaggio di business; gate UX | `tests/simulation/test_prosimos_import_api.py` + e2e + gate UX | B1a | fatto (2026-11-24) |
 | SEC-ADMIN admin implicito | `ccr-9b6e10c9-jmjsbm` | Prod | Fuori da dev/local/test, senza `DELIR_ADMIN_TOKEN` nessun client è amministratore e le cancellazioni rispondono 403 | `tests/server/test_app.py` | — | fatto (2026-11-24) |
 | CAL-01 calendari probabilistici (FUZZY) di SIMOD | `feat/sim-fuzzy-calendars` | Prod | Uno scenario SIMOD con calendari FUZZY si importa senza perdere la disponibilità probabilistica delle risorse, si ricompila identico e gira sul runner Prosimos 2.1; nessun rifiuto per FUZZY | test di import e round trip su uno scenario FUZZY scoperto da SIMOD sul dataset + run sul runner | B1a | fatto (2026-11-24) |
-| Track B isolamento tenant | vedi `docs/deployment-and-tenancy.md` | Prod | Test cross-tenant su API, worker, memoria e checkpoint verdi | suite cross-tenant | blocker VM e dominio (Sohayb) | bloccato |
+| IMP-01 avviso sugli arrivi troncati | `feat/sim-import-expon-warning` | Prod | Importando uno scenario con arrivi `expon` la cui media è vicina al massimo (Prosimos 2.1 li tronca: arrivi più fitti e code più lunghe del log), DeliR avvisa il consulente in linguaggio di business, con cosa cambia e cosa fare; lo scenario resta com'era. Avvisano le 4 varianti di Procure_to_Pay, nessuno dei 15 altri scenari di `datasets/extraneous-delays/inputs`; gate UX | test di import sui 19 scenari + e2e + gate UX | B1a | da fare |
+| Track B isolamento tenant | vedi `docs/deployment-and-tenancy.md` | Prod | Test cross-tenant su API, worker, memoria e checkpoint verdi | suite cross-tenant | VM e dominio: Sohayb li sblocca (deciso il 2026-11-24) | bloccato |
 
 ### UX — Leggibilità (regola: mangiare la complessità)
 
@@ -53,6 +54,7 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 | --- | --- | --- | --- | --- | --- | --- |
 | B2 harness di valutazione | `feat/sim-eval-harness` | Ric | (1) Riproducibile: con lo stesso seed i 19 scenari danno lo stesso `baseline.json`, bit per bit. (2) Allineato al paper sui 3 log reali (AcademicCredentials, BPIC 2012 W, BPIC 2017 W): lo scenario SIMOD simulato così com'è sullo stack reale (import, database, coda, runner Prosimos 2.1) e confrontato con il log di test, con lo stesso numero di repliche del paper; per RED, AED e W1 del cycle time la differenza fra la nostra media e la riga `original` di `paper-results` è minore della somma dei due intervalli di confidenza. Ogni metrica fuori resta aperta finché la causa non è trovata e corretta o spiegata con una prova in `LOG.md`. (3) Baseline sui 16 sintetici: W1, NGD, RED, AED, CED, CAR con i loro intervalli, riferimento per B3 e B5 | il comando dell'harness, consegna di B2, su `scripts/vpt_stack.sh`; metriche calcolate come `log-distance-measures` 2.2 (la libreria del paper), confrontate con `datasets/extraneous-delays/paper-results` | B1 | fatto (2026-11-24): riproducibile bit per bit, 9/9 metriche dentro sui 3 reali, baseline dei 16 sintetici in `tests/simulation/benchmark/b2/` |
 | SIM-36 baseline pubblica | `feat/sim-benchmark-baseline` | Ric | Baseline "B = A" misurata su BPIC 2012 e BPIC 2013 e salvata | `run_baseline.py bpic2012`, `run_baseline.py bpic2013_incidents` | D0 | fatto (2026-11-24, #178): metriche di B2 con IC 95% in `tests/simulation/benchmark/sim36/` |
+| SIM-36b baseline sui log train/test | `feat/sim-benchmark-train-test` | Ric | "B = A" (impara dal train, prevede il test) misurata sui 3 log reali del paper (AcademicCredentials, BPIC 2012 W, BPIC 2017 W) con le metriche, le repliche e il formato di B2, salvata nel repo con il comando per rifarla; BPIC 2013 incidents marcato nel benchmark come non adatto al confronto A→B (è una foto degli incidenti aperti: con ogni taglio B è troncato al 100%) | `run_baseline.py` sui 3 log train/test | SIM-36 | da fare |
 | VPT-10 regimi stazionari | `feat/sim-steady-state` | Ric | Ogni riga del benchmark riporta il regime di A e di B; errore riportato anche solo sulle coppie nello stesso regime | campo `regime` in `baseline.json` | B2 | da fare |
 
 ### V2 — Twin dai dati
@@ -60,7 +62,7 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 | Blocco | Branch | Binario | Meta | Misura | Dipende da | Stato |
 | --- | --- | --- | --- | --- | --- | --- |
 | G3 spike SIMOD | `spike/sim-simod-discovery` | Ric | SIMOD scopre i 3 log reali dal train, valutati sul test; lo scenario prodotto si importa in DeliR; decisione G3 scritta in `LOG.md` | harness B2 sugli scenari SIMOD | B1, B2 | da fare |
-| B3 discovery dei parametri (SIM-16) | `feat/sim-discovery-core` | Ric → Prod | Sui sintetici: probabilità dei gateway entro ±0,05 e media delle durate entro ±10% della verità (*proposta*); sui reali il twin batte "B = A" su ≥ 3 log con IC 95% (H1) | harness B2 | G3 | da fare |
+| B3 discovery dei parametri (SIM-16) | `feat/sim-discovery-core` | Ric → Prod | Sui sintetici: probabilità dei gateway entro ±0,05 e media delle durate entro ±10% della verità; sui 3 log reali train/test il twin scoperto dal train batte "B = A" di SIM-36b su W1 del cycle time, RED e AED, con intervalli al 95% che non si sovrappongono (H1) | harness B2 + baseline SIM-36b | G3, SIM-36b | da fare |
 | VPT-08 traccia di derivazione | `feat/sim-derivation-trace` | Prod | 100% dei parametri non Manual risale al passaggio esatto della fonte o all'osservazione | test sul contratto dei candidati | B3 | da fare |
 | B4 checklist del twin (SIM-18) | `feat/sim-discovery-ui` | Prod | E2E: un log porta a un twin validato senza toccare JSON; gate UX superato con la prova del consulente | Playwright | B3 | da fare |
 | B5 ritardi estranei | `feat/sim-extraneous-delays` | Ric | Sui sintetici con 1, 3, 5 timer, distanza pari o migliore di quella del paper in `paper-results` | harness B2 | B3 | da fare |
@@ -110,5 +112,5 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 
 ## Ordine consigliato
 
-B1 → B2 → SIM-36 e G3 in parallelo → B3. Finché B2 non ha una baseline misurata,
+B1 → B2 → SIM-36 → SIM-36b e G3 in parallelo → B3. IMP-01 è indipendente. Finché B2 non ha una baseline misurata,
 nessuna affermazione di fedeltà entra in materiali commerciali.
