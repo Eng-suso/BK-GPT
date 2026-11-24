@@ -1,19 +1,16 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-24, dopo CONF-01, CONF-02 (conformance log ↔ BPMN), SEC-ADMIN,
-B1a e B1b (import Prosimos e SIMOD, PR #170 che chiude anche #169).
+Aggiornato: 2026-11-24, dopo B1a e B1b (PR #170, che chiude anche #169) e lo stack
+reale per il simulatore (`scripts/vpt_stack.sh`, PR #171).
 
-## Punto attivo
+## Punti attivi
 
-Nessuno. **B1a e B1b sono fatti e su `main`** (PR #170, che contiene anche #169).
+Tre punti in parallelo, una sessione ciascuno (regole in "Più agenti in parallelo"
+di [`WORKFLOW.md`](./WORKFLOW.md)). Ognuno aggiorna solo la propria sezione qui sotto.
 
-Prossimo: **CAL-01, calendari FUZZY di SIMOD** (richiesta di Sohayb: DeliR deve
-gestire tutto). Oggi `from_prosimos.py` li rifiuta con il motivo perché l'IR non
-rappresenta la disponibilità probabilistica. Primo passo: verificare nel sorgente di
-Prosimos 2.1 (`scripts/fetch_datasets.py fetch prosimos`) il formato dei calendari
-FUZZY e che il runner li esegua; poi IR, import, compilazione, test.
-
-In alternativa **UX-01** (leggibilità di "Reale contro simulato").
+- **B2** harness di valutazione: meta decisa da Sohayb, vedi la sezione B2.
+- **CAL-01** calendari FUZZY di SIMOD: vedi "Come riprendere CAL-01".
+- **UX-01** leggibilità di "Reale contro simulato".
 
 ## Ultima misura
 
@@ -33,24 +30,18 @@ screenshot in `docs/vpt/ux/conformance/`. CONF-01: LoanApp 500/500 casi conformi
 
 ## CI
 
-Fino al 2026-11-23 `main` era rosso su 5 e2e del simulatore (`simulation-escalation`,
-`simulation-eventlog`), rimasti indietro rispetto ai commit del 23 novembre. La PR
-#168 li ha corretti: un difetto vero (log con soli completamenti senza confronto per
-attività) e test con copy e mock vecchi.
+`main` è tornato verde il 2026-11-24 con #170: mobile-safari 4/4 era rosso dal merge di
+#168 perché, su iPhone, la barra degli strumenti del canvas copriva l'evento che il
+test `event type selection…` cliccava. Il test ora tocca l'arco visibile.
 
 ## Ambiente
 
+- **Stack reale:** `scripts/vpt_stack.sh start` avvia Postgres 16 con le migrazioni e
+  il runner Prosimos 2.1 (Python 3.12), senza Docker. Sostituisce la ricetta manuale
+  di Postgres.
 - Sessioni cloud sull'ambiente **BK-GPT** (consente zenodo.org e data.4tu.nl).
 - I test che non toccano il database girano con `uv run pytest --noconftest ...`;
-  la suite completa richiede Postgres (`cd ops && docker compose up -d`) o la CI.
-- Postgres in cloud senza Docker (il daemon non c'è): `apt-get install -y
-  postgresql-16-pgvector`, poi come utente `postgres` `initdb -U delir_super
-  --auth=trust` in `/var/lib/postgresql/delir-test/data`, `pg_ctl ... -o '-p 5432
-  -c listen_addresses=127.0.0.1' start`, `CREATE DATABASE delir`, gli script
-  `ops/postgres/init/*.sh` con `POSTGRES_USER=delir_super POSTGRES_DB=delir` e le
-  password di test della CI, poi `alembic upgrade head` e
-  `alembic -c alembic_workspace.ini upgrade head` con le URL della CI. Con questo la
-  suite `tests/simulation` gira intera (655 test il 2026-11-23).
+  la suite completa richiede lo stack reale, Docker (`cd ops && docker compose up -d`) o la CI.
 - Playwright in cloud: il repo fissa una versione diversa da quella preinstallata.
   Usa una config locale non committata che estende `playwright.config.ts` con
   `launchOptions.executablePath: '/opt/pw-browsers/chromium'`.
@@ -60,8 +51,8 @@ attività) e test con copy e mock vecchi.
 - Impostare `DELIR_ADMIN_TOKEN` in staging e prod: senza, le cancellazioni ora
   rispondono 403 (SEC-ADMIN).
 - Copiare comunque nel repo pubblico BPIC 2012/2013/2020 e Prosimos?
-- Confermare le mete marcate *proposta* in `PLAN.md` (B2: scarto ≤ 10% dal paper;
-  B3: gateway ±0,05, durate ±10%).
+- Confermare la meta marcata *proposta* di B3 in `PLAN.md` (gateway ±0,05, durate
+  ±10%). Quella di B2 è decisa (2026-11-24).
 
 ## B2 (da fare, meta decisa il 2026-11-24)
 

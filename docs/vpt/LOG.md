@@ -18,6 +18,33 @@ Modello:
 
 ---
 
+## 2026-11-24 — chiusura B1, stack reale, meta di B2 — fatto
+
+- Branch / PR: #170 (B1a + B1b, chiude anche #169) mergiata; #171
+  `env/vpt-local-stack`.
+- Meta: #170 su `main` con CI verde → raggiunta. Stack reale avviabile in una sessione
+  cloud senza Docker → raggiunta: `scripts/vpt_stack.sh start` in 9 s dopo il primo
+  avvio; con lo stack `tests/server/test_app.py` 12/12 sul database vero e
+  `test_simulation_ir_engine.py` 29/29 su Prosimos 2.1.
+- Iterazioni: 1) #170 in conflitto con `main` (CONF-02 e SEC-ADMIN fatti in
+  parallelo): conflitti solo in `PLAN.md` e `HANDOFF.md`, risolti tenendo tutto;
+  2) mobile-safari 4/4 rosso anche su `main` dal merge di #168: riprodotto con il
+  viewport iPhone 14, la barra degli strumenti copriva l'evento cliccato; il test ora
+  tocca l'arco visibile; 3) lo script restava appeso perché Postgres ereditava lo
+  stderr del chiamante: corretto.
+- Cosa è cambiato: `scripts/vpt_stack.sh`; in `WORKFLOW.md` "una sessione, un
+  punto", "Più agenti in parallelo" e "Stack reale"; meta di B2 in `PLAN.md`.
+- Decisioni (Sohayb): meta di B2 senza il 10% fisso (riproducibilità, nessuna
+  differenza statistica dal paper sui 3 log reali, baseline sui sintetici); misure
+  del simulatore sullo stack reale locale, non sui database di staging o prod; B2,
+  CAL-01 e UX-01 in parallelo, un agente per punto.
+- Code review: il diff di #170 era già passato da `code-review` (9 + 9 rilievi
+  corretti); il merge ha portato solo documenti e un test e2e. #171 non tocca il
+  codice dell'app.
+- Prossimo passo: B2, CAL-01 e UX-01 in tre sessioni nuove.
+
+---
+
 ## 2026-11-24 — B1b import dal frontend tramite il server — fatto
 
 - Branch / PR: `feat/sim-prosimos-import-ui`, verso `main` (contiene B1a, #169).
