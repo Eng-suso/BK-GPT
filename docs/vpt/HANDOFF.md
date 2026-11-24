@@ -10,10 +10,40 @@ Nessuno. SIM-36, G3 e B6 sono chiusi. Prossimi secondo [`PLAN.md`](./PLAN.md):
 **SIM-36b** ("B = A" sui 3 log train/test) e **IMP-01** (avviso sugli arrivi troncati),
 poi **B3**, che parte dalla decisione G3 (sezione sotto).
 
-## IMP-01 (in corso dal 2026-11-24, `feat/sim-import-expon-warning`)
+## IMP-01 (fatto il 2026-11-24, `feat/sim-import-expon-warning`)
 
-Un agente su IMP-01, in parallelo con SIM-36b. Avviso all'import sugli arrivi `expon`
-con media vicina al massimo. Stato: iniziato, nessuna misura ancora.
+L'import avvisa quando Prosimos 2.1 renderà gli arrivi più fitti del file. Meta
+raggiunta: avvisano le 4 varianti di Procure_to_Pay, nessuno dei 15 altri scenari;
+lo scenario resta com'era (arrivi identici nell'IR e nel JSON ricompilato).
+
+```bash
+uv run pytest --noconftest -q tests/simulation/test_prosimos_import.py      # 19 scenari + golden
+eval "$(scripts/vpt_stack.sh env)" && uv run pytest -q tests/simulation/test_prosimos_import_api.py
+npx playwright test e2e/simulation-import-arrivals.spec.ts                  # DELIR_UX_SHOTS=docs/vpt/ux/imp-01 per gli screenshot
+```
+
+- **Regola:** pix_framework 0.15 estrae da `expon(loc=min, scale=mean-min)` e scarta
+  (ricampiona) i valori oltre il massimo: media prodotta
+  `min + s - R·e^(-R/s)/(1-e^(-R/s))`, `R = max-min`. Si avvisa se è più bassa di oltre
+  il 10% della media scritta. Procure_to_Pay: 1805 s scritti, 1240,5 s prodotti
+  (campionati: 1241,8), +45% di casi. Nessun avviso se gli arrivi li genera il runner
+  (fasce o ritmi per mese).
+- **Dove vive:** `prosimos_exponential_mean`/`_arrival_notes` in
+  `backend/simulation/ir/from_prosimos.py` (nota `warning`, topic `arrivals_faster`) e
+  `arrivalsRunFaster`/`draftArrivalsRunFaster` in `simulationScenario.ts` per l'editor.
+  Le due copie le tiene uguali `tests/fixtures/simulation/arrivals_truncation_golden.json`.
+- **UI:** nel pannello d'import "Da verificare" senza la parola "adattamenti"
+  (nuovo tipo di nota `warning`: lo scenario non cambia); nell'editor un avviso in
+  Arrivi dei casi con il bottone "Porta il massimo a …" (5 volte la media) e un toast
+  all'import.
+- **Trovato per strada:** col file vero il consulente veniva fermato prima dell'avviso
+  da una richiesta di associare 3 ID tecnici (porte di sola unione). Ora il template
+  del server elenca le porte di unione (`merges`) e il client non le chiede più.
+  Corretto anche `withArrival`, che perdeva i ritmi per mese a ogni modifica degli arrivi.
+- **Seguiti proposti (non fatti):** la frase sotto la media degli arrivi dice ancora
+  "segue una distribuzione esponenziale" e mostra "30.1" col punto; i dettagli delle
+  note del server sono solo in italiano; un run lanciato fuori dalla UI non riceve
+  l'avviso (servirebbe una nota a livello di run).
 
 ## B6 (fatto il 2026-11-24, `spike/sim-throughput`)
 

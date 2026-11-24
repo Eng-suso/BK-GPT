@@ -18,6 +18,47 @@ Modello:
 
 ---
 
+## 2026-11-24 — IMP-01 avviso sugli arrivi troncati — fatto
+
+- Branch / PR: `feat/sim-import-expon-warning`.
+- Meta: importando uno scenario con arrivi `expon` e media vicina al massimo, DeliR
+  avvisa in linguaggio di business con cosa cambia e cosa fare; lo scenario resta
+  com'era; avvisano le 4 Procure_to_Pay, nessuno dei 15 altri; gate UX → raggiunta.
+  Misura: `tests/simulation/test_prosimos_import.py` 118/118 (19 scenari: 4 avvisano,
+  15 no; arrivi ricompilati identici al file), API 2 test sullo stack reale, e2e
+  `simulation-import-arrivals` 4/4 (chromium e mobile-chrome, axe pulito, controllo
+  anti-gergo), vitest simulazione 452/452, `tests/simulation` sullo stack 746 passati.
+- Iterazioni: 1) regola sul codice di pix_framework 0.15 (rifiuto e ricampionamento,
+  non taglio al massimo): media prodotta 1240,5 s contro 1241,8 campionati, +45%;
+  2) nota `warning` e pannello d'import; 3) prova col file vero: il consulente veniva
+  fermato da 3 ID di porte di unione da associare → il template li elenca; 4) gate UX:
+  su mobile il bottone schiacciava il testo in colonna e la media appariva
+  "30.083333333333332" → bottone sotto il testo, media a 3 cifre; 5) code review e
+  simplify.
+- Gate UX (`docs/vpt/ux/imp-01/`, desktop 1440 × 900 e Pixel 7, aperti e letti):
+  risposta e azione prima dei dettagli, nessun "esponenziale", "Prosimos", "node-…"
+  nel percorso ordinario, nessun testo tagliato dopo la correzione. "Prima" non
+  catturato: il flusso col file vero si fermava alla richiesta di associare gli ID.
+- Code review: `code-review` 8 rilievi, tutti corretti (avviso falso con ritmi per mese,
+  arrotondamento che azzerava i passi brevi, `withArrival` che perdeva i mesi, toast
+  senza avviso con limiti non validi, arrotondamento diverso Python/JS, unità scelte
+  prima di arrotondare, rimando in inglese a dettagli in italiano, HANDOFF). `simplify`
+  (4 revisori): porte di unione dal template del server invece di un parser BPMN nel
+  client, campi di mappatura calcolati una volta, secondi nell'avviso, golden
+  condiviso Python/TS, stesso controllo della lingua delle altre viste. Non applicati:
+  `arrivalsRunFaster` privato (lo usano i test e il golden), `_arrival_notes` che
+  restituisce una lista (stile delle altre note), calcolo pigro delle porte (sparito
+  col template). `backend/CODE_QUALITY.md`: tolto un `Any`; regola duplicata
+  frontend/backend motivata (l'editor valida le bozze senza chiamare il server) e
+  tenuta uguale dal golden. ast-grep 4 regole: 0 rilievi; ruff e mypy puliti. Nessuna
+  modifica ad autenticazione o isolamento: niente `security-review`.
+- Skill: `ui-visual-validator`, `code-review`, `simplify`.
+- Decisioni: soglia 10% fra media scritta e prodotta; correzione proposta "massimo ≥ 5
+  volte la media" (scarto 3%).
+- Prossimo passo: SIM-36b (in corso in parallelo), poi B3.
+
+---
+
 ## 2026-11-24 — G3 spike SIMOD — fatto
 
 - Branch / PR: `spike/sim-simod-discovery`.
