@@ -369,6 +369,16 @@ export function arrivalsRunFaster(arrival: DurationDraft): ArrivalsFaster | null
   };
 }
 
+/**
+ * L'avviso per la bozza: con fasce o ritmi per mese gli arrivi li genera il runner dalla
+ * sola media (nessun taglio); con limiti non validi il pannello mostra prima l'errore.
+ */
+export function draftArrivalsRunFaster(draft: ScenarioDraft): ArrivalsFaster | null {
+  if (draft.arrival?.bands?.length || draft.arrival?.months?.length) return null;
+  const arrival = arrivalDuration(draft);
+  return taskDurationIssue(arrival) === null ? arrivalsRunFaster(arrival) : null;
+}
+
 /** Gli arrivi come una durata: la stessa forma, gli stessi controlli, gli stessi campi. */
 export function arrivalDuration(draft: ScenarioDraft): DurationDraft {
   const arrival = draft.arrival;
@@ -389,7 +399,11 @@ export function arrivalDuration(draft: ScenarioDraft): DurationDraft {
 export function withArrival(draft: ScenarioDraft, next: DurationDraft, ...calendar: [calendarId: string | undefined] | []): ScenarioDraft {
   const { meanMinutes, ...rest } = next;
   const calendarId = calendar.length ? calendar[0] : draft.arrival?.calendarId;
-  return { ...draft, arrivalIntervalMinutes: meanMinutes, arrival: { ...rest, calendarId, bands: draft.arrival?.bands } };
+  return {
+    ...draft,
+    arrivalIntervalMinutes: meanMinutes,
+    arrival: { ...rest, calendarId, bands: draft.arrival?.bands, bandAttribute: draft.arrival?.bandAttribute, months: draft.arrival?.months },
+  };
 }
 
 export function newCalendarId(existing: CalendarDraft[]): string {

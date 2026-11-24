@@ -4,6 +4,7 @@ import {
   DEFAULT_SCENARIO,
   arrivalDuration,
   arrivalsRunFaster,
+  draftArrivalsRunFaster,
   loadScenarioDraft,
   scenarioParameterIssues,
   scenarioToInput,
@@ -84,5 +85,24 @@ describe("arrivals the engine makes denser (IMP-01)", () => {
     expect(arrivalsRunFaster({ ...procureToPay, distribution: "fixed" })).toBeNull();
     // Insurance_Claims: expon [17, 16, 3600] secondi, media sul minimo.
     expect(arrivalsRunFaster({ meanMinutes: 17 / 60, distribution: "expon", minMinutes: 16 / 60, maxMinutes: 60 })).toBeNull();
+  });
+});
+
+describe("the arrivals warning on a whole draft (IMP-01)", () => {
+  const denser = { arrivalIntervalMinutes: 1805 / 60, arrival: { distribution: "expon" as const, minMinutes: 5 / 60, maxMinutes: 60 } };
+
+  it("warns on the draft, not when the runner draws arrivals from the mean alone", () => {
+    expect(draftArrivalsRunFaster(draft(denser))).not.toBeNull();
+    expect(draftArrivalsRunFaster(draft({ ...denser, arrival: { ...denser.arrival, months: [{ month: 12, percent: 40 }] } }))).toBeNull();
+  });
+
+  it("leaves the error first when the bounds are not valid", () => {
+    expect(draftArrivalsRunFaster(draft({ ...denser, arrival: { ...denser.arrival, maxMinutes: 30 } }))).toBeNull();
+  });
+
+  it("keeps monthly rates when the arrivals change", () => {
+    const months = [{ month: 12, percent: 40 }];
+    const next = withArrival(draft({ ...denser, arrival: { ...denser.arrival, months, bandAttribute: true } }), { meanMinutes: 30, distribution: "expon", maxMinutes: 150 });
+    expect(next.arrival).toMatchObject({ months, bandAttribute: true, maxMinutes: 150 });
   });
 });
