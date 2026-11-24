@@ -29,12 +29,12 @@ import unicodedata
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
-from time import perf_counter
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from backend.bpmn.compact_canvas_map import compact_canvas_map
 from backend.bpmn.compact_representation import encode_delir_dsl
+from scripts.benchmark_canvas_edit_cycle import STOP_ERRORS, _PACE, build_client, paced_invoke
 from backend.workspace_services.bpmn_canvas_edit import (
     add_bpmn_element,
     connect_bpmn_elements,
@@ -43,7 +43,6 @@ from backend.workspace_services.bpmn_canvas_edit import (
 
 ROOT = Path(__file__).resolve().parents[1]
 REPRESENTATIONS = ("xml", "dsl_v1", "map")
-STOP_ERRORS = {"RateLimitError", "AuthenticationError", "PermissionDeniedError", "NotFoundError"}
 
 
 @dataclass(frozen=True)
@@ -157,18 +156,19 @@ def run_case(llm, case: Case, representation: str) -> dict:
         content=f"Fonte:\n{case.source}\n\nModello BPMN ({representation}):\n{body}"
     )]
     row = {"case": case.name, "representation": representation}
-    started = perf_counter()
     try:
-        response = llm.invoke(messages)
+        response = paced_invoke(llm, messages)
     except Exception as exc:  # provider failures are not wrong answers
-        row.update(error_type=type(exc).__name__, latency_ms=round((perf_counter() - started) * 1000, 2))
+        row.update(error_type=type(exc).__name__, latency_ms=round(_PACE["last_latency_ms"], 2))
         return row
-    row["latency_ms"] = round((perf_counter() - started) * 1000, 2)
+    row["latency_ms"] = round(_PACE["last_latency_ms"], 2)
     usage = getattr(response, "usage_metadata", None) or {}
     row["input_tokens"] = usage.get("input_tokens")
     row["output_tokens"] = usage.get("output_tokens")
+    # Synthetic cases only: the raw answer stays in the report for audit.
+    row["answer"] = str(response.content)
     try:
-        row.update(parsed=True, **score(parse_answer(str(response.content)), case))
+        row.update(parsed=True, **score(parse_answer(row["answer"]), case))
     except (ValueError, json.JSONDecodeError):
         row.update(parsed=False, found_missing=False, found_unsupported=False, false_positives=0)
     return row
@@ -196,17 +196,17 @@ def summarize(rows: list[dict]) -> dict:
 
 
 def main() -> None:
-    from scripts.benchmark_canvas_edit_cycle import build_client
-
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--model", default=os.environ.get("DELIR_TEST_LLM_MODEL"))
     parser.add_argument("--base-url", default=os.environ.get("DELIR_TEST_LLM_BASE_URL"))
     parser.add_argument("--api-key-env", default="DELIR_TEST_LLM_API_KEY")
+    parser.add_argument("--min-interval", type=float, default=0.0)
     args = parser.parse_args()
-    api_key = os.environ.get(args.api_key_env)
+    api_key = (os.environ.get(args.api_key_env) or "").strip()
     if args.repeat < 1 or not args.model or not api_key:
         parser.error("servono --repeat >= 1, --model e la chiave in --api-key-env")
+    _PACE["interval"] = args.min_interval
     llm = build_client(args.model, args.base_url, api_key)
     order = [(case, representation, repeat) for repeat in range(args.repeat)
              for case in CASES for representation in REPRESENTATIONS]

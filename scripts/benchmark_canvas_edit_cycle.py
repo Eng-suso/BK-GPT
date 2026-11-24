@@ -26,7 +26,7 @@ import random
 import statistics
 from dataclasses import dataclass
 from pathlib import Path
-from time import perf_counter
+from time import monotonic, perf_counter, sleep
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
@@ -39,7 +39,26 @@ from backend.workspace_services.bpmn_canvas_edit import delete_bpmn_element, upd
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_CALLS = 3
-STOP_ERRORS = {"RateLimitError", "AuthenticationError", "PermissionDeniedError", "NotFoundError"}
+STOP_ERRORS = {"RateLimitError", "AuthenticationError", "PermissionDeniedError", "NotFoundError",
+               "BadRequestError"}
+# Free tiers allow a few requests per minute: space calls instead of retrying.
+_PACE = {"interval": 0.0, "last": 0.0, "last_latency_ms": 0.0}
+
+
+def paced_invoke(runnable, messages):
+    """Invoke after at least ``_PACE['interval']`` seconds since the last call.
+
+    The wait is not latency: ``_PACE['last_latency_ms']`` times the call alone.
+    """
+    wait = _PACE["last"] + _PACE["interval"] - monotonic()
+    if wait > 0:
+        sleep(wait)
+    started = perf_counter()
+    try:
+        return runnable.invoke(messages)
+    finally:
+        _PACE["last_latency_ms"] = (perf_counter() - started) * 1000
+        _PACE["last"] = monotonic()
 
 
 @dataclass(frozen=True)
@@ -125,11 +144,14 @@ def run_case(llm, case: Case, representation: str) -> dict:
     bound = llm.bind_tools([update_element, delete_element])
     row = {"fixture": case.fixture, "representation": representation, "calls": 0,
            "tool_calls": 0, "input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0,
-           "usage_reported_calls": 0, "applied": None, "correct": False, "integrity_ok": None}
-    started = perf_counter()
+           "usage_reported_calls": 0, "applied": None, "correct": False, "integrity_ok": None,
+           "latency_ms": 0.0}
     try:
         for _ in range(MAX_CALLS):
-            response = bound.invoke(messages)
+            try:
+                response = paced_invoke(bound, messages)
+            finally:
+                row["latency_ms"] += _PACE["last_latency_ms"]
             row["calls"] += 1
             usage = usage_of(response)
             row["input_tokens"] += usage["input"]
@@ -157,7 +179,7 @@ def run_case(llm, case: Case, representation: str) -> dict:
             break
     except Exception as exc:  # provider failures are reported, never scored as wrong answers
         row["error_type"] = type(exc).__name__
-    row["latency_ms"] = round((perf_counter() - started) * 1000, 2)
+    row["latency_ms"] = round(row["latency_ms"], 2)
     return row
 
 
@@ -200,10 +222,13 @@ def main() -> None:
     parser.add_argument("--model", default=os.environ.get("DELIR_TEST_LLM_MODEL"))
     parser.add_argument("--base-url", default=os.environ.get("DELIR_TEST_LLM_BASE_URL"))
     parser.add_argument("--api-key-env", default="DELIR_TEST_LLM_API_KEY")
+    parser.add_argument("--min-interval", type=float, default=0.0,
+                        help="secondi minimi fra due chiamate (limiti per minuto del provider)")
     args = parser.parse_args()
-    api_key = os.environ.get(args.api_key_env)
+    api_key = (os.environ.get(args.api_key_env) or "").strip()
     if args.repeat < 1 or not args.model or not api_key:
         parser.error("servono --repeat >= 1, --model e la chiave in --api-key-env")
+    _PACE["interval"] = args.min_interval
     llm = build_client(args.model, args.base_url, api_key)
     order = [(case, representation, repeat) for repeat in range(args.repeat)
              for case in CASES for representation in ("xml", "map")]
