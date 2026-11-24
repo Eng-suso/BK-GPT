@@ -39,9 +39,9 @@ Scrive in ``--out`` (default ``tests/simulation/benchmark/sim36``):
   identico bit per bit. Un log per file, cosi' i log si misurano uno alla volta;
 - ``baseline.md``: i ``<log>.json`` dei log del benchmark in tabella, media ± intervallo,
   e sui log train/test "B = A" contro lo scenario SIMOD del paper misurato da B2
-  (``b2/baseline.json``), metrica per metrica.
+  (``--b2``, default ``b2/baseline.json``), metrica per metrica.
 
-I log non entrano nel repo: la licenza 4TU non lo permette. Un log che 4TU non
+I log BPIC non entrano nel repo: la licenza 4TU non lo permette. Un log che 4TU non
 da' (manutenzione, rete) finisce nel file con il motivo e l'uscita e' 1: mai una
 baseline inventata. Una misura gia' salvata non viene sostituita dal motivo.
 """
@@ -68,8 +68,8 @@ from tests.simulation.benchmark.eval_harness import (
     DEFAULT_SEED,
     INPUTS,
     PAPER_REPLICAS,
+    METRIC_LABELS,
     REAL_LIFE,
-    _SHORT,
     baseline_table,
     summarize,
     within_intervals,
@@ -77,6 +77,7 @@ from tests.simulation.benchmark.eval_harness import (
 from tests.simulation.benchmark.log_distance import MAX_REPLICAS, METRICS, Event, cases, distances, read_csv_log
 
 DEFAULT_OUT = Path(__file__).resolve().with_name("sim36")
+DEFAULT_B2 = B2_OUT / "baseline.json"
 TRAIN_TEST_DIR = INPUTS / "real-life"
 _TRAIN_TEST_MANIFEST_ID = "extraneous-delays-inputs"
 # I CSV del paper non hanno fuso: l'orologio del log e' quello scritto, e lo
@@ -211,7 +212,10 @@ def replicas_error(replicas: int) -> str | None:
     return f"le repliche vanno da 2 a {MAX_REPLICAS}: serve un intervallo di confidenza"
 
 
-def run(keys: list[str], out: Path, *, seed: int = DEFAULT_SEED, replicas: int = PAPER_REPLICAS) -> int:
+def run(
+    keys: list[str], out: Path, *, seed: int = DEFAULT_SEED, replicas: int = PAPER_REPLICAS, b2: Path | None = DEFAULT_B2
+) -> int:
+    """``b2``: il ``baseline.json`` di B2 con cui confrontare i log train/test; None per non confrontare."""
     if error := replicas_error(replicas):
         raise ValueError(error)
     out.mkdir(parents=True, exist_ok=True)
@@ -232,7 +236,7 @@ def run(keys: list[str], out: Path, *, seed: int = DEFAULT_SEED, replicas: int =
             **result,
         }
         target.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    write_table(out)
+    write_table(out, b2)
     return 0 if measured_all else 1
 
 
@@ -248,27 +252,30 @@ def verdict(naive: dict, model: dict) -> str:
 
 
 def simod_comparison(reports: list[dict], b2: dict | None) -> list[str]:
-    """"B = A" contro lo scenario SIMOD del paper di B2, solo con lo stesso seed e le stesse repliche."""
+    """"B = A" contro lo scenario SIMOD del paper di B2, log per log, solo con lo stesso seed e le stesse repliche."""
     if b2 is None:
-        return ["Confronto con B2 non disponibile: manca `b2/baseline.json`."]
+        return ["Confronto con B2 non disponibile: nessun `baseline.json` di B2."]
     scenarios = {s["scenario"]: s for s in b2["scenarios"]}
-    lines = [
-        "| Log | Metrica | B = A (train) | SIMOD del paper (B2) | Migliore |",
-        "| --- | --- | --- | --- | --- |",
-    ]
+    rows, notes = [], []
     for report in reports:
+        log = report["scenario"]
+        if log not in scenarios:
+            notes.append(f"- {log}: confronto con B2 non fatto, B2 non ha misurato questo log.")
+            continue
         if (report["seed"], report["replicas"]) != (b2["seed"], b2["replicas"]):
-            return [f"Confronto con B2 non fatto: B2 ha seed {b2['seed']} × {b2['replicas']}, "
-                    f"{report['scenario']} ha {report['seed']} × {report['replicas']}."]
-        model = scenarios[report["scenario"]]["metrics"]
+            notes.append(f"- {log}: confronto con B2 non fatto, B2 ha seed {b2['seed']} × {b2['replicas']}, "
+                         f"il log {report['seed']} × {report['replicas']}.")
+            continue
+        model = scenarios[log]["metrics"]
         for metric in METRICS:
             naive = report["metrics"][metric]
-            lines.append(f"| {report['scenario']} | {_SHORT[metric]} | {_cell(naive)} | {_cell(model[metric])} "
-                         f"| {verdict(naive, model[metric])} |")
-    return lines
+            rows.append(f"| {log} | {METRIC_LABELS[metric]} | {_cell(naive)} | {_cell(model[metric])} "
+                        f"| {verdict(naive, model[metric])} |")
+    header = ["| Log | Metrica | B = A (train) | SIMOD del paper (B2) | Migliore |", "| --- | --- | --- | --- | --- |"]
+    return (header + rows if rows else []) + ([""] if rows and notes else []) + notes
 
 
-def write_table(out: Path, b2_baseline: Path = B2_OUT / "baseline.json") -> None:
+def write_table(out: Path, b2: Path | None = DEFAULT_B2) -> None:
     """``baseline.md`` dai ``<log>.json`` dei log del benchmark nella cartella, misurati o no."""
     reports = [report for key in LOGS if (report := _saved(out / f"{key}.json"))]
     measured = [r for r in reports if r["status"] == "measured"]
@@ -285,13 +292,13 @@ def write_table(out: Path, b2_baseline: Path = B2_OUT / "baseline.json") -> None
             '## "B = A" contro lo scenario SIMOD del paper (B2)\n',
             "Distanza dal test, piu' bassa e' meglio. Migliore: chi ha la media minore con intervalli "
             "al 95% che non si sovrappongono; altrimenti pari.\n",
-            *simod_comparison(train_test, _saved(b2_baseline)),
+            *simod_comparison(train_test, _saved(b2) if b2 else None),
             "",
         ]
     if halves:
         lines += ["## Log BPIC divisi a meta' dei casi (SIM-36)\n", baseline_table(halves)]
-    lines += [f"- {key}: non adatto al confronto A → B, {dataset.unsuitable_for_a_to_b}."
-              for key, dataset in DATASETS.items() if dataset.unsuitable_for_a_to_b]
+    lines += [f"- {r['scenario']}: non adatto al confronto A → B, {reason}."
+              for r in reports if r["scenario"] in DATASETS and (reason := DATASETS[r["scenario"]].unsuitable_for_a_to_b)]
     lines += [f"- {r['scenario']}: non misurato. {r['reason']}" for r in reports if r["status"] != "measured"]
     (out / "baseline.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -302,10 +309,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--replicas", type=int, default=PAPER_REPLICAS)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    parser.add_argument("--b2", type=Path, default=DEFAULT_B2, help="baseline.json di B2 per il confronto con SIMOD")
     args = parser.parse_args(argv)
     if error := replicas_error(args.replicas):
         parser.error(error)
-    code = run(args.datasets or list(LOGS), args.out, seed=args.seed, replicas=args.replicas)
+    code = run(args.datasets or list(LOGS), args.out, seed=args.seed, replicas=args.replicas, b2=args.b2)
     print(f"Baseline scritta in {args.out}" + ("" if code == 0 else " (con log non disponibili)"))
     return code
 
