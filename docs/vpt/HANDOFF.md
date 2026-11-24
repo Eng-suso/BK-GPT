@@ -26,6 +26,9 @@ Throughput del simulatore (G2). In parallelo con G3 e SIM-36, file separati.
   li riempie il giro periodico ogni 10 s, quindi con 4 worker il primo giro scala male;
   (b) la rilettura dei 10 risultati (run + log) prende ~3 s.
   Tabella: `tests/simulation/benchmark/b6/throughput-before.md`.
+- Misura 2 (dopo (a): la richiesta di un gruppo avvia un drenaggio per posto libero,
+  `fill_simulation_slots`): 1 worker 21,1-22,1 s (27-28 run/min), 2 worker
+  13,8-14,5 s (42-44), 4 worker 10,1-11,1 s (54-59). `--check` verde: impronte uguali.
 
 ## Ultima misura
 
