@@ -128,6 +128,11 @@ def run_case(graph_by_representation: dict, case, representation: str) -> dict:
                            for message in messages if isinstance(message, AIMessage)),
             tool_names=[call["name"] for message in messages if isinstance(message, AIMessage)
                         for call in (getattr(message, "tool_calls", None) or [])],
+            # Which canvas operation each call asked for: a "map" or "inspect" read
+            # while the map is already in the prompt is a call the prompt did not save.
+            tool_operations=[(call.get("args") or {}).get("operation") for message in messages
+                             if isinstance(message, AIMessage)
+                             for call in (getattr(message, "tool_calls", None) or [])],
             tool_errors=sum("non e' andato a buon fine" in str(message.content)
                             or "Modifica non salvata" in str(message.content) for message in tool_results),
             integrity_violations=sum("alterato dati BPMN" in str(message.content) for message in tool_results),
