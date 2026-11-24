@@ -152,6 +152,10 @@ class CalendarPeriod(_Strict):
     to_day: Weekday
     begin: str
     end: str
+    # CAL-01: in un modello a disponibilita' probabilistica (i calendari FUZZY che
+    # SIMOD scopre dai log) la probabilita' che la risorsa sia disponibile in
+    # questa fascia, o la sua quota di lavoro nel calendario ``workload``.
+    probability: float | None = Field(default=None, ge=0, le=1)
 
     @model_validator(mode="after")
     def _valid_times(self):
@@ -169,6 +173,12 @@ class Calendar(_Strict):
     id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=120)
     periods: tuple[CalendarPeriod, ...] = Field(min_length=1)
+    # CAL-01: con disponibilita' probabilistica, la quota di lavoro della risorsa
+    # per fascia (``workload_ratio`` di Prosimos). Vuota nei calendari fissi.
+    workload: tuple[CalendarPeriod, ...] = ()
+
+    def is_probabilistic(self) -> bool:
+        return any(period.probability is not None for period in (*self.periods, *self.workload))
 
 
 # --------------------------------------------------------------------------- #
@@ -590,6 +600,11 @@ class SimulationModel(_Strict):
     priority_rules: tuple[PriorityRule, ...] = ()
     # SIM-11c: i timer intermedi del BPMN che il caso aspetta.
     waits: tuple[Wait, ...] = ()
+    # CAL-01: "fixed" = una risorsa c'e' o non c'e' (calendari CRISP); "probabilistic"
+    # = in ogni fascia c'e' con una probabilita' (calendari FUZZY di SIMOD), a
+    # fasce di ``granule_minutes`` minuti interi. Prosimos le esegue con il suo motore fuzzy.
+    availability: Literal["fixed", "probabilistic"] = "fixed"
+    granule_minutes: float | None = Field(default=None, gt=0, le=1440)
 
     def resources(self) -> dict[str, Resource]:
         return {resource.id: resource for pool in self.pools for resource in pool.resources}
@@ -619,6 +634,7 @@ class SimulationModel(_Strict):
         _unique("gateway", [gateway.element_id for gateway in self.gateways])
         _unique("attesa", [wait.element_id for wait in self.waits])
         _unique("attributo", [attribute.name for attribute in self.case_attributes])
+        _check_availability(self)
 
         known_calendars = set(calendars)
         if self.arrival.calendar_id not in known_calendars:
@@ -666,6 +682,35 @@ class SimulationModel(_Strict):
             if missing:
                 raise ValueError(f"regola su attributi che il caso non ha: {', '.join(sorted(missing))}")
         return self
+
+
+def _check_availability(model: "SimulationModel") -> None:
+    """CAL-01: o tutti i calendari delle risorse sono probabilistici, o nessuno."""
+    resources = model.resources().values()
+    resource_calendars = {r.calendar_id for r in resources} | {s.calendar_id for r in resources for s in r.shifts}
+    by_id = {calendar.id: calendar for calendar in model.calendars}
+    arrival = by_id.get(model.arrival.calendar_id)
+    if arrival is not None and arrival.is_probabilistic():
+        raise ValueError("il calendario degli arrivi e' sempre fisso: le probabilita' valgono per le risorse")
+    if model.availability == "fixed":
+        probabilistic = sorted(c.id for c in model.calendars if c.is_probabilistic())
+        if probabilistic or model.granule_minutes is not None:
+            raise ValueError(
+                "calendari con probabilita' in un modello a disponibilita' fissa: "
+                + (", ".join(probabilistic) or "granularita' indicata")
+            )
+        return
+    if model.granule_minutes is None:
+        raise ValueError("la disponibilita' probabilistica richiede la granularita' dei calendari")
+    if not float(model.granule_minutes).is_integer():
+        # Il motore fuzzy di Prosimos divide la giornata in fasce di minuti interi.
+        raise ValueError("la granularita' dei calendari probabilistici e' di minuti interi")
+    for calendar_id in sorted(resource_calendars):
+        calendar = by_id.get(calendar_id)
+        if calendar is None:
+            continue
+        if any(period.probability is None for period in (*calendar.periods, *calendar.workload)):
+            raise ValueError(f"calendario {calendar_id}: ogni fascia ha la sua probabilita' di disponibilita'")
 
 
 def _unique(what: str, values: list[str]) -> None:
