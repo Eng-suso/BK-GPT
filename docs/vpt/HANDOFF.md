@@ -10,6 +10,11 @@ Nessuno. Prossimi secondo l'ordine di [`PLAN.md`](./PLAN.md): **SIM-36** (baseli
 pubblica su BPIC 2012/2013) e **G3** (spike SIMOD), in parallelo; poi **B3**. Tutti si
 misurano con l'harness di B2 (sezione sotto).
 
+## IMP-01 (in corso dal 2026-11-24, `feat/sim-import-expon-warning`)
+
+Un agente su IMP-01, in parallelo con SIM-36b. Avviso all'import sugli arrivi `expon`
+con media vicina al massimo. Stato: iniziato, nessuna misura ancora.
+
 ## B6 (fatto il 2026-11-24, `spike/sim-throughput`)
 
 Throughput del simulatore (G2). Meta raggiunta: un what-if da 10 ripetizioni × 1.000
