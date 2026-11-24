@@ -39,10 +39,16 @@ paper e con ogni twin futuro. Tempi in ore.
 ## Il gemello ingenuo
 
 Il log si divide a metà dei casi per inizio: A sono i primi, B gli altri. "B = A" è A
-spostato in avanti a settimane intere, fino all'inizio di B: ripete gli arrivi, i
-percorsi, le durate e il calendario di A. Ogni replica estrae con reinserimento tanti
-casi di A quanti ne ha B, con seed `20261124 + replica`; 10 repliche e intervallo t al
-95%, come B2.
+spostato in avanti fino a far cadere la mediana degli inizi dei casi di A su quella di
+B (la mediana, perché un caso isolato anni prima non sposti tutto il resto). Lo
+spostamento è di settimane intere, sull'ora locale del log (Europa centrale): il
+gemello ripete arrivi, percorsi, durate e calendario di A, ora legale compresa. Gli
+eventi seguono l'inizio del proprio caso in tempo assoluto, quindi le durate sono
+quelle vere. Il prezzo delle settimane intere è uno scarto fino a 3,5 giorni fra le
+due mediane, che resta in AED e CAR.
+
+Ogni replica estrae con reinserimento tanti casi di A quanti ne ha B, con seed
+`20261124 + replica`; 10 repliche e intervallo t al 95%, come B2.
 
 ## Come si lancia
 
@@ -60,21 +66,23 @@ file con il motivo e l'uscita è 1: la baseline non si inventa. I test
 
 ## Baseline (2026-11-24, seed 20261124, 10 repliche)
 
+Tempi in ore, media ± semiampiezza dell'intervallo al 95%. File: `tests/simulation/benchmark/sim36/`.
+
 | Log | Casi A / B | W1 cycle time | NGD | RED | AED | CED | CAR |
 |---|---|---|---|---|---|---|---|
-| BPIC 2012 | 6.543 / 6.544 | 16,931 ± 1,518 | 0,055 ± 0,002 | 16,554 ± 1,567 | 60,634 ± 3,280 | 0,346 ± 0,018 | 49,004 ± 2,659 |
-| BPIC 2013 incidents | 3.776 / 3.778 | 383,995 ± 7,811 | 0,329 ± 0,004 | 176,788 ± 3,981 | 17.945,221 ± 17,250 | 1,759 ± 0,081 | 17.955,365 ± 7,275 |
+| BPIC 2012 | 6.543 / 6.544 | 16,931 ± 1,518 | 0,055 ± 0,002 | 16,554 ± 1,567 | 60,281 ± 3,275 | 0,222 ± 0,013 | 48,697 ± 2,653 |
+| BPIC 2013 incidents | 3.776 / 3.778 | 383,995 ± 7,811 | 0,329 ± 0,004 | 176,788 ± 3,981 | 334,396 ± 16,091 | 1,751 ± 0,079 | 290,944 ± 6,383 |
 
 Come si legge:
 
 - **BPIC 2012**: A (ottobre-metà dicembre 2011) e B (metà dicembre 2011-febbraio 2012)
-  hanno lo stesso processo (NGD 0,055); "B = A" sbaglia la durata dei casi di circa
-  17 ore e gli arrivi di circa due giorni (CAR 49 ore).
+  hanno lo stesso processo (NGD 0,055). "B = A" sbaglia la durata dei casi di circa
+  17 ore e gli arrivi di circa due giorni (CAR 49 ore). Delle 262.200 righe, 26.318
+  `SCHEDULE` non sono né inizio né fine e restano fuori (`rows_excluded` nel JSON).
 - **BPIC 2013 incidents**: B copre solo 4 giorni (2-6 maggio 2012), mentre l'1% dei casi
   di A parte fra marzo 2010 e ottobre 2011, una coda dell'estrazione del log. "B = A"
-  ripete anche quella coda, quindi AED e CAR valgono circa due anni. Il numero è vero
-  per il gemello ingenuo, e un twin che stima il ritmo degli arrivi dal periodo recente
-  lo batte facilmente. Per giudicare un twin su questo log contano W1, NGD, RED e CED.
+  ripete anche quella coda: è quasi tutto l'errore di AED e CAR (circa due settimane).
+  W1 è alto (16 giorni) perché i casi vecchi di A sono lunghi e in B non ce ne sono.
 
 ## Dopo la baseline
 
