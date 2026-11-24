@@ -40,7 +40,10 @@ loro voci di [`LOG.md`](./LOG.md).
   Il gemello ingenuo batte tutti gli scenari SIMOD su RED, AED e W1.
 - Arrivi: tutti lognorm o gamma con media lontana dal massimo, nessun `expon`: la nota di
   B2 su Procure_to_Pay non tocca questi confronti.
-- In corso (background): BPIC 2017 W `diff`, poi `fuzz`, poi `evaluate.py` su tutto.
+- Scoperti: `diff` e `fuzz` dei 3 log, `extr` (ritardi estranei, eclipse-aware) di BPIC 2012 W.
+  `extr` su AcademicCredentials crolla dentro SIMOD (timestamp nel 2262 per il ciclo senza
+  uscita, traccia in `g3/failures/`).
+- In corso (background): BPIC 2017 W `extr`, poi `evaluate.py` su tutto (~15 min).
 
 ## CAL-01 (fatto il 2026-11-24, PR #172)
 
