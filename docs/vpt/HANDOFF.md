@@ -4,22 +4,21 @@ Aggiornato: 2026-11-23, fine della sessione che ha preparato dataset e workflow.
 
 ## Punto attivo
 
-**B1b**, branch `feat/sim-prosimos-import-ui` (impilato su `feat/sim-prosimos-import`,
-PR #169). In corso dal 2026-11-23.
+Nessuno. **B1a e B1b sono fatti** (`feat/sim-prosimos-import-ui`, PR verso `main` che
+contiene anche B1a: mergiandola si chiude anche #169).
 
-- Fatto: endpoint `POST /v1/workspace/bpmn-models/{id}/prosimos-import` con test API
-  (import SIMOD, 400 con motivo, 404, run "così com'è" che arriva al motore).
-- Da fare: nel dialogo "Importa da file" dell'editor, quando l'import locale non
-  riesce (scenari SIMOD), chiamare l'endpoint, mostrare il report in linguaggio di
-  business e offrire "Simula così com'è" (`simulation-model-runs` con `model`);
-  e2e con mock e gate UX.
+Prossimo: **CAL-01, calendari FUZZY di SIMOD** (richiesta di Sohayb: DeliR deve
+gestire tutto). Oggi `from_prosimos.py` li rifiuta con il motivo perché l'IR non
+rappresenta la disponibilità probabilistica. Primo passo: verificare nel sorgente di
+Prosimos 2.1 (`scripts/fetch_datasets.py fetch prosimos`) il formato dei calendari
+FUZZY e che il runner li esegua; poi IR, import, compilazione, test.
 
-B1a (`backend/simulation/ir/from_prosimos.py`) è fatto: vedi `LOG.md`.
+In alternativa **UX-01** (leggibilità di "Reale contro simulato").
 
 ## Ultima misura
 
-B1a: `uv run pytest --noconftest tests/simulation/test_prosimos_import.py` → 61/61;
-19/19 scenari importati e ricompilati con gli stessi parametri, nessuna approssimazione.
+B1b: e2e `e2e/simulation-prosimos-import.spec.ts` 8/8 (chromium e mobile-chrome),
+test API 4/4, unit 4/4; gate UX in `docs/vpt/ux/b1b-server-import/`.
 
 ## Come riprendere B1
 

@@ -18,6 +18,22 @@ Modello:
 
 ---
 
+## 2026-11-24 — B1b import dal frontend tramite il server — fatto
+
+- Branch / PR: `feat/sim-prosimos-import-ui`, verso `main` (contiene B1a, #169).
+- Meta: uno scenario che l'editor non rappresenta (SIMOD) si importa dal server e si
+  simula così com'è, con il report in linguaggio di business → raggiunta. Misura: test
+  API 4/4 (il run arriva al motore con le stesse attese), e2e 8/8 su chromium e
+  mobile-chrome, unit 4/4.
+- Iterazioni: 1) endpoint e test API; 2) pannello e2e verde al primo giro; 3) gate UX:
+  accenti mancanti e "1 percorso … valgono" nei messaggi del server, corretti;
+  4) code review (skill `code-review`): 9 rilievi, tra cui risposte obsolete che
+  ricomparivano e guasti del server che cancellavano il motivo dell'editor; tutti
+  corretti, con e2e per risposta lenta, guasto del server e scenario adattato.
+- Skill: `react-ui-patterns`, `code-review`. Gate UX: screenshot desktop e mobile letti.
+- Decisione: i calendari FUZZY non si rifiutano per sempre: nuovo punto CAL-01.
+- Prossimo passo: CAL-01.
+
 ## 2026-11-23 — B1a import Prosimos lato server — fatto
 
 - Branch / PR: `feat/sim-prosimos-import`.
