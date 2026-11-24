@@ -75,7 +75,8 @@ services:
       DELIR_ENVIRONMENT: prod
       DELIR_AUTH_ENABLED: "true"
       DELIR_API_TOKEN: ${DELIR_API_TOKEN:?serve DELIR_API_TOKEN}
-      DELIR_ADMIN_TOKEN: ${DELIR_ADMIN_TOKEN:-}
+      # Chiave distinta dal token API per le cancellazioni: senza, l'app non parte.
+      DELIR_ADMIN_TOKEN: ${DELIR_ADMIN_TOKEN:?serve DELIR_ADMIN_TOKEN}
       # Compatibilita' col pilota a tenant singolo. Un deploy multi-tenant puo'
       # configurare default e allowlist separatamente.
       DELIR_DEFAULT_TENANT_ID: ${DELIR_DEFAULT_TENANT_ID:-${DELIR_TENANT_ID:?serve DELIR_TENANT_ID o DELIR_DEFAULT_TENANT_ID}}
