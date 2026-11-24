@@ -931,3 +931,17 @@ def test_an_imported_fuzzy_scenario_runs_and_its_availability_matters():
     # Risorse disponibili un'ora su cinque: i casi aspettano di piu'.
     # Misurato: ~193.000 s contro ~1.800 s con seed 3.
     assert mean_cycle(0.2) > 2 * mean_cycle(0.95)
+
+
+def test_a_fuzzy_scenario_discovered_by_simod_runs_on_the_engine():
+    """CAL-01: lo scenario FUZZY scoperto da SIMOD 5.2.1 sul log del dataset gira."""
+    from backend.simulation.ir.from_prosimos import import_prosimos
+
+    folder = ROOT / "datasets" / "simod" / "discovered" / "Insurance_Claims_fuzzy"
+    source = json.loads((folder / "Insurance_Claims_fuzzy.json").read_text(encoding="utf-8"))
+    bpmn = (folder / "Insurance_Claims_fuzzy.bpmn").read_text(encoding="utf-8")
+    model = import_prosimos(source, bpmn).model
+
+    rows = _run(model, seed=7, bpmn=bpmn, cases=100)
+
+    assert len({row["case_id"] for row in rows}) == 100

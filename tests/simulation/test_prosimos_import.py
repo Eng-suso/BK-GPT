@@ -341,11 +341,28 @@ def _probabilistic(periods: list[dict]) -> list[tuple]:
     )
 
 
-@pytest.mark.parametrize(
-    "name", ["real-life/AcademicCredentials", "synthetic/Loan_Application_3_timers"]
+SIMOD_FUZZY = (
+    ROOT
+    / "datasets"
+    / "simod"
+    / "discovered"
+    / "Insurance_Claims_fuzzy"
+    / "Insurance_Claims_fuzzy.json"
 )
-def test_fuzzy_calendars_round_trip_with_their_probabilities(name: str) -> None:
-    source, bpmn = _fuzzy(name)
+
+
+@pytest.mark.parametrize(
+    "load",
+    [
+        # Scoperto da SIMOD 5.2.1 sul log del dataset (vedi ATTRIBUTION.md).
+        lambda: _pair(SIMOD_FUZZY),
+        lambda: _fuzzy("real-life/AcademicCredentials"),
+        lambda: _fuzzy("synthetic/Loan_Application_3_timers"),
+    ],
+    ids=["simod-discovered", "AcademicCredentials", "Loan_Application_3_timers"],
+)
+def test_fuzzy_calendars_round_trip_with_their_probabilities(load) -> None:
+    source, bpmn = load()
     result = import_prosimos(source, bpmn)
     assert result.model.availability == "probabilistic"
     assert result.model.granule_minutes == 60
