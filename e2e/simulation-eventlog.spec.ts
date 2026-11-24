@@ -78,6 +78,18 @@ const VALIDATION = {
   basis: "observable",
 };
 
+/** Token replay del server (CONF-01): un caso su tre salta l'approvazione. */
+const CONFORMANCE = {
+  event_log: ANALYSIS.event_log, bpmn_version_id: 1, mapping_bpmn_version_id: 1,
+  fitness: 0.94, cases: 3, fitting_cases: 2, fitting_share: 2 / 3,
+  deviations: [{ element_id: "B", name: "Approva richiesta", executed_out_of_order: 0, left_waiting: 1 }],
+  variants: [
+    { activities: ["Verifica documentazione", "Approva richiesta", "Archivia"], cases: 2, fitness: 1, fits: false, out_of_order: [], waiting: [], unmodeled: ["Archivia"] },
+    { activities: ["Verifica documentazione", "Archivia"], cases: 1, fitness: 0.8, fits: false, out_of_order: [], waiting: ["B"], unmodeled: ["Archivia"] },
+  ],
+  unmodeled_activities: { Archivia: 3 }, unobserved_elements: [], excluded_variants: 0, excluded_cases: 0, warnings: [],
+};
+
 type Fixture = { mappingRequests: Request[] };
 
 async function fixture(page: Page, logs: unknown[]): Promise<Fixture> {
@@ -103,6 +115,7 @@ async function fixture(page: Page, logs: unknown[]): Promise<Fixture> {
     else if (path === "/v1/workspace/event-logs/elog_e2e/preview") data = { format: "csv", delimiter: ";", columns: COLUMNS, row_count: 9, sample_rows: [["P-1", "Verifica documentazione", "2026-01-05T09:00", "2026-01-05T09:10", "2026-01-05T09:30", "anna"]] };
     else if (path === "/v1/workspace/event-logs/elog_e2e/analysis") data = ANALYSIS;
     else if (path === "/v1/workspace/event-logs/elog_e2e/validation") data = VALIDATION;
+    else if (path === "/v1/workspace/event-logs/elog_e2e/conformance") data = CONFORMANCE;
     else if (path === "/v1/workspace/event-logs/elog_e2e/mapping") { state.mappingRequests.push(request); data = ANALYSIS; }
     await route.fulfill({ json: data });
   });
@@ -178,6 +191,30 @@ test("real against simulated: verdict, KPIs by activity and gaps on the process"
   await show.click();
   await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
   await expect(page.locator('.djs-element[data-element-id="B"]')).not.toHaveClass(/sim-fidelity-far/);
+});
+
+test("process conformance: verdict, skipped steps and overlay on the design", async ({ page }, testInfo) => {
+  await fixture(page, [{ ...ANALYSIS.event_log }]);
+  await page.goto(`${studio}/dashboard/42?panel=eventLog`);
+  await dock(page).getByRole("button", { name: /^sap-export\.csv/ }).click();
+  await dock(page).getByRole("button", { name: /Aderenza al processo$/ }).click();
+
+  const step = dock(page).getByRole("region", { name: "Aderenza al processo" });
+  const verdict = step.getByRole("status").filter({ hasText: "Una parte dei casi esce dal processo disegnato" });
+  await expect(verdict).toContainText("2 casi su 3 seguono il disegno (67%).");
+  await expect(step.getByRole("row", { name: /Approva richiesta/ })).toContainText("1 caso");
+  await expect(step.getByText("Manca: Approva richiesta")).toBeVisible();
+  await expect(step.getByText("Archivia · 3 casi")).toBeVisible();
+
+  await step.getByRole("button", { name: "Mostra sul disegno" }).click();
+  await expect(page.locator('.djs-element[data-element-id="B"].sim-fidelity-calibrate')).toHaveCount(1);
+  await expect(page.locator(".sim-process-legend")).toContainText("Casi che escono dal disegno");
+
+  const results = await new AxeBuilder({ page }).include(".sim-studio-dock").withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(results.violations).toEqual([]);
+  if (process.env.DELIR_UX_SHOTS) {
+    await page.screenshot({ path: `${process.env.DELIR_UX_SHOTS}/conformance-${testInfo.project.name}.png`, fullPage: false });
+  }
 });
 
 test("the activity inspector shows the same activity in the real log", async ({ page }) => {
