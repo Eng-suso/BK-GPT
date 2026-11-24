@@ -77,6 +77,12 @@ services:
       DELIR_API_TOKEN: ${DELIR_API_TOKEN:?serve DELIR_API_TOKEN}
       # Chiave distinta dal token API per le cancellazioni: senza, l'app non parte.
       DELIR_ADMIN_TOKEN: ${DELIR_ADMIN_TOKEN:?serve DELIR_ADMIN_TOKEN}
+      # Login per persona (Track B): `supabase` + URL e publishable key del
+      # progetto. Default `token`, il token condiviso del pilota. Con supabase
+      # l'host del progetto va anche in DELIR_EGRESS_ALLOWED_HOSTS.
+      DELIR_AUTH_PROVIDER: ${DELIR_AUTH_PROVIDER:-token}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
       # Compatibilita' col pilota a tenant singolo. Un deploy multi-tenant puo'
       # configurare default e allowlist separatamente.
       DELIR_DEFAULT_TENANT_ID: ${DELIR_DEFAULT_TENANT_ID:-${DELIR_TENANT_ID:?serve DELIR_TENANT_ID o DELIR_DEFAULT_TENANT_ID}}
