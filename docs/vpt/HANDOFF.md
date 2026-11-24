@@ -47,3 +47,28 @@ attività) e test con copy e mock vecchi.
 - Copiare comunque nel repo pubblico BPIC 2012/2013/2020 e Prosimos?
 - Confermare le mete marcate *proposta* in `PLAN.md` (B2: scarto ≤ 10% dal paper;
   B3: gateway ±0,05, durate ±10%).
+
+## B2 (da fare, meta decisa il 2026-11-24)
+
+Meta in [`PLAN.md`](./PLAN.md). Cosa si sa già, per partire subito:
+
+- Si misura sullo stack reale: `scripts/vpt_stack.sh start`, poi
+  `eval "$(scripts/vpt_stack.sh env)"` (vedi "Stack reale" in `WORKFLOW.md`).
+  Il percorso è quello del prodotto: import (`prosimos-import`, PR #170) → database
+  → run dalla coda → runner Prosimos 2.1 → log e KPI letti dal database.
+- Il paper calcola le distanze con `log-distance-measures` 2.2 (PyPI). Richiede
+  Python `>=3.11,<3.13`: il backend è sulla 3.14, quindi o gira in un venv 3.12
+  come il runner, o le formule si portano nel nostro codice con un test che dia
+  gli stessi numeri della libreria. Il codice del paper è Apache 2.0
+  (`github.com/AutomatedProcessImprovement/extraneous-activity-delays`); la
+  licenza della libreria va verificata prima di copiarne codice.
+- Nel codice del paper `num_evaluation_simulations` vale 3 di default; il numero
+  di repliche usato per `paper-results` va confermato (script di valutazione su
+  Zenodo, `extraneous-delays-outputs`).
+- `paper-results/real-life-evaluation/metrics.csv`: colonne `relative_*` (RED) e
+  `absolute_*` (AED), media e `cnf` (intervallo) per run; la riga da riprodurre è
+  `<log>_original`. `metrics-cycle-time.csv` ha i quantili del cycle time.
+  I `metrics.csv` dei sintetici misurano la scoperta dei ritardi (B5), non la
+  fedeltà.
+- Esistono già `tests/simulation/benchmark/benchmark_metrics.py` (W1 e W1
+  relativo) e `run_baseline.py` (gemello ingenuo su BPIC): riusali dove servono.
