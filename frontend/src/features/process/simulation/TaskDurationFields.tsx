@@ -7,7 +7,7 @@ import { Input } from "@/ui/input";
 
 import { formatDuration } from "./simulationResults";
 import { DISTRIBUTIONS, type DistributionName } from "./simulationTypes";
-import { DISTRIBUTION_PARAMETERS, arrivalsRunFaster, taskDurationIssue, type DurationDraft } from "./simulationScenario";
+import { DISTRIBUTION_PARAMETERS, taskDurationIssue, type ArrivalsFaster, type DurationDraft } from "./simulationScenario";
 
 const NATIVE_SELECT = "h-8 w-full min-w-0 ui-field rounded-xl px-2 text-sm";
 
@@ -22,6 +22,7 @@ export function TaskDurationFields<T extends DurationDraft>({
   task,
   onChange,
   kind = "duration",
+  faster = null,
 }: {
   elementId: string;
   taskName: string;
@@ -29,6 +30,8 @@ export function TaskDurationFields<T extends DurationDraft>({
   onChange: (next: T) => void;
   /** ``arrival``: il tempo fra due arrivi dei casi, con le sue etichette (A2-3). */
   kind?: "duration" | "arrival";
+  /** IMP-01: gli arrivi che il motore rende piu' fitti (``draftArrivalsRunFaster``). */
+  faster?: ArrivalsFaster | null;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
@@ -37,14 +40,13 @@ export function TaskDurationFields<T extends DurationDraft>({
   const issueId = `sim-duration-issue-${elementId}`;
   const explanationId = `sim-duration-explanation-${elementId}`;
   const isArrival = kind === "arrival";
-  const faster = isArrival && issue === null ? arrivalsRunFaster(task) : null;
   const lang = i18n.language?.startsWith("en") ? "en" : "it";
   // Al minuto, come le altre durate del pannello: "21 min", non "20 min 40 s".
   const readable = (seconds: number) => formatDuration(seconds >= 60 ? Math.round(seconds / 60) * 60 : seconds, lang);
   const interpretation = task.distribution === "uniform"
     ? t(isArrival ? "simulation.config.durationGuide.uniformArrival" : "simulation.config.durationGuide.uniformTask", { min: task.minMinutes ?? "—", max: task.maxMinutes ?? "—" })
-    // Nella frase la media arrotondata: un file con 1805 s non diventa "30.0833… minuti".
-    : t(`simulation.config.durationGuide.${task.distribution}${isArrival ? "Arrival" : "Task"}`, { mean: Math.round(task.meanMinutes * 10) / 10 });
+    // Nella frase tre cifre significative: 1805 s non diventa "30.0833… minuti", 2 s resta 0.0333.
+    : t(`simulation.config.durationGuide.${task.distribution}${isArrival ? "Arrival" : "Task"}`, { mean: Number(task.meanMinutes.toPrecision(3)) });
   const meanLabel = t(kind === "arrival" ? "simulation.config.arrivalMeanMin" : "simulation.config.durationMin");
   const hint = task.distribution === "uniform"
     ? kind === "arrival" ? "simulation.config.arrivalUniformHint" : "simulation.config.uniformHint"

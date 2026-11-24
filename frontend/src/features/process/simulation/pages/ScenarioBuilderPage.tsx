@@ -28,7 +28,7 @@ import { uncertainFactors } from "../sensitivity";
 import { useSourceConflicts } from "../useSourceConflicts";
 import { WhatIfComposer } from "../WhatIfComposer";
 import { ServerScenarioImport } from "../ServerScenarioImport";
-import { arrivalDuration, arrivalsRunFaster, type ScenarioDraft } from "../simulationScenario";
+import { draftArrivalsRunFaster, type ScenarioDraft } from "../simulationScenario";
 import { importProsimosOnServer, remapProsimosIds, runImportedModel, type ProsimosImport } from "../prosimosServerImport";
 import { HttpError, httpErrorMessage } from "@/lib/http";
 import type { NodeDecoration } from "../canvas/SimulationCanvas";
@@ -90,7 +90,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
       name, activities: Object.keys(candidate.tasks).length, resources: candidate.resources.length, decisions: Object.keys(candidate.gateways).length,
     }) });
     // IMP-01: lo scenario resta com'era; l'avviso completo, con la correzione, sta in Arrivi dei casi.
-    if (arrivalsRunFaster(arrivalDuration(candidate))) {
+    if (draftArrivalsRunFaster(candidate)) {
       toast.warning(t("simulation.config.arrivalsFaster.title"), { description: t("simulation.config.arrivalsFaster.toast") });
     }
   };
