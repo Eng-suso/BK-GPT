@@ -57,18 +57,19 @@ class ModelPatch(_Strict):
 
 def apply_patch(baseline: SimulationModel, patch: ModelPatch) -> SimulationModel:
     """La baseline con la patch applicata, validata come un modello nuovo."""
+    # Si parte dalla baseline intera: un campo nuovo dell'IR non si perde con una patch.
     return SimulationModel(
-        arrival=patch.arrival or baseline.arrival,
-        calendars=_upsert(baseline.calendars, patch.calendars, lambda c: c.id),
-        pools=_upsert(baseline.pools, patch.pools, lambda p: p.id),
-        activities=_upsert(baseline.activities, patch.activities, lambda a: a.element_id),
-        gateways=_upsert(baseline.gateways, patch.gateways, lambda g: g.element_id),
-        case_attributes=_replace(baseline.case_attributes, patch.case_attributes),
-        attribute_updates=_replace(baseline.attribute_updates, patch.attribute_updates),
-        priority_rules=_replace(baseline.priority_rules, patch.priority_rules),
-        waits=baseline.waits,
-        availability=baseline.availability,
-        granule_minutes=baseline.granule_minutes,
+        **{
+            **dict(baseline),
+            "arrival": patch.arrival or baseline.arrival,
+            "calendars": _upsert(baseline.calendars, patch.calendars, lambda c: c.id),
+            "pools": _upsert(baseline.pools, patch.pools, lambda p: p.id),
+            "activities": _upsert(baseline.activities, patch.activities, lambda a: a.element_id),
+            "gateways": _upsert(baseline.gateways, patch.gateways, lambda g: g.element_id),
+            "case_attributes": _replace(baseline.case_attributes, patch.case_attributes),
+            "attribute_updates": _replace(baseline.attribute_updates, patch.attribute_updates),
+            "priority_rules": _replace(baseline.priority_rules, patch.priority_rules),
+        }
     )
 
 

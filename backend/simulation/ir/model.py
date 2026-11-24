@@ -177,8 +177,11 @@ class Calendar(_Strict):
     # per fascia (``workload_ratio`` di Prosimos). Vuota nei calendari fissi.
     workload: tuple[CalendarPeriod, ...] = ()
 
+    def all_periods(self) -> tuple[CalendarPeriod, ...]:
+        return (*self.periods, *self.workload)
+
     def is_probabilistic(self) -> bool:
-        return any(period.probability is not None for period in (*self.periods, *self.workload))
+        return any(period.probability is not None for period in self.all_periods())
 
 
 # --------------------------------------------------------------------------- #
@@ -604,7 +607,7 @@ class SimulationModel(_Strict):
     # = in ogni fascia c'e' con una probabilita' (calendari FUZZY di SIMOD), a
     # fasce di ``granule_minutes`` minuti interi. Prosimos le esegue con il suo motore fuzzy.
     availability: Literal["fixed", "probabilistic"] = "fixed"
-    granule_minutes: float | None = Field(default=None, gt=0, le=1440)
+    granule_minutes: int | None = Field(default=None, gt=0, le=1440)
 
     def resources(self) -> dict[str, Resource]:
         return {resource.id: resource for pool in self.pools for resource in pool.resources}
@@ -686,8 +689,6 @@ class SimulationModel(_Strict):
 
 def _check_availability(model: "SimulationModel") -> None:
     """CAL-01: o tutti i calendari delle risorse sono probabilistici, o nessuno."""
-    resources = model.resources().values()
-    resource_calendars = {r.calendar_id for r in resources} | {s.calendar_id for r in resources for s in r.shifts}
     by_id = {calendar.id: calendar for calendar in model.calendars}
     arrival = by_id.get(model.arrival.calendar_id)
     if arrival is not None and arrival.is_probabilistic():
@@ -702,15 +703,17 @@ def _check_availability(model: "SimulationModel") -> None:
         return
     if model.granule_minutes is None:
         raise ValueError("la disponibilita' probabilistica richiede la granularita' dei calendari")
-    if not float(model.granule_minutes).is_integer() or 1440 % int(model.granule_minutes):
+    if 1440 % model.granule_minutes:
         # Il motore fuzzy di Prosimos divide la giornata in 1440 // granule fasce di minuti
         # interi: se la divisione ha resto, gli ultimi minuti cadono fuori dalla tabella.
         raise ValueError("la granularita' dei calendari probabilistici divide la giornata in fasce uguali di minuti interi")
+    resources = model.resources().values()
+    resource_calendars = {r.calendar_id for r in resources} | {s.calendar_id for r in resources for s in r.shifts}
     for calendar_id in sorted(resource_calendars):
         calendar = by_id.get(calendar_id)
         if calendar is None:
             continue
-        if any(period.probability is None for period in (*calendar.periods, *calendar.workload)):
+        if any(period.probability is None for period in calendar.all_periods()):
             raise ValueError(f"calendario {calendar_id}: ogni fascia ha la sua probabilita' di disponibilita'")
 
 

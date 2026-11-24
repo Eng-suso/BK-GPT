@@ -37,6 +37,7 @@ _NO_WAIT = {"distribution_name": "fix", "distribution_params": [{"value": 0}]}
 def compile_for_prosimos(model: SimulationModel) -> dict:
     """Lo scenario Prosimos che esegue ``model``."""
     model = expand_shifts(model)
+    fuzzy = model.availability == "probabilistic"
     calendars = {calendar.id: calendar for calendar in model.calendars}
     assigned: dict[str, list[str]] = {}
     for activity in model.activities:
@@ -89,18 +90,18 @@ def compile_for_prosimos(model: SimulationModel) -> dict:
             for activity in model.activities
         ],
         "resource_calendars": [
-            _calendar(calendar, fuzzy=model.availability == "probabilistic")
+            _calendar(calendar, fuzzy=fuzzy)
             for calendar in _used_resource_calendars(model, calendars)
         ],
         "batch_processing": [],
         "case_attributes": [_case_attribute(attribute) for attribute in model.case_attributes],
     }
 
-    if model.availability == "probabilistic":
+    if fuzzy:
         # CAL-01: il motore fuzzy di Prosimos legge le probabilita' per fascia e
         # divide la giornata in 1440 // granulo fasce: vuole minuti interi.
         payload["model_type"] = "FUZZY"
-        payload["granule_size"] = {"value": int(model.granule_minutes or 0), "time_unit": "MINUTES"}
+        payload["granule_size"] = {"value": model.granule_minutes, "time_unit": "MINUTES"}
 
     bands = model.arrival_bands()
     if bands:

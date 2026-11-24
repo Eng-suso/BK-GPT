@@ -464,18 +464,17 @@ def _calendar(entry: Any, index: int, *, fuzzy: bool = False) -> Calendar:
         _period(p, f"{path}.time_periods[{i}]", probabilistic=fuzzy)
         for i, p in enumerate(_items(entry, "time_periods", path))
     )
-    workload = (
-        tuple(
+    if fuzzy:
+        workload = tuple(
             _period(p, f"{path}.workload_ratio[{i}]", probabilistic=True)
             for i, p in enumerate(_items(entry, "workload_ratio", path))
         )
-        if fuzzy
-        else ()
-    )
-    if not fuzzy and entry.get("workload_ratio"):
+    elif entry.get("workload_ratio"):
         raise ProsimosImportError(
             f"{path}: quote di lavoro (workload_ratio) in uno scenario a calendari fissi."
         )
+    else:
+        workload = ()
     try:
         return Calendar(
             id=_text(entry, "id", path),
@@ -522,7 +521,7 @@ def _period(entry: Any, path: str, *, probabilistic: bool = False) -> CalendarPe
 _GRANULE_UNITS = {"SECONDS": 1 / 60, "MINUTES": 1.0, "HOURS": 60.0}
 
 
-def _granule_minutes(value: Any) -> float:
+def _granule_minutes(value: Any) -> int:
     """La granularita' dei calendari FUZZY in minuti, come la legge Prosimos."""
     if isinstance(value, dict):
         unit = str(value.get("time_unit", "")).upper()
@@ -543,12 +542,13 @@ def _granule_minutes(value: Any) -> float:
         raise ProsimosImportError(
             f"granule_size: {minutes:g} minuti non è una fascia valida."
         )
-    if minutes != int(minutes) or 1440 % int(minutes):
+    if minutes != int(minutes):
+        # Solo la conversione: che la fascia divida la giornata lo verifica l'IR.
         raise ProsimosImportError(
             f"granule_size: {minutes:g} minuti. Il motore divide la giornata in fasce "
             "uguali di minuti interi (per esempio 15, 30 o 60)."
         )
-    return float(int(minutes))
+    return int(minutes)
 
 
 def _case_attribute(entry: Any, index: int, notes: list[ImportNote]) -> CaseAttribute:
