@@ -103,6 +103,13 @@ riletti dall'API. Scrive `tests/simulation/benchmark/b2/baseline.json` e
    0,210 contro 77,211 ± 0,350 (dentro); AED 121,397 ± 23,249 contro 132,824 ± 26,746
    (dentro); W1 cycle time 174,837 ± 0,421 contro 174,662 ± 0,962 (dentro).
 
+2. 2026-11-24, BPIC 2012 W (19,7 s) e BPIC 2017 W (48,7 s), stesso seed, 10 repliche:
+   tutte dentro. 2012: RED 178,538 ± 0,020 contro 178,545 ± 0,013; AED 221,446 ± 8,148
+   contro 223,843 ± 8,438; W1 175,710 ± 0,036 contro 175,721 ± 0,033. 2017: RED
+   183,545 ± 0,019 contro 183,555 ± 0,018; AED 303,353 ± 9,738 contro 296,035 ± 9,531;
+   W1 253,314 ± 0,033 contro 253,330 ± 0,021.
+3. In corso: i 19 scenari due volte con lo stesso seed (meta 1).
+
 Meta in [`PLAN.md`](./PLAN.md). Cosa si sa già, per partire subito:
 
 - Si misura sullo stack reale: `scripts/vpt_stack.sh start`, poi
