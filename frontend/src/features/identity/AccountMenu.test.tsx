@@ -11,6 +11,9 @@ const http = vi.fn<(path: string) => Promise<unknown>>();
 
 vi.mock("@/lib/http", () => ({ http: (path: string) => http(path) }));
 
+const signOutOfSupabase = vi.fn<() => Promise<void>>();
+vi.mock("@/lib/supabaseSession", () => ({ signOutOfSupabase: () => signOutOfSupabase() }));
+
 const { AccountMenu } = await import("./AccountMenu");
 
 type ApiIdentity = {
@@ -93,5 +96,32 @@ describe("AccountMenu", () => {
     renderMenu();
 
     expect(await screen.findByText("Non disponibile", {}, { timeout: 5000 })).toBeInTheDocument();
+  });
+
+  it("with a personal session it says so and offers to sign out", async () => {
+    http.mockResolvedValue(identity({ auth_mode: "supabase", caller_id: "2b1e5c1a-0000-4000-8000-000000000001", has_user_identity: true }));
+    signOutOfSupabase.mockResolvedValue();
+    const reload = vi.fn();
+    vi.stubGlobal("location", { ...window.location, reload });
+    const user = setupUser();
+    renderMenu();
+
+    await user.click(await screen.findByRole("button", { name: /Spazio di lavoro/ }, { timeout: 5000 }));
+    expect(screen.getAllByText("Accesso personale").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/non sa ancora chi sei/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("menuitem", { name: "Esci" }));
+
+    expect(signOutOfSupabase).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledOnce());
+    vi.unstubAllGlobals();
+  });
+
+  it("with the shared token there is no sign-out to offer", async () => {
+    http.mockResolvedValue(identity());
+    const user = setupUser();
+    renderMenu();
+
+    await user.click(await screen.findByRole("button", { name: /Spazio di lavoro/ }, { timeout: 5000 }));
+    expect(screen.queryByRole("menuitem", { name: "Esci" })).not.toBeInTheDocument();
   });
 });
