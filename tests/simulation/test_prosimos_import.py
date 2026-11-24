@@ -401,12 +401,93 @@ def test_a_fuzzy_granule_in_seconds_becomes_whole_minutes() -> None:
     assert import_prosimos(source, bpmn).model.granule_minutes == 2
 
 
-def test_a_fuzzy_granule_below_a_whole_minute_is_refused_with_the_reason() -> None:
-    # Prosimos divide la giornata in 1440 // granule fasce: serve un intero.
+@pytest.mark.parametrize(
+    "granule",
+    [{"value": 30, "time_unit": "seconds"}, {"value": 7, "time_unit": "MINUTES"}],
+    ids=["below-a-minute", "does-not-divide-the-day"],
+)
+def test_a_fuzzy_granule_prosimos_cannot_slice_is_refused_with_the_reason(
+    granule,
+) -> None:
+    # Prosimos divide la giornata in 1440 // granule fasce: con 7 minuti l'ultima
+    # fascia (23:55-23:59) cadrebbe fuori dalla tabella.
     source, bpmn = _fuzzy("synthetic/Insurance_Claims")
-    source["granule_size"] = {"value": 30, "time_unit": "seconds"}
-    with pytest.raises(ProsimosImportError, match="minuti interi"):
+    source["granule_size"] = granule
+    with pytest.raises(ProsimosImportError, match="fasce uguali di minuti interi"):
         import_prosimos(source, bpmn)
+
+
+def test_an_empty_workload_ratio_means_only_availability_counts() -> None:
+    # Prosimos legge una lista vuota come carico 0 in ogni fascia: vale la disponibilita'.
+    source, bpmn = _fuzzy("synthetic/Insurance_Claims")
+    for calendar in source["resource_calendars"]:
+        calendar["workload_ratio"] = []
+    compiled = compile_for_prosimos(import_prosimos(source, bpmn).model)
+    assert all(c["workload_ratio"] == [] for c in compiled["resource_calendars"])
+
+
+def test_the_fuzzy_note_counts_only_the_calendars_resources_use() -> None:
+    source, bpmn = _fuzzy("synthetic/Insurance_Claims")
+    spare = json.loads(json.dumps(source["resource_calendars"][0]))
+    spare["id"] = "spare"
+    source["resource_calendars"].append(spare)
+    used = {
+        r["calendar"] for p in source["resource_profiles"] for r in p["resource_list"]
+    }
+    notes = import_prosimos(source, bpmn).notes
+    (note,) = [n for n in notes if n.topic == "probabilistic_calendars"]
+    word = "calendario" if len(used) == 1 else "calendari"
+    assert f"per {len(used)} {word}," in note.message
+
+
+def test_a_patch_keeps_probabilistic_availability_and_waits() -> None:
+    from backend.simulation.ir.patch import ModelPatch, apply_patch
+
+    source, bpmn = _fuzzy("synthetic/Insurance_Claims_1_timer")
+    model = import_prosimos(source, bpmn).model
+    patched = apply_patch(model, ModelPatch(activities=(model.activities[0],)))
+    assert patched.availability == "probabilistic"
+    assert patched.granule_minutes == model.granule_minutes
+    assert patched.waits == model.waits
+
+
+@pytest.mark.parametrize(
+    "change, reason",
+    [
+        (lambda m: {"granule_minutes": 7}, "fasce uguali"),
+        (
+            lambda m: {
+                "availability": "fixed",
+                "granule_minutes": None,
+                "calendars": tuple(
+                    c.model_copy(
+                        update={
+                            "periods": tuple(
+                                p.model_copy(update={"probability": None})
+                                for p in c.periods
+                            ),
+                            "workload": tuple(
+                                p.model_copy(update={"probability": None})
+                                for p in c.workload
+                            ),
+                        }
+                    )
+                    for c in m.calendars
+                ),
+            },
+            "disponibilita' fissa",
+        ),
+    ],
+    ids=["granule-7", "fixed-with-workload"],
+)
+def test_the_ir_refuses_what_prosimos_cannot_run(change, reason) -> None:
+    from backend.simulation.ir.model import SimulationModel
+
+    source, bpmn = _fuzzy("synthetic/Insurance_Claims")
+    model = import_prosimos(source, bpmn).model
+    data = {**dict(model), **change(model)}
+    with pytest.raises(ValueError, match=reason):
+        SimulationModel(**data)
 
 
 @pytest.mark.parametrize(
@@ -415,8 +496,13 @@ def test_a_fuzzy_granule_below_a_whole_minute_is_refused_with_the_reason() -> No
         (lambda s: s.update(model_type="PROBABILISTIC"), "sconosciuto"),
         (lambda s: s.pop("granule_size"), "granule_size"),
         (lambda s: s["resource_calendars"][0].pop("workload_ratio"), "workload_ratio"),
+        # Prosimos non ha un default: senza probabilita' il motore si ferma.
+        (
+            lambda s: s["resource_calendars"][0]["time_periods"][0].pop("probability"),
+            "senza probabilità",
+        ),
     ],
-    ids=["unknown-type", "no-granule", "no-workload"],
+    ids=["unknown-type", "no-granule", "no-workload", "no-probability"],
 )
 def test_a_fuzzy_scenario_missing_a_piece_is_refused_with_the_reason(
     change, reason

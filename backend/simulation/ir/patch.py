@@ -66,6 +66,9 @@ def apply_patch(baseline: SimulationModel, patch: ModelPatch) -> SimulationModel
         case_attributes=_replace(baseline.case_attributes, patch.case_attributes),
         attribute_updates=_replace(baseline.attribute_updates, patch.attribute_updates),
         priority_rules=_replace(baseline.priority_rules, patch.priority_rules),
+        waits=baseline.waits,
+        availability=baseline.availability,
+        granule_minutes=baseline.granule_minutes,
     )
 
 
