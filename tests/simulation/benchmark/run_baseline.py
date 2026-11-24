@@ -42,6 +42,7 @@ import argparse
 import json
 import random
 import sys
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -50,7 +51,7 @@ if __package__ in (None, ""):  # lanciato come script
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.eventlog.model import EventLog
-from tests.simulation.benchmark.benchmark_datasets import DATASETS, DatasetUnavailable, fetch, load
+from tests.simulation.benchmark.benchmark_datasets import DATASETS, DatasetUnavailable, fetch, load, manifest_entry
 from tests.simulation.benchmark.eval_harness import DEFAULT_SEED, PAPER_REPLICAS, baseline_table, summarize
 from tests.simulation.benchmark.log_distance import MAX_REPLICAS, METRICS, Event, cases, distances
 
@@ -85,26 +86,35 @@ def split_in_half(events: list[Event]) -> tuple[list[Event], list[Event], dateti
     return period_a, period_b, cutoff
 
 
-def naive_replica(period_a: list[Event], period_b: list[Event], rng: random.Random, zone: ZoneInfo) -> list[Event]:
-    """Una previsione di B: casi di A estratti con reinserimento, spostati su B a settimane intere di ora locale."""
-    by_case = cases(period_a)
-    gap = _median(list(_case_starts(period_b).values())) - _median(list(_case_starts(period_a).values()))
-    shift = _WEEK * round(gap / _WEEK)
+@dataclass(frozen=True, slots=True)
+class NaiveTwin:
+    """Il gemello "B = A", preparato una volta: ogni replica estrae soltanto i casi."""
 
-    def moved(case: str) -> timedelta:
+    by_case: dict[str, list[Event]]
+    offsets: dict[str, timedelta]  # di quanto si sposta ogni caso di A
+    cases_in_b: int
+
+    @classmethod
+    def of(cls, period_a: list[Event], period_b: list[Event], zone: ZoneInfo) -> NaiveTwin:
+        by_case = cases(period_a)
+        starts_a = {case: min(e.start for e in group) for case, group in by_case.items()}
+        starts_b = _case_starts(period_b)
+        gap = _median(list(starts_b.values())) - _median(list(starts_a.values()))
+        shift = _WEEK * round(gap / _WEEK)
         # L'inizio del caso si sposta sull'orologio locale (con ZoneInfo la somma e' in ora
         # locale: le 9 restano le 9 oltre il cambio d'ora); i suoi eventi lo seguono in tempo
         # assoluto, cosi' le durate restano quelle vere.
-        start = min(e.start for e in by_case[case])
-        return (start.astimezone(zone) + shift).astimezone(UTC) - start
+        offsets = {case: (start.astimezone(zone) + shift).astimezone(UTC) - start for case, start in sorted(starts_a.items())}
+        return cls(by_case, offsets, len(starts_b))
 
-    drawn = rng.choices(sorted(by_case), k=len(cases(period_b)))
-    offsets = {case: moved(case) for case in set(drawn)}
-    return [
-        Event(f"{case}#{n}", e.activity, e.start + offsets[case], e.end + offsets[case])
-        for n, case in enumerate(drawn)
-        for e in by_case[case]
-    ]
+    def replica(self, rng: random.Random) -> list[Event]:
+        """Una previsione di B: casi di A estratti con reinserimento, spostati su B."""
+        drawn = rng.choices(list(self.offsets), k=self.cases_in_b)
+        return [
+            Event(f"{case}#{n}", e.activity, e.start + self.offsets[case], e.end + self.offsets[case])
+            for n, case in enumerate(drawn)
+            for e in self.by_case[case]
+        ]
 
 
 def measure(key: str, *, seed: int, replicas: int) -> dict:
@@ -115,22 +125,21 @@ def measure(key: str, *, seed: int, replicas: int) -> dict:
         return {"scenario": key, "status": "unavailable", "reason": str(exc)}
     log, quality = load(path, dataset.mapping)
     period_a, period_b, cutoff = split_in_half(to_events(log))
-    zone = ZoneInfo(dataset.zone)
+    del log  # le repliche lavorano sugli eventi di A e B: il log intero non serve piu'
+    twin = NaiveTwin.of(period_a, period_b, ZoneInfo(dataset.mapping.timestamps.timezone))
 
-    measured = [
-        distances(period_b, naive_replica(period_a, period_b, random.Random(seed + r), zone))
-        for r in range(replicas)
-    ]
+    measured = [distances(period_b, twin.replica(random.Random(seed + r))) for r in range(replicas)]
+    entry = manifest_entry(dataset)
     return {
         "scenario": key,
         "status": "measured",
-        "title": dataset.title,
-        "doi": dataset.doi,
-        "license": dataset.license,
+        "title": entry["title"],
+        "source": entry["source"],
+        "license": entry["license"],
         "twin": "naive: B = A",
         "rows_excluded": {issue.code: issue.count for issue in quality.issues if issue.excludes_rows},
         "cutoff": cutoff.isoformat(),
-        "cases": {"A": len(cases(period_a)), "B": len(cases(period_b))},
+        "cases": {"A": len(twin.by_case), "B": twin.cases_in_b},
         "events": {"A": len(period_a), "B": len(period_b)},
         "seeds": [seed + r for r in range(replicas)],
         "metrics": {metric: summarize([m[metric] for m in measured]) for metric in METRICS},

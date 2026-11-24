@@ -11,7 +11,7 @@ import pytest
 from tests.simulation.benchmark import run_baseline
 from tests.simulation.benchmark.benchmark_datasets import DatasetUnavailable
 from tests.simulation.benchmark.log_distance import METRICS, Event, cases, distances
-from tests.simulation.benchmark.run_baseline import naive_replica, run, split_in_half
+from tests.simulation.benchmark.run_baseline import NaiveTwin, run, split_in_half
 
 MONDAY_9 = datetime(2026, 1, 5, 9, tzinfo=UTC)
 AMSTERDAM = ZoneInfo("Europe/Amsterdam")
@@ -44,7 +44,7 @@ def test_the_naive_twin_keeps_the_calendar_of_a():
     # La mediana di B e' 10 giorni e 5 ore dopo A: A si sposta di una settimana intera.
     period_b = _case("b1", MONDAY_9 + timedelta(days=9), 2) + _case("b2", MONDAY_9 + timedelta(days=10, hours=5), 2)
 
-    replica = naive_replica(period_a, period_b, random.Random(1), UTC)
+    replica = NaiveTwin.of(period_a, period_b, UTC).replica(random.Random(1))
 
     assert {e.case_id for e in replica} == {"a#0", "a#1"}
     first = min(e.start for e in replica)
@@ -57,7 +57,7 @@ def test_an_old_isolated_case_does_not_move_the_twin():
     period_a = _case("old", MONDAY_9 - timedelta(weeks=104), 1) + _case("a1", MONDAY_9, 1) + _case("a2", MONDAY_9 + timedelta(days=1), 1)
     period_b = [e for i in range(3) for e in _case(f"b{i}", MONDAY_9 + timedelta(weeks=4, days=i), 1)]
 
-    replica = naive_replica(period_a, period_b, random.Random(3), UTC)
+    replica = NaiveTwin.of(period_a, period_b, UTC).replica(random.Random(3))
 
     # Mediana di A: a1 (MONDAY_9); di B: 4 settimane e un giorno dopo. Il caso vecchio non conta.
     original = {case: min(e.start for e in group) for case, group in cases(period_a).items()}
@@ -71,7 +71,7 @@ def test_the_local_hour_survives_daylight_saving():
     period_a = _case("a", nine_in_october, 1)
     period_b = _case("b", datetime(2011, 12, 12, 9, tzinfo=AMSTERDAM), 1)
 
-    replica = naive_replica(period_a, period_b, random.Random(1), AMSTERDAM)
+    replica = NaiveTwin.of(period_a, period_b, AMSTERDAM).replica(random.Random(1))
 
     start = min(e.start for e in replica).astimezone(AMSTERDAM)
     assert (start.date().isoformat(), start.hour) == ("2011-12-12", 9)
@@ -83,7 +83,7 @@ def test_a_case_across_the_clock_change_keeps_its_duration():
     period_a = _case("a", saturday, 24)
     period_b = _case("b", datetime(2011, 12, 10, 12, tzinfo=AMSTERDAM), 24)
 
-    replica = naive_replica(period_a, period_b, random.Random(1), AMSTERDAM)
+    replica = NaiveTwin.of(period_a, period_b, AMSTERDAM).replica(random.Random(1))
 
     assert max(e.end for e in replica) - min(e.start for e in replica) == timedelta(hours=24)
 
@@ -93,8 +93,8 @@ def test_b_equal_to_a_scores_zero_and_slower_b_scores_what_b2_measures():
     same = _case("b", MONDAY_9 + timedelta(weeks=3), 2)
     slower = _case("b", MONDAY_9 + timedelta(weeks=3), 4)
 
-    assert distances(same, naive_replica(period_a, same, random.Random(1), UTC)) == dict.fromkeys(METRICS, 0.0)
-    measured = distances(slower, naive_replica(period_a, slower, random.Random(1), UTC))
+    assert distances(same, NaiveTwin.of(period_a, same, UTC).replica(random.Random(1))) == dict.fromkeys(METRICS, 0.0)
+    measured = distances(slower, NaiveTwin.of(period_a, slower, UTC).replica(random.Random(1)))
     # Le stesse distanze di B2, in ore: il caso di B dura 2 ore di piu'.
     assert measured["cycle_time_w1"] == pytest.approx(2.0)
     assert measured["ngram"] == 0.0
@@ -134,6 +134,7 @@ def test_each_log_is_saved_with_b2_metrics_and_intervals(tmp_path, logs):
     assert report["status"] == "measured"
     assert report["distances"].startswith("come B2")
     assert report["rows_excluded"] == {}
+    assert report["license"] == "4TU General Terms of Use" and report["source"].startswith("https://doi.org/")
     assert report["cases"] == {"A": 6, "B": 6}
     assert report["seeds"] == [run_baseline.DEFAULT_SEED + r for r in range(3)]
     assert set(report["metrics"]) == set(METRICS)
