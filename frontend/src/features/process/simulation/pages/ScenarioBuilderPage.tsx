@@ -28,6 +28,7 @@ import { uncertainFactors } from "../sensitivity";
 import { useSourceConflicts } from "../useSourceConflicts";
 import { WhatIfComposer } from "../WhatIfComposer";
 import { ServerScenarioImport } from "../ServerScenarioImport";
+import { draftArrivalsRunFaster, type ScenarioDraft } from "../simulationScenario";
 import { importProsimosOnServer, remapProsimosIds, runImportedModel, type ProsimosImport } from "../prosimosServerImport";
 import { HttpError, httpErrorMessage } from "@/lib/http";
 import type { NodeDecoration } from "../canvas/SimulationCanvas";
@@ -83,6 +84,15 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
     handleSensitivity,
     activeRun,
   } = lab;
+  const announceProsimosImport = (name: string, candidate: ScenarioDraft) => {
+    toast.success(t("simulation.scenario.importApplied"), { description: t("simulation.scenario.importAppliedProsimos", {
+      name, activities: Object.keys(candidate.tasks).length, resources: candidate.resources.length, decisions: Object.keys(candidate.gateways).length,
+    }) });
+    // IMP-01: lo scenario resta com'era; l'avviso completo, con la correzione, sta in Arrivi dei casi.
+    if (draftArrivalsRunFaster(candidate)) {
+      toast.warning(t("simulation.config.arrivalsFaster.title"), { description: t("simulation.config.arrivalsFaster.toast") });
+    }
+  };
   const checkOnServer = async (name: string, source: Record<string, unknown>, localCause: unknown) => {
     const request = ++serverRequest.current;
     setServerChecking(true);
@@ -161,9 +171,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
           return;
         }
         updateDraft(candidate);
-        toast.success(t("simulation.scenario.importApplied"), { description: t("simulation.scenario.importAppliedProsimos", {
-          name: file.name, activities: Object.keys(candidate.tasks).length, resources: candidate.resources.length, decisions: Object.keys(candidate.gateways).length,
-        }) });
+        announceProsimosImport(file.name, candidate);
         setImportOpen(false);
       } else {
         const fields = numericJsonFields(parsed);
@@ -197,10 +205,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
       updateDraft(candidate);
       setProsimosSource(null);
       setImportOpen(false);
-      toast.success(t("simulation.scenario.importApplied"), { description: t("simulation.scenario.importAppliedProsimos", {
-        name: prosimosSource.name, activities: Object.keys(candidate.tasks).length, resources: candidate.resources.length,
-        decisions: Object.keys(candidate.gateways).length,
-      }) });
+      announceProsimosImport(prosimosSource.name, candidate);
     } catch (cause) {
       // Come per i file che non chiedono mappatura: se l'editor non lo rappresenta, lo legge il server.
       const { name, data } = prosimosSource;
@@ -349,7 +354,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
           </div>}
           <p role="status" className="text-sm text-muted-foreground empty:hidden">{serverChecking ? t("simulation.scenario.serverImport.checking") : ""}</p>
           {serverImport && <ServerScenarioImport name={serverImport.name} result={serverImport.result} running={serverRunning} onRun={() => void runServerImport()} />}
-          {prosimosSource && template && <ProsimosReferenceMapping source={prosimosSource.data} template={template} mapping={prosimosMapping} onChange={(next) => { setProsimosMapping(next); setImportError(null); }} />}
+          {prosimosSource && template && <ProsimosReferenceMapping fields={prosimosFields} mapping={prosimosMapping} onChange={(next) => { setProsimosMapping(next); setImportError(null); }} />}
           {genericSource && <div className="grid gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm" role="status">
             <div>
               <p className="font-semibold">{t("simulation.scenario.fileRead")}: {genericSource.name}</p>

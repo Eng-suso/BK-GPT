@@ -229,6 +229,7 @@
         "title": "DeliR can simulate this scenario as it is",
         "description": "{{name}} does not fit the parameter editor, but DeliR read all of it and can simulate it without changes.",
         "descriptionAdjusted": "{{name}} does not fit the parameter editor. DeliR read all of it and can simulate it with the adjustments listed below.",
+        "descriptionCheck": "{{name}} does not fit the parameter editor. DeliR read all of it and can simulate it without changes: before using the results, read the point to check.",
         "startedDetailDays_one": "{{name}} is queued for {{count}} day of simulation.",
         "startedDetailDays_other": "{{name}} is queued for {{count}} days of simulation.",
         "summary": "Activities: {{activities}} · Resources: {{resources}} · Decisions: {{decisions}} · Waits: {{waits}}",
@@ -255,6 +256,8 @@
           "rounded_probabilities_other": "{{count}} groups of probabilities rounded and brought back to 100%.",
           "probabilistic_calendars_one": "People are not always free during their working hours: the simulation uses, slot by slot, the probability of finding them available learned from the data.",
           "probabilistic_calendars_other": "People are not always free during their working hours: the simulation uses, slot by slot, the probability of finding them available learned from the data.",
+          "arrivals_faster_one": "In the simulation cases will arrive more often than the file says: queues and waits will come out longer than the real ones. Before comparing the results with the data, fix the arrivals in the file and import it again; otherwise read queues and waits as overestimates.",
+          "arrivals_faster_other": "In the simulation cases will arrive more often than the file says: queues and waits will come out longer than the real ones. Before comparing the results with the data, fix the arrivals in the file and import it again; otherwise read queues and waits as overestimates.",
           "other_one": "1 other note.",
           "other_other": "{{count}} other notes."
         }
@@ -737,7 +740,13 @@
       "systemCapacity": "Concurrent runs",
       "alwaysCalendar": "Always, 24 hours a day",
       "removable": "Adds no value",
-      "removableHint": "In «What to try» the advisor will suggest removing it, with what it saves. The current run simulates it as usual."
+      "removableHint": "In «What to try» the advisor will suggest removing it, with what it saves. The current run simulates it as usual.",
+      "arrivalsFaster": {
+        "title": "Cases will arrive more often than expected",
+        "body": "With a maximum of {{max}} between two arrivals, the simulation discards the longer intervals and replaces them with shorter ones: on average one case arrives every {{produced}} instead of every {{mean}}, about {{more}}% more cases. Queues and waits will come out longer than the real ones. If cases arrive at a steady pace, choose “Fixed”; if they vary a lot, raise the maximum.",
+        "action": "Set the maximum to {{suggested}}",
+        "toast": "The file's arrivals will make cases more frequent than expected: check the notice in Case arrivals."
+      }
     },
     "diagram": {
       "title": "Process model",

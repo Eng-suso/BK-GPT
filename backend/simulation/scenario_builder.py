@@ -137,8 +137,9 @@ def _require_timer_durations(model: SimulationModel) -> None:
 
 
 def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = None) -> ScenarioTemplateResponse:
-    tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
+    tasks, gateways, merges = _parse_bpmn_elements(bpmn_xml)
     return ScenarioTemplateResponse(
+        merges=merges,
         waits=[
             ScenarioTemplateWait(element_id=wait.id, name=wait.name or ("Timer" if wait.kind == "timer" else wait.id), kind=wait.kind, seconds=wait.seconds)
             for wait in parse_bpmn_waits(bpmn_xml)
@@ -223,6 +224,12 @@ def parse_bpmn_waits(bpmn_xml: str) -> list[BpmnWait]:
 
 
 def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnGateway]]:
+    tasks, gateways, _ = _parse_bpmn_elements(bpmn_xml)
+    return tasks, gateways
+
+
+def _parse_bpmn_elements(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnGateway], list[str]]:
+    """Attivita', porte con una scelta e porte di sola unione (un ramo in uscita)."""
     try:
         root = ElementTree.fromstring(bpmn_xml.encode("utf-8"))
     except ElementTree.ParseError as exc:
@@ -272,9 +279,11 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
             outgoing_by_source[source].append((flow_id, flow_name, target))
 
     gateways: list[BpmnGateway] = []
+    merges: list[str] = []
     for gateway_id, gateway_type in gateway_types.items():
         outgoing = outgoing_by_source.get(gateway_id, [])
         if len(outgoing) <= 1:
+            merges.append(gateway_id)
             continue
         gateways.append(
             BpmnGateway(
@@ -293,7 +302,7 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
             )
         )
 
-    return tasks, gateways
+    return tasks, gateways, merges
 
 
 def _local_name(tag: str) -> str:
