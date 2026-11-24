@@ -1,25 +1,23 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-24, dopo B1a e B1b (PR #170, che chiude anche #169) e lo stack
-reale per il simulatore (`scripts/vpt_stack.sh`, PR #171).
+Aggiornato: 2026-11-24, dopo la chiusura in parallelo di B2 (harness di valutazione),
+CAL-01 (calendari FUZZY di SIMOD, PR #172) e UX-01 ("Reale contro simulato"
+leggibile, PR #173). Ricomposto da chi ha chiuso l'ultimo dei tre (B2).
 
 ## Punti attivi
 
-Tre punti in parallelo, una sessione ciascuno (regole in "Più agenti in parallelo"
-di [`WORKFLOW.md`](./WORKFLOW.md)). Ognuno aggiorna solo la propria sezione qui sotto.
-
-- **B2** harness di valutazione: fatto il 2026-11-24, vedi la sezione B2.
-- **CAL-01** calendari FUZZY di SIMOD: vedi "Come riprendere CAL-01".
-- **UX-01** leggibilità di "Reale contro simulato".
+Nessuno. Prossimi secondo l'ordine di [`PLAN.md`](./PLAN.md): **SIM-36** (baseline
+pubblica su BPIC 2012/2013) e **G3** (spike SIMOD), in parallelo; poi **B3**. Tutti si
+misurano con l'harness di B2 (sezione sotto).
 
 ## Ultima misura
 
-B1b: e2e `e2e/simulation-prosimos-import.spec.ts` 8/8 (chromium e mobile-chrome),
-test API 4/4, unit 4/4; gate UX in `docs/vpt/ux/b1b-server-import/`.
-CONF-02: e2e `simulation-eventlog` 12/12 su chromium e mobile-chrome, axe pulito;
-screenshot in `docs/vpt/ux/conformance/`. CONF-01: LoanApp 500/500 casi conformi.
+B2, seed 20261124, 10 repliche sullo stack reale: `baseline.json` identico bit per bit
+su due passate; 9/9 metriche dentro contro il paper sui 3 log reali; baseline dei 16
+sintetici in `tests/simulation/benchmark/b2/baseline.md`. CAL-01 e UX-01: misure nelle
+loro voci di [`LOG.md`](./LOG.md).
 
-## CAL-01 (fatto il 2026-11-24)
+## CAL-01 (fatto il 2026-11-24, PR #172)
 
 Gli scenari SIMOD con calendari FUZZY si importano, si ricompilano identici e girano
 sul runner Prosimos 2.1 dello stack. Misura finale e iterazioni nella voce di `LOG.md`.
@@ -61,9 +59,10 @@ test `event type selection…` cliccava. Il test ora tocca l'arco visibile.
   rispondono 403 (SEC-ADMIN).
 - Copiare comunque nel repo pubblico BPIC 2012/2013/2020 e Prosimos?
 - Confermare la meta marcata *proposta* di B3 in `PLAN.md` (gateway ±0,05, durate
-  ±10%). Quella di B2 è decisa (2026-11-24).
+  ±10%).
+- Arrivi `expon` di Procure_to_Pay: vedi "Richieste per Sohayb" nella sezione B2.
 
-## B2 (fatto il 2026-11-24, branch `feat/sim-eval-harness`)
+## B2 (fatto il 2026-11-24, PR #174)
 
 Le tre mete sono raggiunte. Per ripartire (B3, B5, G3, VPT-10):
 
