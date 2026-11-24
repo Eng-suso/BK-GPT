@@ -88,10 +88,19 @@ def compile_for_prosimos(model: SimulationModel) -> dict:
             }
             for activity in model.activities
         ],
-        "resource_calendars": [_calendar(calendar) for calendar in _used_resource_calendars(model, calendars)],
+        "resource_calendars": [
+            _calendar(calendar, fuzzy=model.availability == "probabilistic")
+            for calendar in _used_resource_calendars(model, calendars)
+        ],
         "batch_processing": [],
         "case_attributes": [_case_attribute(attribute) for attribute in model.case_attributes],
     }
+
+    if model.availability == "probabilistic":
+        # CAL-01: il motore fuzzy di Prosimos legge le probabilita' per fascia e
+        # divide la giornata in 1440 // granulo fasce: vuole minuti interi.
+        payload["model_type"] = "FUZZY"
+        payload["granule_size"] = {"value": int(model.granule_minutes or 0), "time_unit": "MINUTES"}
 
     bands = model.arrival_bands()
     if bands:
@@ -230,21 +239,28 @@ def _used_resource_calendars(model: SimulationModel, calendars: dict[str, Calend
     return [calendars[calendar_id] for calendar_id in used]
 
 
-def _calendar(calendar: Calendar) -> dict:
-    return {
+def _calendar(calendar: Calendar, *, fuzzy: bool = False) -> dict:
+    payload = {
         "id": calendar.id,
         "name": calendar.name,
         "time_periods": [_period(period) for period in calendar.periods],
     }
+    if fuzzy:
+        # Prosimos legge entrambe le sezioni di un calendario FUZZY.
+        payload["workload_ratio"] = [_period(period) for period in calendar.workload]
+    return payload
 
 
 def _period(period: CalendarPeriod) -> dict:
-    return {
+    payload: dict = {
         "from": period.from_day,
         "to": period.to_day,
         "beginTime": period.begin,
         "endTime": period.end,
     }
+    if period.probability is not None:
+        payload["probability"] = float(period.probability)
+    return payload
 
 
 def _case_attribute(attribute) -> dict:
