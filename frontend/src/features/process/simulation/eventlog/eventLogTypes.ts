@@ -175,3 +175,36 @@ export type ApplyMappingInput = {
   activityMatches?: Record<string, string | null>;
   resourceMatches?: Record<string, string | null>;
 };
+
+/** Token replay dei casi reali sul BPMN (backend: EventLogConformanceResponse). */
+export const conformanceSchema = z.object({
+  event_log: eventLogSchema,
+  bpmn_version_id: z.number().nullable(),
+  mapping_bpmn_version_id: z.number().nullable(),
+  fitness: z.number(),
+  cases: z.number(),
+  fitting_cases: z.number(),
+  fitting_share: z.number(),
+  deviations: z.array(z.object({
+    element_id: z.string(),
+    name: z.string(),
+    executed_out_of_order: z.number(),
+    left_waiting: z.number(),
+    cases_affected: z.number(),
+  })),
+  variants: z.array(z.object({
+    activities: z.array(z.string()),
+    cases: z.number(),
+    fitness: z.number(),
+    fits: z.boolean(),
+    out_of_order: z.array(z.string()),
+    waiting: z.array(z.string()),
+    unmodeled: z.array(z.string()),
+  })),
+  unmodeled_activities: z.record(z.string(), z.number()),
+  unobserved_elements: z.array(z.object({ element_id: z.string(), name: z.string() })),
+  excluded_variants: z.number(),
+  excluded_cases: z.number(),
+  warnings: z.array(z.object({ code: z.string(), params: z.record(z.string(), z.union([z.string(), z.number()])) })),
+});
+export type Conformance = z.infer<typeof conformanceSchema>;

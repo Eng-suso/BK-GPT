@@ -91,6 +91,20 @@ MAX_SEARCH_DEPTH = 24
 DEFAULT_MAX_VARIANTS = 2_000
 
 
+@dataclass(frozen=True, slots=True)
+class ConformanceWarning:
+    """Un avviso con un codice stabile: il testo lo scrive chi lo mostra, nella sua lingua.
+
+    Codici: ``multiple_processes`` (``count``), ``boundary_without_host``,
+    ``inclusive_as_exclusive``, ``silent_node`` (``element``, ``kind``),
+    ``mapped_to_non_activity`` (``activities``), ``variants_truncated``
+    (``kept``, ``dropped``).
+    """
+
+    code: str
+    params: dict[str, str | int] = field(default_factory=dict)
+
+
 class ConformanceModelError(ValueError):
     """Il BPMN non si puo' trasformare in una rete da riprodurre."""
 
@@ -112,7 +126,7 @@ class PetriNet:
     names: dict[str, str]
     #: Per ogni posto, l'elemento BPMN che aspetta il token.
     waiting_element: dict[str, str]
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[ConformanceWarning] = field(default_factory=list)
     by_element: dict[str, list[Transition]] = field(default_factory=dict)
     silent_by_place: dict[str, list[Transition]] = field(default_factory=dict)
     #: Per ogni posto, le attivita' raggiungibili passando solo da transizioni
@@ -176,6 +190,8 @@ class ElementDeviation:
     executed_out_of_order: int
     #: Casi finiti con il modello ancora in attesa di questo elemento.
     left_waiting: int
+    #: Casi distinti con almeno una delle due deviazioni su questo elemento.
+    cases_affected: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,7 +228,7 @@ class ConformanceResult:
     unobserved_elements: tuple[str, ...]
     excluded_variants: int
     excluded_cases: int
-    warnings: tuple[str, ...]
+    warnings: tuple[ConformanceWarning, ...]
 
     @property
     def fitting_share(self) -> float:
@@ -300,11 +316,9 @@ def build_petri_net(bpmn_xml: str, *, relevant_elements: Iterable[str] = ()) -> 
         return (len(relevant.intersection(activities)), len(activities))
 
     graph = max(graphs, key=score)
-    warnings: list[str] = []
+    warnings: list[ConformanceWarning] = []
     if len(graphs) > 1:
-        warnings.append(
-            f"Il modello ha {len(graphs)} processi: si riproduce solo quello con piu' attivita' del log."
-        )
+        warnings.append(ConformanceWarning("multiple_processes", {"count": len(graphs)}))
 
     transitions: list[Transition] = []
     names: dict[str, str] = {}
@@ -353,7 +367,7 @@ def build_petri_net(bpmn_xml: str, *, relevant_elements: Iterable[str] = ()) -> 
         if tag == "boundaryEvent":
             attached = element.attrib.get("attachedToRef") or ""
             if attached not in input_place:
-                warnings.append(f"Boundary event {node_id} senza attivita' a cui e' attaccato: ignorato.")
+                warnings.append(ConformanceWarning("boundary_without_host", {"element": names[node_id]}))
                 continue
             host = input_place[attached]
             interrupting = (element.attrib.get("cancelActivity") or "true").lower() != "false"
@@ -366,7 +380,9 @@ def build_petri_net(bpmn_xml: str, *, relevant_elements: Iterable[str] = ()) -> 
             ins = [flow_place(f) for f in incoming] or [SOURCE]
             if len(ins) > MAX_INCLUSIVE_BRANCHES or len(out) > MAX_INCLUSIVE_BRANCHES:
                 warnings.append(
-                    f"Gateway inclusivo {node_id} con piu' di {MAX_INCLUSIVE_BRANCHES} rami: trattato come esclusivo."
+                    ConformanceWarning(
+                        "inclusive_as_exclusive", {"element": names[node_id], "branches": MAX_INCLUSIVE_BRANCHES}
+                    )
                 )
                 hub = merged_input(node_id, "or")
                 for index, place in enumerate(out):
@@ -390,7 +406,7 @@ def build_petri_net(bpmn_xml: str, *, relevant_elements: Iterable[str] = ()) -> 
                     "startEvent",
                     "endEvent",
                 }:
-                    warnings.append(f"Nodo {tag} {node_id} trattato come passaggio silenzioso.")
+                    warnings.append(ConformanceWarning("silent_node", {"element": names[node_id], "kind": tag}))
                 silent(f"pass:{node_id}", [hub], out)
 
     if not any(t.element_id for t in transitions):
@@ -557,15 +573,14 @@ def check_conformance(
     unmodeled_cases: Counter[str] = Counter()
     out_of_order_cases: Counter[str] = Counter()
     waiting_cases: Counter[str] = Counter()
+    affected_cases: Counter[str] = Counter()
     observed: set[str] = set()
     totals = [0, 0, 0, 0]
     fitting = 0
     warnings = list(net.warnings)
-    if any(v and v not in known for v in mapping.values()):
-        warnings.append(
-            "Alcune attivita' sono abbinate a elementi che non sono attivita' del processo riprodotto: "
-            "contano come fuori modello."
-        )
+    off_process = sorted(activity for activity, element in mapping.items() if element and element not in known)
+    if off_process:
+        warnings.append(ConformanceWarning("mapped_to_non_activity", {"activities": ", ".join(off_process)}))
 
     for activities, cases in kept:
         elements: list[str] = []
@@ -603,6 +618,8 @@ def check_conformance(
             out_of_order_cases[element] += cases
         for element in waiting_elements:
             waiting_cases[element] += cases
+        for element in set(out_of_order) | set(waiting_elements):
+            affected_cases[element] += cases
         if variant.fits:
             fitting += cases
         for index, value in enumerate((tally.produced, consumed, missing, remaining)):
@@ -616,17 +633,16 @@ def check_conformance(
                     name=net.names.get(element, element),
                     executed_out_of_order=out_of_order_cases[element],
                     left_waiting=waiting_cases[element],
+                    cases_affected=affected_cases[element],
                 )
-                for element in set(out_of_order_cases) | set(waiting_cases)
+                for element in affected_cases
             ),
-            key=lambda d: (-(d.executed_out_of_order + d.left_waiting), d.name),
+            key=lambda d: (-d.cases_affected, d.name),
         )
     )
     replayed_cases = sum(cases for _, cases in kept)
     if dropped:
-        warnings.append(
-            f"Riprodotte le {len(kept)} varianti piu' frequenti; {len(dropped)} varianti escluse."
-        )
+        warnings.append(ConformanceWarning("variants_truncated", {"kept": len(kept), "dropped": len(dropped)}))
     return ConformanceResult(
         fitness=_fitness(*totals),
         cases=replayed_cases,

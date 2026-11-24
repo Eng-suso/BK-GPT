@@ -155,3 +155,10 @@ export function httpErrorMessage(error: unknown, fallback: string): string {
   }
   return error instanceof Error ? error.message : fallback;
 }
+
+/** Stable error code from the backend envelope (`{error:{code}}`), if any. */
+export function httpErrorCode(error: unknown): string | null {
+  if (!(error instanceof HttpError)) return null;
+  const code = (error.body as { error?: { code?: unknown } } | null | undefined)?.error?.code;
+  return typeof code === "string" ? code : null;
+}

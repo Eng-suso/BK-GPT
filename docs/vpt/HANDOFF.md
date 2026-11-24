@@ -1,11 +1,11 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-23, fine della sessione che ha preparato dataset e workflow.
+Aggiornato: 2026-11-24, dopo CONF-01, CONF-02 (conformance log ↔ BPMN), SEC-ADMIN,
+B1a e B1b (import Prosimos e SIMOD, PR #170 che chiude anche #169).
 
 ## Punto attivo
 
-Nessuno. **B1a e B1b sono fatti** (`feat/sim-prosimos-import-ui`, PR verso `main` che
-contiene anche B1a: mergiandola si chiude anche #169).
+Nessuno. **B1a e B1b sono fatti e su `main`** (PR #170, che contiene anche #169).
 
 Prossimo: **CAL-01, calendari FUZZY di SIMOD** (richiesta di Sohayb: DeliR deve
 gestire tutto). Oggi `from_prosimos.py` li rifiuta con il motivo perché l'IR non
@@ -19,17 +19,17 @@ In alternativa **UX-01** (leggibilità di "Reale contro simulato").
 
 B1b: e2e `e2e/simulation-prosimos-import.spec.ts` 8/8 (chromium e mobile-chrome),
 test API 4/4, unit 4/4; gate UX in `docs/vpt/ux/b1b-server-import/`.
+CONF-02: e2e `simulation-eventlog` 12/12 su chromium e mobile-chrome, axe pulito;
+screenshot in `docs/vpt/ux/conformance/`. CONF-01: LoanApp 500/500 casi conformi.
 
-## Come riprendere B1
+## Come riprendere CAL-01
 
 1. Leggi [`WORKFLOW.md`](./WORKFLOW.md) e la voce più recente di [`LOG.md`](./LOG.md).
-2. I 19 scenari sono i `*.json` in `datasets/extraneous-delays/inputs/synthetic` (16)
-   e `inputs/real-life` (3). Oggi l'import esiste solo nel frontend e rifiuta i
-   metadati SIMOD (`process_model`, `model_type`, `granule_size`): problema 6 di
-   `docs/simulation-plan.md`.
-3. Meta: 19/19 importati lato server senza modifiche. Il test va scritto per primo
-   e deve fallire; poi si itera finché passa.
-4. Il punto ha UI (l'import dal frontend): vale il gate UX.
+2. Scarica Prosimos 2.1 (`uv run python scripts/fetch_datasets.py fetch prosimos`) e
+   leggi come rappresenta ed esegue i calendari FUZZY.
+3. Serve uno scenario SIMOD con calendari FUZZY scoperto sul dataset: il test di
+   import e round trip va scritto per primo e deve fallire.
+4. Estendi IR, `from_prosimos.py` e `compile_for_prosimos`; poi run sul runner.
 
 ## CI
 
@@ -57,6 +57,8 @@ attività) e test con copy e mock vecchi.
 
 ## Decisioni aperte per Sohayb
 
+- Impostare `DELIR_ADMIN_TOKEN` in staging e prod: senza, le cancellazioni ora
+  rispondono 403 (SEC-ADMIN).
 - Copiare comunque nel repo pubblico BPIC 2012/2013/2020 e Prosimos?
 - Confermare le mete marcate *proposta* in `PLAN.md` (B2: scarto ≤ 10% dal paper;
   B3: gateway ±0,05, durate ±10%).

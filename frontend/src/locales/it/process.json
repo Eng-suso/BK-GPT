@@ -1314,6 +1314,7 @@
         "results": "Qualità e KPI",
         "activities": "Attività",
         "resources": "Risorse",
+        "conformance": "Aderenza al processo",
         "compare": "Reale contro simulato"
       },
       "applyFailed": "Il mapping non è stato applicato",
@@ -1479,7 +1480,14 @@
           "bias": "Scarto medio",
           "mae": "Errore assoluto medio",
           "uncertainty": "L'IC 95% misura la variabilità fra repliche, non l'incertezza del log reale. Uno scarto può essere sistematico anche quando i valori sono vicini.",
-          "metric": { "cycle": "Attraversamento osservabile", "p50": "Attraversamento P50", "p90": "Attraversamento P90", "between": "Attesa fra attività", "processing": "Lavorazione", "throughput": "Casi all'ora" },
+          "metric": {
+            "cycle": "Attraversamento osservabile",
+            "p50": "Attraversamento P50",
+            "p90": "Attraversamento P90",
+            "between": "Attesa fra attività",
+            "processing": "Lavorazione",
+            "throughput": "Casi all'ora"
+          },
           "pooled": "Tra tutti i casi simulati: P50 {{p50}}, P90 {{p90}}. La tabella mostra invece la media dei percentili delle repliche.",
           "distances": "Distribuzioni: distanza media dei tempi {{cycle}} ± {{cycleCi}} (IC 95%); distanza dei percorsi {{ngd}}% ± {{ngdCi}} punti (IC 95%, 2-grammi).",
           "firstWaitTitle": "Attesa iniziale non confrontabile",
@@ -1548,6 +1556,60 @@
         "waiting": "Attesa media, reale → simulata",
         "executions": "Esecuzioni, log → run",
         "noStart": "Il log registra solo i completamenti: lavorazione e attesa reali non si separano."
+      },
+      "conformance": {
+        "intro": "I casi reali rigiocati sul disegno del processo: quanti lo seguono, quali passi vengono saltati o fatti fuori ordine.",
+        "unavailable": "Aderenza non calcolabile",
+        "failed": "Impossibile calcolare l'aderenza",
+        "modelChanged": "Il disegno è cambiato dopo l'abbinamento delle attività: rivedilo prima di leggere questo risultato.",
+        "reviewActivities": "Rivedi le attività",
+        "verdict": {
+          "close": "I casi seguono il processo disegnato",
+          "calibrate": "Una parte dei casi esce dal processo disegnato",
+          "far": "Il processo reale è diverso da quello disegnato"
+        },
+        "fitting_one": "{{fitting}} caso su {{total}} segue il disegno ({{share}}).",
+        "fitting_other": "{{fitting}} casi su {{total}} seguono il disegno ({{share}}).",
+        "where": "Dove i casi escono dal disegno",
+        "onCanvas": "Mostra sul disegno",
+        "noDeviations": "Nessun passo saltato o fatto fuori ordine.",
+        "step": "Passo",
+        "skipped": "Saltato",
+        "early": "Fatto senza i passi precedenti",
+        "cases_one": "{{value}} caso",
+        "cases_other": "{{value}} casi",
+        "paths": "Percorsi reali fuori dal disegno",
+        "pathSkipped": "Manca: {{steps}}",
+        "pathEarly": "Fatto senza i passi precedenti: {{steps}}",
+        "pathUnmodeled": "Non nel disegno: {{steps}}",
+        "unmodeled": "Attività del log che non hanno un passo nel disegno",
+        "unobserved": "Passi del disegno che nessun caso ha eseguito: {{steps}}.",
+        "details": "Dettagli per specialisti",
+        "fitness": "Fitness",
+        "method": "Metodo",
+        "methodValue": "Token-based replay sulla rete di Petri del BPMN",
+        "excluded": "Casi esclusi (varianti rare)",
+        "limits": "Si controlla l'ordine dei passi, non le condizioni sui dati (per esempio una soglia di importo). I casi ancora aperti risultano incompleti.",
+        "legend": "Casi che escono dal disegno",
+        "legendLevel": {
+          "close": "fino al 10%",
+          "calibrate": "10–40%",
+          "far": "oltre il 40%"
+        },
+        "noCases": "Nessun caso del log da rigiocare sul disegno.",
+        "reason": {
+          "not_mapped": "Completa e conferma l'abbinamento delle attività del log ai passi del disegno.",
+          "no_model": "Il processo non ha ancora un disegno BPMN da confrontare con il log.",
+          "model_not_replayable": "Il disegno non ha attività da confrontare con il log, oppure non si riesce a leggerlo."
+        },
+        "warning": {
+          "multiple_processes": "Il disegno ha {{count}} processi: si rigioca solo quello con più attività del log.",
+          "boundary_without_host": "L'evento di bordo «{{element}}» non è attaccato a un'attività: ignorato.",
+          "inclusive_as_exclusive": "Il gateway inclusivo «{{element}}» ha più di {{branches}} rami: trattato come esclusivo.",
+          "silent_node": "«{{element}}» ({{kind}}) è trattato come passaggio senza attività.",
+          "mapped_to_non_activity": "Abbinate a elementi che non sono attività del processo rigiocato: {{activities}}.",
+          "variants_truncated": "Rigiocate le {{kept}} varianti più frequenti; {{dropped}} varianti rare escluse."
+        }
       }
     },
     "queue": {
@@ -2290,7 +2352,10 @@
       "split-3": "Dividi in tre lane",
       "remove": "Rimuovi lane, mantieni le attività"
     },
-    "contextMenu": {"title": "Menu del canvas", "selectAll": "Seleziona tutto"},
+    "contextMenu": {
+      "title": "Menu del canvas",
+      "selectAll": "Seleziona tutto"
+    },
     "resizeHint": "Trascina per ridimensionare",
     "connectGesture": {
       "actionHint": "Collega: trascina fino al bersaglio oppure fai clic e scegli un elemento",

@@ -1,6 +1,7 @@
 import { http } from "@/lib/http";
 
 import {
+  conformanceSchema,
   eventLogAnalysisSchema,
   eventLogListSchema,
   eventLogPreviewSchema,
@@ -9,6 +10,7 @@ import {
   uploadedEventLogSchema,
   type ApplyMappingInput,
   type ColumnMapping,
+  type Conformance,
   type Delimiter,
   type EventLog,
   type EventLogAnalysis,
@@ -63,6 +65,11 @@ export async function applyEventLogMapping(eventLogId: string, input: ApplyMappi
 export async function fetchEventLogAnalysis(eventLogId: string): Promise<EventLogAnalysis> {
   const raw = await http<unknown>(`${BASE}/event-logs/${encodeURIComponent(eventLogId)}/analysis`);
   return eventLogAnalysisSchema.parse(raw);
+}
+
+export async function fetchEventLogConformance(eventLogId: string): Promise<Conformance> {
+  const raw = await http<unknown>(`${BASE}/event-logs/${encodeURIComponent(eventLogId)}/conformance`);
+  return conformanceSchema.parse(raw);
 }
 
 export async function deleteEventLog(eventLogId: string): Promise<void> {

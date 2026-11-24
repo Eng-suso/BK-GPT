@@ -1314,6 +1314,7 @@
         "results": "Quality and KPIs",
         "activities": "Activities",
         "resources": "Resources",
+        "conformance": "Process conformance",
         "compare": "Real vs simulated"
       },
       "applyFailed": "The mapping was not applied",
@@ -1479,7 +1480,14 @@
           "bias": "Mean bias",
           "mae": "Mean absolute error",
           "uncertainty": "The 95% CI measures variation across replications, not uncertainty in the real log. A gap can be systematic even when values are close.",
-          "metric": { "cycle": "Observable cycle", "p50": "Cycle P50", "p90": "Cycle P90", "between": "Waiting between activities", "processing": "Processing", "throughput": "Cases per hour" },
+          "metric": {
+            "cycle": "Observable cycle",
+            "p50": "Cycle P50",
+            "p90": "Cycle P90",
+            "between": "Waiting between activities",
+            "processing": "Processing",
+            "throughput": "Cases per hour"
+          },
           "pooled": "Across all simulated cases: P50 {{p50}}, P90 {{p90}}. The table instead shows the mean of the replication percentiles.",
           "distances": "Distributions: mean cycle distance {{cycle}} ± {{cycleCi}} (95% CI); path distance {{ngd}}% ± {{ngdCi}} points (95% CI, 2-grams).",
           "firstWaitTitle": "Initial waiting is not comparable",
@@ -1548,6 +1556,60 @@
         "waiting": "Average waiting, real → simulated",
         "executions": "Executions, log → run",
         "noStart": "The log records completions only: real processing and waiting cannot be separated."
+      },
+      "conformance": {
+        "intro": "Real cases replayed on the process design: how many follow it, which steps are skipped or done out of order.",
+        "unavailable": "Conformance cannot be calculated",
+        "failed": "Could not calculate conformance",
+        "modelChanged": "The design changed after the activities were matched: review the match before reading this result.",
+        "reviewActivities": "Review activities",
+        "verdict": {
+          "close": "Cases follow the designed process",
+          "calibrate": "Some cases leave the designed process",
+          "far": "The real process differs from the designed one"
+        },
+        "fitting_one": "{{fitting}} of {{total}} cases follows the design ({{share}}).",
+        "fitting_other": "{{fitting}} of {{total}} cases follow the design ({{share}}).",
+        "where": "Where cases leave the design",
+        "onCanvas": "Show on the design",
+        "noDeviations": "No step skipped or done out of order.",
+        "step": "Step",
+        "skipped": "Skipped",
+        "early": "Done without the steps before it",
+        "cases_one": "{{value}} case",
+        "cases_other": "{{value}} cases",
+        "paths": "Real paths outside the design",
+        "pathSkipped": "Missing: {{steps}}",
+        "pathEarly": "Done without the steps before it: {{steps}}",
+        "pathUnmodeled": "Not in the design: {{steps}}",
+        "unmodeled": "Log activities with no step in the design",
+        "unobserved": "Design steps no case executed: {{steps}}.",
+        "details": "Details for specialists",
+        "fitness": "Fitness",
+        "method": "Method",
+        "methodValue": "Token-based replay on the Petri net of the BPMN",
+        "excluded": "Excluded cases (rare variants)",
+        "limits": "Step order is checked, not conditions on data (for example an amount threshold). Cases still open show as incomplete.",
+        "legend": "Cases leaving the design",
+        "legendLevel": {
+          "close": "up to 10%",
+          "calibrate": "10–40%",
+          "far": "over 40%"
+        },
+        "noCases": "No log case to replay on the design.",
+        "reason": {
+          "not_mapped": "Complete and confirm the match between log activities and design steps.",
+          "no_model": "The process has no BPMN design to compare with the log yet.",
+          "model_not_replayable": "The design has no activities to compare with the log, or it cannot be read."
+        },
+        "warning": {
+          "multiple_processes": "The design has {{count}} processes: only the one with the most log activities is replayed.",
+          "boundary_without_host": "Boundary event “{{element}}” is not attached to an activity: ignored.",
+          "inclusive_as_exclusive": "Inclusive gateway “{{element}}” has more than {{branches}} branches: treated as exclusive.",
+          "silent_node": "“{{element}}” ({{kind}}) is treated as a pass-through.",
+          "mapped_to_non_activity": "Matched to elements that are not activities of the replayed process: {{activities}}.",
+          "variants_truncated": "Replayed the {{kept}} most frequent variants; {{dropped}} rare variants excluded."
+        }
       }
     },
     "queue": {
@@ -2290,7 +2352,10 @@
       "split-3": "Split into three lanes",
       "remove": "Remove lane, keep activities"
     },
-    "contextMenu": {"title": "Canvas menu", "selectAll": "Select all"},
+    "contextMenu": {
+      "title": "Canvas menu",
+      "selectAll": "Select all"
+    },
     "resizeHint": "Drag to resize",
     "connectGesture": {
       "actionHint": "Connect: drag to a target, or click and choose an element",

@@ -4,6 +4,7 @@ import {
   applyEventLogMapping,
   deleteEventLog,
   fetchEventLogAnalysis,
+  fetchEventLogConformance,
   fetchEventLogPreview,
   fetchEventLogs,
   fetchEventLogTemplates,
@@ -16,6 +17,7 @@ export const eventLogKeys = {
   list: (processId: string) => ["workspace", "event-logs", processId] as const,
   preview: (eventLogId: string, delimiter: Delimiter | null, offset: number, limit: number) => ["workspace", "event-log-preview", eventLogId, delimiter, offset, limit] as const,
   analysis: (eventLogId: string) => ["workspace", "event-log-analysis", eventLogId] as const,
+  conformance: (eventLogId: string, mappedAt: string | null) => ["workspace", "event-log-conformance", eventLogId, mappedAt] as const,
   templates: ["workspace", "event-log-templates"] as const,
 };
 
@@ -36,6 +38,17 @@ export function useEventLogAnalysis(eventLogId: string | null, mapped: boolean) 
     queryKey: eventLogKeys.analysis(eventLogId ?? ""),
     queryFn: () => fetchEventLogAnalysis(eventLogId!),
     enabled: Boolean(eventLogId) && mapped,
+  });
+}
+
+/** Il replay dipende dall'ultimo mapping: `mappedAt` nella chiave lo ricalcola dopo ogni conferma. */
+export function useEventLogConformance(eventLogId: string, mappedAt: string | null) {
+  return useQuery({
+    queryKey: eventLogKeys.conformance(eventLogId, mappedAt),
+    queryFn: () => fetchEventLogConformance(eventLogId),
+    // Il replay rilegge tutto il log: si ricalcola quando cambia il mapping (nella chiave), non a ogni ritorno sul passo.
+    staleTime: 5 * 60_000,
+    retry: false,
   });
 }
 

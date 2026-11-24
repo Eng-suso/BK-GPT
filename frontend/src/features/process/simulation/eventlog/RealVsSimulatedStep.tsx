@@ -12,17 +12,17 @@ import { formatCount, formatCurrency, formatDuration, MISSING_VALUE } from "../s
 import type { SimulationSummary } from "../simulationTypes";
 import { formatRunOption, useSimulationSection } from "../useSimulationSection";
 import type { EventLogSummary } from "./eventLogTypes";
-import { compareRealToSimulated, signedPercent, withComparableKpis, type ActivityGap, type ComparableKpis, type Fidelity, type GapFormat, type KpiGap } from "./realVsSimulated";
+import { compareRealToSimulated, signedPercent, withComparableKpis, type ActivityGap, type ComparableKpis, type GapFormat, type KpiGap } from "./realVsSimulated";
 import { ValidationReport } from "./ValidationReport";
+import { FIDELITY_BADGE_TONE, type OnLogOverlay } from "./logOverlay";
 
-const BADGE_TONE: Record<Fidelity, NodeDecoration["badgeTone"]> = { close: "neutral", calibrate: "warning", far: "danger" };
 
 /** Il log reale accanto a un run simulato: processo, attivita' e scarti sul disegno. */
 export function RealVsSimulatedStep({ eventLogId, summary, realCases, onDecorations }: {
   eventLogId?: string;
   summary: EventLogSummary;
   realCases: number;
-  onDecorations?: (items: NodeDecoration[] | null) => void;
+  onDecorations?: OnLogOverlay;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
@@ -44,11 +44,13 @@ export function RealVsSimulatedStep({ eventLogId, summary, realCases, onDecorati
 
   const decorations = React.useMemo<NodeDecoration[]>(
     () => (comparison?.activities ?? []).flatMap((row) => row.fidelity
-      ? [{ elementId: row.el, markers: [`sim-fidelity-${row.fidelity}`], badge: signedPercent(row.processingGap, lang), badgeTone: BADGE_TONE[row.fidelity] }]
+      ? [{ elementId: row.el, markers: [`sim-fidelity-${row.fidelity}`], badge: signedPercent(row.processingGap, lang), badgeTone: FIDELITY_BADGE_TONE[row.fidelity] }]
       : []),
     [comparison, lang],
   );
-  React.useEffect(() => { onDecorations?.(onCanvas ? decorations : null); }, [onCanvas, decorations, onDecorations]);
+  React.useEffect(() => {
+    onDecorations?.(onCanvas ? { items: decorations, legend: { label: "simulation.eventLog.compare.legend", levels: "simulation.eventLog.compare.fidelity" } } : null);
+  }, [onCanvas, decorations, onDecorations]);
   React.useEffect(() => () => onDecorations?.(null), [onDecorations]);
 
   if (!run || !comparison) {
