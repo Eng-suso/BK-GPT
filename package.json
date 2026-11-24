@@ -40,7 +40,8 @@
     "supabase:keys": "node ops/supabase/init-signing-key.mjs",
     "supabase:start": "npm run supabase:keys && supabase start --workdir ops -x postgrest,postgres-meta,studio,imgproxy,realtime,storage-api,edge-runtime,logflare,vector,mailpit,supavisor",
     "supabase:stop": "supabase stop --workdir ops",
-    "supabase:status": "supabase status --workdir ops"
+    "supabase:status": "supabase status --workdir ops",
+    "test:e2e:auth": "playwright test --config playwright.auth.config.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
