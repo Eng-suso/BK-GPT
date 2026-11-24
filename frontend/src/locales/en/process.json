@@ -256,8 +256,8 @@
           "rounded_probabilities_other": "{{count}} groups of probabilities rounded and brought back to 100%.",
           "probabilistic_calendars_one": "People are not always free during their working hours: the simulation uses, slot by slot, the probability of finding them available learned from the data.",
           "probabilistic_calendars_other": "People are not always free during their working hours: the simulation uses, slot by slot, the probability of finding them available learned from the data.",
-          "arrivals_faster_one": "In the simulation cases will arrive more often than the file says: queues and waits will come out longer than the real ones. Before comparing the results with the data, fix the arrivals in the file and import it again (how, in the details); otherwise read queues and waits as overestimates.",
-          "arrivals_faster_other": "In the simulation cases will arrive more often than the file says: queues and waits will come out longer than the real ones. Before comparing the results with the data, fix the arrivals in the file and import it again (how, in the details); otherwise read queues and waits as overestimates.",
+          "arrivals_faster_one": "In the simulation cases will arrive more often than the file says: queues and waits will come out longer than the real ones. Before comparing the results with the data, fix the arrivals in the file and import it again; otherwise read queues and waits as overestimates.",
+          "arrivals_faster_other": "In the simulation cases will arrive more often than the file says: queues and waits will come out longer than the real ones. Before comparing the results with the data, fix the arrivals in the file and import it again; otherwise read queues and waits as overestimates.",
           "other_one": "1 other note.",
           "other_other": "{{count}} other notes."
         }
