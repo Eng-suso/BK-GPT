@@ -1476,7 +1476,7 @@
           "startMissing": "inizio non fissato",
           "caseCountTitle": "Numero di casi diverso",
           "caseCount_one": "Il log ha {{real}}, la simulazione {{simulated}}. Medie e tempi restano confrontabili, i totali no: controlla che log e simulazione coprano un periodo simile.",
-          "caseCount_other": "Il log ha {{real}}, le simulazioni in media {{simulated}}. Medie e tempi restano confrontabili, i totali no: controlla che log e simulazioni coprano un periodo simile.",
+          "caseCount_other": "Il log ha {{real}}, ogni simulazione {{simulated}}. Medie e tempi restano confrontabili, i totali no: controlla che log e simulazioni coprano un periodo simile.",
           "replicaMean": "Media simulazioni · IC 95%",
           "bias": "Scarto medio",
           "mae": "Errore assoluto medio",
@@ -1490,7 +1490,7 @@
             "throughput": "Casi completati all'ora"
           },
           "pooled": "Su tutti i casi simulati insieme: P50 {{p50}}, P90 {{p90}}. La tabella mostra invece la media dei percentili delle singole simulazioni.",
-          "distances": "Distribuzioni: distanza media dei tempi {{cycle}} ± {{cycleCi}} (IC 95%); distanza dei percorsi {{ngd}}% ± {{ngdCi}} punti (IC 95%, 2-grammi).",
+          "distances": "Distribuzioni: distanza media dei tempi {{cycle}}; distanza dei percorsi {{ngd}} (2-grammi).",
           "firstWaitTitle": "Attesa iniziale non confrontabile",
           "initialWaitUnknown": "il log non registra l'attesa prima di questa attività",
           "fullCycleOnlySimulated": "Nella simulazione un caso dura in tutto {{value}}, contando anche l'attesa prima della prima attività. Il log non registra quando un caso è pronto a partire, quindi questa parte non si confronta.",
@@ -1505,7 +1505,9 @@
           "simulatedMean": "Simulato (media)",
           "difference": "Differenza",
           "details": "Dettagli per specialisti",
-          "specialistCaption": "Stime statistiche per indicatore: media delle simulazioni con intervallo di confidenza al 95%, scarto medio ed errore assoluto medio"
+          "specialistCaption": "Stime statistiche per indicatore: media delle simulazioni con intervallo di confidenza al 95%, scarto medio ed errore assoluto medio",
+          "points": "{{value}} punti",
+          "ci": "IC 95%"
         },
         "run": "Simulazione da confrontare",
         "noRun": "Nessun run completato da confrontare",
@@ -1519,6 +1521,7 @@
         "cases": "Il log ha {{real}}, la simulazione {{simulated}}: si confrontano medie e tempi, non i totali.",
         "casesLabel_one": "{{value}} caso",
         "casesLabel_other": "{{value}} casi",
+        "casesRange": "da {{low}} a {{high}} casi",
         "process": "Intero processo",
         "activities": "Per attività: tempo di lavoro medio",
         "activitiesCaption": "Tempo di lavoro e attesa medi per attività, reali e simulati, con la differenza sul tempo di lavoro",

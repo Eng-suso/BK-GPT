@@ -25,8 +25,6 @@ type Report = {
   basis: string;
 };
 
-const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / Math.max(values.length, 1);
-
 export function ValidationReport({ eventLogId, run, runs, completeOnly = false }: {
   eventLogId: string;
   run: SimulationRun;
@@ -48,8 +46,15 @@ export function ValidationReport({ eventLogId, run, runs, completeOnly = false }
   const number = (value: number) => value.toLocaleString(lang === "it" ? "it-IT" : "en-US", { maximumFractionDigits: 2 });
   const duration = (seconds: number) => formatDuration(seconds, lang);
   const casesLabel = (count: number) => t("simulation.eventLog.compare.casesLabel", { count, value: formatCount(count, lang) });
+  // Con simulazioni di dimensioni diverse si mostra l'intervallo: una media potrebbe coincidere con il log.
+  const simulatedCasesLabel = (counts: number[]) => {
+    const low = Math.min(...counts), high = Math.max(...counts);
+    return low === high ? casesLabel(low) : t("simulation.eventLog.compare.casesRange", { count: high, low: formatCount(low, lang), high: formatCount(high, lang) });
+  };
   const rows = ["cycle", "p50", "p90", "between", "processing", "throughput"] as const;
   const display = (key: typeof rows[number], value: number) => key === "throughput" ? `${number(value)}/h` : duration(value);
+  // Con una sola simulazione l'intervallo non esiste: si mostra solo il valore.
+  const withCi = (value: string, half: number | null, format: (half: number) => string) => half === null ? value : `${value} ± ${format(half)} (${t("simulation.eventLog.compare.validation.ci")})`;
   const signed = (key: typeof rows[number], value: number) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${display(key, Math.abs(value))}`;
   const missingStart = report.data?.provenance.runs.some((item) => !item.startDate) ?? false;
 
@@ -77,7 +82,7 @@ export function ValidationReport({ eventLogId, run, runs, completeOnly = false }
             {t("simulation.eventLog.compare.validation.caseCount", {
               count: report.data.replications,
               real: casesLabel(report.data.referenceCases),
-              simulated: casesLabel(Math.round(mean(report.data.simulatedCases))),
+              simulated: simulatedCasesLabel(report.data.simulatedCases),
             })}
           </InlineNotice>}
         {/* Con una sola simulazione la tabella della simulazione scelta, qui sotto, dice già tutto. */}
@@ -138,10 +143,8 @@ export function ValidationReport({ eventLogId, run, runs, completeOnly = false }
             p50: duration(report.data.pooledCycle.p50), p90: duration(report.data.pooledCycle.p90),
           })}</p>
           <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.validation.distances", {
-            cycle: duration(report.data.distances.cycleW1.mean),
-            cycleCi: report.data.distances.cycleW1.ci95Half === null ? "—" : duration(report.data.distances.cycleW1.ci95Half),
-            ngd: number(report.data.distances.ngd.mean * 100),
-            ngdCi: report.data.distances.ngd.ci95Half === null ? "—" : number(report.data.distances.ngd.ci95Half * 100),
+            cycle: withCi(duration(report.data.distances.cycleW1.mean), report.data.distances.cycleW1.ci95Half, duration),
+            ngd: withCi(`${number(report.data.distances.ngd.mean * 100)}%`, report.data.distances.ngd.ci95Half, (half) => t("simulation.eventLog.compare.validation.points", { value: number(half * 100) })),
           })}</p>
           </>}
           <h4 className="sim-eventlog-title">{t("simulation.eventLog.compare.validation.provenance")}</h4>

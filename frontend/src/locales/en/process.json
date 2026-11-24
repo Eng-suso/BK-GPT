@@ -1476,7 +1476,7 @@
           "startMissing": "start not fixed",
           "caseCountTitle": "Different number of cases",
           "caseCount_one": "The log has {{real}}, the simulation {{simulated}}. Averages and times stay comparable, totals do not: check that the log and the simulation cover a similar period.",
-          "caseCount_other": "The log has {{real}}, the simulations {{simulated}} on average. Averages and times stay comparable, totals do not: check that the log and the simulations cover a similar period.",
+          "caseCount_other": "The log has {{real}}, each simulation {{simulated}}. Averages and times stay comparable, totals do not: check that the log and the simulations cover a similar period.",
           "replicaMean": "Simulation mean · 95% CI",
           "bias": "Mean bias",
           "mae": "Mean absolute error",
@@ -1490,7 +1490,7 @@
             "throughput": "Cases completed per hour"
           },
           "pooled": "Across all simulated cases together: P50 {{p50}}, P90 {{p90}}. The table instead shows the mean of each simulation's percentiles.",
-          "distances": "Distributions: mean cycle distance {{cycle}} ± {{cycleCi}} (95% CI); path distance {{ngd}}% ± {{ngdCi}} points (95% CI, 2-grams).",
+          "distances": "Distributions: mean cycle distance {{cycle}}; path distance {{ngd}} (2-grams).",
           "firstWaitTitle": "Initial waiting cannot be compared",
           "initialWaitUnknown": "the log does not record the wait before this activity",
           "fullCycleOnlySimulated": "In the simulation a case lasts {{value}} in total, including the wait before the first activity. The log does not record when a case is ready to start, so this part is not compared.",
@@ -1505,7 +1505,9 @@
           "simulatedMean": "Simulated (average)",
           "difference": "Difference",
           "details": "Details for specialists",
-          "specialistCaption": "Statistical estimates by indicator: simulation mean with 95% confidence interval, mean bias and mean absolute error"
+          "specialistCaption": "Statistical estimates by indicator: simulation mean with 95% confidence interval, mean bias and mean absolute error",
+          "points": "{{value}} points",
+          "ci": "95% CI"
         },
         "run": "Simulation to compare",
         "noRun": "No completed run to compare",
@@ -1519,6 +1521,7 @@
         "cases": "The log has {{real}}, the simulation {{simulated}}: averages and times are compared, not totals.",
         "casesLabel_one": "{{value}} case",
         "casesLabel_other": "{{value}} cases",
+        "casesRange": "{{low}} to {{high}} cases",
         "process": "Whole process",
         "activities": "By activity: average work time",
         "activitiesCaption": "Average work time and waiting by activity, real and simulated, with the work time difference",
