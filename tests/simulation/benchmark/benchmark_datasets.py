@@ -76,14 +76,14 @@ class DatasetUnavailable(RuntimeError):
     """4TU non risponde, o il file non e' quello dichiarato nel manifest."""
 
 
-def manifest_entry(dataset: Dataset) -> dict:
-    return fetch_datasets.load_manifest()[dataset.manifest_id]
+def manifest_entry(manifest_id: str) -> dict:
+    return fetch_datasets.load_manifest()[manifest_id]
 
 
 def fetch(dataset: Dataset) -> Path:
     """Il file del dataset nella cache di ``fetch_datasets``, scaricato e verificato se manca."""
     try:
-        entry = manifest_entry(dataset)
+        entry = manifest_entry(dataset.manifest_id)
         return fetch_datasets.fetch(entry) / entry["file"]
     except (fetch_datasets.DatasetError, OSError) as exc:
         raise DatasetUnavailable(f"{dataset.key}: {exc}") from exc

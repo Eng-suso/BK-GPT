@@ -61,7 +61,6 @@ if __package__ in (None, ""):  # lanciato come script
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from backend.eventlog.model import EventLog
-from scripts import fetch_datasets
 from tests.simulation.benchmark.benchmark_datasets import DATASETS, DatasetUnavailable, fetch, load, manifest_entry
 from tests.simulation.benchmark.eval_harness import (
     DEFAULT_OUT as B2_OUT,
@@ -70,7 +69,9 @@ from tests.simulation.benchmark.eval_harness import (
     PAPER_REPLICAS,
     METRIC_LABELS,
     REAL_LIFE,
+    ROOT,
     baseline_table,
+    cell,
     summarize,
     within_intervals,
 )
@@ -79,11 +80,8 @@ from tests.simulation.benchmark.log_distance import MAX_REPLICAS, METRICS, Event
 DEFAULT_OUT = Path(__file__).resolve().with_name("sim36")
 DEFAULT_B2 = B2_OUT / "baseline.json"
 TRAIN_TEST_DIR = INPUTS / "real-life"
+_SCRIPT = "tests/simulation/benchmark/run_baseline.py"
 _TRAIN_TEST_MANIFEST_ID = "extraneous-delays-inputs"
-# I CSV del paper non hanno fuso: l'orologio del log e' quello scritto, e lo
-# spostamento di settimane intere lo conserva.
-_TRAIN_TEST_ZONE = ZoneInfo("UTC")
-LOGS = (*REAL_LIFE, *DATASETS)
 _WEEK = timedelta(weeks=1)
 
 
@@ -145,26 +143,36 @@ class NaiveTwin:
         ]
 
 
-def _train_test(log: str) -> tuple[list[Event], list[Event], dict]:
-    """A = train, B = test: i file del paper con cui B2 misura il suo scenario SIMOD."""
-    train, test = TRAIN_TEST_DIR / f"{log}_train.csv.gz", TRAIN_TEST_DIR / f"{log}_test.csv.gz"
-    entry = fetch_datasets.load_manifest()[_TRAIN_TEST_MANIFEST_ID]
-    return read_csv_log(train), read_csv_log(test), {
+# Una fonte da' periodo A, periodo B, fuso in cui spostare il calendario e la descrizione del log.
+Periods = tuple[list[Event], list[Event], ZoneInfo, dict]
+
+
+def _train_test(log: str) -> Periods:
+    """A = train, B = test: i file del paper con cui B2 misura il suo scenario SIMOD.
+
+    I CSV del paper non hanno fuso: l'orologio del log e' quello scritto, e lo
+    spostamento di settimane intere in UTC lo conserva.
+    """
+    files = {period: TRAIN_TEST_DIR / f"{log}_{part}.csv.gz" for period, part in (("A", "train"), ("B", "test"))}
+    entry = manifest_entry(_TRAIN_TEST_MANIFEST_ID)
+    return read_csv_log(files["A"]), read_csv_log(files["B"]), ZoneInfo("UTC"), {
+        "benchmark": f"SIM-36b, {_SCRIPT}",
         "title": f"{log}, train e test del paper Extraneous Activity Delays",
         "source": entry["source"],
         "license": entry["license"],
         "split": "train / test del paper",
-        "logs": {"A": train.relative_to(INPUTS.parents[2]).as_posix(), "B": test.relative_to(INPUTS.parents[2]).as_posix()},
+        "logs": {period: path.relative_to(ROOT).as_posix() for period, path in files.items()},
     }
 
 
-def _half_split(key: str) -> tuple[list[Event], list[Event], dict]:
+def _half_split(key: str) -> Periods:
     """A e B a meta' dei casi di un log BPIC scaricato; ``DatasetUnavailable`` se 4TU non lo da'."""
     dataset = DATASETS[key]
     log, quality = load(fetch(dataset), dataset.mapping)
     period_a, period_b, cutoff = split_in_half(to_events(log))
-    entry = manifest_entry(dataset)
+    entry = manifest_entry(dataset.manifest_id)
     about = {
+        "benchmark": f"SIM-36, {_SCRIPT}",
         "title": entry["title"],
         "source": entry["source"],
         "license": entry["license"],
@@ -174,19 +182,17 @@ def _half_split(key: str) -> tuple[list[Event], list[Event], dict]:
     }
     if dataset.unsuitable_for_a_to_b:
         about["unsuitable_for_a_to_b"] = dataset.unsuitable_for_a_to_b
-    return period_a, period_b, about
+    return period_a, period_b, ZoneInfo(dataset.mapping.timestamps.timezone), about
+
+
+SOURCES = {**dict.fromkeys(REAL_LIFE, _train_test), **dict.fromkeys(DATASETS, _half_split)}
 
 
 def measure(key: str, *, seed: int, replicas: int) -> dict:
-    if key in REAL_LIFE:
-        period_a, period_b, about = _train_test(key)
-        zone = _TRAIN_TEST_ZONE
-    else:
-        try:
-            period_a, period_b, about = _half_split(key)
-        except DatasetUnavailable as exc:
-            return {"scenario": key, "status": "unavailable", "reason": str(exc)}
-        zone = ZoneInfo(DATASETS[key].mapping.timestamps.timezone)
+    try:
+        period_a, period_b, zone, about = SOURCES[key](key)
+    except DatasetUnavailable as exc:
+        return {"scenario": key, "status": "unavailable", "reason": str(exc)}
     twin = NaiveTwin.of(period_a, period_b, zone)
 
     measured = [distances(period_b, twin.replica(random.Random(seed + r))) for r in range(replicas)]
@@ -229,7 +235,7 @@ def run(
             if (_saved(target) or {}).get("status") == "measured":
                 continue  # la misura salvata resta: il motivo va solo a video
         report = {
-            "benchmark": f"{'SIM-36b' if key in REAL_LIFE else 'SIM-36'}, tests/simulation/benchmark/run_baseline.py",
+            "benchmark": f"SIM-36, {_SCRIPT}",  # quello del log, se misurato
             "distances": "come B2: log-distance-measures 2.2 (port in log_distance.py); tempi in ore, ngram in [0, 1]",
             "seed": seed,
             "replicas": replicas,
@@ -238,10 +244,6 @@ def run(
         target.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     write_table(out, b2)
     return 0 if measured_all else 1
-
-
-def _cell(summary: dict) -> str:
-    return f"{summary['mean']:.3f} ± {summary['ci95']:.3f}"
 
 
 def verdict(naive: dict, model: dict) -> str:
@@ -269,15 +271,17 @@ def simod_comparison(reports: list[dict], b2: dict | None) -> list[str]:
         model = scenarios[log]["metrics"]
         for metric in METRICS:
             naive = report["metrics"][metric]
-            rows.append(f"| {log} | {METRIC_LABELS[metric]} | {_cell(naive)} | {_cell(model[metric])} "
+            rows.append(f"| {log} | {METRIC_LABELS[metric]} | {cell(naive)} | {cell(model[metric])} "
                         f"| {verdict(naive, model[metric])} |")
+    if not rows:
+        return notes
     header = ["| Log | Metrica | B = A (train) | SIMOD del paper (B2) | Migliore |", "| --- | --- | --- | --- | --- |"]
-    return (header + rows if rows else []) + ([""] if rows and notes else []) + notes
+    return header + rows + ([""] + notes if notes else [])
 
 
 def write_table(out: Path, b2: Path | None = DEFAULT_B2) -> None:
     """``baseline.md`` dai ``<log>.json`` dei log del benchmark nella cartella, misurati o no."""
-    reports = [report for key in LOGS if (report := _saved(out / f"{key}.json"))]
+    reports = [report for key in SOURCES if (report := _saved(out / f"{key}.json"))]
     measured = [r for r in reports if r["status"] == "measured"]
     train_test = [r for r in measured if r["scenario"] in REAL_LIFE]
     halves = [r for r in measured if r["scenario"] not in REAL_LIFE]
@@ -297,15 +301,15 @@ def write_table(out: Path, b2: Path | None = DEFAULT_B2) -> None:
         ]
     if halves:
         lines += ["## Log BPIC divisi a meta' dei casi (SIM-36)\n", baseline_table(halves)]
-    lines += [f"- {r['scenario']}: non adatto al confronto A → B, {reason}."
-              for r in reports if r["scenario"] in DATASETS and (reason := DATASETS[r["scenario"]].unsuitable_for_a_to_b)]
+    lines += [f"- {r['scenario']}: non adatto al confronto A → B, {r['unsuitable_for_a_to_b']}."
+              for r in measured if r.get("unsuitable_for_a_to_b")]
     lines += [f"- {r['scenario']}: non misurato. {r['reason']}" for r in reports if r["status"] != "measured"]
     (out / "baseline.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("datasets", nargs="*", choices=list(LOGS), help="default: tutti")
+    parser.add_argument("datasets", nargs="*", choices=list(SOURCES), help="default: tutti")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--replicas", type=int, default=PAPER_REPLICAS)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
@@ -313,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if error := replicas_error(args.replicas):
         parser.error(error)
-    code = run(args.datasets or list(LOGS), args.out, seed=args.seed, replicas=args.replicas, b2=args.b2)
+    code = run(args.datasets or list(SOURCES), args.out, seed=args.seed, replicas=args.replicas, b2=args.b2)
     print(f"Baseline scritta in {args.out}" + ("" if code == 0 else " (con log non disponibili)"))
     return code
 
