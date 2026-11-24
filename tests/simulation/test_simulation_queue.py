@@ -16,6 +16,7 @@ from backend.schemas.workspace import BpmnModelResponse
 from backend.settings import settings
 from backend.simulation import queue
 from backend.simulation.models import ProsimosSimulationResult
+from backend.simulation.prosimos_adapter import ProsimosError
 from backend.simulation.service import (
     SimulationCapacityError,
     drain_simulation_queue,
@@ -99,6 +100,45 @@ def test_a_group_starts_on_every_free_slot_at_once(model, monkeypatch):
     assert asyncio.run(fill_simulation_slots(len(runs))) == 3
     assert peak == 2
     assert all(get_simulation_run(run["id"])["status"] == "completed" for run in runs)
+
+
+def test_a_failing_drain_does_not_stop_the_others(monkeypatch, caplog):
+    calls = 0
+
+    async def drain(_worker_id=None):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("database giu'")
+        return 2
+
+    monkeypatch.setattr(settings, "simulation_max_concurrent_runs", 3)
+    monkeypatch.setattr("backend.simulation.service.drain_simulation_queue", drain)
+
+    assert asyncio.run(fill_simulation_slots(5)) == 4
+    assert "drenaggio fallito" in caplog.text
+
+
+def test_every_run_writes_the_time_of_its_phases_even_when_it_fails(model, fake_engine, monkeypatch, caplog):
+    """B6: una riga per run con le fasi a cui e' arrivato."""
+    import logging
+
+    caplog.set_level(logging.INFO, logger="backend.simulation.service")
+    monkeypatch.setattr(settings, "simulation_max_concurrent_runs", 1)
+    done = _enqueue(model, 1)
+    asyncio.run(drain_simulation_queue("w1"))
+
+    async def broken(_request):
+        raise ProsimosError("motore spento")
+
+    monkeypatch.setattr("backend.simulation.service.run_prosimos_simulation", broken)
+    failed = _enqueue(model, 2)
+    asyncio.run(drain_simulation_queue("w1"))
+
+    lines = {r.getMessage().split(":")[0]: r.getMessage() for r in caplog.records if r.getMessage().endswith(" s")}
+    assert all(f" {phase} " in lines[f"simulazione {done['id']}"] for phase in ("in coda", "motore", "analisi", "salvataggio"))
+    assert "motore" in lines[f"simulazione {failed['id']}"]
+    assert "analisi" not in lines[f"simulazione {failed['id']}"]
 
 
 def test_a_full_queue_is_a_429_with_the_reason(api_client, model, monkeypatch):

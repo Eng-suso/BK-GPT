@@ -100,8 +100,9 @@ async def create_workspace_simulation_run(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # Il run e' in coda (o ce n'era gia' uno identico in volo): chi ha posto lo
-    # prende. Il drenaggio e' esclusivo, quindi lanciarlo anche a vuoto e' sicuro.
+    # I run sono in coda (o c'erano gia' identici in volo): un drenaggio per run,
+    # fino ai posti liberi del motore. La presa e' esclusiva, quindi un drenaggio
+    # a vuoto esce subito.
     background_tasks.add_task(fill_simulation_slots, len(planned))
 
     return SimulationRunResponse(**run)
@@ -129,8 +130,8 @@ async def create_workspace_simulation_model_run(
         # Comprende la ValidationError di una patch che rompe un riferimento.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # Il run e' in coda (o ce n'era gia' uno identico in volo): chi ha posto lo
-    # prende. Il drenaggio e' esclusivo, quindi lanciarlo anche a vuoto e' sicuro.
+    # Il run e' in coda (o ce n'era gia' uno identico in volo): un drenaggio lo
+    # prende se c'e' posto. La presa e' esclusiva, quindi a vuoto esce subito.
     background_tasks.add_task(fill_simulation_slots)
 
     return SimulationRunResponse(**run)

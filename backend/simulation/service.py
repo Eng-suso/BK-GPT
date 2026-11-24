@@ -597,13 +597,26 @@ async def fill_simulation_slots(runs: int = 1) -> int:
     conta i run in corso, e un drenaggio senza posto o senza run esce subito.
     """
     drains = max(1, min(runs, settings.simulation_max_concurrent_runs))
-    return sum(await asyncio.gather(*(drain_simulation_queue() for _ in range(drains))))
+    # Ogni drenaggio arriva in fondo da solo: l'errore di uno (il database) non
+    # lascia gli altri senza nessuno che li aspetti. Il giro periodico riprova.
+    outcomes = await asyncio.gather(*(drain_simulation_queue() for _ in range(drains)), return_exceptions=True)
+    for outcome in outcomes:
+        if isinstance(outcome, BaseException):
+            logger.error("coda simulazioni: drenaggio fallito", exc_info=outcome)
+    return sum(outcome for outcome in outcomes if isinstance(outcome, int))
 
 
 async def execute_claimed_run(claimed: ClaimedRun) -> dict:
-    """Esegue un run preso dalla coda, battendo finche' gira."""
-    set_current_tenant_id(claimed.tenant_id)
+    """Esegue un run preso dalla coda, battendo finche' gira; poi scrive quanto e' durata ogni fase."""
     timer = _PhaseTimer(claimed.run_id, claimed.queued_at)
+    try:
+        return await _execute_claimed_run(claimed, timer)
+    finally:
+        timer.report()
+
+
+async def _execute_claimed_run(claimed: ClaimedRun, timer: _PhaseTimer) -> dict:
+    set_current_tenant_id(claimed.tenant_id)
     heart = asyncio.create_task(_keep_beating(claimed))
     try:
         result = with_output_files(
@@ -628,7 +641,7 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
         heart.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await heart
-    timer.lap("motore")
+        timer.lap("motore")
 
     try:
         return await _finish_run(claimed, result, timer)
@@ -676,7 +689,6 @@ async def _finish_run(claimed: ClaimedRun, result, timer: _PhaseTimer) -> dict:
         worker_id=claimed.worker_id,
     )
     timer.lap("salvataggio")
-    timer.report()
     return completed
 
 
@@ -684,7 +696,8 @@ class _PhaseTimer:
     """B6: quanto tempo prende ogni fase di un run, in una riga di log per run.
 
     ``in coda`` va dall'ingresso in coda alla presa; poi motore (andata e
-    ritorno dal runner), analisi del log e salvataggio nel database.
+    ritorno dal runner), analisi del log e salvataggio nel database. Un run
+    fallito scrive le fasi a cui e' arrivato.
     """
 
     def __init__(self, run_id: int, queued_at: str | None) -> None:
@@ -692,7 +705,9 @@ class _PhaseTimer:
         self.phases: list[tuple[str, float]] = []
         queued = _parse_instant(queued_at)
         if queued is not None:
-            self.phases.append(("in coda", (datetime.now(UTC) - queued).total_seconds()))
+            # L'orario d'ingresso lo scrive chi ha accettato la richiesta: con
+            # orologi un po' diversi l'attesa non scende sotto zero.
+            self.phases.append(("in coda", max(0.0, (datetime.now(UTC) - queued).total_seconds())))
         self._last = time.perf_counter()
 
     def lap(self, phase: str) -> None:
