@@ -162,16 +162,6 @@ def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
         _calendar(entry, index, fuzzy=fuzzy)
         for index, entry in enumerate(_list(scenario, "resource_calendars"))
     ]
-    if fuzzy:
-        notes.append(
-            ImportNote(
-                "info",
-                "probabilistic_calendars",
-                f"Probabilità di trovare libere le risorse stimata dai dati per "
-                f"{len(calendars)} {'calendario' if len(calendars) == 1 else 'calendari'}, "
-                f"a fasce di {granule:g} minuti.",
-            )
-        )
     arrival_calendar = Calendar(
         id=_free_id("arrival", {calendar.id for calendar in calendars}),
         name="Arrivi",
@@ -185,6 +175,16 @@ def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
         for index, entry in enumerate(_list(scenario, "resource_profiles"))
     ]
     used = {resource.calendar_id for pool in pools for resource in pool.resources}
+    if fuzzy:
+        notes.append(
+            ImportNote(
+                "info",
+                "probabilistic_calendars",
+                f"Probabilità di trovare libere le risorse stimata dai dati per "
+                f"{len(used)} {'calendario' if len(used) == 1 else 'calendari'}, "
+                f"a fasce di {granule:g} minuti.",
+            )
+        )
     for calendar in calendars:
         if calendar.id not in used:
             notes.append(
@@ -487,6 +487,15 @@ def _calendar(entry: Any, index: int, *, fuzzy: bool = False) -> Calendar:
         raise ProsimosImportError(f"{path}: {_explain(exc)}") from exc
 
 
+def _probability(entry: dict, path: str) -> float:
+    # Prosimos non ha un valore di default: una fascia senza probabilita' ferma il motore.
+    if entry.get("probability") is None:
+        raise ProsimosImportError(
+            f"{path}: fascia senza probabilità di disponibilità."
+        )
+    return _number(entry["probability"], f"{path}.probability")
+
+
 def _period(entry: Any, path: str, *, probabilistic: bool = False) -> CalendarPeriod:
     if not isinstance(entry, dict):
         raise ProsimosImportError(f"{path}: periodo del calendario non valido.")
@@ -504,10 +513,7 @@ def _period(entry: Any, path: str, *, probabilistic: bool = False) -> CalendarPe
             to_day=entry.get("to"),
             begin=entry.get("beginTime"),
             end=entry.get("endTime"),
-            # Prosimos legge una fascia senza probabilita' come 0: lo stesso qui, esplicito.
-            probability=_number(entry.get("probability", 0.0), f"{path}.probability")
-            if probabilistic
-            else None,
+            probability=_probability(entry, path) if probabilistic else None,
         )
     except ValidationError as exc:
         raise ProsimosImportError(f"{path}: {_explain(exc)}") from exc
@@ -537,9 +543,10 @@ def _granule_minutes(value: Any) -> float:
         raise ProsimosImportError(
             f"granule_size: {minutes:g} minuti non è una fascia valida."
         )
-    if minutes != int(minutes):
+    if minutes != int(minutes) or 1440 % int(minutes):
         raise ProsimosImportError(
-            f"granule_size: {minutes:g} minuti. Il motore usa fasce di minuti interi."
+            f"granule_size: {minutes:g} minuti. Il motore divide la giornata in fasce "
+            "uguali di minuti interi (per esempio 15, 30 o 60)."
         )
     return float(int(minutes))
 

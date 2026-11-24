@@ -693,7 +693,7 @@ def _check_availability(model: "SimulationModel") -> None:
     if arrival is not None and arrival.is_probabilistic():
         raise ValueError("il calendario degli arrivi e' sempre fisso: le probabilita' valgono per le risorse")
     if model.availability == "fixed":
-        probabilistic = sorted(c.id for c in model.calendars if c.is_probabilistic())
+        probabilistic = sorted(c.id for c in model.calendars if c.is_probabilistic() or c.workload)
         if probabilistic or model.granule_minutes is not None:
             raise ValueError(
                 "calendari con probabilita' in un modello a disponibilita' fissa: "
@@ -702,9 +702,10 @@ def _check_availability(model: "SimulationModel") -> None:
         return
     if model.granule_minutes is None:
         raise ValueError("la disponibilita' probabilistica richiede la granularita' dei calendari")
-    if not float(model.granule_minutes).is_integer():
-        # Il motore fuzzy di Prosimos divide la giornata in fasce di minuti interi.
-        raise ValueError("la granularita' dei calendari probabilistici e' di minuti interi")
+    if not float(model.granule_minutes).is_integer() or 1440 % int(model.granule_minutes):
+        # Il motore fuzzy di Prosimos divide la giornata in 1440 // granule fasce di minuti
+        # interi: se la divisione ha resto, gli ultimi minuti cadono fuori dalla tabella.
+        raise ValueError("la granularita' dei calendari probabilistici divide la giornata in fasce uguali di minuti interi")
     for calendar_id in sorted(resource_calendars):
         calendar = by_id.get(calendar_id)
         if calendar is None:
