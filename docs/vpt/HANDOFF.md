@@ -10,6 +10,15 @@ Nessuno. Prossimi secondo l'ordine di [`PLAN.md`](./PLAN.md): **SIM-36** (baseli
 pubblica su BPIC 2012/2013) e **G3** (spike SIMOD), in parallelo; poi **B3**. Tutti si
 misurano con l'harness di B2 (sezione sotto).
 
+## B6 (in corso dal 2026-11-24, `spike/sim-throughput`)
+
+Throughput del simulatore (G2). In parallelo con G3 e SIM-36, file separati.
+
+- Script di carico: `uv run python tests/simulation/benchmark/throughput.py`
+  (what-if 10 ripetizioni × 1.000 casi, Loan_Application, seed 20261124, con 1, 2 e 4
+  worker del runner; API uvicorn vera, coda Postgres, worker, runner Prosimos 2.1).
+- Misure: nessuna ancora.
+
 ## Ultima misura
 
 B2, seed 20261124, 10 repliche sullo stack reale: `baseline.json` identico bit per bit
