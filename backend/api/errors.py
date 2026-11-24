@@ -115,7 +115,13 @@ def setup_api_error_handlers(app: FastAPI) -> None:
             detail=str(exc.errors()),
         )
 
+    from backend.eventlog.service import ConformanceUnavailable
     from backend.workspace_database import UnreadableReviewError
+
+    @app.exception_handler(ConformanceUnavailable)
+    async def conformance_unavailable_handler(request: Request, exc: ConformanceUnavailable):
+        """Manca il mapping o il modello: e' uno stato, con un codice che il client traduce."""
+        return api_error_response(request, status_code=409, code=exc.code, message=str(exc))
 
     @app.exception_handler(UnreadableReviewError)
     async def unreadable_review_handler(request: Request, exc: UnreadableReviewError):

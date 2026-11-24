@@ -10,7 +10,7 @@ from fastapi import Depends, Header, HTTPException, Request, WebSocket, WebSocke
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
-from backend.settings import settings
+from backend.settings import environment_is_open, settings
 
 
 TENANT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")
@@ -57,6 +57,17 @@ def assert_allowed_tenant(tenant_id: str) -> None:
     allowed = allowed_tenant_ids()
     if allowed and tenant_id not in allowed:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant non autorizzato.")
+
+
+def _admin_without_token() -> bool:
+    """Se, senza ``DELIR_ADMIN_TOKEN``, chi ha il token API e' anche amministratore.
+
+    Solo su una macchina di sviluppo. Altrove il token API e' condiviso fra
+    tutti i client: senza un token amministrativo distinto, cancellare un
+    cliente o svuotare il workspace sarebbe alla portata di chiunque lo abbia.
+    Fail closed: senza token le operazioni amministrative si rifiutano.
+    """
+    return environment_is_open()
 
 
 def _configured_api_token() -> str:
@@ -107,7 +118,7 @@ def require_principal(
     principal = AuthPrincipal(
         user_id=x_delir_user_id or "api-client",
         tenant_id=tenant_id,
-        is_admin=not bool(settings.delir_admin_token),
+        is_admin=not (settings.delir_admin_token or "").strip() and _admin_without_token(),
         auth_mode="bearer",
     )
     set_current_tenant_id(tenant_id)
@@ -124,7 +135,15 @@ def require_admin_principal(
 
     admin_token = (settings.delir_admin_token or "").strip()
     if not admin_token:
-        return principal.model_copy(update={"is_admin": True})
+        if _admin_without_token():
+            return principal.model_copy(update={"is_admin": True})
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Operazione amministrativa non disponibile: DELIR_ADMIN_TOKEN non e' "
+                "configurato in questo ambiente."
+            ),
+        )
 
     if not x_delir_admin_token or not compare_digest(x_delir_admin_token, admin_token):
         raise HTTPException(

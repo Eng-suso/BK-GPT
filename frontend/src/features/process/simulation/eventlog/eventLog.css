@@ -85,3 +85,12 @@
 .sim-real-activity dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; font-size: var(--font-size-100); }
 .sim-real-activity dt { color: var(--muted-foreground); }
 .sim-real-activity dd { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Aderenza al processo (CONF-02): i percorsi reali che escono dal disegno. */
+.sim-conformance-paths { display: grid; gap: 6px; font-size: var(--font-size-100); }
+.sim-conformance-paths li { display: grid; gap: 2px; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); }
+.sim-conformance-paths small { color: var(--muted-foreground); font-size: var(--font-size-75); }
+.sim-conformance-trace { overflow-wrap: anywhere; }
+.sim-conformance-details { display: grid; gap: 4px; margin: 10px 0 6px; font-size: var(--font-size-100); }
+.sim-conformance-details > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; }
+.sim-conformance-details dt { color: var(--muted-foreground); }
+.sim-conformance-details dd { font-variant-numeric: tabular-nums; font-weight: 600; }

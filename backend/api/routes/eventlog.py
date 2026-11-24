@@ -14,7 +14,6 @@ from backend.simulation.horizon import horizon_end, within_horizon
 from backend.simulation.log_processor import after_warmup, parse_prosimos_log
 from backend.simulation.storage import get_simulation_log_csv, get_simulation_run
 from backend.eventlog.service import (
-    ConformanceUnavailable,
     EventLogNotFound,
     EventLogTooLarge,
     TemplateNotFound,
@@ -200,7 +199,11 @@ def get_event_log_analysis(event_log_id: str) -> EventLogAnalysisResponse:
 
 @router.get("/event-logs/{event_log_id}/conformance")
 def get_event_log_conformance(event_log_id: str) -> EventLogConformanceResponse:
-    """I casi reali riprodotti sul BPMN: quanti lo seguono e dove ne escono."""
+    """I casi reali riprodotti sul BPMN: quanti lo seguono e dove ne escono.
+
+    ``ConformanceUnavailable`` diventa un 409 con codice stabile nel gestore
+    comune (``backend/api/errors.py``).
+    """
     try:
         return conformance(event_log_id)
     except EventLogNotFound as exc:
@@ -209,8 +212,6 @@ def get_event_log_conformance(event_log_id: str) -> EventLogConformanceResponse:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except MappingError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except ConformanceUnavailable as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.delete("/event-logs/{event_log_id}", status_code=204)

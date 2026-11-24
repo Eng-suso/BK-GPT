@@ -84,6 +84,7 @@ def test_a_skipped_parallel_branch_leaves_the_model_waiting_for_it():
     deviation = {d.element_id: d for d in result.deviations}
     assert deviation["D"].executed_out_of_order == 1
     assert deviation["C"].left_waiting == 1
+    assert deviation["D"].cases_affected == 1
 
 
 def test_swapped_sequence_is_counted_as_out_of_order():
@@ -181,7 +182,7 @@ def test_the_process_with_the_mapped_activities_is_replayed():
     net = build_petri_net(xml, relevant_elements=["A"])
 
     assert net.activities == ["A"]
-    assert any("processi" in warning for warning in net.warnings)
+    assert [w.code for w in net.warnings] == ["multiple_processes"]
 
 
 def test_variants_beyond_the_limit_are_excluded_and_counted():
@@ -248,3 +249,20 @@ def test_skipped_appraisals_are_found_in_the_real_model():
     by_name = {d.name: d for d in result.deviations}
     assert by_name["Appraise property"].left_waiting == 3
     assert by_name["Assess loan risk"].executed_out_of_order == 3
+
+
+def test_cases_affected_counts_each_case_once_per_element():
+    # Un caso salta C (C resta in attesa), un altro fa D senza C: due casi diversi su D e C.
+    log = _log(["A", "B", "D"], ["A", "B", "C", "D"], ["A", "C", "B", "D"])
+    result = check_conformance(log, PARALLEL, IDENTITY)
+
+    deviation = {d.element_id: d for d in result.deviations}
+    assert deviation["D"].cases_affected == 1
+    assert result.fitting_cases == 2
+
+
+def test_warnings_carry_stable_codes():
+    result = check_conformance(_log(["A", "C"]), PURCHASE, {"A": "A", "C": "C", "Gateway": "x"}, max_variants=1)
+
+    assert [w.code for w in result.warnings] == ["mapped_to_non_activity"]
+    assert result.warnings[0].params == {"activities": "Gateway"}

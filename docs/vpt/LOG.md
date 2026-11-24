@@ -18,30 +18,32 @@ Modello:
 
 ---
 
-## 2026-11-24 — CAL-01 calendari probabilistici (FUZZY) di SIMOD — fatto
+## 2026-11-24 — chiusura B1, stack reale, meta di B2 — fatto
 
-- Branch / PR: `feat/sim-fuzzy-calendars`, sopra `feat/sim-prosimos-import-ui` (#170).
-- Meta: uno scenario SIMOD con calendari FUZZY si importa senza perdere la disponibilità
-  probabilistica, si ricompila identico e gira sul runner Prosimos 2.1 → raggiunta.
-  Misura: SIMOD 5.2.1 (`differentiated_fuzzy`, fasce di 60 minuti) sul log
-  `Insurance_Claims_train.csv` del dataset → scenario in
-  `datasets/simod/discovered/Insurance_Claims_fuzzy/`; import, round trip con calendari
-  identici (130 calendari, disponibilità e carico) e 100 casi simulati sul motore.
-  Test: import 77, motore 31, API 5, suite `tests/simulation` con Postgres 675 passati.
-- Iterazioni: 1) IR, compilazione e import; Prosimos si fermava con una granularità non
-  intera ("can't multiply sequence by non-int"): granularità in minuti interi;
-  2) test "la disponibilità conta": tempo di ciclo identico al 20% e al 95%. Nel motore
-  una risorsa è libera se lo dice la disponibilità *o* il carico (`is_available`):
-  con il carico a 1 lo era sempre. Variando entrambi: ~193.000 s contro ~1.800 s;
-  3) la meta chiedeva uno scenario scoperto da SIMOD, non costruito a mano: SIMOD
-  installato e lanciato sul log del dataset; 4) gate UX: la nota cadeva in "1 altra
-  nota", ora ha la sua frase per il consulente; 5) code review (skill `code-review`):
-  7 rilievi, tutti chiusi (granularità che non divide la giornata, fascia senza
-  probabilità che fermerebbe il motore, patch che perdeva disponibilità e attese,
-  conteggio dei soli calendari usati, carico vuoto documentato); poi `simplify`.
-- Skill: `code-review`, `simplify` (4 revisori: riuso, semplificazione, efficienza, altitudine; applicati granularità intera con una sola regola nell'IR, patch che copia tutta la baseline, helper di test condivisi), `react-ui-patterns`. Gate UX: screenshot desktop e
-  mobile in `docs/vpt/ux/cal-01-fuzzy/`, letti.
-- Prossimo passo: merge di #170 e poi di questa PR; quindi UX-01 o B2.
+- Branch / PR: #170 (B1a + B1b, chiude anche #169) mergiata; #171
+  `env/vpt-local-stack`.
+- Meta: #170 su `main` con CI verde → raggiunta. Stack reale avviabile in una sessione
+  cloud senza Docker → raggiunta: `scripts/vpt_stack.sh start` in 9 s dopo il primo
+  avvio; con lo stack `tests/server/test_app.py` 12/12 sul database vero e
+  `test_simulation_ir_engine.py` 29/29 su Prosimos 2.1.
+- Iterazioni: 1) #170 in conflitto con `main` (CONF-02 e SEC-ADMIN fatti in
+  parallelo): conflitti solo in `PLAN.md` e `HANDOFF.md`, risolti tenendo tutto;
+  2) mobile-safari 4/4 rosso anche su `main` dal merge di #168: riprodotto con il
+  viewport iPhone 14, la barra degli strumenti copriva l'evento cliccato; il test ora
+  tocca l'arco visibile; 3) lo script restava appeso perché Postgres ereditava lo
+  stderr del chiamante: corretto.
+- Cosa è cambiato: `scripts/vpt_stack.sh`; in `WORKFLOW.md` "una sessione, un
+  punto", "Più agenti in parallelo" e "Stack reale"; meta di B2 in `PLAN.md`.
+- Decisioni (Sohayb): meta di B2 senza il 10% fisso (riproducibilità, nessuna
+  differenza statistica dal paper sui 3 log reali, baseline sui sintetici); misure
+  del simulatore sullo stack reale locale, non sui database di staging o prod; B2,
+  CAL-01 e UX-01 in parallelo, un agente per punto.
+- Code review: il diff di #170 era già passato da `code-review` (9 + 9 rilievi
+  corretti); il merge ha portato solo documenti e un test e2e. #171 non tocca il
+  codice dell'app.
+- Prossimo passo: B2, CAL-01 e UX-01 in tre sessioni nuove.
+
+---
 
 ## 2026-11-24 — B1b import dal frontend tramite il server — fatto
 
@@ -149,3 +151,31 @@ Modello:
   aperti con token rimanenti.
 - Gate UX: non applicabile, nessuna schermata cambiata.
 - Prossimo passo: CONF-02 (vista per il consulente) oppure B1, come da piano.
+
+## 2026-11-24 — CONF-02 vista di conformance e SEC-ADMIN — fatto
+
+- Branch: `ccr-9b6e10c9-jmjsbm`.
+- CONF-02: nuovo passo «Aderenza al processo» nel wizard degli event log, fra
+  «Risorse» e «Reale contro simulato». Verdetto in parole («2 casi su 3 seguono il
+  disegno»), passi saltati o fatti senza i precedenti, percorsi reali fuori dal
+  disegno, attività del log senza passo, overlay sul BPMN con legenda propria
+  (fino al 10% / 10–40% / oltre il 40% dei casi). Fitness e metodo solo nei
+  dettagli per specialisti.
+- Contratto: `cases_affected` per elemento (casi distinti), avvisi come codici con
+  parametri, 409 con codice stabile (`not_mapped`, `no_model`,
+  `model_not_replayable`) dal gestore comune degli errori.
+- SEC-ADMIN (dall'audit): con auth accesa e senza `DELIR_ADMIN_TOKEN`, ogni client
+  era amministratore. Ora fuori dallo sviluppo le operazioni amministrative
+  rispondono 403; all'avvio un warning lo dice. **Attenzione al deploy**: in
+  staging e prod va impostato `DELIR_ADMIN_TOKEN` per poter cancellare.
+- Misura: vitest 828+ verdi, e2e `simulation-eventlog` 12/12 (chromium e
+  mobile-chrome, axe WCAG 2 A/AA pulito), pytest eventlog e server verdi.
+- Gate UX: screenshot desktop e mobile aperti e letti; corretta la legenda del
+  disegno, che parlava ancora di scarto dei tempi.
+- Review: `code-review` (10 rilievi, tutti corretti), `simplify` (4 revisori;
+  saltato solo l'helper della lingua, schema già diffuso in ~10 file),
+  `security-review` (nessuna vulnerabilità; il cambio di `security.py` restringe
+  soltanto i permessi).
+- Skill: code-review, simplify, security-review; per l'UI ui-visual-validator
+  (screenshot letti) e accessibility (axe).
+- Prossimo passo: B1 (import Prosimos tollerante), poi UX-01.

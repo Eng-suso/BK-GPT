@@ -303,9 +303,10 @@ describe("EventLogPanel", () => {
 
     expect(onDecorations).toHaveBeenLastCalledWith(null);
     await user.click(screen.getByRole("button", { name: "Mostra sul processo" }));
-    expect(onDecorations).toHaveBeenLastCalledWith([
-      { elementId: "T1", markers: ["sim-fidelity-far"], badge: "+50%", badgeTone: "danger" },
-    ]);
+    expect(onDecorations).toHaveBeenLastCalledWith({
+      items: [{ elementId: "T1", markers: ["sim-fidelity-far"], badge: "+50%", badgeTone: "danger" }],
+      legend: { label: "simulation.eventLog.compare.legend", levels: "simulation.eventLog.compare.fidelity" },
+    });
   });
 
   it("requests one aggregate report for the selected replication group", async () => {

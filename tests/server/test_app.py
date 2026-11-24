@@ -171,3 +171,31 @@ def test_destructive_chat_delete_requires_admin_token(
         },
     )
     assert deleted.status_code == 200
+
+
+@pytest.mark.parametrize("environment", ["staging", "prod"])
+def test_without_an_admin_token_a_real_environment_refuses_admin_operations(
+    client: TestClient, protected_api, monkeypatch, environment
+):
+    from backend.settings import settings
+
+    monkeypatch.setattr(settings, "delir_admin_token", "")
+    monkeypatch.setattr(settings, "delir_environment", environment)
+
+    identity = client.get("/v1/auth/me", headers=auth_headers("tenant-admin"))
+    assert identity.status_code == 200
+    assert identity.json()["is_admin"] is False
+    blocked = client.delete("/v1/consultant-chat/sessions", headers=auth_headers("tenant-admin"))
+    assert blocked.status_code == 403
+
+
+def test_without_an_admin_token_a_development_machine_keeps_admin_operations(
+    client: TestClient, protected_api, monkeypatch
+):
+    from backend.settings import settings
+
+    monkeypatch.setattr(settings, "delir_admin_token", "")
+    monkeypatch.setattr(settings, "delir_environment", "dev")
+
+    allowed = client.delete("/v1/consultant-chat/sessions", headers=auth_headers("tenant-admin"))
+    assert allowed.status_code == 200
