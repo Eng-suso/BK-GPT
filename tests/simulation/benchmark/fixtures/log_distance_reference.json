@@ -1,0 +1,65 @@
+{
+  "library": "log-distance-measures 2.2.0",
+  "pairs": [
+    {
+      "original": "real-life/AcademicCredentials_test.csv.gz",
+      "simulated": "real-life/AcademicCredentials_train.csv.gz",
+      "distances": {
+        "cycle_time_w1": 26.170854271356788,
+        "ngram": 0.1703286384976526,
+        "relative_event": 23.98333779035328,
+        "absolute_event": 1683.16484115756,
+        "circadian_event": 1.2849552782870215,
+        "case_arrival": 1768.8391959798996
+      }
+    },
+    {
+      "original": "real-life/BPIC_2012_W_test.csv.gz",
+      "simulated": "real-life/BPIC_2012_W_train.csv.gz",
+      "distances": {
+        "cycle_time_w1": 27.985019429362293,
+        "ngram": 0.07536553135257257,
+        "relative_event": 9.74035733259621,
+        "absolute_event": 2038.4516465903216,
+        "circadian_event": 0.8809110341266805,
+        "case_arrival": 1983.3052519163207
+      }
+    },
+    {
+      "original": "real-life/BPIC_2017_W_test.csv.gz",
+      "simulated": "real-life/BPIC_2017_W_train.csv.gz",
+      "distances": {
+        "cycle_time_w1": 30.889273015559496,
+        "ngram": 0.07718424290945751,
+        "relative_event": 10.955684800358814,
+        "absolute_event": 2220.760007421523,
+        "circadian_event": 0.6623691874296855,
+        "case_arrival": 2211.8060027380184
+      }
+    },
+    {
+      "original": "synthetic/Pharmacy_5_timers.csv.gz",
+      "simulated": "synthetic/Pharmacy_5_timers_after.csv.gz",
+      "distances": {
+        "cycle_time_w1": 0.14400000000000013,
+        "ngram": 0.01570579422993283,
+        "relative_event": 0.03999359089675314,
+        "absolute_event": 0.08438578202284956,
+        "circadian_event": 0.01864448567572973,
+        "case_arrival": 0.0
+      }
+    },
+    {
+      "original": "synthetic/Procure_to_Pay.csv.gz",
+      "simulated": "synthetic/Procure_to_Pay_3_timers.csv.gz",
+      "distances": {
+        "cycle_time_w1": 8.604000000000003,
+        "ngram": 0.022103808959936848,
+        "relative_event": 4.738495756418856,
+        "absolute_event": 35.84823936832226,
+        "circadian_event": 0.06651558505386944,
+        "case_arrival": 0.0020000000000000018
+      }
+    }
+  ]
+}
