@@ -9,6 +9,8 @@ l'IR sa esprimere - sei distribuzioni, calendari per risorsa, piu' risorse per
 attivita', rami con regole, attributi del caso, priorita' - arriva al motore.
 """
 
+from typing import Any, Literal
+
 from pydantic import BaseModel, Field, model_validator
 
 from backend.simulation.ir.model import SimulationModel
@@ -36,12 +38,37 @@ class CreateSimulationModelRunRequest(BaseModel):
     @model_validator(mode="after")
     def _model_or_patch(self):
         if self.model is not None and self.patch is not None:
-            raise ValueError("Indica il modello intero oppure una patch sulla baseline, non entrambi.")
+            raise ValueError(
+                "Indica il modello intero oppure una patch sulla baseline, non entrambi."
+            )
         return self
 
 
 class SimulationModelRequest(BaseModel):
     current_bpmn_xml: str | None = None
+
+
+class ProsimosImportRequest(BaseModel):
+    """B1b: uno scenario Prosimos (anche scoperto da SIMOD) da portare nell'IR."""
+
+    scenario: dict[str, Any]
+    current_bpmn_xml: str | None = None
+
+
+class ProsimosImportNote(BaseModel):
+    kind: Literal["info", "approximated"]
+    topic: str
+    message: str
+    element_id: str | None = None
+
+
+class ProsimosImportResponse(BaseModel):
+    """Il modello pronto da simulare cosi' com'e', e cosa il consulente deve sapere."""
+
+    bpmn_model_id: str
+    model: SimulationModel
+    notes: list[ProsimosImportNote]
+    simod: dict[str, Any] = Field(default_factory=dict)
 
 
 class SimulationModelResponse(BaseModel):
