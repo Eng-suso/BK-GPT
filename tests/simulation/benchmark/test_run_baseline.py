@@ -202,7 +202,10 @@ def test_replicas_without_an_interval_are_refused(tmp_path, logs):
 def test_a_train_test_log_learns_from_train_and_predicts_test(tmp_path):
     out = tmp_path / "sim36"
 
-    assert run(["AcademicCredentials"], out, replicas=2) == 0
+    b2 = tmp_path / "b2.json"
+    b2.write_text(json.dumps({"seed": run_baseline.DEFAULT_SEED, "replicas": 10, "scenarios": []}))
+
+    assert run(["AcademicCredentials"], out, replicas=2, b2=b2) == 0
 
     report = json.loads((out / "AcademicCredentials.json").read_text())
     folder = run_baseline.TRAIN_TEST_DIR
@@ -216,12 +219,13 @@ def test_a_train_test_log_learns_from_train_and_predicts_test(tmp_path):
     assert set(report["metrics"]) == set(METRICS)
     table = (out / "baseline.md").read_text()
     # B2 ha 10 repliche: con 2 il confronto con lo scenario SIMOD non si fa, e lo dice.
-    assert "Confronto con B2 non fatto" in table
+    assert "AcademicCredentials: confronto con B2 non fatto" in table
+    assert "bpic2013" not in table  # la nota vale solo per i log nella cartella
 
 
 def test_a_train_test_log_same_seed_same_file_bit_for_bit(tmp_path):
-    run(["AcademicCredentials"], tmp_path / "one", replicas=2)
-    run(["AcademicCredentials"], tmp_path / "two", replicas=2)
+    run(["AcademicCredentials"], tmp_path / "one", replicas=2, b2=None)
+    run(["AcademicCredentials"], tmp_path / "two", replicas=2, b2=None)
 
     assert (tmp_path / "one" / "AcademicCredentials.json").read_bytes() == (tmp_path / "two" / "AcademicCredentials.json").read_bytes()
 
@@ -263,3 +267,16 @@ def test_the_comparison_with_b2_needs_the_same_seed_and_replicas():
     assert all(line.endswith("| B = A |") for line in compared[2:])
     assert "non fatto" in run_baseline.simod_comparison([_report(seed=2)], b2)[0]
     assert "non disponibile" in run_baseline.simod_comparison([_report()], None)[0]
+
+
+def test_one_mismatched_or_missing_log_keeps_the_others_compared():
+    model = dict.fromkeys(METRICS, {"mean": 5.0, "ci95": 0.1})
+    b2 = {"seed": 1, "replicas": 2, "scenarios": [{"scenario": "BPIC_2012_W", "metrics": model},
+                                                  {"scenario": "BPIC_2017_W", "metrics": model}]}
+    reports = [_report(), {**_report(replicas=5), "scenario": "BPIC_2017_W"}, {**_report(), "scenario": "AcademicCredentials"}]
+
+    compared = run_baseline.simod_comparison(reports, b2)
+
+    assert len([line for line in compared if line.startswith("| BPIC_2012_W |")]) == len(METRICS)
+    assert "- BPIC_2017_W: confronto con B2 non fatto, B2 ha seed 1 × 2, il log 1 × 5." in compared
+    assert "- AcademicCredentials: confronto con B2 non fatto, B2 non ha misurato questo log." in compared
