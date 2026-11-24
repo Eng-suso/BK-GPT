@@ -1,0 +1,19 @@
+{
+  "simod_version": "5.2.1",
+  "configuration": "configs/AcademicCredentials_diff.yml",
+  "discovery_seconds": 126,
+  "python": "3.12.3",
+  "java": "openjdk version \"21.0.13.1\" 2026-11-17",
+  "diagnostic": {
+    "from": "AcademicCredentials_diff",
+    "dead_loops_reopened": [
+      {
+        "gateway": "node_59fc62b1-3b4e-4c11-ba7b-1cab3392cdaa",
+        "after": "Avanzar recepcion documentos",
+        "exit_probability": 0.6666666666666666,
+        "train_cases": 2,
+        "train_executions": 3
+      }
+    ]
+  }
+}
