@@ -31,6 +31,7 @@ from backend.simulation.ir.model import (
     CaseAttribute,
     Condition,
     DiscreteOption,
+    Distribution,
     Exponential,
     Fixed,
     Gamma,
@@ -704,7 +705,7 @@ def prosimos_exponential_mean(mean: float, minimum: float, maximum: float) -> fl
     return minimum + scale - span * tail / (1 - tail)
 
 
-def _arrival_notes(interarrival: Any) -> list[ImportNote]:
+def _arrival_notes(interarrival: Distribution) -> list[ImportNote]:
     if not isinstance(interarrival, Exponential):
         return []
     declared = interarrival.mean
@@ -746,9 +747,9 @@ def _human_seconds(seconds: float) -> str:
         value = seconds / size
         value = round(value) if value >= 10 else round(value * 2) / 2
         if value < limit:
-            break
-    text = f"{value:g}".replace(".", ",")
-    return f"{text} {one if value == 1 else many}"
+            text = f"{value:g}".replace(".", ",")
+            return f"{text} {one if value == 1 else many}"
+    raise AssertionError("l'ultima unita' non ha limite")
 
 
 # --------------------------------------------------------------------------- #
