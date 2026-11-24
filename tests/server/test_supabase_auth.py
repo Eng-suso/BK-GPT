@@ -243,3 +243,26 @@ def test_without_supabase_the_config_says_nothing_more(client, monkeypatch, enab
     body = client.get("/v1/auth/config").json()
 
     assert body == {"provider": expected, "supabase_url": "", "supabase_publishable_key": ""}
+
+
+def test_a_refused_tenant_reaches_the_browser_as_403_not_as_a_network_error(client, supabase_api, monkeypatch):
+    """Senza intestazioni CORS il browser non legge il 403 e mostra "backend irraggiungibile"."""
+    from backend.app import app
+
+    origin = "http://127.0.0.1:3030"
+    cors = next(m for m in app.user_middleware if m.cls.__name__ == "CORSMiddleware")
+    assert origin in cors.kwargs["allow_origins"] or cors.kwargs["allow_origins"] == ["*"]
+
+    response = client.get(
+        "/v1/auth/me", headers={"X-DeliR-Tenant-ID": "altro", "Origin": origin}
+    )
+
+    assert response.status_code == 403
+    assert response.headers.get("access-control-allow-origin") in {origin, "*"}
+
+
+def test_how_to_log_in_is_readable_even_with_a_wrong_tenant_in_the_session(client, supabase_api):
+    response = client.get("/v1/auth/config", headers={"X-DeliR-Tenant-ID": "altro"})
+
+    assert response.status_code == 200
+    assert response.json()["provider"] == "supabase"

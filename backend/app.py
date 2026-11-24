@@ -313,24 +313,18 @@ def configured_cors_origins() -> list[str]:
     ]
     return origins or ["http://127.0.0.1:3030", "http://localhost:3030"]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=configured_cors_origins(),
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    # Senza questa riga il browser vede le intestazioni ma non le lascia
-    # leggere al codice della pagina: l'elenco saprebbe di essere tagliato e
-    # non potrebbe dirlo.
-    expose_headers=["X-DeliR-Total", "X-DeliR-Returned", "X-DeliR-Limit", "X-Request-ID"],
-)
+
+
+#: Rotte che si leggono prima di avere uno spazio di lavoro: come entrare.
+#: Un tenant sbagliato rimasto in sessione non deve impedire di rifare il login.
+PUBLIC_PATHS = frozenset({"/v1/auth/config"})
 
 
 @app.middleware("http")
 async def tenant_context_middleware(request: Request, call_next):
     # Il cliente che apre il link non manda lo spazio di lavoro: lo decide il
     # link stesso, nel servizio. Qui non c'e' nulla da controllare.
-    if request.url.path.startswith("/v1/shared/"):
+    if request.url.path.startswith("/v1/shared/") or request.url.path in PUBLIC_PATHS:
         return await call_next(request)
     try:
         tenant_id = normalize_tenant_id(request.headers.get("X-DeliR-Tenant-ID"))
@@ -347,6 +341,22 @@ async def tenant_context_middleware(request: Request, call_next):
         return await call_next(request)
     finally:
         reset_current_tenant_id(token)
+
+
+# CORS per ultimo, cioe' piu' esterno: in Starlette l'ultimo middleware aggiunto
+# avvolge gli altri. Prima il 403 del tenant usciva dal middleware qui sopra
+# senza intestazioni CORS, e il browser lo leggeva come "backend irraggiungibile".
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=configured_cors_origins(),
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    # Senza questa riga il browser vede le intestazioni ma non le lascia
+    # leggere al codice della pagina: l'elenco saprebbe di essere tagliato e
+    # non potrebbe dirlo.
+    expose_headers=["X-DeliR-Total", "X-DeliR-Returned", "X-DeliR-Limit", "X-Request-ID"],
+)
 
 
 app.include_router(workspace_router)
