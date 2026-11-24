@@ -56,6 +56,39 @@ test `event type selection…` cliccava. Il test ora tocca l'arco visibile.
 
 ## B2 (in corso dal 2026-11-24, sessione su `feat/sim-eval-harness`)
 
+Meta in [`PLAN.md`](./PLAN.md). Stack: `scripts/vpt_stack.sh start`, poi
+`eval "$(scripts/vpt_stack.sh env)"`.
+
+### Punti aperti chiusi (2026-11-24)
+
+- **Repliche del paper: 10.** Lo script `tests/infsys-real-life-evaluation.py`
+  (cancellato dal repo upstream nel commit `26c88a0`, si legge con `git show
+  26c88a0^:tests/infsys-real-life-evaluation.py`) fa `for i in range(10)`, simula
+  tanti casi quanti il log di test a partire dal suo primo inizio, e calcola media e
+  intervallo t di Student al 95% (`ddof=1`). In `extraneous-delays-outputs` ci sono
+  infatti `<log>_sim_original_0…9.csv`.
+- **Licenza di `log-distance-measures` 2.2: Apache 2.0** (file `LICENSE` del repo
+  `AutomatedProcessImprovement/log-distance-measures`, tag 2.2.0). Si può portare con
+  attribuzione.
+- **La libreria 2.2 riproduce il paper.** Sui 10 log `sim_original` del paper contro
+  il log di test, in un venv 3.12 con `log-distance-measures==2.2.0`:
+
+  | Log | RED | AED | W1 cycle time (ore, bin 1 h) |
+  | --- | --- | --- | --- |
+  | AcademicCredentials | 77,210731 ± 0,350470 | 132,824304 ± 26,745947 | 174,662060 ± 0,962148 |
+  | BPIC 2012 W | 178,545369 ± 0,013214 | 223,843232 ± 8,437542 | 175,721102 ± 0,032542 |
+  | BPIC 2017 W | 183,554654 ± 0,018163 | 296,035082 ± 9,530822 | 253,330301 ± 0,020749 |
+
+  RED e AED coincidono con `paper-results/real-life-evaluation/metrics.csv` a tutte
+  le cifre. Il paper non pubblica W1 del cycle time: il riferimento è questo, calcolato
+  dai suoi 10 log con la stessa libreria (bin di un'ora, come SIMOD).
+
+### Decisione sul calcolo delle metriche
+
+Formule portate nel nostro codice (Python 3.14, senza scipy), con un test che dà gli
+stessi numeri della libreria su log del repo; i valori della libreria si rigenerano in
+un venv 3.12.
+
 Meta in [`PLAN.md`](./PLAN.md). Cosa si sa già, per partire subito:
 
 - Si misura sullo stack reale: `scripts/vpt_stack.sh start`, poi
