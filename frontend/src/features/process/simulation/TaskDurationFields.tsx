@@ -43,7 +43,8 @@ export function TaskDurationFields<T extends DurationDraft>({
   const readable = (seconds: number) => formatDuration(seconds >= 60 ? Math.round(seconds / 60) * 60 : seconds, lang);
   const interpretation = task.distribution === "uniform"
     ? t(isArrival ? "simulation.config.durationGuide.uniformArrival" : "simulation.config.durationGuide.uniformTask", { min: task.minMinutes ?? "—", max: task.maxMinutes ?? "—" })
-    : t(`simulation.config.durationGuide.${task.distribution}${isArrival ? "Arrival" : "Task"}`, { mean: task.meanMinutes });
+    // Nella frase la media arrotondata: un file con 1805 s non diventa "30.0833… minuti".
+    : t(`simulation.config.durationGuide.${task.distribution}${isArrival ? "Arrival" : "Task"}`, { mean: Math.round(task.meanMinutes * 10) / 10 });
   const meanLabel = t(kind === "arrival" ? "simulation.config.arrivalMeanMin" : "simulation.config.durationMin");
   const hint = task.distribution === "uniform"
     ? kind === "arrival" ? "simulation.config.arrivalUniformHint" : "simulation.config.uniformHint"
@@ -110,18 +111,17 @@ export function TaskDurationFields<T extends DurationDraft>({
         <InlineNotice
           tone="warning"
           title={t("simulation.config.arrivalsFaster.title")}
-          action={(
-            <Button type="button" size="sm" variant="outline" onClick={() => onChange({ ...task, maxMinutes: faster.suggestedMaxMinutes })}>
-              {t("simulation.config.arrivalsFaster.action", { suggested: readable(faster.suggestedMaxMinutes * 60) })}
-            </Button>
-          )}
         >
-          {t("simulation.config.arrivalsFaster.body", {
+          <p>{t("simulation.config.arrivalsFaster.body", {
             max: readable(task.maxMinutes * 60),
             produced: readable(faster.producedSeconds),
             mean: readable(task.meanMinutes * 60),
             more: faster.morePercent,
-          })}
+          })}</p>
+          {/* Sotto il testo, non a fianco: nel pannello stretto il testo resta leggibile. */}
+          <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => onChange({ ...task, maxMinutes: faster.suggestedMaxMinutes })}>
+            {t("simulation.config.arrivalsFaster.action", { suggested: readable(faster.suggestedMaxMinutes * 60) })}
+          </Button>
         </InlineNotice>
       )}
       <details className="sim-duration-details rounded-md border border-border px-3 py-2" open={advancedOpen || issue !== null} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
