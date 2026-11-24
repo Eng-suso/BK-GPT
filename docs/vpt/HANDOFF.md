@@ -54,7 +54,7 @@ test `event type selection…` cliccava. Il test ora tocca l'arco visibile.
 - Confermare la meta marcata *proposta* di B3 in `PLAN.md` (gateway ±0,05, durate
   ±10%). Quella di B2 è decisa (2026-11-24).
 
-## B2 (da fare, meta decisa il 2026-11-24)
+## B2 (in corso dal 2026-11-24, sessione su `feat/sim-eval-harness`)
 
 Meta in [`PLAN.md`](./PLAN.md). Cosa si sa già, per partire subito:
 
