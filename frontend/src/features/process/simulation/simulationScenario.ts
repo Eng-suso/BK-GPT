@@ -342,6 +342,33 @@ export function horizonIssue(draft: ScenarioDraft): "range" | null {
   return Number.isInteger(days) && days >= 1 && days <= MAX_HORIZON_DAYS ? null : "range";
 }
 
+/** IMP-01: oltre questo scarto fra media scritta e media simulata il ritmo dei casi cambia. */
+const ARRIVAL_DRIFT = 0.1;
+
+export type ArrivalsFaster = { producedSeconds: number; morePercent: number; suggestedMaxMinutes: number };
+
+/**
+ * Gli arrivi esponenziali con il massimo vicino alla media arrivano piu' fitti di quanto
+ * scritto: Prosimos 2.1 scarta gli intervalli oltre il massimo e ne estrae altri
+ * (esponenziale troncata). Stessa regola di ``prosimos_exponential_mean`` nel backend.
+ */
+export function arrivalsRunFaster(arrival: DurationDraft): ArrivalsFaster | null {
+  if (arrival.distribution !== "expon" || arrival.maxMinutes === undefined) return null;
+  const mean = arrival.meanMinutes * 60;
+  const minimum = (arrival.minMinutes ?? 0) * 60;
+  const scale = mean - minimum;
+  const span = arrival.maxMinutes * 60 - minimum;
+  if (!(scale > 0) || !(span > 0)) return null;
+  const tail = Math.exp(-span / scale);
+  const produced = minimum + scale - (span * tail) / (1 - tail);
+  if (produced >= mean * (1 - ARRIVAL_DRIFT)) return null;
+  return {
+    producedSeconds: produced,
+    morePercent: Math.round(((mean / produced - 1) * 100) / 5) * 5,
+    suggestedMaxMinutes: arrival.meanMinutes * 5,
+  };
+}
+
 /** Gli arrivi come una durata: la stessa forma, gli stessi controlli, gli stessi campi. */
 export function arrivalDuration(draft: ScenarioDraft): DurationDraft {
   const arrival = draft.arrival;

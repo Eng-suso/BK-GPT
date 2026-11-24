@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_SCENARIO,
   arrivalDuration,
+  arrivalsRunFaster,
   loadScenarioDraft,
   scenarioParameterIssues,
   scenarioToInput,
@@ -63,5 +64,25 @@ describe("case arrivals in the scenario draft (A2-3)", () => {
     expect(loadScenarioDraft("m1").arrival).toEqual({ distribution: "gamma", stdMinutes: 4, minMinutes: undefined, maxMinutes: undefined, calendarId: "cal-1" });
     window.localStorage.setItem("delir-sim-scenario:m2", JSON.stringify({ arrival: { distribution: "weibull" } }));
     expect(loadScenarioDraft("m2").arrival).toBeUndefined();
+  });
+});
+
+describe("arrivals the engine makes denser (IMP-01)", () => {
+  // Procure_to_Pay: expon [1805, 5, 3600] secondi.
+  const procureToPay = { meanMinutes: 1805 / 60, distribution: "expon" as const, minMinutes: 5 / 60, maxMinutes: 60 };
+
+  it("finds the mean Prosimos 2.1 really produces and how many more cases arrive", () => {
+    const faster = arrivalsRunFaster(procureToPay);
+    expect(faster?.producedSeconds).toBeCloseTo(1240.5, 0);
+    expect(faster?.morePercent).toBe(45);
+    expect(faster?.suggestedMaxMinutes).toBeCloseTo(150.4, 1);
+  });
+
+  it("stays quiet when the maximum is far, on the suggested maximum and for other shapes", () => {
+    expect(arrivalsRunFaster({ ...procureToPay, maxMinutes: procureToPay.meanMinutes * 5 })).toBeNull();
+    expect(arrivalsRunFaster({ ...procureToPay, maxMinutes: undefined })).toBeNull();
+    expect(arrivalsRunFaster({ ...procureToPay, distribution: "fixed" })).toBeNull();
+    // Insurance_Claims: expon [17, 16, 3600] secondi, media sul minimo.
+    expect(arrivalsRunFaster({ meanMinutes: 17 / 60, distribution: "expon", minMinutes: 16 / 60, maxMinutes: 60 })).toBeNull();
   });
 });
