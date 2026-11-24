@@ -36,14 +36,17 @@ STATUS_XES = b"""<?xml version="1.0" encoding="UTF-8"?>
 </log>"""
 
 
+FILE = "log.xes.gz"
+
+
 def serve(tmp_path, monkeypatch, dataset, body: bytes, *, md5: str | None = None) -> None:
     """Un manifest con il solo ``dataset``, servito da un file locale."""
-    source = tmp_path / "source" / dataset.file_name
+    source = tmp_path / "source" / FILE
     source.parent.mkdir()
     source.write_bytes(body)
     entry = {
         "id": dataset.manifest_id, "mode": "fetch", "license": dataset.license,
-        "url": source.as_uri(), "file": dataset.file_name, "md5": md5 or hashlib.md5(body).hexdigest(),
+        "url": source.as_uri(), "file": FILE, "md5": md5 or hashlib.md5(body).hexdigest(),
     }
     monkeypatch.setattr(fetch_datasets, "load_manifest", lambda: {dataset.manifest_id: entry})
 
@@ -57,7 +60,7 @@ def test_the_benchmark_logs_are_in_the_manifest_with_their_licence():
     manifest = fetch_datasets.load_manifest()
     for dataset in DATASETS.values():
         entry = manifest[dataset.manifest_id]
-        assert (entry["file"], entry["license"], entry["mode"]) == (dataset.file_name, dataset.license, "fetch")
+        assert (entry["license"], entry["mode"]) == (dataset.license, "fetch")
 
 
 def test_the_file_is_kept_only_with_the_md5_of_the_manifest(tmp_path, monkeypatch):
@@ -65,7 +68,7 @@ def test_the_file_is_kept_only_with_the_md5_of_the_manifest(tmp_path, monkeypatc
 
     path = fetch(BPIC2012)
 
-    assert path == tmp_path / "cache" / "bpic2012" / BPIC2012.file_name
+    assert path == tmp_path / "cache" / "bpic2012" / FILE
     assert gzip.decompress(path.read_bytes()) == XES
 
 
@@ -80,7 +83,7 @@ def test_a_different_md5_discards_the_file(tmp_path, monkeypatch):
 
 def test_an_unreachable_source_says_why(tmp_path, monkeypatch):
     serve(tmp_path, monkeypatch, BPIC2012, gzip.compress(XES))
-    (tmp_path / "source" / BPIC2012.file_name).unlink()
+    (tmp_path / "source" / FILE).unlink()
 
     with pytest.raises(DatasetUnavailable, match="bpic2012"):
         fetch(BPIC2012)
@@ -89,8 +92,9 @@ def test_an_unreachable_source_says_why(tmp_path, monkeypatch):
 def test_bpic2012_pairs_start_and_complete(tmp_path, monkeypatch):
     serve(tmp_path, monkeypatch, BPIC2012, gzip.compress(XES))
 
-    log = load(fetch(BPIC2012), BPIC2012.mapping)
+    log, quality = load(fetch(BPIC2012), BPIC2012.mapping)
 
+    assert quality.rows_excluded == 0
     assert [e.activity for e in log.events] == ["A_SUBMITTED", "W_Afhandelen leads"]
     handled = log.events[1]
     assert handled.start is not None and (handled.end - handled.start).total_seconds() == pytest.approx(507.48)
@@ -102,7 +106,7 @@ def test_bpic2013_status_changes_are_instant_events(tmp_path, monkeypatch):
     # come transizione, il log restava senza eventi.
     serve(tmp_path, monkeypatch, BPIC2013, gzip.compress(STATUS_XES))
 
-    log = load(fetch(BPIC2013), BPIC2013.mapping)
+    log, _ = load(fetch(BPIC2013), BPIC2013.mapping)
 
     assert [(e.activity, e.start) for e in log.events] == [("Accepted · In Progress", None), ("Completed · Closed", None)]
     assert {e.resource for e in log.events} == {"Frederic"}

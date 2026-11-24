@@ -15,7 +15,7 @@ import gzip
 from dataclasses import dataclass
 from pathlib import Path
 
-from backend.eventlog.mapping import ColumnMapping, apply_mapping
+from backend.eventlog.mapping import ColumnMapping, QualityReport, apply_mapping
 from backend.eventlog.model import EventLog
 from backend.eventlog.readers import read_xes
 from scripts import fetch_datasets
@@ -45,9 +45,10 @@ class Dataset:
     manifest_id: str
     title: str
     doi: str
-    file_name: str
     license: str
     mapping: ColumnMapping
+    # Il fuso dei timestamp: entrambi i log sono in ora dell'Europa centrale (+01/+02).
+    zone: str = "Europe/Amsterdam"
 
 
 DATASETS: dict[str, Dataset] = {
@@ -56,7 +57,6 @@ DATASETS: dict[str, Dataset] = {
         manifest_id="bpic2012",
         title="BPI Challenge 2012 (richieste di prestito)",
         doi="10.4121/uuid:3926db30-f712-4394-aebc-75976070e91f",
-        file_name="BPI_Challenge_2012.xes.gz",
         license="4TU General Terms of Use",
         mapping=_TRANSITIONS,
     ),
@@ -65,7 +65,6 @@ DATASETS: dict[str, Dataset] = {
         manifest_id="bpic2013-incidents",
         title="BPI Challenge 2013, incidenti (Volvo IT)",
         doi="10.4121/uuid:500573e6-accc-4b0c-9576-aa5468b10cee",
-        file_name="BPI_Challenge_2013_incidents.xes.gz",
         license="4TU General Terms of Use",
         mapping=_STATUS_CHANGES,
     ),
@@ -80,16 +79,18 @@ def fetch(dataset: Dataset) -> Path:
     """Il file del dataset nella cache di ``fetch_datasets``, scaricato e verificato se manca."""
     try:
         entry = fetch_datasets.load_manifest()[dataset.manifest_id]
-        folder = fetch_datasets.fetch(entry)
+        return fetch_datasets.fetch(entry) / entry["file"]
     except (fetch_datasets.DatasetError, OSError) as exc:
         raise DatasetUnavailable(f"{dataset.key}: {exc}") from exc
-    return folder / dataset.file_name
 
 
-def load(path: Path, mapping: ColumnMapping) -> EventLog:
-    """Il log XES (anche ``.xes.gz``) come event log canonico, letto con la mappatura del dataset."""
+def load(path: Path, mapping: ColumnMapping) -> tuple[EventLog, QualityReport]:
+    """Il log XES (anche ``.xes.gz``) come event log canonico, con il report delle righe scartate.
+
+    In BPIC 2012 le righe ``SCHEDULE`` non sono ne' inizio ne' fine: il report le
+    conta come ``unknown_lifecycle`` e la baseline lo scrive.
+    """
     payload = path.read_bytes()
     if path.suffix == ".gz":
         payload = gzip.decompress(payload)
-    log, _ = apply_mapping(read_xes(payload), mapping, source_name=path.name)
-    return log
+    return apply_mapping(read_xes(payload), mapping, source_name=path.name)
