@@ -8,12 +8,13 @@
   "title": "BPI Challenge 2012 (richieste di prestito)",
   "source": "https://doi.org/10.4121/uuid:3926db30-f712-4394-aebc-75976070e91f",
   "license": "4TU General Terms of Use",
-  "twin": "naive: B = A",
+  "split": "meta' dei casi per inizio",
   "rows_excluded": {
     "unknown_lifecycle": 26318,
     "unpaired_start": 3
   },
   "cutoff": "2011-12-16T13:24:05.550000+00:00",
+  "twin": "naive: B = A",
   "cases": {
     "A": 6543,
     "B": 6544
