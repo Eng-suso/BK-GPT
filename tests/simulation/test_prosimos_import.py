@@ -717,3 +717,37 @@ def test_durations_read_as_a_person_would_say_them(seconds, text) -> None:
     from backend.simulation.ir.from_prosimos import _human_seconds
 
     assert _human_seconds(seconds) == text
+
+
+@pytest.mark.parametrize("path", sorted(TRUNCATED_ARRIVALS), ids=str)
+def test_the_template_names_every_merge_so_the_consultant_maps_nothing(path) -> None:
+    """IMP-01: col file vero il consulente arriva all'avviso senza associare ID tecnici."""
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import describe_scenario_template
+
+    source, bpmn = _pair(INPUTS / "synthetic" / f"{path}.json")
+    template = describe_scenario_template(normalize_bpmn_for_prosimos(bpmn), source_bpmn_xml=bpmn)
+    known = {g.element_id for g in template.gateways} | set(template.merges)
+    rows = {row["gateway_id"] for row in source["gateway_branching_probabilities"]}
+    assert rows <= known
+    assert len(rows & set(template.merges)) == 3
+
+
+GOLDEN = json.loads(
+    (ROOT / "tests" / "fixtures" / "simulation" / "arrivals_truncation_golden.json").read_text(encoding="utf-8")
+)["cases"]
+
+
+@pytest.mark.parametrize("case", GOLDEN, ids=lambda c: c["name"])
+def test_the_truncation_rule_matches_the_shared_golden(case) -> None:
+    """Lo stesso file lo legge il test dell'editor: le due copie della regola restano uguali."""
+    from backend.simulation.ir.from_prosimos import _arrival_notes
+    from backend.simulation.ir.model import Exponential
+
+    produced = prosimos_exponential_mean(case["mean"], case["minimum"], case["maximum"])
+    assert produced == pytest.approx(case["produced"], abs=1e-3)
+    notes = _arrival_notes(Exponential(mean=case["mean"], minimum=case["minimum"], maximum=case["maximum"]))
+    if case["more"] is None:
+        assert notes == []
+    else:
+        assert f"circa il {case['more']}%" in notes[0].message
