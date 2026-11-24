@@ -39,7 +39,7 @@ Modello:
   7 rilievi, tutti chiusi (granularità che non divide la giornata, fascia senza
   probabilità che fermerebbe il motore, patch che perdeva disponibilità e attese,
   conteggio dei soli calendari usati, carico vuoto documentato); poi `simplify`.
-- Skill: `code-review`, `simplify`, `react-ui-patterns`. Gate UX: screenshot desktop e
+- Skill: `code-review`, `simplify` (4 revisori: riuso, semplificazione, efficienza, altitudine; applicati granularità intera con una sola regola nell'IR, patch che copia tutta la baseline, helper di test condivisi), `react-ui-patterns`. Gate UX: screenshot desktop e
   mobile in `docs/vpt/ux/cal-01-fuzzy/`, letti.
 - Prossimo passo: merge di #170 e poi di questa PR; quindi UX-01 o B2.
 
