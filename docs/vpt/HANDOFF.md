@@ -16,7 +16,11 @@ Baseline "B = A" sui 3 log reali train/test del paper (A = train, B = test) con
 `run_baseline.py` e `NaiveTwin` di SIM-36, metriche e repliche di B2. BPIC 2013
 incidents da marcare come non adatto al confronto A→B. In parallelo: IMP-01.
 
-- Stato: branch creato da `origin/main`, nessuna misura ancora.
+- Misura (seed 20261124 × 10, `run_baseline.py AcademicCredentials BPIC_2012_W BPIC_2017_W`,
+  ~11 s, senza rete): W1 28,8 / 28,1 / 30,6 h; contro lo scenario SIMOD di B2 "B = A"
+  vince 17 confronti su 18 (pari su CAR di AcademicCredentials). Bit per bit su due
+  passate; misure SIM-36 dei BPIC identiche dopo il rilancio. Tabella in `sim36/baseline.md`.
+- Stato: misura fatta e documentata; restano code review, PR, CI, merge.
 
 ## B6 (fatto il 2026-11-24, `spike/sim-throughput`)
 
