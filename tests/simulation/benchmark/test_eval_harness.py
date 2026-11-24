@@ -79,3 +79,9 @@ def test_an_external_scenario_keeps_the_reference_log(tmp_path):
     scenario = harness.Scenario("BPIC_2012_W", "real-life", source=tmp_path)
     assert scenario.model == tmp_path / "BPIC_2012_W"
     assert scenario.reference == harness.Scenario("BPIC_2012_W", "real-life").reference
+
+
+def test_within_intervals_is_strict_and_symmetric():
+    assert harness.within_intervals({"mean": 10.0, "ci95": 1.0}, {"mean": 11.9, "ci95": 1.0})
+    assert not harness.within_intervals({"mean": 10.0, "ci95": 1.0}, {"mean": 12.0, "ci95": 1.0})
+    assert harness.within_intervals({"mean": 11.9, "ci95": 1.0}, {"mean": 10.0, "ci95": 1.0})
