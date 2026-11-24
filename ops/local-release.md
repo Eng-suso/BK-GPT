@@ -37,7 +37,7 @@ FastAPI. Il consumo LLM e' registrato nel database separato di ciascuno stack.
 
 | Ambiente | Project name | Volumi | Porte host (Postgres, Neo4j HTTP/Bolt, Docling, app) | Limite massimo full stack |
 | --- | --- | --- | --- | --- |
-| DEV | `ops` | `delir_pgdata`, `delir_neo4jdata` | 5432, 7474, 7687, 5001, app 8000 se usata | dati locali, senza limiti Compose |
+| DEV | `ops` | `delir_pgdata`, `delir_neo4jdata` | 5432 (o `POSTGRES_PORT` di `ops/.env`), 7474, 7687, 5001, app 8000 se usata | dati locali, senza limiti Compose |
 | STAGING | `delir-staging` | prefisso `delir_staging_` | 15432, 17474, 17687, 15001, 18000 | 8 GiB |
 | PROD-SIM | `delir-prod-sim` | prefisso `delir_prod_sim_` | 25432, 27474, 27687, 25001, 28000 | 8 GiB |
 
@@ -109,6 +109,25 @@ deve comparire nella allowlist; la allowlist può contenere più tenant. Il
 vecchio `DELIR_TENANT_ID` resta solo come fallback compatibile nel compose del
 pilota. Questo non costituisce una soluzione completa di identità multi-tenant.
 
+## Verifica E2E della separazione delle credenziali
+
+Due script controllano che ogni stack accetti solo le proprie credenziali. Non
+stampano valori, solo esiti. Vanno eseguiti con lo stack acceso; per la RAM
+basta uno stack locale alla volta.
+
+```powershell
+# Dalla cartella ops: API, PostgreSQL e Neo4j provati con le credenziali di
+# tutti e tre gli ambienti, piu' il confronto dei segreti fra i file.
+& ..\.venv\Scripts\python.exe verify_env_isolation.py staging
+
+# Dal root del repository: il cancello di accesso nel browser (Playwright).
+node ops/verify_auth_gate.mjs staging
+```
+
+Atteso: `TOTALE` con tutti i controlli passati. Ripetere con `prod-sim`. Il
+placeholder `local-no-provider-calls` di `OPENAI_API_KEY` e' escluso dal
+confronto dei segreti: e' lo stesso per scelta e non chiama provider.
+
 ## Stop e teardown esclusivi dello STAGING
 
 Lo script riesegue `check` e verifica il project name, tutti i nomi di
@@ -150,3 +169,5 @@ cambiare password nel file non aggiorna le password dei ruoli inizializzati.
    database e smoke test passino anche con la configurazione PROD-SIM.
 
 Esito della verifica del 2026-11-18: [evidenza e ID immagini](../docs/release/milestone-01-staging-evidence.md).
+Verifica E2E della separazione delle credenziali del 2026-11-24:
+[evidenza](../docs/release/env-separation-e2e-evidence.md).

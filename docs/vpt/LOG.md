@@ -18,6 +18,95 @@ Modello:
 
 ---
 
+## 2026-11-24 — B6 throughput del simulatore (G2) — fatto
+
+- Branch / PR: `spike/sim-throughput`.
+- Meta: run al minuto misurati sul percorso del prodotto (API, coda, worker, runner
+  Prosimos 2.1); what-if 10 ripetizioni × 1.000 casi in meno di 60 s dalla richiesta al
+  risultato salvato e leggibile → raggiunta. Misura finale (comando:
+  `uv run python tests/simulation/benchmark/throughput.py --check`, 4 CPU, 3 giri):
+
+  | Worker del runner | What-if (s) | Run/min |
+  | --- | --- | --- |
+  | 1 | 22,9-26,1 | 23-26 |
+  | 2 | 14,3-14,5 | 41-42 |
+  | 4 | 11,3-11,5 | 52-53 |
+
+- Iterazioni: 1) script di carico e riga delle fasi nel worker; prima misura sul codice
+  di `main`: 21,5-23,6 / 14,9-18,8 / 11,5-16,3 s, meta gia' raggiunta; impronte salvate;
+  2) profilo: motore = Prosimos, analisi 0,2 s, salvataggio 0,1 s, export del log 0,3 s
+  a run; con piu' worker i posti oltre il primo aspettavano il giro periodico (10 s);
+  3) la richiesta di un gruppo avviava piu' drenaggi → 10,1-11,1 s con 4 worker;
+  4) `simplify` ha portato la correzione alla radice: la richiesta sveglia il giro
+  della coda; 5) l'harness B2 ha mostrato una corsa reale (run "completed" prima del
+  suo log, 404): completamento atomico con KPI e log; 6) misura finale e harness B2.
+- Risultati invariati: impronte di KPI e log identiche in ogni giro e al riferimento
+  (`b6/fingerprints.json`); harness B2 rilanciato: `baseline.json` identico bit per bit
+  (`24809a7f…`), 9/9 dentro. Suite `tests/simulation` sullo stack: 703 passati.
+- Code review: `code-review` 8 rilievi, tutti corretti (drenaggi falliti non attesi,
+  attesa in coda di un run rimesso in coda, regex delle fasi, riga anche per i run
+  falliti, run rieseguito, orologi diversi, commenti, file di log non chiusi);
+  `backend/CODE_QUALITY.md`: un parser di orari duplicato, rimosso (si usa quello della
+  coda); 4 regole ast-grep: 0 rilievi; ruff e mypy puliti. `simplify` con 4 revisori:
+  corretti il pool di drenaggi nella richiesta (sostituito dal risveglio del giro), il
+  riuso di `ProductPath` e del seed di B2, i nomi delle fasi in un posto solo, polling
+  a 0,5 s, campo `sum` inutile. Non applicati, con motivo: timer passato come argomento
+  invece di una contextvar (stato nascosto peggiore), colonna `queued_at` per i run
+  rimessi in coda (migrazione per un caso raro), ritocchi di forma dello script
+  (intestazioni, URL, ExitStack). Nessuna modifica ad autenticazione o isolamento:
+  niente `security-review`.
+- Skill: `code-review`, `simplify` (nessuna di frontend: lavoro di backend). Nessun
+  gate UX: il punto non cambia cio' che il cliente vede.
+- Decisioni: scenario fisso Loan_Application tradotto nei campi del pannello, perche'
+  le ripetizioni esistono solo su `simulation-runs`.
+- Prossimo passo: B7 (ottimizzazione) puo' partire quando V3 e' chiuso; G3 e B3 come
+  da piano.
+
+---
+
+## 2026-11-24 — SIM-36 baseline pubblica "B = A" — fatto
+
+- Branch / PR: `feat/sim-benchmark-baseline`, #178.
+- Meta: baseline "B = A" misurata su BPIC 2012 e BPIC 2013 incidents e salvata nel repo con
+  il comando per rifarla → raggiunta. Comandi: `run_baseline.py bpic2012`,
+  `run_baseline.py bpic2013_incidents`; log scaricati con `fetch_datasets.py`, MD5 del
+  manifest verificato. Seed 20261124, 10 repliche, ore:
+  - BPIC 2012: W1 16,931 ± 1,518, NGD 0,055 ± 0,002, RED 16,554 ± 1,567, AED 60,281 ± 3,275,
+    CED 0,222 ± 0,013, CAR 48,697 ± 2,653.
+  - BPIC 2013 incidents: W1 383,995 ± 7,811, NGD 0,329 ± 0,004, RED 176,788 ± 3,981,
+    AED 334,396 ± 16,091, CED 1,751 ± 0,079, CAR 290,944 ± 6,383.
+  Stesso seed, stessi file bit per bit.
+- Iterazioni:
+  1) BPIC 2013 letto con 0 eventi: il ciclo di vita è un sottostato. Ora è parte
+     dell'attività, con eventi istantanei.
+  2) Spostamento di A non a settimane intere: CED 6,7 h su BPIC 2012, misurava la rotazione
+     del calendario. Con le settimane intere: 0,35.
+  3) Code review: l'ancoraggio sul minimo portava un caso del 2010 a spostare tutto, con
+     AED 17.945 h. Con l'ancoraggio sulla mediana: 334 h.
+  4) Ora legale: spostare in UTC perdeva un'ora (CED 0,21 dopo). Spostare ogni evento
+     sull'orologio locale cambiava le durate a cavallo del cambio d'ora: ora si sposta
+     l'inizio del caso.
+  5) Il primo JSON perdeva la descrizione delle distanze, sovrascritta dalle metriche.
+- Cosa è cambiato:
+  - `run_baseline.py` usa le distanze di B2, scrive un file per log e non sovrascrive una
+    misura con un motivo di indisponibilità.
+  - `benchmark_datasets.py` scarica dal manifest, con una mappatura e un fuso per log.
+  - `benchmark_metrics.py` è stato tolto.
+  - `docs/simulation-benchmark.md` riscritto.
+- Decisioni:
+  - Ancoraggio sulla mediana e settimane intere: scelta di metodo, documentata.
+  - Lo scarto fino a 3,5 giorni resta in AED e CAR.
+  - Nessuna meta cambiata.
+- Code review:
+  - `code-review`: 9 rilievi, 7 corretti e 2 motivati.
+  - `backend/CODE_QUALITY.md` e ast-grep: 0 rilievi.
+  - `simplify` con 4 revisori: 5 corretti, 6 saltati con motivo (dettaglio nella PR).
+- Skill: `code-review`, `simplify`. Nessuna skill di frontend: punto di ricerca senza UI,
+  quindi niente gate UX.
+- Prossimo passo: G3 e B3 misurano il twin contro questa baseline con lo stesso comando.
+
+---
+
 ## 2026-11-24 — B2 harness di valutazione — fatto
 
 - Branch / PR: `feat/sim-eval-harness`.

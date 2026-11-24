@@ -6,6 +6,7 @@ esclusivo, batte finche' gira, e un run il cui esecutore muore torna in coda.
 """
 
 import asyncio
+import contextlib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -16,8 +17,10 @@ from backend.schemas.workspace import BpmnModelResponse
 from backend.settings import settings
 from backend.simulation import queue
 from backend.simulation.models import ProsimosSimulationResult
+from backend.simulation.prosimos_adapter import ProsimosError
 from backend.simulation.service import SimulationCapacityError, drain_simulation_queue, prepare_simulation_run
 from backend.simulation.storage import complete_simulation_run, get_simulation_run
+from backend.workers.simulation_worker import serve_simulation_queue, wake_simulation_worker
 from backend.workspace_storage import WorkspaceSimulationRun, workspace_connection
 
 BPMN = (Path(__file__).resolve().parents[2] / "ops" / "prosimos" / "spike" / "p2p_mini.bpmn").read_text(encoding="utf-8")
@@ -71,6 +74,82 @@ def test_the_drain_runs_the_queue_in_order(model, fake_engine, monkeypatch):
     assert [request.seed for request in fake_engine] == [1, 2, 3]
     assert all(get_simulation_run(run["id"])["status"] == "completed" for run in runs)
     assert get_simulation_run(runs[0]["id"])["queue"] is None
+
+
+def test_a_run_request_wakes_the_queue_round_at_once(monkeypatch):
+    """B6: il giro riempie i posti liberi subito, non dopo il suo intervallo."""
+    monkeypatch.setattr(settings, "simulation_max_concurrent_runs", 2)
+    started: list[str] = []
+
+    async def drain(worker_id: str) -> int:
+        started.append(worker_id)
+        return 0
+
+    async def round_trip() -> tuple[int, int]:
+        task = asyncio.create_task(serve_simulation_queue(drain, lambda: "w", every=60))
+        await asyncio.sleep(0.05)
+        first = len(started)
+        wake_simulation_worker()
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        return first, len(started)
+
+    assert asyncio.run(round_trip()) == (2, 4)
+
+
+def test_a_run_request_wakes_the_queue_round(api_client, model, monkeypatch):
+    woken: list[bool] = []
+    monkeypatch.setattr("backend.api.routes.simulation.drain_simulation_queue", lambda: None)
+    monkeypatch.setattr("backend.api.routes.simulation.wake_simulation_worker", lambda: woken.append(True))
+    response = api_client.post(f"/v1/workspace/bpmn-models/{model.id}/simulation-runs",
+                               json={"total_cases": 5, "replications": 3, "current_bpmn_xml": BPMN})
+    assert response.status_code == 200, response.text
+    assert woken == [True]
+
+
+def test_every_run_writes_the_time_of_its_phases_even_when_it_fails(model, fake_engine, monkeypatch, caplog):
+    """B6: una riga per run con le fasi a cui e' arrivato."""
+    import logging
+
+    caplog.set_level(logging.INFO, logger="backend.simulation.service")
+    monkeypatch.setattr(settings, "simulation_max_concurrent_runs", 1)
+    done = _enqueue(model, 1)
+    asyncio.run(drain_simulation_queue("w1"))
+
+    async def broken(_request):
+        raise ProsimosError("motore spento")
+
+    monkeypatch.setattr("backend.simulation.service.run_prosimos_simulation", broken)
+    failed = _enqueue(model, 2)
+    asyncio.run(drain_simulation_queue("w1"))
+
+    lines = {r.getMessage().split(":")[0]: r.getMessage() for r in caplog.records if r.getMessage().endswith(" s")}
+    assert all(f" {phase} " in lines[f"simulazione {done['id']}"] for phase in ("in coda", "motore", "analisi", "salvataggio"))
+    assert "motore" in lines[f"simulazione {failed['id']}"]
+    assert "analisi" not in lines[f"simulazione {failed['id']}"]
+
+
+def test_a_run_is_completed_only_together_with_its_kpis_and_log(model, monkeypatch):
+    """B6: chi vede "completed" trova anche il log; se il log non si scrive, il run non e' completato."""
+    from tests.simulation.engine_log import ENGINE_LOG
+
+    run = _enqueue(model, 1)
+    claimed = queue.claim_next_run("w1")
+
+    def broken(*_args, **_kwargs):
+        raise OSError("disco pieno")
+
+    monkeypatch.setattr("backend.simulation.storage._write_simulation_log", broken)
+    with pytest.raises(OSError):
+        complete_simulation_run(
+            run_id=run["id"], result=ProsimosSimulationResult(payload={}, event_log_csv=ENGINE_LOG),
+            summary={"cycle": {}}, replay={}, log_csv=ENGINE_LOG, worker_id=claimed.worker_id,
+        )
+    after = get_simulation_run(run["id"])
+    assert after["status"] == "pending"
+    assert after["summary"] is None
 
 
 def test_a_full_queue_is_a_429_with_the_reason(api_client, model, monkeypatch):
