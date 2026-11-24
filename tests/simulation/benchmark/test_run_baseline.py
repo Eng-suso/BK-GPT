@@ -92,6 +92,7 @@ def test_each_log_is_saved_with_b2_metrics_and_intervals(tmp_path, logs):
 
     report = json.loads((out / "bpic2012.json").read_text())
     assert report["status"] == "measured"
+    assert report["distances"].startswith("come B2")
     assert report["cases"] == {"A": 6, "B": 6}
     assert report["seeds"] == [run_baseline.DEFAULT_SEED + r for r in range(3)]
     assert set(report["metrics"]) == set(METRICS)

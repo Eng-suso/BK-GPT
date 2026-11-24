@@ -1,5 +1,35 @@
 {
   "benchmark": "SIM-36, tests/simulation/benchmark/run_baseline.py",
+  "distances": "come B2: log-distance-measures 2.2 (port in log_distance.py); tempi in ore, ngram in [0, 1]",
+  "seed": 20261124,
+  "replicas": 10,
+  "scenario": "bpic2012",
+  "status": "measured",
+  "title": "BPI Challenge 2012 (richieste di prestito)",
+  "doi": "10.4121/uuid:3926db30-f712-4394-aebc-75976070e91f",
+  "license": "4TU General Terms of Use",
+  "twin": "naive: B = A",
+  "cutoff": "2011-12-16T13:24:05.550000+00:00",
+  "cases": {
+    "A": 6543,
+    "B": 6544
+  },
+  "events": {
+    "A": 81605,
+    "B": 82901
+  },
+  "seeds": [
+    20261124,
+    20261125,
+    20261126,
+    20261127,
+    20261128,
+    20261129,
+    20261130,
+    20261131,
+    20261132,
+    20261133
+  ],
   "metrics": {
     "cycle_time_w1": {
       "mean": 16.93077628361858,
@@ -97,34 +127,5 @@
         54.89455990220049
       ]
     }
-  },
-  "seed": 20261124,
-  "replicas": 10,
-  "scenario": "bpic2012",
-  "status": "measured",
-  "title": "BPI Challenge 2012 (richieste di prestito)",
-  "doi": "10.4121/uuid:3926db30-f712-4394-aebc-75976070e91f",
-  "license": "4TU General Terms of Use",
-  "twin": "naive: B = A",
-  "cutoff": "2011-12-16T13:24:05.550000+00:00",
-  "cases": {
-    "A": 6543,
-    "B": 6544
-  },
-  "events": {
-    "A": 81605,
-    "B": 82901
-  },
-  "seeds": [
-    20261124,
-    20261125,
-    20261126,
-    20261127,
-    20261128,
-    20261129,
-    20261130,
-    20261131,
-    20261132,
-    20261133
-  ]
+  }
 }

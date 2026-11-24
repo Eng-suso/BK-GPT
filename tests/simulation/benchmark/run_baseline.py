@@ -117,7 +117,7 @@ def run(keys: list[str], out: Path, *, seed: int = DEFAULT_SEED, replicas: int =
     for result in results:
         report = {
             "benchmark": "SIM-36, tests/simulation/benchmark/run_baseline.py",
-            "metrics": "come B2: log-distance-measures 2.2 (port in log_distance.py); tempi in ore, ngram in [0, 1]",
+            "distances": "come B2: log-distance-measures 2.2 (port in log_distance.py); tempi in ore, ngram in [0, 1]",
             "seed": seed,
             "replicas": replicas,
             **result,
