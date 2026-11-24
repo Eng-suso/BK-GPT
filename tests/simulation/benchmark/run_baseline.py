@@ -11,10 +11,11 @@ l'harness di B2: le due baseline si confrontano fra loro e con il paper.
 
 Il gemello ingenuo e' A spostato in avanti sul periodo di B: la mediana degli
 inizi dei casi di A cade sulla mediana di B (la mediana, perche' un caso isolato
-anni prima non sposti tutto il resto). Lo spostamento e' di settimane intere e si
-applica all'ora locale del log: "B = A" ripete anche il calendario di A (giorno
-della settimana e ora, ora legale compresa), altrimenti CED misurerebbe la
-rotazione del calendario e non il processo. Il prezzo e' uno scarto fino a 3,5
+anni prima non sposti tutto il resto). Lo spostamento e' di settimane intere e
+l'inizio di ogni caso si sposta sull'ora locale del log: "B = A" ripete anche il
+calendario di A (giorno della settimana e ora, ora legale compresa), altrimenti
+CED misurerebbe la rotazione del calendario e non il processo. Gli eventi seguono
+l'inizio del proprio caso in tempo assoluto: le durate restano quelle vere. Il prezzo e' uno scarto fino a 3,5
 giorni fra le due mediane, che resta nelle distanze assolute (AED, CAR).
 
 Ogni replica prende tanti casi quanti ne ha B, estratti con reinserimento dai
@@ -90,13 +91,17 @@ def naive_replica(period_a: list[Event], period_b: list[Event], rng: random.Rand
     gap = _median(list(_case_starts(period_b).values())) - _median(list(_case_starts(period_a).values()))
     shift = _WEEK * round(gap / _WEEK)
 
-    def moved(instant: datetime) -> datetime:
-        # Con ZoneInfo la somma e' sull'orologio locale: le 9 restano le 9 anche oltre il cambio d'ora.
-        return (instant.astimezone(zone) + shift).astimezone(UTC)
+    def moved(case: str) -> timedelta:
+        # L'inizio del caso si sposta sull'orologio locale (con ZoneInfo la somma e' in ora
+        # locale: le 9 restano le 9 oltre il cambio d'ora); i suoi eventi lo seguono in tempo
+        # assoluto, cosi' le durate restano quelle vere.
+        start = min(e.start for e in by_case[case])
+        return (start.astimezone(zone) + shift).astimezone(UTC) - start
 
     drawn = rng.choices(sorted(by_case), k=len(cases(period_b)))
+    offsets = {case: moved(case) for case in set(drawn)}
     return [
-        Event(f"{case}#{n}", e.activity, moved(e.start), moved(e.end))
+        Event(f"{case}#{n}", e.activity, e.start + offsets[case], e.end + offsets[case])
         for n, case in enumerate(drawn)
         for e in by_case[case]
     ]

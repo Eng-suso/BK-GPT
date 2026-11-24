@@ -18,6 +18,8 @@ AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 
 
 def _case(case_id: str, start: datetime, hours: float) -> list[Event]:
+    """Due eventi in UTC, come li produce ``to_events``."""
+    start = start.astimezone(UTC)
     middle = start + timedelta(hours=hours / 2)
     return [Event(case_id, "Ricevi", start, middle), Event(case_id, "Approva", middle, start + timedelta(hours=hours))]
 
@@ -73,6 +75,17 @@ def test_the_local_hour_survives_daylight_saving():
 
     start = min(e.start for e in replica).astimezone(AMSTERDAM)
     assert (start.date().isoformat(), start.hour) == ("2011-12-12", 9)
+
+
+def test_a_case_across_the_clock_change_keeps_its_duration():
+    # Il caso inizia sabato 29 ottobre 2011 e finisce dopo il cambio d'ora: dura 24 ore vere.
+    saturday = datetime(2011, 10, 29, 12, tzinfo=AMSTERDAM)
+    period_a = _case("a", saturday, 24)
+    period_b = _case("b", datetime(2011, 12, 10, 12, tzinfo=AMSTERDAM), 24)
+
+    replica = naive_replica(period_a, period_b, random.Random(1), AMSTERDAM)
+
+    assert max(e.end for e in replica) - min(e.start for e in replica) == timedelta(hours=24)
 
 
 def test_b_equal_to_a_scores_zero_and_slower_b_scores_what_b2_measures():
