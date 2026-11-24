@@ -12,6 +12,7 @@ intermedi che il caso aspetta.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -96,7 +97,12 @@ _EVENT_TAGS = {"intermediateCatchEvent", "intermediateThrowEvent", "boundaryEven
 # Tolleranza per probabilita' scritte arrotondate (es. 0.3333 + 0.6667).
 _ROUNDING = 1e-3
 
-NoteKind = Literal["info", "approximated"]
+# ``warning``: lo scenario resta com'era, ma il motore lo legge diversamente da come
+# il consulente se lo aspetta; va verificato prima di fidarsi dei risultati.
+NoteKind = Literal["info", "approximated", "warning"]
+# Oltre questo scarto fra la media dichiarata degli arrivi e quella che il motore
+# produce, il ritmo dei casi cambia in modo visibile nelle code: si avvisa.
+_ARRIVAL_DRIFT = 0.10
 
 
 class ProsimosImportError(ValueError):
@@ -230,6 +236,7 @@ def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
         )
     except ValidationError as exc:
         raise ProsimosImportError(_explain(exc)) from exc
+    notes.extend(_arrival_notes(model.arrival.interarrival))
     return ImportResult(model=model, notes=tuple(notes), simod=simod)
 
 
@@ -672,6 +679,68 @@ def _distribution(entry: Any, path: str):
         )
     except ValidationError as exc:
         raise ProsimosImportError(f"{path}: {_explain(exc)}") from exc
+
+
+# --------------------------------------------------------------------------- #
+# Arrivi che il motore rende piu' fitti (IMP-01)
+# --------------------------------------------------------------------------- #
+
+
+def prosimos_exponential_mean(mean: float, minimum: float, maximum: float) -> float:
+    """La media che Prosimos 2.1 produce davvero per ``expon [mean, min, max]``.
+
+    pix_framework 0.15 estrae da ``expon(loc=min, scale=mean-min)`` e scarta i valori
+    oltre il massimo, estraendone altri: e' un'esponenziale troncata, la cui media e'
+    ``min + scale - R * e^(-R/scale) / (1 - e^(-R/scale))`` con ``R = max - min``.
+    Con il massimo vicino alla media la coda lunga sparisce e la media scende.
+    """
+    scale = mean - minimum
+    span = maximum - minimum
+    if scale <= 0 or span <= 0:
+        return mean
+    tail = math.exp(-span / scale)
+    return minimum + scale - span * tail / (1 - tail)
+
+
+def _arrival_notes(interarrival: Any) -> list[ImportNote]:
+    if not isinstance(interarrival, Exponential):
+        return []
+    declared = interarrival.mean
+    produced = prosimos_exponential_mean(
+        declared, interarrival.minimum, interarrival.maximum
+    )
+    if produced >= declared * (1 - _ARRIVAL_DRIFT):
+        return []
+    more = round((declared / produced - 1) * 100 / 5) * 5
+    return [
+        ImportNote(
+            "warning",
+            "arrivals_faster",
+            f"Il file indica in media un nuovo caso ogni {_human_seconds(declared)}, "
+            f"con intervalli fra {_human_seconds(interarrival.minimum)} e "
+            f"{_human_seconds(interarrival.maximum)}. La simulazione scarta gli "
+            f"intervalli più lunghi di {_human_seconds(interarrival.maximum)} e li "
+            f"sostituisce con altri più brevi: in media arriva un caso ogni "
+            f"{_human_seconds(produced)}, circa il {more}% di casi in più nello stesso "
+            f"tempo. Per correggere il file: se i casi arrivano "
+            f"con regolarità, usa un intervallo fisso di {_human_seconds(declared)}; "
+            f"se variano molto, porta il massimo ad almeno "
+            f"{_human_seconds(declared * 5)}.",
+        )
+    ]
+
+
+def _human_seconds(seconds: float) -> str:
+    """Una durata come la direbbe una persona: «5 secondi», «21 minuti», «2,5 ore»."""
+    if seconds < 90:
+        value, one, many = seconds, "secondo", "secondi"
+    elif seconds < 3600:
+        value, one, many = seconds / 60, "minuto", "minuti"
+    else:
+        value, one, many = seconds / 3600, "ora", "ore"
+    value = round(value) if value >= 10 else round(value * 2) / 2
+    text = f"{value:g}".replace(".", ",")
+    return f"{text} {one if value == 1 else many}"
 
 
 # --------------------------------------------------------------------------- #
