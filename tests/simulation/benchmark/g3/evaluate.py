@@ -90,6 +90,7 @@ def evaluate_all(*, seed: int, replicas: int) -> dict:
             imported = harness.import_into_new_process(path, scenario)
             result = harness.evaluate(path, scenario, seed=seed, replicas=replicas, imported=imported)
             result["variant"] = variant
+            result["folder"] = folder.name
             # Il report d'import intero: cosa DeliR ha dovuto adattare o dichiarare.
             result["import_notes"] = imported[1].get("notes", [])
             result["discovery"] = json.loads((folder / "discovery.json").read_text(encoding="utf-8"))
@@ -121,10 +122,9 @@ def _cell(value: dict | None) -> str:
 
 
 def _verdict(ours: dict, reference: dict) -> str:
-    gap = ours["mean"] - reference["mean"]
-    if abs(gap) < ours["ci95"] + reference["ci95"]:
+    if harness.within_intervals(ours, reference):
         return "pari"
-    return "meglio" if gap < 0 else "peggio"
+    return "meglio" if ours["mean"] < reference["mean"] else "peggio"
 
 
 VARIANT_LABELS = {
@@ -136,10 +136,14 @@ VARIANT_LABELS = {
 }
 
 
+def _label(result: dict) -> str:
+    return VARIANT_LABELS.get(result["variant"], result["variant"])
+
+
 def _rows(results: dict, log: str) -> list[tuple[str, dict]]:
     """Le fonti di un log, nell'ordine della tabella: (etichetta, metriche)."""
     rows = [
-        (VARIANT_LABELS.get(r["variant"], r["variant"]), r["metrics"])
+        (_label(r), r["metrics"])
         for r in results["simod"] if r["scenario"] == log
     ]
     rows.append(("scenario SIMOD del paper, in DeliR (B2)", results["paper_scenario_in_delir"][log]))
@@ -170,7 +174,7 @@ def verdict_table(results: dict) -> str:
         for against, reference in (("paper in DeliR", results["paper_scenario_in_delir"][log]),
                                    ("ingenuo", results["naive_twin"][log])):
             cells = " | ".join(_verdict(r["metrics"][m], reference[m]) for m in COMPARED)
-            lines.append(f"| {log} | {VARIANT_LABELS.get(r['variant'], r['variant'])} | {against} | {cells} |")
+            lines.append(f"| {log} | {_label(r)} | {against} | {cells} |")
     return "\n".join(lines) + "\n"
 
 
@@ -182,7 +186,7 @@ def notes_table(results: dict) -> str:
     for r in results["simod"]:
         topics = Counter(f"{n['kind']}: {n['topic']}" for n in r["import_notes"])
         listed = "; ".join(f"{topic} ×{count}" for topic, count in sorted(topics.items()))
-        lines.append(f"| {r['scenario']} | {r['variant']} | {r['discovery'].get('simod_seconds', '—')} "
+        lines.append(f"| {r['scenario']} | {_label(r)} | {r['discovery'].get('simod_seconds', '—')} "
             f"| {r['discovery'].get('discovery_seconds', '—')} | {listed or 'nessuna'} |")
     return "\n".join(lines) + "\n"
 
@@ -194,7 +198,7 @@ def simod_self_check(results: dict) -> str:
         "| --- | --- | --- | --- | --- | --- |",
     ]
     for r in results["simod"]:
-        own = DISCOVERED / f"{r['scenario']}_{r['variant']}" / "simod_evaluation_metrics.csv"
+        own = DISCOVERED / r["folder"] / "simod_evaluation_metrics.csv"
         if not own.is_file():
             continue
         by_metric: dict[str, list[float]] = {}
@@ -203,7 +207,7 @@ def simod_self_check(results: dict) -> str:
                 by_metric.setdefault(row["metric"], []).append(float(row["distance"]))
         red, w1 = (statistics.fmean(by_metric[k]) for k in ("relative_event_distribution", "cycle_time_distribution"))
         lines.append(
-            f"| {r['scenario']} | {r['variant']} | {red:.1f} | {r['metrics']['relative_event']['mean']:.1f} "
+            f"| {r['scenario']} | {_label(r)} | {red:.1f} | {r['metrics']['relative_event']['mean']:.1f} "
             f"| {w1:.1f} | {r['metrics']['cycle_time_w1']['mean']:.1f} |"
         )
     return "\n".join(lines) + "\n"
