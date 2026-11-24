@@ -1,0 +1,350 @@
+{
+ "resources": [
+  {
+   "id": "bpmn-lane-7d90ec04248e1d83",
+   "name": "Requester",
+   "kind": "lane",
+   "bpmn_id": "Lane_1gyvd0y",
+   "pool_name": "Procure to Pay",
+   "parent_name": null,
+   "task_ids": [
+    "node-c99af23d-a18c-48d3-972b-faa4b0f2cc9d",
+    "node-3ca84d0b-0cd9-424b-aab4-26b14f15caa8",
+    "node-5bd85090-affc-4b7e-92c7-561f61ff60df",
+    "node-c60dca0b-00a6-46a1-9f62-4381a5327f5e",
+    "node-f4d6ba36-a423-49cc-b38b-a567e00435f9",
+    "node-2d36ead6-ec00-4ac9-8c70-95c9bececf0d",
+    "node-62a0c401-7510-4f79-ba6f-75f5e933d612"
+   ]
+  },
+  {
+   "id": "bpmn-lane-2688f933bd83e8dc",
+   "name": "Purchasing Agent",
+   "kind": "lane",
+   "bpmn_id": "Lane_0kdm4uj",
+   "pool_name": "Procure to Pay",
+   "parent_name": null,
+   "task_ids": [
+    "node-f7bb1ff1-33f4-4781-b67d-40c423d277c7",
+    "node-8df5eb6d-553f-42e1-9b67-5449856fa7cd",
+    "node-02fb3a51-4014-40fa-a07f-ee2abc399aa4",
+    "node-758aaafc-a5dc-4db2-903c-b922013d1116",
+    "node-d9fa9138-e735-4534-964a-ed231b7ab3ad",
+    "node-dd4df7f8-1bd3-44b6-bfb5-c97302db4403",
+    "node-1a57b610-936a-4705-867c-f8849de8d313"
+   ]
+  },
+  {
+   "id": "bpmn-lane-c757c7b4d0201555",
+   "name": "Requisition Manager",
+   "kind": "lane",
+   "bpmn_id": "Lane_1trx6p0",
+   "pool_name": "Procure to Pay",
+   "parent_name": null,
+   "task_ids": [
+    "node-ea8767a5-ef1e-42d8-ab3c-ac2f5cf0848a",
+    "node-bf423058-287a-4953-a1a2-155e0fcf6a7c",
+    "node-08b7717b-e7e1-4fc6-bc21-8b8ecd9a48d6"
+   ]
+  },
+  {
+   "id": "bpmn-lane-c4a77fd57917baa7",
+   "name": "Supplier",
+   "kind": "lane",
+   "bpmn_id": "Lane_1waimit",
+   "pool_name": "Procure to Pay",
+   "parent_name": null,
+   "task_ids": [
+    "node-d9645826-1b0b-4319-bf15-31300b8f6528",
+    "node-c72cba38-2b92-4da5-bb76-15490b7e488e",
+    "node-b5bad5f7-9546-4cd0-9ae1-f97192846932"
+   ]
+  },
+  {
+   "id": "bpmn-lane-828f252726bc9ba6",
+   "name": "Financial Manager",
+   "kind": "lane",
+   "bpmn_id": "Lane_0sxtb55",
+   "pool_name": "Procure to Pay",
+   "parent_name": null,
+   "task_ids": [
+    "node-c78dc31b-2aa2-4457-b14d-12b33b972e18",
+    "node-befed27f-8926-43a5-9748-00766f4ba02a",
+    "node-0e30435e-705e-41e3-8a73-83d9d2d8c91f",
+    "node-0618e2b1-948b-44cd-86a5-b6bfbc2d75bf"
+   ]
+  }
+ ],
+ "tasks": [
+  {
+   "element_id": "node-c99af23d-a18c-48d3-972b-faa4b0f2cc9d",
+   "name": "Create Request for Quotation Requester",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-3ca84d0b-0cd9-424b-aab4-26b14f15caa8",
+   "name": "Create Purchase Requisition",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-ea8767a5-ef1e-42d8-ab3c-ac2f5cf0848a",
+   "name": "Create Request for Quotation Requester Manager",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-5bd85090-affc-4b7e-92c7-561f61ff60df",
+   "name": "Amend Purchase Requisition",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-bf423058-287a-4953-a1a2-155e0fcf6a7c",
+   "name": "Amend Request for Quotation Requester Manager",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-08b7717b-e7e1-4fc6-bc21-8b8ecd9a48d6",
+   "name": "Analyze Purchase Requisition",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-f7bb1ff1-33f4-4781-b67d-40c423d277c7",
+   "name": "Send Request for Quotation to Supplier",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-8df5eb6d-553f-42e1-9b67-5449856fa7cd",
+   "name": "Create Quotation comparison Map",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-c60dca0b-00a6-46a1-9f62-4381a5327f5e",
+   "name": "Analyze Quotation comparison Map",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-f4d6ba36-a423-49cc-b38b-a567e00435f9",
+   "name": "Choose best option",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-02fb3a51-4014-40fa-a07f-ee2abc399aa4",
+   "name": "Settle conditions with supplier",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-758aaafc-a5dc-4db2-903c-b922013d1116",
+   "name": "Create Purchase Order",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-d9645826-1b0b-4319-bf15-31300b8f6528",
+   "name": "Confirm Purchase Order",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-c72cba38-2b92-4da5-bb76-15490b7e488e",
+   "name": "Deliver Goods Services",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-2d36ead6-ec00-4ac9-8c70-95c9bececf0d",
+   "name": "Release Purchase Order",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-d9fa9138-e735-4534-964a-ed231b7ab3ad",
+   "name": "Settle dispute with supplier Purchasing Agent",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-dd4df7f8-1bd3-44b6-bfb5-c97302db4403",
+   "name": "Approve Purchase Order for payment",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-b5bad5f7-9546-4cd0-9ae1-f97192846932",
+   "name": "Send invoice",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-c78dc31b-2aa2-4457-b14d-12b33b972e18",
+   "name": "Release Supplier's Invoice",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-62a0c401-7510-4f79-ba6f-75f5e933d612",
+   "name": "Amend Request for Quotation Requester",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-1a57b610-936a-4705-867c-f8849de8d313",
+   "name": "Analyze Request for Quotation",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-befed27f-8926-43a5-9748-00766f4ba02a",
+   "name": "Authorize Supplier's Invoice payment",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-0e30435e-705e-41e3-8a73-83d9d2d8c91f",
+   "name": "Settle dispute with supplier Financial Manager",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node-0618e2b1-948b-44cd-86a5-b6bfbc2d75bf",
+   "name": "Pay invoice",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  }
+ ],
+ "gateways": [
+  {
+   "element_id": "node-f8267d2c-e994-4b8a-8fb6-ae76eb878778",
+   "name": "Analyze Purchase Requisition",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "edge-37b4b3ba-91ff-47b5-bd46-19a6e559d01a",
+     "flow_name": "Yes",
+     "target_name": ""
+    },
+    {
+     "flow_id": "edge-ed0b8b3b-3a39-490a-bd7e-5220202d867e",
+     "flow_name": "No",
+     "target_name": "Create Request for Quotation Requester"
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node-abd7298e-9173-4243-9bfc-2f5cc2159198",
+   "name": "Purchase Requisition Correct",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "edge-9c091243-e296-470a-8a66-ee2b33e3f34f",
+     "flow_name": "",
+     "target_name": "Amend Purchase Requisition"
+    },
+    {
+     "flow_id": "edge-2ba11217-846a-45d3-a712-c88d5c9b5152",
+     "flow_name": "Yes",
+     "target_name": "Create Request for Quotation Requester Manager"
+    },
+    {
+     "flow_id": "Flow_0sfnoku",
+     "flow_name": "No",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node-8886261b-3695-40e4-945d-06058aa9739d",
+   "name": "node-8886261b-3695-40e4-945d-06058aa9739d",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "edge-80975988-41c1-479e-abff-16d1aebc333f",
+     "flow_name": "",
+     "target_name": "Send Request for Quotation to Supplier"
+    },
+    {
+     "flow_id": "edge-91939c2b-b38b-4337-bcee-e53e6767dfad",
+     "flow_name": "",
+     "target_name": "Amend Request for Quotation Requester"
+    },
+    {
+     "flow_id": "edge-a5f4f108-d283-4fc3-9eaa-177167480e45",
+     "flow_name": "",
+     "target_name": "Amend Request for Quotation Requester Manager"
+    },
+    {
+     "flow_id": "Flow_0wgezu3",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node-620dcb69-b7fe-4d7e-8de0-0f90953beccb",
+   "name": "node-620dcb69-b7fe-4d7e-8de0-0f90953beccb",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "edge-5c62e72a-546f-4632-94a2-e66e3cb27c1b",
+     "flow_name": "",
+     "target_name": "Approve Purchase Order for payment"
+    },
+    {
+     "flow_id": "edge-aaabd494-0051-4fcf-8646-1293bca78790",
+     "flow_name": "",
+     "target_name": "Settle dispute with supplier Purchasing Agent"
+    }
+   ],
+   "escalation": null
+  }
+ ],
+ "waits": [],
+ "standard_calendar": {
+  "id": "delir-calendar-standard",
+  "name": "Standard office calendar",
+  "periods": [
+   {
+    "from_day": "MONDAY",
+    "to_day": "FRIDAY",
+    "begin": "09:00",
+    "end": "17:00"
+   }
+  ]
+ }
+}
