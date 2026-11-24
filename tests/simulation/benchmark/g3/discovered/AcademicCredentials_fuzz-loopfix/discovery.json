@@ -1,9 +1,5 @@
 {
   "simod_version": "5.2.1",
-  "configuration": "configs/AcademicCredentials_fuzz.yml",
-  "discovery_seconds": 453,
-  "python": "3.12.3",
-  "java": "openjdk version \"21.0.13.1\" 2026-11-17",
   "diagnostic": {
     "from": "AcademicCredentials_fuzz",
     "dead_loops_reopened": [

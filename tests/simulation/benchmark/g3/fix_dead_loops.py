@@ -6,7 +6,8 @@ SIMOD 5.2.1 puo' dare probabilita' 0 all'uscita di un ciclo quando nel train
 l'attivita' del ciclo e' rara: ogni caso che ci entra ripete fino al tetto del
 motore. Questo script trova i gateway che dopo un'attivita' tornano indietro con
 probabilita' 1 e lasciano l'uscita a 0, e mette all'uscita la frequenza vista nel
-train (casi con l'attivita' / esecuzioni dell'attivita'). Scrive lo scenario in
+train (casi con l'attivita' / esecuzioni dell'attivita'). Guarda solo i gateway
+preceduti da un ``<task>`` semplice e con un'uscita a 0 esatto. Scrive lo scenario in
 ``discovered/<log>_<variante>-loopfix/``, solo se c'e' qualcosa da riaprire.
 
 Non e' una correzione di prodotto: serve a separare, nella decisione G3, quanto
@@ -70,6 +71,8 @@ def fix(folder: Path) -> list[dict]:
         if len(before) != 1 or len(loop) != 1 or len(exits) != 1:
             continue
         activity = names[before[0]]
+        if not executions[activity]:
+            continue  # l'attivita' non e' nel train: nessuna frequenza da usare
         exit_probability = cases_with[activity] / executions[activity]
         exits[0]["value"] = exit_probability
         loop[0]["value"] = 1.0 - exit_probability
@@ -82,9 +85,13 @@ def fix(folder: Path) -> list[dict]:
     out.mkdir(exist_ok=True)
     (out / f"{log}.bpmn").write_bytes((folder / f"{log}.bpmn").read_bytes())
     (out / f"{log}.json").write_text(json.dumps(fixed, indent=2) + "\n", encoding="utf-8")
+    # Non e' una discovery: nessun tempo, solo da dove viene e cosa e' cambiato.
     discovery = json.loads((folder / "discovery.json").read_text(encoding="utf-8"))
-    discovery["diagnostic"] = {"from": folder.name, "dead_loops_reopened": changes}
-    (out / "discovery.json").write_text(json.dumps(discovery, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    diagnostic = {
+        "simod_version": discovery["simod_version"],
+        "diagnostic": {"from": folder.name, "dead_loops_reopened": changes},
+    }
+    (out / "discovery.json").write_text(json.dumps(diagnostic, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return changes
 
 
