@@ -895,3 +895,39 @@ def test_sensitivity_variants_move_the_cycle_time_on_the_engine():
     arrivals = SensitivityFactor(kind="arrival")
     assert cycle(perturb(base, approve, "high", 0.2)) > cycle(perturb(base, approve, "low", 0.2))
     assert cycle(perturb(base, arrivals, "low", 0.2)) > cycle(perturb(base, arrivals, "high", 0.2))
+
+
+def _fuzzy_insurance_claims(availability: float) -> tuple[dict, str]:
+    """CAL-01: Insurance Claims con calendari FUZZY, risorse disponibili con ``availability``."""
+    inputs = ROOT / "datasets" / "extraneous-delays" / "inputs" / "synthetic"
+    source = json.loads((inputs / "Insurance_Claims.json").read_text(encoding="utf-8"))
+    source["model_type"] = "FUZZY"
+    source["granule_size"] = {"value": 60, "time_unit": "MINUTES"}
+    for calendar in source["resource_calendars"]:
+        for period in calendar["time_periods"]:
+            period["probability"] = availability
+        # Prosimos considera libera la risorsa se lo dice la disponibilita' *o* il carico
+        # (``FuzzyModel.is_available``): con il carico a 1 sarebbe sempre libera.
+        calendar["workload_ratio"] = [
+            {**period, "probability": availability} for period in calendar["time_periods"]
+        ]
+    return source, (inputs / "Insurance_Claims.bpmn").read_text(encoding="utf-8")
+
+
+def test_an_imported_fuzzy_scenario_runs_and_its_availability_matters():
+    from backend.simulation.ir.from_prosimos import import_prosimos
+
+    def mean_cycle(availability: float) -> float:
+        source, bpmn = _fuzzy_insurance_claims(availability)
+        model = import_prosimos(source, bpmn).model
+        rows = _run(model, seed=3, bpmn=bpmn, cases=120)
+        cases: dict[str, list[float]] = {}
+        for row in rows:
+            span = cases.setdefault(row["case_id"], [row["start"], row["end"]])
+            span[0], span[1] = min(span[0], row["start"]), max(span[1], row["end"])
+        assert len(cases) == 120
+        return sum(end - start for start, end in cases.values()) / len(cases)
+
+    # Risorse disponibili un'ora su cinque: i casi aspettano di piu'.
+    # Misurato: ~193.000 s contro ~1.800 s con seed 3.
+    assert mean_cycle(0.2) > 2 * mean_cycle(0.95)
