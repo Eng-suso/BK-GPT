@@ -39,6 +39,7 @@ configurazione la accende; una destinazione spenta resta elencata.
 | `web_search` | Tavily | `api.tavily.com` | Query di ricerca generate dall'agente (possono citare il cliente) | `TAVILY_API_KEY` impostata | — (strumento dell'agente) |
 | `document_reader` | docling-serve, **self-hosted** | `docling` / `127.0.0.1` | PDF, DOCX e PPTX caricati, interi | sempre | — |
 | `simulation_engine` | Prosimos, **self-hosted** | `prosimos` / `127.0.0.1` | Modelli BPMN e scenari (nomi di attività e ruoli) | sempre | — |
+| `identity_provider` | Supabase Auth (cloud), o la CLI locale in dev/prod-sim | `<ref>.supabase.co` | Email e identificativo dei consulenti; il backend legge solo le chiavi pubbliche (JWKS), il browser fa il login | `DELIR_AUTH_ENABLED=true` + `DELIR_AUTH_PROVIDER=supabase` | — |
 
 ### Cose che dalla lettura del codice non erano ovvie
 
@@ -96,7 +97,7 @@ a memoria.
 | Oracle (OCI) | Hosting | Tutto, a riposo | VM, Postgres, Neo4j, volumi | Da verificare (regione della VM) | Da verificare | — | Da verificare | NOT VALIDATED |
 | Cloudflare | Rete (Tunnel, Access) | Traffico in transito (TLS terminato al bordo) | Ingresso API | Globale | Da verificare | — | Sì | NOT VALIDATED (previsto, A1) |
 | Vercel | Hosting del frontend | Frontend statico; nessun dato cliente previsto | — | Da verificare | Da verificare | — | Da verificare | NOT VALIDATED (previsto) |
-| Supabase | Identità (Track B) | Email e identità degli utenti | — | Da verificare | Da verificare | — | Da verificare | NOT VALIDATED (non ancora in uso) |
+| Supabase | Identità (Track B) | Email e identità degli utenti | `identity_provider` | UE (Frankfurt) prevista | Da verificare | — | Da verificare | NOT VALIDATED (verifier B1 pronto, progetti cloud da creare) |
 | GitHub (GHCR, Actions) | Codice e immagini | Codice; **nessun dato cliente** ammesso | CI, registry | US | Da verificare | — | Sì | NOT VALIDATED |
 | docling-serve | Self-hosted | Documenti | `document_reader` | Sulla VM | — | — | No | Interno |
 | Prosimos | Self-hosted | Modelli di processo | `simulation_engine` | Sulla VM | — | — | No | Interno |

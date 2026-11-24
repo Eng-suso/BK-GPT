@@ -62,6 +62,9 @@ class DataCategory(StrEnum):
     SEARCH_QUERY = "search_query"
     #: Modelli BPMN e scenari di simulazione: nomi di attivita' e ruoli.
     PROCESS_MODEL = "process_model"
+    #: Chi usa DeliR: email e identificativo del consulente presso il fornitore
+    #: di autenticazione. Non contenuti del cliente.
+    USER_IDENTITY = "user_identity"
 
 
 class Destination(StrEnum):
@@ -77,6 +80,7 @@ class Destination(StrEnum):
     WEB_SEARCH = "web_search"
     DOCUMENT_READER = "document_reader"
     SIMULATION_ENGINE = "simulation_engine"
+    IDENTITY_PROVIDER = "identity_provider"
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,6 +241,13 @@ def routes() -> list[EgressRoute]:
             settings.prosimos_base_url,
             (DataCategory.PROCESS_MODEL,),
             True,
+        ),
+        EgressRoute(
+            Destination.IDENTITY_PROVIDER,
+            "Autenticazione dei consulenti (Supabase Auth): login e chiavi pubbliche delle sessioni",
+            settings.supabase_url or "https://supabase.invalid",
+            (DataCategory.USER_IDENTITY,),
+            settings.delir_auth_enabled and settings.delir_auth_provider == "supabase",
         ),
     ]
 
