@@ -94,3 +94,12 @@
 .sim-conformance-details > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; }
 .sim-conformance-details dt { color: var(--muted-foreground); }
 .sim-conformance-details dd { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* UX-01: i dettagli statistici restano un livello sotto, aperti su richiesta. */
+.sim-validation-details { display: grid; gap: 8px; margin-top: 4px; }
+.sim-validation-details > summary { cursor: pointer; font-size: var(--font-size-100); font-weight: 500; min-height: 32px; display: flex; align-items: center; }
+.sim-validation-details > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+/* Su telefono il confronto si legge subito: il pannello viene prima del disegno. */
+@media (max-width: 800px) {
+  .sim-studio-body.has-dock:has(.sim-real-vs-simulated) .sim-studio-dock { order: -1; }
+}
