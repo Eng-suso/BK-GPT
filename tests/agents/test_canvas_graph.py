@@ -3,6 +3,7 @@ from langgraph.graph import START, END, StateGraph
 from langgraph.prebuilt import ToolNode
 
 import backend.toolsets.bpmn as bpmn_toolset
+import backend.graphs.canvas_edit.graph as canvas_graph_module
 from backend.graphs.canvas_edit.state import CanvasState
 from backend.graphs.canvas_edit.graph import (
     canvas_completion_report,
@@ -296,6 +297,38 @@ def test_declared_empty_canvas_outcome_skips_semantic_validation_subgraph():
 
     assert route_after_canvas_work(state) == "evaluate_canvas_completion"
     assert route_after_canvas_layout({**state, "canvas_layout_status": "completed"}) == "evaluate_canvas_completion"
+
+
+def test_saved_patch_uses_deterministic_completion_without_a_second_layout_version():
+    state = {
+        "canvas_route": "patch_edit",
+        "canvas_loop_status": "running",
+        "effective_bpmn_xml_source": "saved_backend_after_canvas_work",
+        "canvas_initial_saved_bpmn_xml": "<old/>",
+        "saved_bpmn_xml": "<updated/>",
+    }
+
+    assert route_after_canvas_work(state) == "evaluate_canvas_completion"
+    assert route_after_canvas_work({**state, "saved_bpmn_xml": "<old/>"}) == "layout_subgraph"
+
+
+def test_patch_without_a_persisted_change_fails_before_layout(monkeypatch):
+    monkeypatch.setattr(canvas_graph_module, "knowledge_drift", lambda state: None)
+    monkeypatch.setattr(
+        canvas_graph_module,
+        "load_canvas_context",
+        lambda state: {"saved_bpmn_xml": "<unchanged/>", "effective_bpmn_xml": "<unchanged/>"},
+    )
+
+    result = canvas_graph_module.refresh_canvas_context_after_work({
+        "bpmn_model_id": "model-1",
+        "canvas_route": "patch_edit",
+        "canvas_initial_saved_bpmn_xml": "<unchanged/>",
+    })
+
+    assert result["canvas_run_status"] == "failed"
+    assert result["canvas_loop_status"] == "blocked"
+    assert route_after_canvas_work(result) == "completion_report"
 
 
 def test_canvas_subagent_intermediate_messages_stream_in_realtime():

@@ -105,12 +105,12 @@ PATCH_EDIT_TOOL_POLICY = """
 Patch/Edit subagent tools.
 
 Use only local deterministic BPMN operations through manage_canvas_bpmn_model:
-inspect, list_elements, update_element, add_element, delete_element,
+map, list_elements, inspect, update_element, add_element, delete_element,
 clear_canvas, connect_elements, reconnect_flow, layout and validate. Do not
 replace the whole XML and do not rediscover or remodel the process. If the user
 asks to remove every visible canvas element, call clear_canvas directly. If the
-user refers to one visible element by label, list_elements first and use the
-exact BPMN id from the listed model element; do not do fuzzy/token search and do
+user refers to one visible element by label, read the map first and use the
+exact BPMN id from the map; do not do fuzzy/token search and do
 not ask for confirmation when there is exactly one structural match. Ask only
 when the listed model has no match or multiple plausible matches.
 """.strip()

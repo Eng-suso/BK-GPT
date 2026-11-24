@@ -921,9 +921,11 @@ def refresh_canvas_context_after_work(state: CanvasState) -> dict:
     # fallimento sarebbe lo stesso difetto rovesciato.
     # Come il run e' nato, non com'e' adesso: dopo il primo giro di correzione
     # `canvas_route` vale "patch_edit", e il controllo spariva dal momento in cui
-    # una costruzione poteva ancora non aver scritto niente.
+    # una costruzione poteva ancora non aver scritto niente. Vale anche per una
+    # patch: un'operazione senza scrittura non deve attivare il layout.
+    initial_route = state.get("canvas_initial_route") or state.get("canvas_route")
     if (
-        (state.get("canvas_initial_route") or state.get("canvas_route")) == "construction"
+        initial_route in {"construction", "patch_edit"}
         and not state.get("canvas_preview_xml")
         and refreshed.get("saved_bpmn_xml") == state.get("canvas_initial_saved_bpmn_xml")
     ):
@@ -933,8 +935,8 @@ def refresh_canvas_context_after_work(state: CanvasState) -> dict:
             "canvas_loop_status": "blocked",
             "canvas_run_status": "failed",
             "blocking_conditions": [
-                "Il canvas salvato e' identico a quello di partenza: la costruzione "
-                "non e' stata persistita."
+                "Il canvas salvato e' identico a quello di partenza: "
+                "nessuna modifica e' stata persistita."
             ],
             "canvas_task_log": [
                 {
@@ -979,7 +981,8 @@ def route_after_canvas_work(state: CanvasState) -> str:
     Returns:
         str: The next stage identifier: ``"completion_report"`` for blocked,
             unchanged, or incomplete work; ``"evaluate_canvas_completion"`` for
-            empty-canvas outcomes; or ``"layout_subgraph"`` when layout is needed.
+            an empty canvas or a saved local patch; ``"layout_subgraph"`` when
+            layout is still needed.
     
     This function reads BPMN review data from the workspace database and does not
     persist changes or raise errors explicitly.
@@ -988,6 +991,17 @@ def route_after_canvas_work(state: CanvasState) -> str:
         return "completion_report"
 
     if expects_empty_canvas(state):
+        return "evaluate_canvas_completion"
+
+    if (
+        state.get("canvas_route") == "patch_edit"
+        and state.get("effective_bpmn_xml_source") == "saved_backend_after_canvas_work"
+        and state.get("saved_bpmn_xml") != state.get("canvas_initial_saved_bpmn_xml")
+    ):
+        # Patch tools persist through update_bpmn_model, which applies the
+        # mandatory layout before saving. The completion node rereads the
+        # persisted XML and validates it against the authoritative process;
+        # another layout and an LLM validation pass would duplicate that work.
         return "evaluate_canvas_completion"
 
     if state.get("canvas_route") != "construction":
@@ -1391,7 +1405,7 @@ def build_canvas_subgraph(tools: list, llm, llm_with_tools, build_context_messag
         "patch_edit_subgraph",
         build_patch_edit_subgraph(
             llm_with_tools=llm.bind_tools(patch_edit_tools),
-            build_context_messages=build_context_messages,
+            build_context_messages=lambda state: build_context_messages({**state, "_compact_canvas_patch": True}),
         ),
     )
     workflow.add_node(

@@ -231,7 +231,9 @@ def recent_context_messages(messages: list, limit: int = RECENT_MESSAGE_LIMIT) -
 def build_context_messages(state: ConsultantState):
     messages = [
         SystemMessage(content=load_procedural_memory()),
-        SystemMessage(content=build_scope_system_prompt(state)),
+        SystemMessage(content=build_scope_system_prompt(
+            state, compact_canvas_patch=bool(state.get("_compact_canvas_patch"))
+        )),
     ]
     classification_context = format_classification_context(state)
     skill_context = state.get("active_skill_context")
