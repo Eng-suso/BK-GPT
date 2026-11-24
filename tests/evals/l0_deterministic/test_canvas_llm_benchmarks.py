@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from langchain_core.messages import AIMessage
 
@@ -192,3 +194,19 @@ def test_prompt_budget_separates_fixed_prompt_from_canvas():
         assert all(xml_row[key] == map_row[key] for key in fixed)
         assert map_row["scope_prompt"] < xml_row["scope_prompt"]
     assert 0 < result["summary"]["first_call_reduction_median"] < 1
+
+
+def test_fidelity_rubric_accepts_source_wording_and_true_consequences():
+    issue_list = next(case for case in fidelity.CASES if case.name == "issue_list")
+    answer = {"missing_from_model": ["the current issue list is sent", "the cycle waits for the next Friday"],
+              "unsupported_in_model": ["Publish the minutes on the website"]}
+    assert fidelity.score(answer, issue_list) == {
+        "found_missing": True, "found_unsupported": True, "false_positives": 0,
+    }
+    report = {"cases": [{"case": "issue_list", "representation": "map",
+                         "answer": json.dumps(answer), "parsed": True, "found_missing": False,
+                         "found_unsupported": True, "false_positives": 2}]}
+    rescored = fidelity.rescore(report)
+    assert rescored["rescored"] is True
+    assert rescored["summary"]["map"]["false_positives"] == 0
+    assert rescored["summary"]["map"]["missing_recall"] == 1.0

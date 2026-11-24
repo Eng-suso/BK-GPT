@@ -56,6 +56,11 @@ class Case:
     invent_after: str
     invent_before: str
     missing_label: str
+    # Other wordings of the planted omission that count as finding it.
+    missing_aliases: tuple[str, ...] = ()
+    # True consequences of the planted change (e.g. a loop that left with the
+    # deleted step): neither credit nor a false positive.
+    also_true: tuple[str, ...] = ()
 
 
 CASES = (
@@ -72,6 +77,7 @@ CASES = (
         invent_after="Create_Order",
         invent_before="End",
         missing_label="Verifica autorizzazione",
+        missing_aliases=("verifica l'autorizzazione",),
     ),
     Case(
         "minimal",
@@ -83,6 +89,7 @@ CASES = (
         invent_after="Review",
         invent_before="End",
         missing_label="File the request in the register",
+        missing_aliases=("files it in the register", "file it in the register"),
     ),
     Case(
         "purchase_urgent",
@@ -96,6 +103,7 @@ CASES = (
         invent_after="Create_Order",
         invent_before="End",
         missing_label="Chiama fornitore urgente",
+        missing_aliases=("chiama subito il fornitore",),
     ),
     Case(
         "multibranch",
@@ -109,6 +117,7 @@ CASES = (
         invent_after="Join_1",
         invent_before="End",
         missing_label="Verifica pratica principale 1",
+        missing_aliases=("verifica della pratica principale 1",),
     ),
     Case(
         "issue_list",
@@ -121,6 +130,8 @@ CASES = (
         invent_after="Check",
         invent_before="Active",
         missing_label="Send current issue list",
+        missing_aliases=("current issue list is sent",),
+        also_true=("waits for the next Friday", "loop back to Friday"),
     ),
 )
 
@@ -176,17 +187,37 @@ def parse_answer(raw: str) -> dict:
     return value
 
 
+def _any_match(found: str, expected: tuple[str, ...]) -> bool:
+    return any(matches(found, item) for item in expected)
+
+
 def score(answer: dict, case: Case) -> dict:
     missing = answer["missing_from_model"]
     unsupported = answer["unsupported_in_model"]
-    found_missing = any(matches(item, case.missing_label) for item in missing)
+    missing_targets = (case.missing_label, *case.missing_aliases)
+    found_missing = any(_any_match(item, missing_targets) for item in missing)
     found_unsupported = any(matches(item, case.invent) for item in unsupported)
     false_positives = (
-        sum(not matches(item, case.missing_label) for item in missing)
-        + sum(not matches(item, case.invent) for item in unsupported)
+        sum(not _any_match(item, (*missing_targets, *case.also_true)) for item in missing)
+        + sum(not _any_match(item, (case.invent, *case.also_true)) for item in unsupported)
     )
     return {"found_missing": found_missing, "found_unsupported": found_unsupported,
             "false_positives": false_positives}
+
+
+def rescore(report: dict) -> dict:
+    """Recompute scores from the raw answers of a saved report, without a model."""
+    cases = {case.name: case for case in CASES}
+    rows = []
+    for row in report["cases"]:
+        row = dict(row)
+        if "answer" in row and "error_type" not in row:
+            try:
+                row.update(parsed=True, **score(parse_answer(row["answer"]), cases[row["case"]]))
+            except (ValueError, json.JSONDecodeError):
+                row.update(parsed=False, found_missing=False, found_unsupported=False, false_positives=0)
+        rows.append(row)
+    return {**report, "summary": summarize(rows), "cases": rows, "rescored": True}
 
 
 def run_case(llm, case: Case, representation: str) -> dict:
@@ -249,7 +280,13 @@ def main() -> None:
     parser.add_argument("--base-url", default=os.environ.get("DELIR_TEST_LLM_BASE_URL"))
     parser.add_argument("--api-key-env", default="DELIR_TEST_LLM_API_KEY")
     parser.add_argument("--min-interval", type=float, default=0.0)
+    parser.add_argument("--rescore", type=Path, default=None,
+                        help="ricalcola un report salvato con la rubrica attuale, senza modello")
     args = parser.parse_args()
+    if args.rescore:
+        print(json.dumps(rescore(json.loads(args.rescore.read_text(encoding="utf-8"))),
+                         ensure_ascii=False, indent=2))
+        return
     api_key = (os.environ.get(args.api_key_env) or "").strip()
     if args.repeat < 1 or not args.model or not api_key:
         parser.error("servono --repeat >= 1, --model e la chiave in --api-key-env")
