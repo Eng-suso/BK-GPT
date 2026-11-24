@@ -9,7 +9,6 @@ import { httpErrorMessage } from "@/lib/http";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
 
-import type { NodeDecoration } from "../canvas/SimulationCanvas";
 import { fetchScenarioTemplate } from "../simulationApi";
 import { formatDuration } from "../simulationResults";
 import { useSimulationSection } from "../useSimulationSection";
@@ -46,6 +45,7 @@ import {
 } from "./useEventLogImport";
 import { ConformanceStep } from "./ConformanceStep";
 import { RealVsSimulatedStep } from "./RealVsSimulatedStep";
+import type { OnLogOverlay } from "./logOverlay";
 import { DATE_FORMATS, detectDateFormat, detectNumberFormat, suggestColumns } from "./eventLogSuggestions";
 import "./eventLog.css";
 
@@ -59,7 +59,7 @@ const ACCEPT = ".csv,.tsv,.txt,.xes";
  * abbinamenti al modello e confronto con un run simulato. `onDecorations`
  * porta gli scarti del confronto sul disegno (null = nessun overlay).
  */
-export function EventLogPanel({ onDecorations }: { onDecorations?: (items: NodeDecoration[] | null) => void } = {}): React.JSX.Element {
+export function EventLogPanel({ onDecorations }: { onDecorations?: OnLogOverlay } = {}): React.JSX.Element {
   const { t } = useTranslation("process");
   const { processId } = useSimulationSection();
   const logs = useEventLogs(processId);
@@ -155,7 +155,7 @@ function delimiterKey(value: string): string {
 function EventLogWizard({ log, onClose, onDecorations }: {
   log: EventLog;
   onClose: () => void;
-  onDecorations?: (items: NodeDecoration[] | null) => void;
+  onDecorations?: OnLogOverlay;
 }): React.JSX.Element {
   const { t } = useTranslation("process");
   const { processId, process } = useSimulationSection();

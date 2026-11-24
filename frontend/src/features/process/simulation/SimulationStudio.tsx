@@ -20,7 +20,7 @@ import { ComparePage } from "./pages/ComparePage";
 import { HeatmapPage, type HeatLens } from "./pages/HeatmapPage";
 import { InsightsPage } from "./pages/InsightsPage";
 import { EventLogPanel } from "./eventlog/EventLogPanel";
-import { CONFORMANCE_MARKER } from "./eventlog/conformanceView";
+import type { LogOverlay } from "./eventlog/logOverlay";
 import { ScenarioWorkspacePanel } from "./ScenarioWorkspacePanel";
 import { ProcessSurface } from "./studio/ProcessSurface";
 import { ActivityDetails } from "./studio/ActivityDetails";
@@ -40,7 +40,7 @@ export function SimulationStudio(): React.JSX.Element {
   const [heatMetric, setHeatMetric] = React.useState<HeatLens>("wait");
   const [decorations, setDecorations] = React.useState<NodeDecoration[]>([]);
   // Scarti reale contro simulato dal pannello del log: valgono solo con il pannello aperto.
-  const [logDecorations, setLogDecorations] = React.useState<NodeDecoration[] | null>(null);
+  const [logOverlay, setLogOverlay] = React.useState<LogOverlay | null>(null);
   // SIM-14: con il pannello Scenario aperto su un'alternativa, cio' che cambia rispetto all'AS-IS.
   const [scenarioDecorations, setScenarioDecorations] = React.useState<NodeDecoration[] | null>(null);
   const scenarioOverlay = panel === "scenario" && scenarioDecorations ? scenarioDecorations : null;
@@ -111,7 +111,7 @@ export function SimulationStudio(): React.JSX.Element {
       {panel === "overview" && <SimulationWorkspace embedded />}
       {panel === "heatmap" && <>{!aggregate && <Button size="sm" variant="outline" onClick={() => setAnalysisView?.("final")}>{t("simulation.workspaceHierarchy.applyFinalHeatmap")}</Button>}<HeatmapPage embedded onDecorations={setDecorations} onMetric={setHeatMetric} /></>}
       {panel === "insights" && <div>{ready && <details className="sim-current-insights"><summary>{t("simulation.unified.currentDetails")}</summary><ReplayInsightRail engine={engine} run={run} embedded /></details>}<InsightsPage embedded /></div>}
-      {panel === "eventLog" && <EventLogPanel onDecorations={setLogDecorations} />}
+      {panel === "eventLog" && <EventLogPanel onDecorations={setLogOverlay} />}
       {panel === "activity" && ready && <ActivityDetails engine={displayedEngine ?? engine} run={analysisRun ?? run} unavailable={unavailable} />}
       <div ref={setHost} className="sim-studio-widget-host" />
     </WorkspaceInspector>}
@@ -119,7 +119,7 @@ export function SimulationStudio(): React.JSX.Element {
   >
       <section className="contents" aria-label={t("simulation.unified.canvas")}>
         {ready && displayedEngine && analysisRun ? <DashboardWorkspace engine={displayedEngine} run={analysisRun} final={aggregate} unavailable={unavailable} artifactLoading={finalReplay.isLoading} integrated commandsHost={commandsHost} inspectorHost={host} onProcessActionsHost={setActionsHost}
-          process={<ProcessSurface engine={displayedEngine} aggregate={aggregate} unavailable={unavailable} summary={aggregate ? analysisRun.summary : undefined} legend={scenarioOverlay ? { label: t("simulation.scenarios.legend", { label: scenarioOverlay[0]?.badge ?? "" }), scenario: true } : panel === "eventLog" && logDecorations ? (logDecorations.some((item) => item.markers?.includes(CONFORMANCE_MARKER)) ? { label: t("simulation.eventLog.conformance.legend"), fidelity: true, conformance: true } : { label: t("simulation.eventLog.compare.legend"), fidelity: true }) : view === "compare" ? { label: t("simulation.diagram.legendWait"), delta: !["a", "b"].includes(query.get("compareMode") ?? "") } : (view === "heatmap" || (aggregate && panel === "heatmap")) ? heatMetric === "trust" ? { label: t("simulation.trust.legend"), trust: true } : { label: t(`simulation.heatmap.metric.${heatMetric}`) } : undefined} inspectorHost={host} actionsHost={actionsHost} decorations={scenarioOverlay ?? (panel === "eventLog" && logDecorations ? logDecorations : view === "compare" || view === "heatmap" || (aggregate && panel === "heatmap") ? decorations : aggregate ? [] : undefined)} />}
+          process={<ProcessSurface engine={displayedEngine} aggregate={aggregate} unavailable={unavailable} summary={aggregate ? analysisRun.summary : undefined} legend={scenarioOverlay ? { label: t("simulation.scenarios.legend", { label: scenarioOverlay[0]?.badge ?? "" }), scenario: true } : panel === "eventLog" && logOverlay ? { label: t(logOverlay.legend.label), fidelity: true, levels: logOverlay.legend.levels } : view === "compare" ? { label: t("simulation.diagram.legendWait"), delta: !["a", "b"].includes(query.get("compareMode") ?? "") } : (view === "heatmap" || (aggregate && panel === "heatmap")) ? heatMetric === "trust" ? { label: t("simulation.trust.legend"), trust: true } : { label: t(`simulation.heatmap.metric.${heatMetric}`) } : undefined} inspectorHost={host} actionsHost={actionsHost} decorations={scenarioOverlay ?? (panel === "eventLog" && logOverlay ? logOverlay.items : view === "compare" || view === "heatmap" || (aggregate && panel === "heatmap") ? decorations : aggregate ? [] : undefined)} />}
           processScope={scope} />
           : <div className="sim-studio-start"><div className="sim-studio-empty-process"><SimulationCanvas bpmnXml={bpmnXml} selectedElementId={selectedElementId} onSelectElement={selectElement} decorations={scenarioOverlay ?? undefined} /></div>
             {panel !== "scenario" && <EmptyState title={!isLoading && !noArtifact && run?.status === "pending" ? runWaitTitle(run?.queue?.state, run?.queue?.position, t) : t(isLoading ? "simulation.loading" : noArtifact ? "simulation.replay.noArtifact" : run?.status === "failed" ? "simulation.status.failed" : "simulation.replay.noRun")} description={error ?? run?.error ?? (run?.status === "pending" ? runWaitHint(run?.queue?.state, t) : undefined) ?? t("simulation.unified.startHint")}
