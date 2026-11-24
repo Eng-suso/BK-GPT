@@ -84,3 +84,69 @@ def test_fidelity_scoring_counts_hallucinated_findings():
     }
     with pytest.raises(ValueError):
         fidelity.parse_answer('{"missing_from_model": []}')
+
+
+def test_ambiguous_request_is_correct_only_without_an_edit():
+    case = next(item for item in cycle.CASES if item.operation == "none")
+    asked = cycle.run_case(_ScriptedModel([]), case, "map")
+    assert asked["correct"] is True and asked["applied"] is None
+    guessed = cycle.run_case(
+        _ScriptedModel([{"name": "update_element", "args": {"element_id": "Task_0_A", "name": "Verifica completa"}}]),
+        case, "map",
+    )
+    assert guessed["correct"] is False
+
+
+def _rate_limit(message: str):
+    import httpx
+    import openai
+
+    response = httpx.Response(429, request=httpx.Request("POST", "https://example.invalid"))
+    return openai.RateLimitError(message, response=response, body=None)
+
+
+def test_patient_client_waits_what_the_provider_asks_and_counts_it(monkeypatch):
+    from langchain_openai import ChatOpenAI
+
+    from scripts import live_llm_support as support
+
+    attempts = []
+
+    def flaky(self, *args, **kwargs):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise _rate_limit("Rate limit reached on tokens per minute (TPM). Please try again in 1.5s.")
+        return "ok"
+
+    slept = []
+    monkeypatch.setattr(ChatOpenAI, "_generate", flaky)
+    monkeypatch.setattr(support, "sleep", slept.append)
+    monkeypatch.setitem(support.RETRY_STATS, "retries", 0)
+    monkeypatch.setitem(support.RETRY_STATS, "waited_s", 0.0)
+    client = support.build_client("m", "https://example.invalid/v1", "k")
+    assert client._generate([]) == "ok"
+    assert slept == [2.0] and support.RETRY_STATS == {"retries": 1, "waited_s": 2.0}
+
+
+def test_daily_caps_are_not_waited_out(monkeypatch):
+    from langchain_openai import ChatOpenAI
+
+    from scripts import live_llm_support as support
+
+    def capped(self, *args, **kwargs):
+        raise _rate_limit("Rate limit reached on tokens per day (TPD). Please try again in 14m3s.")
+
+    monkeypatch.setattr(ChatOpenAI, "_generate", capped)
+    monkeypatch.setattr(support, "sleep", lambda _s: pytest.fail("must not wait"))
+    with pytest.raises(Exception, match="per day"):
+        support.build_client("m", None, "k")._generate([])
+    assert support.retry_wait_seconds(_rate_limit("try again in 2m3.5s")) == pytest.approx(123.5)
+    assert support.retry_wait_seconds(_rate_limit("try again in 250ms")) == pytest.approx(0.25)
+
+
+def test_wilson_interval_is_honest_on_small_samples():
+    from scripts.live_llm_support import wilson_interval
+
+    assert wilson_interval(0, 0) is None
+    low, high = wilson_interval(3, 3)
+    assert high == 1.0 and low < 0.5

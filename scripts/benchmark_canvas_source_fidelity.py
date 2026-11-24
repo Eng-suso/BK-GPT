@@ -34,7 +34,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from backend.bpmn.compact_canvas_map import compact_canvas_map
 from backend.bpmn.compact_representation import encode_delir_dsl
-from scripts.benchmark_canvas_edit_cycle import STOP_ERRORS, _PACE, build_client, paced_invoke
+from scripts.benchmark_canvas_edit_cycle import STOP_ERRORS, _PACE, paced_invoke
+from scripts.live_llm_support import RETRY_STATS, build_client, wilson_interval
 from backend.workspace_services.bpmn_canvas_edit import (
     add_bpmn_element,
     connect_bpmn_elements,
@@ -82,6 +83,44 @@ CASES = (
         invent_after="Review",
         invent_before="End",
         missing_label="File the request in the register",
+    ),
+    Case(
+        "purchase_urgent",
+        "L'ufficio tecnico apre la richiesta di acquisto. Acquisti verifica l'autorizzazione e, "
+        "se l'importo supera 5000 euro, raccoglie la firma del direttore; poi crea e invia "
+        "l'ordine. Quando il guasto e' urgente, la manutenzione chiama subito il fornitore "
+        "senza aspettare l'ordine.",
+        "purchase_layout.bpmn",
+        drop="Urgent_Call",
+        invent="Archivia la richiesta nel gestionale",
+        invent_after="Create_Order",
+        invent_before="End",
+        missing_label="Chiama fornitore urgente",
+    ),
+    Case(
+        "multibranch",
+        "Dopo l'inizio si sceglie il percorso 0: verifica della pratica principale 0 oppure "
+        "controllo dell'alternativa 0, poi si prosegue. Si sceglie quindi il percorso 1: "
+        "verifica della pratica principale 1 oppure controllo dell'alternativa 1, poi si "
+        "prosegue e il processo e' completato.",
+        "multibranch_layout.bpmn",
+        drop="Task_1_A",
+        invent="Invia notifica al cliente",
+        invent_after="Join_1",
+        invent_before="End",
+        missing_label="Verifica pratica principale 1",
+    ),
+    Case(
+        "issue_list",
+        "While the working group is active, every Friday at 6 PM Pacific Time someone checks "
+        "the status of the working group. If it is still active, the current issue list is "
+        "sent and the cycle waits for the next Friday; otherwise the process ends.",
+        "omg_issue_list.bpmn",
+        drop="Send",
+        invent="Publish the minutes on the website",
+        invent_after="Check",
+        invent_before="Active",
+        missing_label="Send current issue list",
     ),
 )
 
@@ -156,11 +195,14 @@ def run_case(llm, case: Case, representation: str) -> dict:
         content=f"Fonte:\n{case.source}\n\nModello BPMN ({representation}):\n{body}"
     )]
     row = {"case": case.name, "representation": representation}
+    retries_before = RETRY_STATS["retries"]
     try:
         response = paced_invoke(llm, messages)
     except Exception as exc:  # provider failures are not wrong answers
-        row.update(error_type=type(exc).__name__, latency_ms=round(_PACE["last_latency_ms"], 2))
+        row.update(error_type=type(exc).__name__, latency_ms=round(_PACE["last_latency_ms"], 2),
+                   retries=RETRY_STATS["retries"] - retries_before)
         return row
+    row["retries"] = RETRY_STATS["retries"] - retries_before
     row["latency_ms"] = round(_PACE["last_latency_ms"], 2)
     usage = getattr(response, "usage_metadata", None) or {}
     row["input_tokens"] = usage.get("input_tokens")
@@ -180,7 +222,12 @@ def summarize(rows: list[dict]) -> dict:
         cases = [row for row in rows if row["representation"] == representation]
         completed = [row for row in cases if "error_type" not in row]
         inputs = [row["input_tokens"] for row in completed if isinstance(row.get("input_tokens"), int)]
+        found_missing = sum(row["found_missing"] for row in completed)
+        found_unsupported = sum(row["found_unsupported"] for row in completed)
         groups[representation] = {
+            "missing_recall_ci95": wilson_interval(found_missing, len(completed)),
+            "unsupported_recall_ci95": wilson_interval(found_unsupported, len(completed)),
+            "rate_limit_retries": sum(row.get("retries", 0) for row in cases),
             "attempts": len(cases),
             "completed": len(completed),
             "provider_errors": len(cases) - len(completed),
@@ -218,7 +265,7 @@ def main() -> None:
         if row.get("error_type") in STOP_ERRORS:
             break
     status = "complete" if len(rows) == len(order) else "incomplete_provider_error"
-    print(json.dumps({"benchmark": "canvas_source_fidelity_l4_v1", "model": args.model,
+    print(json.dumps({"benchmark": "canvas_source_fidelity_l4_v2", "model": args.model,
                       "scope": "planted omissions and unsupported steps, synthetic cases",
                       "status": status, "summary": summarize(rows), "cases": rows},
                      ensure_ascii=False, indent=2))

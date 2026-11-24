@@ -36,28 +36,32 @@ from backend.bpmn.compact_canvas_map import compact_canvas_map
 from backend.bpmn.compact_representation import semantic_tree
 from backend.bpmn.edit_integrity import assert_local_edit_integrity
 from backend.workspace_services.bpmn_canvas_edit import delete_bpmn_element, update_bpmn_element
+from scripts.live_llm_support import RETRY_STATS, build_client, wilson_interval
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_CALLS = 3
+# Per-minute limits are waited out by the client; what still escapes is a daily
+# cap or a configuration error, and continuing would only repeat it.
 STOP_ERRORS = {"RateLimitError", "AuthenticationError", "PermissionDeniedError", "NotFoundError",
                "BadRequestError"}
-# Free tiers allow a few requests per minute: space calls instead of retrying.
 _PACE = {"interval": 0.0, "last": 0.0, "last_latency_ms": 0.0}
 
 
 def paced_invoke(runnable, messages):
     """Invoke after at least ``_PACE['interval']`` seconds since the last call.
 
-    The wait is not latency: ``_PACE['last_latency_ms']`` times the call alone.
+    Waits are not latency: ``_PACE['last_latency_ms']`` times the call alone,
+    without the pacing pause or the rate-limit waits of the client.
     """
     wait = _PACE["last"] + _PACE["interval"] - monotonic()
     if wait > 0:
         sleep(wait)
-    started = perf_counter()
+    started, waited = perf_counter(), RETRY_STATS["waited_s"]
     try:
         return runnable.invoke(messages)
     finally:
-        _PACE["last_latency_ms"] = (perf_counter() - started) * 1000
+        elapsed = perf_counter() - started - (RETRY_STATS["waited_s"] - waited)
+        _PACE["last_latency_ms"] = max(elapsed, 0.0) * 1000
         _PACE["last"] = monotonic()
 
 
@@ -81,6 +85,19 @@ CASES = (
          "Rinomina l'attivita' del ramo alternativo che parte da 'Scelta del percorso 1' "
          "in 'Controlla il caso alternativo'.",
          "update_element", "Task_1_B", "Controlla il caso alternativo"),
+    Case("purchase_layout.bpmn",
+         "Rinomina il passaggio in cui Acquisti crea e invia l'ordine in 'Emetti ordine al fornitore'.",
+         "update_element", "Create_Order", "Emetti ordine al fornitore"),
+    Case("omg_issue_list.bpmn",
+         "Rename the step that checks the status of the working group to 'Review working group status'.",
+         "update_element", "Check", "Review working group status"),
+    Case("multibranch_layout.bpmn",
+         "Elimina il controllo dell'alternativa nel percorso 0.",
+         "delete_element", "Task_0_B"),
+    # Two steps match: the right outcome is no edit and a question back.
+    Case("multibranch_layout.bpmn",
+         "Rinomina la verifica della pratica principale in 'Verifica completa'.",
+         "none", ""),
 )
 
 POLICY = (
@@ -122,6 +139,8 @@ def apply_operation(xml: str, operation: str, element_id: str, name: str | None)
 
 def expected_semantics(case: Case) -> tuple:
     xml = _fixture_xml(case)
+    if case.operation == "none":
+        return semantic_tree(xml)
     return semantic_tree(apply_operation(xml, case.operation, case.target, case.name)[0])
 
 
@@ -142,10 +161,13 @@ def run_case(llm, case: Case, representation: str) -> dict:
         content=f"Richiesta del consulente: {case.request}\n\nCanvas ({representation}):\n{body}"
     )]
     bound = llm.bind_tools([update_element, delete_element])
-    row = {"fixture": case.fixture, "representation": representation, "calls": 0,
+    row = {"fixture": case.fixture, "operation": case.operation, "representation": representation,
+           "calls": 0, "retries": 0,
            "tool_calls": 0, "input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0,
            "usage_reported_calls": 0, "applied": None, "correct": False, "integrity_ok": None,
            "latency_ms": 0.0}
+    result_xml = xml
+    retries_before = RETRY_STATS["retries"]
     try:
         for _ in range(MAX_CALLS):
             try:
@@ -175,10 +197,12 @@ def run_case(llm, case: Case, representation: str) -> dict:
                 messages.append(ToolMessage(content=f"Errore: {exc}", tool_call_id=call["id"]))
                 continue
             row["integrity_ok"] = True
-            row["correct"] = semantic_tree(result) == expected_semantics(case)
+            result_xml = result
             break
+        row["correct"] = semantic_tree(result_xml) == expected_semantics(case)
     except Exception as exc:  # provider failures are reported, never scored as wrong answers
         row["error_type"] = type(exc).__name__
+    row["retries"] = RETRY_STATS["retries"] - retries_before
     row["latency_ms"] = round(row["latency_ms"], 2)
     return row
 
@@ -190,11 +214,14 @@ def summarize(rows: list[dict]) -> dict:
         completed = [row for row in cases if "error_type" not in row]
         tokens = [row["input_tokens"] + row["output_tokens"] for row in completed
                   if row["usage_reported_calls"] == row["calls"] and row["calls"]]
+        correct = sum(row["correct"] for row in completed)
         groups[representation] = {
             "attempts": len(cases),
             "completed": len(completed),
             "provider_errors": len(cases) - len(completed),
-            "correct": sum(row["correct"] for row in completed),
+            "correct": correct,
+            "correct_rate_ci95": wilson_interval(correct, len(completed)),
+            "rate_limit_retries": sum(row.get("retries", 0) for row in cases),
             "integrity_violations": sum(row["integrity_ok"] is False for row in completed),
             "median_calls": statistics.median(row["calls"] for row in completed) if completed else None,
             "median_total_tokens": statistics.median(tokens) if tokens else None,
@@ -204,16 +231,6 @@ def summarize(rows: list[dict]) -> dict:
     xml, compact = groups["xml"]["median_total_tokens"], groups["map"]["median_total_tokens"]
     groups["token_reduction_median"] = round(1 - compact / xml, 4) if xml and compact else None
     return groups
-
-
-def build_client(model: str, base_url: str | None, api_key: str):
-    from langchain_openai import ChatOpenAI
-
-    kwargs = {"model": model, "api_key": api_key, "temperature": 0, "max_retries": 0,
-              "timeout": 120, "max_tokens": 512}
-    if base_url:
-        kwargs["base_url"] = base_url
-    return ChatOpenAI(**kwargs)
 
 
 def main() -> None:
@@ -240,7 +257,7 @@ def main() -> None:
         if row.get("error_type") in STOP_ERRORS:
             break
     status = "complete" if len(rows) == len(order) else "incomplete_provider_error"
-    print(json.dumps({"benchmark": "canvas_edit_cycle_v1", "model": args.model,
+    print(json.dumps({"benchmark": "canvas_edit_cycle_v2", "model": args.model,
                       "scope": "tool loop with production edit functions and L5 check; "
                                "no LangGraph runtime, database or browser",
                       "status": status, "summary": summarize(rows), "cases": rows},
