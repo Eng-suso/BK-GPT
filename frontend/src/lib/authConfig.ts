@@ -17,7 +17,7 @@ export type AuthConfig = {
   supabasePublishableKey: string;
 };
 
-const apiAuthConfigSchema = z.object({
+export const apiAuthConfigSchema = z.object({
   provider: z.enum(["local", "token", "supabase"]),
   supabase_url: z.string(),
   supabase_publishable_key: z.string(),

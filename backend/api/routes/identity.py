@@ -14,6 +14,8 @@ inventare un nome.
 
 from __future__ import annotations
 
+from typing import Literal, cast
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
@@ -68,7 +70,7 @@ class AuthConfig(BaseModel):
 
     #: `local` (autenticazione spenta), `token` (token condiviso del pilota) o
     #: `supabase` (login per persona).
-    provider: str
+    provider: Literal["local", "token", "supabase"]
     #: Con `supabase`: l'URL del progetto e la chiave *publishable*, pensata
     #: per stare nel browser. Altrimenti vuoti.
     supabase_url: str = ""
@@ -80,7 +82,8 @@ def get_auth_config() -> AuthConfig:
     """Letta a runtime e non incisa nel bundle: la stessa immagine va in ogni ambiente."""
     if not settings.delir_auth_enabled:
         return AuthConfig(provider="local")
-    provider = settings.delir_auth_provider.strip().lower()
+    # Un valore diverso da questi non arriva qui: l'avvio lo rifiuta.
+    provider = cast(Literal["token", "supabase"], settings.delir_auth_provider.strip().lower())
     if provider != "supabase":
         return AuthConfig(provider=provider)
     return AuthConfig(

@@ -362,7 +362,7 @@
         "provider"
       ],
       "properties": {
-        "provider": "string",
+        "provider": "enum:local|token|supabase",
         "supabase_publishable_key": "string",
         "supabase_url": "string"
       }
