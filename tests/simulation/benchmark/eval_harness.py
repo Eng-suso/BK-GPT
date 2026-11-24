@@ -182,15 +182,26 @@ def summarize(values: list[float]) -> dict:
     return {"mean": average, "ci95": half, "replicas": values}
 
 
-def evaluate(path: ProductPath, scenario: Scenario, *, seed: int, replicas: int) -> dict:
+def import_into_new_process(path: ProductPath, scenario: Scenario) -> tuple[str, dict]:
+    """Un processo nuovo con lo scenario importato: id del modello BPMN e risposta dell'import."""
+    bpmn_model_id = path.new_process(scenario.name)
+    imported = path.import_scenario(
+        bpmn_model_id,
+        json.loads(scenario.model.with_suffix(".json").read_text(encoding="utf-8")),
+        scenario.model.with_suffix(".bpmn").read_text(encoding="utf-8"),
+    )
+    return bpmn_model_id, imported
+
+
+def evaluate(
+    path: ProductPath, scenario: Scenario, *, seed: int, replicas: int, imported: tuple[str, dict] | None = None
+) -> dict:
+    """``imported``: il risultato di ``import_into_new_process``, se il chiamante ha gia' importato."""
     reference = read_csv_log(scenario.reference)
     cases = len({e.case_id for e in reference})
     start = min(e.start for e in reference).isoformat()
     bpmn_xml = scenario.model.with_suffix(".bpmn").read_text(encoding="utf-8")
-    bpmn_model_id = path.new_process(scenario.name)
-    imported = path.import_scenario(
-        bpmn_model_id, json.loads(scenario.model.with_suffix(".json").read_text(encoding="utf-8")), bpmn_xml
-    )
+    bpmn_model_id, imported = imported or import_into_new_process(path, scenario)
 
     measured: list[dict[str, float]] = []
     kpi_cycle: list[float] = []
