@@ -18,6 +18,7 @@ Scrive in ``--out`` (default ``tests/simulation/benchmark/b2``):
 
 - ``baseline.json``: le metriche di ogni scenario. Nessun orario ne' id di run:
   con lo stesso seed il file e' identico bit per bit (meta 1 di B2);
+- ``baseline.md``: le stesse metriche in tabella, media ± intervallo;
 - ``paper-comparison.md``: DeliR contro la riga ``<log>_original`` del paper per
   RED, AED e W1 del cycle time, con "dentro" se lo scarto fra le medie e' minore
   della somma dei due intervalli (meta 2).
@@ -281,6 +282,24 @@ def comparison_table(rows: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
+_SHORT = {
+    "cycle_time_w1": "W1 cycle time (ore)", "ngram": "NGD", "relative_event": "RED (ore)",
+    "absolute_event": "AED (ore)", "circadian_event": "CED (ore)", "case_arrival": "CAR (ore)",
+}
+
+
+def baseline_table(results: list[dict]) -> str:
+    """Le sei metriche di ogni scenario, media ± intervallo: il riferimento di B3 e B5."""
+    lines = [
+        "| Scenario | " + " | ".join(_SHORT[m] for m in METRICS) + " |",
+        "| --- |" + " --- |" * len(METRICS),
+    ]
+    for r in results:
+        cells = " | ".join(f"{r['metrics'][m]['mean']:.3f} ± {r['metrics'][m]['ci95']:.3f}" for m in METRICS)
+        lines.append(f"| {r['scenario']} | {cells} |")
+    return "\n".join(lines) + "\n"
+
+
 def refresh_paper_cycle_time(outputs: Path) -> None:
     """Ricalcola W1 del cycle time dai 10 log ``sim_original`` del paper (cache di ``extraneous-delays-outputs``)."""
     logs = {}
@@ -324,6 +343,9 @@ def run(selected: list[Scenario], *, seed: int, replicas: int, out: Path) -> lis
         "scenarios": results,
     }
     (out / "baseline.json").write_text(json.dumps(baseline, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (out / "baseline.md").write_text(
+        f"# Baseline B2 (seed {seed}, {replicas} repliche)\n\n" + baseline_table(results), encoding="utf-8"
+    )
     rows = compare_with_paper(results)
     if rows:
         (out / "paper-comparison.md").write_text(

@@ -55,6 +55,13 @@ def test_inside_means_the_gap_is_smaller_than_the_two_intervals():
     assert "| AcademicCredentials | RED (ore) |" in harness.comparison_table(rows)
 
 
+def test_the_baseline_table_has_one_row_per_scenario_and_six_metrics():
+    metric = {"mean": 1.0, "ci95": 0.25, "replicas": []}
+    table = harness.baseline_table([{"scenario": "Pharmacy", "metrics": dict.fromkeys(harness.METRICS, metric)}])
+
+    assert table.splitlines()[2] == "| Pharmacy |" + " 1.000 ± 0.250 |" * 6
+
+
 @pytest.mark.skipif(not os.environ.get("DELIR_TEST_PROSIMOS_URL"), reason="serve lo stack reale: scripts/vpt_stack.sh")
 def test_same_seed_same_baseline_bit_for_bit(tmp_path):
     scenario = [s for s in harness.scenarios() if s.name == "Pharmacy_1_timer"]
