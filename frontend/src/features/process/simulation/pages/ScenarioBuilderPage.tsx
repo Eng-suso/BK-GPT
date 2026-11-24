@@ -28,8 +28,8 @@ import { uncertainFactors } from "../sensitivity";
 import { useSourceConflicts } from "../useSourceConflicts";
 import { WhatIfComposer } from "../WhatIfComposer";
 import { ServerScenarioImport } from "../ServerScenarioImport";
-import { importProsimosOnServer, runImportedModel, type ProsimosImport } from "../prosimosServerImport";
-import { httpErrorMessage } from "@/lib/http";
+import { importProsimosOnServer, remapProsimosIds, runImportedModel, type ProsimosImport } from "../prosimosServerImport";
+import { HttpError, httpErrorMessage } from "@/lib/http";
 import type { NodeDecoration } from "../canvas/SimulationCanvas";
 
 /**
@@ -56,6 +56,8 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
   const [serverImport, setServerImport] = React.useState<{ name: string; result: ProsimosImport } | null>(null);
   const [serverChecking, setServerChecking] = React.useState(false);
   const [serverRunning, setServerRunning] = React.useState(false);
+  // Ogni nuovo file o chiusura del dialogo invalida le risposte ancora in volo.
+  const serverRequest = React.useRef(0);
   const importInput = React.useRef<HTMLInputElement>(null);
   const referenceTrigger = React.useRef<HTMLElement | null>(null);
   const toolsTrigger = React.useRef<HTMLButtonElement>(null);
@@ -82,15 +84,19 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
     activeRun,
   } = lab;
   const checkOnServer = async (name: string, source: Record<string, unknown>, localCause: unknown) => {
+    const request = ++serverRequest.current;
     setServerChecking(true);
     try {
-      setServerImport({ name, result: await importProsimosOnServer(lab.bpmnModelId, source, bpmnXml) });
+      const result = await importProsimosOnServer(lab.bpmnModelId, source, bpmnXml);
+      if (request === serverRequest.current) setServerImport({ name, result });
     } catch (serverCause) {
-      // Il motivo del server spiega cosa manca; senza, resta quello dell'editor.
-      const fallback = localCause instanceof Error ? localCause.message : t("simulation.scenario.jsonInvalid");
-      setImportError(httpErrorMessage(serverCause, fallback));
+      if (request !== serverRequest.current) return;
+      // Un rifiuto motivato del server (400) spiega cosa manca; un guasto tecnico no:
+      // allora resta la spiegazione dell'editor.
+      const local = localCause instanceof Error ? localCause.message : t("simulation.scenario.jsonInvalid");
+      setImportError(serverCause instanceof HttpError && serverCause.status === 400 ? httpErrorMessage(serverCause, local) : local);
     } finally {
-      setServerChecking(false);
+      if (request === serverRequest.current) setServerChecking(false);
     }
   };
   const runServerImport = async () => {
@@ -98,10 +104,13 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
     setServerRunning(true);
     try {
       const run = await runImportedModel(lab.bpmnModelId, {
-        model: serverImport.result.model, currentBpmnXml: bpmnXml, totalCases: draft.totalCases, scenarioName: serverImport.name,
+        model: serverImport.result.model, currentBpmnXml: bpmnXml, totalCases: draft.totalCases,
+        horizonDays: draft.horizonDays, scenarioName: serverImport.name,
       });
       toast.success(t("simulation.scenario.serverImport.started"), {
-        description: t("simulation.scenario.serverImport.startedDetail", { name: serverImport.name, cases: draft.totalCases }),
+        description: draft.horizonDays !== undefined
+          ? t("simulation.scenario.serverImport.startedDetailDays", { name: serverImport.name, count: draft.horizonDays })
+          : t("simulation.scenario.serverImport.startedDetail", { name: serverImport.name, cases: draft.totalCases }),
       });
       refetchRuns();
       selectRun?.(run.id);
@@ -114,6 +123,8 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
     }
   };
   const readScenarioFile = async (file: File | undefined) => {
+    serverRequest.current += 1;
+    setServerChecking(false);
     setImportError(null);
     setImportName(file?.name ?? null);
     setGenericSource(null);
@@ -179,7 +190,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
       setImportError(cause instanceof Error ? cause.message : t("simulation.scenario.jsonInvalid"));
     }
   };
-  const applyProsimosImport = () => {
+  const applyProsimosImport = async () => {
     if (!prosimosSource) return;
     try {
       const candidate = importScenarioJson(JSON.stringify(prosimosSource.data), lab.bpmnModelId, template, draft, prosimosMapping);
@@ -191,7 +202,10 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
         decisions: Object.keys(candidate.gateways).length,
       }) });
     } catch (cause) {
-      setImportError(cause instanceof Error ? cause.message : t("simulation.scenario.jsonInvalid"));
+      // Come per i file che non chiedono mappatura: se l'editor non lo rappresenta, lo legge il server.
+      const { name, data } = prosimosSource;
+      setProsimosSource(null);
+      await checkOnServer(name, remapProsimosIds(data, prosimosMapping), cause);
     }
   };
   const prosimosFields = prosimosSource && template ? prosimosReferenceFields(prosimosSource.data, template, prosimosMapping) : [];
@@ -317,7 +331,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
         </DialogContent>
       </Dialog>
 
-      <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) { setGenericSource(null); setProsimosSource(null); setServerImport(null); setImportError(null); if (importInput.current) importInput.current.value = ""; } }}>
+      <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) { serverRequest.current += 1; setServerChecking(false); setGenericSource(null); setProsimosSource(null); setServerImport(null); setImportError(null); if (importInput.current) importInput.current.value = ""; } }}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl">
           <DialogTitle>{t("simulation.scenario.sourceFile")}</DialogTitle>
           <DialogDescription>{t("simulation.scenario.importDescription")}</DialogDescription>
@@ -333,7 +347,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
             <p className="mt-1 text-muted-foreground">{t("simulation.scenario.importNotAppliedHint", { name: importName })}</p>
             <details className="mt-2"><summary className="cursor-pointer text-foreground">{t("simulation.scenario.importTechnicalReason")}</summary><p className="mt-2 break-words text-muted-foreground">{importError}</p></details>
           </div>}
-          {serverChecking && <p role="status" className="text-sm text-muted-foreground">{t("simulation.scenario.serverImport.checking")}</p>}
+          <p role="status" className="text-sm text-muted-foreground empty:hidden">{serverChecking ? t("simulation.scenario.serverImport.checking") : ""}</p>
           {serverImport && <ServerScenarioImport name={serverImport.name} result={serverImport.result} running={serverRunning} onRun={() => void runServerImport()} />}
           {prosimosSource && template && <ProsimosReferenceMapping source={prosimosSource.data} template={template} mapping={prosimosMapping} onChange={(next) => { setProsimosMapping(next); setImportError(null); }} />}
           {genericSource && <div className="grid gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm" role="status">
@@ -383,7 +397,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
             {genericSource && <Button type="button" variant="outline" onClick={() => setImportOpen(false)}>{t("simulation.scenario.configureInEditor")}</Button>}
             <Button type="button" variant="ghost" onClick={() => setImportOpen(false)}>{t("simulation.scenarios.cancel")}</Button>
             {genericSource && mappingOpen && <Button type="button" disabled={!mappingConfirmed || mappedCount === 0} onClick={applyImport}>{t("simulation.scenario.applyMappedJson")}</Button>}
-            {prosimosSource && <Button type="button" disabled={!prosimosMappingReady} onClick={applyProsimosImport}>{t("simulation.scenario.applyMappedJson")}</Button>}
+            {prosimosSource && <Button type="button" disabled={!prosimosMappingReady} onClick={() => void applyProsimosImport()}>{t("simulation.scenario.applyMappedJson")}</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>
