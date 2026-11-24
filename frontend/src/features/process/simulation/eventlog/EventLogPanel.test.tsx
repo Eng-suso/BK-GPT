@@ -287,19 +287,19 @@ describe("EventLogPanel", () => {
     await user.click(await screen.findByRole("button", { name: /^erp\.csv/ }));
     await user.click(await screen.findByRole("button", { name: /Reale contro simulato$/ }));
 
-    expect(await screen.findByText("Validazione aggregata")).toBeInTheDocument();
+    expect(await screen.findByText("Confronto con il log reale")).toBeInTheDocument();
 
-    expect(screen.getByText("Questa replica è vicina al log")).toBeInTheDocument();
-    const process = screen.getAllByRole("table").find((table) => within(table).queryByRole("row", { name: /Tempo medio di attraversamento/ }))!;
-    expect(within(within(process).getByRole("row", { name: /Tempo medio di attraversamento/ })).getByText("+5%")).toBeInTheDocument();
+    expect(screen.getByText("Questa simulazione è vicina al log reale")).toBeInTheDocument();
+    const process = screen.getAllByRole("table").find((table) => within(table).queryByRole("row", { name: /Costo per caso/ }))!;
+    expect(within(within(process).getByRole("row", { name: /Durata media di un caso/ })).getByText("+5%")).toBeInTheDocument();
     expect(within(process).getByRole("row", { name: /Costo per caso/ })).toHaveTextContent("il log non ha costi");
-    expect(screen.getByText(/Attraversamento completo, solo simulato/)).toBeInTheDocument();
+    expect(screen.getByText(/Nella simulazione un caso dura in tutto/)).toBeInTheDocument();
 
-    const activities = screen.getByRole("table", { name: /Lavorazione e attesa medie per attività/ });
+    const activities = screen.getByRole("table", { name: /Tempo di lavoro e attesa medi per attività/ });
     expect(within(activities).getByRole("row", { name: /Ricevi richiesta/ })).toHaveTextContent("+50%");
-    expect(within(activities).getByRole("row", { name: /Ricevi richiesta/ })).toHaveTextContent("attesa iniziale non osservabile");
-    expect(screen.getByText(/1 attività del log senza elemento del modello/).closest("section")).toHaveTextContent("Approva");
-    expect(screen.getByText(/1 attività simulate che il log non ha mai visto/)).toBeInTheDocument();
+    expect(within(activities).getByRole("row", { name: /Ricevi richiesta/ })).toHaveTextContent("il log non registra l'attesa prima di questa attività");
+    expect(screen.getByText(/1 attività del log non è nel modello/).closest("section")).toHaveTextContent("Approva");
+    expect(screen.getByText("1 attività simulata non compare mai nel log")).toBeInTheDocument();
 
     expect(onDecorations).toHaveBeenLastCalledWith(null);
     await user.click(screen.getByRole("button", { name: "Mostra sul processo" }));
@@ -340,9 +340,9 @@ describe("EventLogPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: /^erp\.csv/ }));
     await user.click(await screen.findByRole("button", { name: /Reale contro simulato$/ }));
-    expect((await screen.findAllByText("Repliche avviate senza data iniziale")).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("row", { name: /Attraversamento osservabile/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("row", { name: /Tempo medio di attraversamento/ })).not.toBeInTheDocument();
+    expect((await screen.findAllByText("Simulazioni senza data di inizio")).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("row", { name: /Durata media di un caso/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /Durata media di un caso/ })).not.toBeInTheDocument();
   });
 
   it("asks for a run when there is nothing to compare yet", async () => {
