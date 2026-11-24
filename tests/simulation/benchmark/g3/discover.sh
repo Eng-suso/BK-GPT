@@ -42,6 +42,8 @@ discover() {
   ended=$(date +%s)
   cp "$run/best_result/${log}_train.bpmn" "$out/${log}.bpmn"
   cp "$run/best_result/${log}_train.json" "$out/${log}.json"
+  # Tempi per fase secondo SIMOD (la valutazione finale non fa parte della discovery).
+  cp "$run/best_result/runtimes.json" "$out/simod_runtimes.json"
   # Le distanze che SIMOD stesso calcola sul log di test, per confronto.
   if [[ -f "$run/best_result/evaluation/evaluation_metrics.csv" ]]; then
     cp "$run/best_result/evaluation/evaluation_metrics.csv" "$out/simod_evaluation_metrics.csv"
