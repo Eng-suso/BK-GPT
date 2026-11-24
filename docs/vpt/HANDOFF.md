@@ -89,6 +89,20 @@ Formule portate nel nostro codice (Python 3.14, senza scipy), con un test che d�
 stessi numeri della libreria su log del repo; i valori della libreria si rigenerano in
 un venv 3.12.
 
+### Harness
+
+`uv run python tests/simulation/benchmark/eval_harness.py [scenario ...]` (con lo
+stack acceso e `eval "$(scripts/vpt_stack.sh env)"`): import da `prosimos-import`,
+run da `simulation-model-runs` (coda e worker, runner Prosimos 2.1), log e KPI
+riletti dall'API. Scrive `tests/simulation/benchmark/b2/baseline.json` e
+`paper-comparison.md`. Formule in `log_distance.py`, test in `test_log_distance.py`.
+
+### Misure
+
+1. 2026-11-24, AcademicCredentials, seed 20261124, 10 repliche (4,7 s): RED 77,464 ±
+   0,210 contro 77,211 ± 0,350 (dentro); AED 121,397 ± 23,249 contro 132,824 ± 26,746
+   (dentro); W1 cycle time 174,837 ± 0,421 contro 174,662 ± 0,962 (dentro).
+
 Meta in [`PLAN.md`](./PLAN.md). Cosa si sa già, per partire subito:
 
 - Si misura sullo stack reale: `scripts/vpt_stack.sh start`, poi
