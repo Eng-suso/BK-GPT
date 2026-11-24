@@ -311,10 +311,111 @@ def test_arrivals_cannot_be_instant() -> None:
         import_prosimos(source, bpmn)
 
 
-def test_fuzzy_calendars_are_refused_not_flattened() -> None:
-    source, bpmn = _pair(INPUTS / "real-life" / "AcademicCredentials.json")
-    source = {**source, "model_type": "FUZZY"}
-    with pytest.raises(ProsimosImportError, match="FUZZY"):
+def _fuzzy(name: str) -> tuple[dict, str]:
+    """Lo scenario ``name`` con i calendari delle risorse resi probabilistici, nel
+    formato FUZZY che SIMOD scrive e Prosimos 2.1 legge (``parse_fuzzy_calendar``)."""
+    source, bpmn = _pair(INPUTS / f"{name}.json")
+    source = json.loads(json.dumps(source))
+    source["model_type"] = "FUZZY"
+    source["granule_size"] = {"value": 60, "time_unit": "MINUTES"}
+    for k, calendar in enumerate(source["resource_calendars"]):
+        for j, period in enumerate(calendar["time_periods"]):
+            period["probability"] = round(0.5 + 0.1 * ((k + j) % 5), 6)
+        calendar["workload_ratio"] = [
+            {**period, "probability": round(0.9 - 0.1 * ((k + j) % 3), 6)}
+            for j, period in enumerate(calendar["time_periods"])
+        ]
+    return source, bpmn
+
+
+def _probabilistic(periods: list[dict]) -> list[tuple]:
+    return sorted(
+        (
+            p["from"],
+            p["to"],
+            p["beginTime"],
+            p["endTime"],
+            float(p.get("probability", 0.0)),
+        )
+        for p in periods
+    )
+
+
+@pytest.mark.parametrize(
+    "name", ["real-life/AcademicCredentials", "synthetic/Loan_Application_3_timers"]
+)
+def test_fuzzy_calendars_round_trip_with_their_probabilities(name: str) -> None:
+    source, bpmn = _fuzzy(name)
+    result = import_prosimos(source, bpmn)
+    assert result.model.availability == "probabilistic"
+    assert result.model.granule_minutes == 60
+    compiled = compile_for_prosimos(result.model)
+
+    assert compiled["model_type"] == "FUZZY"
+    assert compiled["granule_size"] == {"value": 60, "time_unit": "MINUTES"}
+    assert isinstance(compiled["granule_size"]["value"], int)
+    used = {
+        r["calendar"] for p in source["resource_profiles"] for r in p["resource_list"]
+    }
+    expected = {
+        c["id"]: (
+            _probabilistic(c["time_periods"]),
+            _probabilistic(c["workload_ratio"]),
+        )
+        for c in source["resource_calendars"]
+        if c["id"] in used
+    }
+    got = {
+        c["id"]: (
+            _probabilistic(c["time_periods"]),
+            _probabilistic(c["workload_ratio"]),
+        )
+        for c in compiled["resource_calendars"]
+    }
+    assert got == expected
+    # Gli arrivi restano su un calendario fisso: Prosimos lo legge cosi'.
+    assert all("probability" not in p for p in compiled["arrival_time_calendar"])
+    assert any(n.topic == "probabilistic_calendars" for n in result.notes)
+
+
+def test_a_fuzzy_granule_in_seconds_becomes_whole_minutes() -> None:
+    source, bpmn = _fuzzy("synthetic/Insurance_Claims")
+    source["granule_size"] = {"value": 120, "time_unit": "seconds"}
+    assert import_prosimos(source, bpmn).model.granule_minutes == 2
+
+
+def test_a_fuzzy_granule_below_a_whole_minute_is_refused_with_the_reason() -> None:
+    # Prosimos divide la giornata in 1440 // granule fasce: serve un intero.
+    source, bpmn = _fuzzy("synthetic/Insurance_Claims")
+    source["granule_size"] = {"value": 30, "time_unit": "seconds"}
+    with pytest.raises(ProsimosImportError, match="minuti interi"):
+        import_prosimos(source, bpmn)
+
+
+@pytest.mark.parametrize(
+    "change, reason",
+    [
+        (lambda s: s.update(model_type="PROBABILISTIC"), "sconosciuto"),
+        (lambda s: s.pop("granule_size"), "granule_size"),
+        (lambda s: s["resource_calendars"][0].pop("workload_ratio"), "workload_ratio"),
+    ],
+    ids=["unknown-type", "no-granule", "no-workload"],
+)
+def test_a_fuzzy_scenario_missing_a_piece_is_refused_with_the_reason(
+    change, reason
+) -> None:
+    source, bpmn = _fuzzy("synthetic/Insurance_Claims")
+    change(source)
+    with pytest.raises(ProsimosImportError, match=reason):
+        import_prosimos(source, bpmn)
+
+
+def test_a_crisp_scenario_cannot_carry_workload_ratios() -> None:
+    source, bpmn = _copy("Insurance_Claims")
+    source["resource_calendars"][0]["workload_ratio"] = [
+        {**source["resource_calendars"][0]["time_periods"][0], "probability": 0.5}
+    ]
+    with pytest.raises(ProsimosImportError, match="calendari fissi"):
         import_prosimos(source, bpmn)
 
 
