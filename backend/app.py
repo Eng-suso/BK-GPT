@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 
 from backend.api.errors import setup_api_error_handlers
 from backend.api.routes.audio import router as audio_router
+from backend.api.routes.identity import public_router as auth_config_router
 from backend.api.routes.identity import router as identity_router
 from backend.api.routes.chat import router as chat_router
 from backend.api.routes.memory import router as memory_router
@@ -57,17 +58,50 @@ def _identity_provider_problems() -> list[str]:
 
     from backend.llm.egress import is_internal_host
 
+    problems: list[str] = []
+    publishable = settings.supabase_publishable_key.strip()
+    if not publishable:
+        problems.append(
+            "DELIR_AUTH_PROVIDER=supabase senza SUPABASE_PUBLISHABLE_KEY: il browser non "
+            "potrebbe fare il login."
+        )
+    elif _looks_like_a_secret_key(publishable):
+        # Finisce in /v1/auth/config, cioe' in ogni browser: una secret key li'
+        # darebbe a chiunque i permessi amministrativi sul progetto Supabase.
+        problems.append(
+            "SUPABASE_PUBLISHABLE_KEY contiene una chiave segreta (secret o "
+            "service_role): usa la publishable key del progetto."
+        )
+
     url = settings.supabase_url.strip()
     if not url:
-        return ["DELIR_AUTH_PROVIDER=supabase senza SUPABASE_URL: nessun token sarebbe verificabile."]
+        return [
+            "DELIR_AUTH_PROVIDER=supabase senza SUPABASE_URL: nessun token sarebbe verificabile.",
+            *problems,
+        ]
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        return ["SUPABASE_URL non e' un URL http(s) valido."]
+        problems.append("SUPABASE_URL non e' un URL http(s) valido.")
     # In chiaro solo verso un host interno (CLI locale, rete docker): le chiavi
     # pubbliche lette da internet senza TLS si potrebbero sostituire in transito.
-    if parsed.scheme != "https" and not is_internal_host(parsed.hostname):
-        return ["SUPABASE_URL deve usare https verso un host esterno."]
-    return []
+    elif parsed.scheme != "https" and not is_internal_host(parsed.hostname):
+        problems.append("SUPABASE_URL deve usare https verso un host esterno.")
+    return problems
+
+
+def _looks_like_a_secret_key(key: str) -> bool:
+    """`sb_secret_...`, o una chiave legacy JWT con `role` service_role."""
+    if key.startswith("sb_secret_"):
+        return True
+    if key.count(".") == 2:
+        import jwt
+
+        try:
+            claims = jwt.decode(key, options={"verify_signature": False})
+        except jwt.PyJWTError:
+            return False
+        return claims.get("role") == "service_role"
+    return False
 
 
 def auth_configuration_problems() -> list[str]:
@@ -322,6 +356,7 @@ app.include_router(simulation_scenarios_router)
 app.include_router(eventlog_router)
 app.include_router(memory_router)
 app.include_router(observability_router)
+app.include_router(auth_config_router)
 app.include_router(identity_router)
 app.include_router(chat_router)
 app.include_router(audio_router)

@@ -57,3 +57,34 @@ def get_current_identity(
         # prova un client, e allora l'unica cosa vera da mostrare e' lo spazio.
         has_user_identity=principal.auth_mode == "supabase",
     )
+
+
+#: Pubblico per costruzione: serve al browser *prima* di avere credenziali.
+public_router = APIRouter(prefix="/v1", tags=["identity"])
+
+
+class AuthConfig(BaseModel):
+    """Come il browser deve provare chi e': niente segreti, solo indirizzi pubblici."""
+
+    #: `local` (autenticazione spenta), `token` (token condiviso del pilota) o
+    #: `supabase` (login per persona).
+    provider: str
+    #: Con `supabase`: l'URL del progetto e la chiave *publishable*, pensata
+    #: per stare nel browser. Altrimenti vuoti.
+    supabase_url: str = ""
+    supabase_publishable_key: str = ""
+
+
+@public_router.get("/auth/config")
+def get_auth_config() -> AuthConfig:
+    """Letta a runtime e non incisa nel bundle: la stessa immagine va in ogni ambiente."""
+    if not settings.delir_auth_enabled:
+        return AuthConfig(provider="local")
+    provider = settings.delir_auth_provider.strip().lower()
+    if provider != "supabase":
+        return AuthConfig(provider=provider)
+    return AuthConfig(
+        provider=provider,
+        supabase_url=settings.supabase_url.rstrip("/"),
+        supabase_publishable_key=settings.supabase_publishable_key,
+    )

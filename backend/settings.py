@@ -230,6 +230,10 @@ class Settings(BaseSettings):
     # in cloud, `http://127.0.0.1:54321` con la CLI locale. Da qui derivano
     # l'issuer atteso (`<url>/auth/v1`) e le chiavi pubbliche (JWKS).
     supabase_url: str = ""
+    # La chiave *publishable* del progetto (`sb_publishable_...`): sta nel
+    # browser per costruzione e il frontend la legge da /v1/auth/config. Mai la
+    # secret key: l'avvio la riconosce e si rifiuta di partire.
+    supabase_publishable_key: str = ""
     supabase_jwt_audience: str = "authenticated"
     # Ogni quanto si rileggono le chiavi pubbliche. Un `kid` sconosciuto le fa
     # rileggere subito (rotazione), al massimo una volta ogni 30 secondi.

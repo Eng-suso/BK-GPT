@@ -208,3 +208,38 @@ def test_a_websocket_authenticates_with_the_same_session(supabase_api, signing_k
 
     principal, closed = run(_token(signing_key[0], role="anon"))
     assert principal is None and closed == 1008
+
+
+def test_the_browser_learns_how_to_log_in_without_credentials(client, supabase_api, monkeypatch):
+    from backend.settings import settings
+
+    monkeypatch.setattr(settings, "supabase_publishable_key", "sb_publishable_chiave-del-browser")
+
+    response = client.get("/v1/auth/config")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "provider": "supabase",
+        "supabase_url": SUPABASE_URL,
+        "supabase_publishable_key": "sb_publishable_chiave-del-browser",
+    }
+    # Niente che il browser non debba vedere.
+    assert settings.delir_admin_token not in response.text
+    assert settings.delir_api_token not in response.text
+
+
+@pytest.mark.parametrize(
+    ("enabled", "provider", "expected"),
+    [(False, "supabase", "local"), (True, "token", "token")],
+)
+def test_without_supabase_the_config_says_nothing_more(client, monkeypatch, enabled, provider, expected):
+    from backend.settings import settings
+
+    monkeypatch.setattr(settings, "delir_auth_enabled", enabled)
+    monkeypatch.setattr(settings, "delir_auth_provider", provider)
+    monkeypatch.setattr(settings, "supabase_url", SUPABASE_URL)
+    monkeypatch.setattr(settings, "supabase_publishable_key", "sb_publishable_x")
+
+    body = client.get("/v1/auth/config").json()
+
+    assert body == {"provider": expected, "supabase_url": "", "supabase_publishable_key": ""}

@@ -191,6 +191,7 @@ def test_a_development_machine_keeps_the_api_docs(monkeypatch, environment):
 def supabase_guarded(guarded, monkeypatch):
     monkeypatch.setattr(settings, "delir_auth_provider", "supabase")
     monkeypatch.setattr(settings, "supabase_url", "https://progetto.supabase.co")
+    monkeypatch.setattr(settings, "supabase_publishable_key", "sb_publishable_chiave-del-browser")
 
 
 def test_supabase_replaces_the_shared_token(supabase_guarded, monkeypatch):
@@ -253,3 +254,34 @@ def test_a_development_machine_with_supabase_needs_its_url(monkeypatch):
 
     with pytest.raises(RuntimeError, match="SUPABASE_URL"):
         assert_environment_is_defensible()
+
+
+def test_supabase_without_a_publishable_key_refuses_to_start(supabase_guarded, monkeypatch):
+    monkeypatch.setattr(settings, "supabase_publishable_key", "")
+
+    with pytest.raises(RuntimeError, match="SUPABASE_PUBLISHABLE_KEY"):
+        assert_environment_is_defensible()
+
+
+def _legacy_key(role: str) -> str:
+    import jwt
+
+    return jwt.encode({"role": role, "iss": "supabase"}, "segreto-qualunque-lungo-32-byte-ok", algorithm="HS256")
+
+
+@pytest.mark.parametrize("key", ["sb_secret_N7UND0Ug", _legacy_key("service_role")])
+def test_a_secret_key_in_the_browser_slot_refuses_to_start(supabase_guarded, monkeypatch, key):
+    """La publishable key finisce in ogni browser: una secret key li' e' un incidente."""
+    monkeypatch.setattr(settings, "supabase_publishable_key", key)
+
+    with pytest.raises(RuntimeError) as failure:
+        assert_environment_is_defensible()
+
+    assert "chiave segreta" in str(failure.value)
+    assert key not in str(failure.value)
+
+
+def test_the_legacy_anon_key_is_accepted_as_publishable(supabase_guarded, monkeypatch):
+    monkeypatch.setattr(settings, "supabase_publishable_key", _legacy_key("anon"))
+
+    assert assert_environment_is_defensible() == "guarded"
