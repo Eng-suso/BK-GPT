@@ -24,7 +24,10 @@ screenshot in `docs/vpt/ux/conformance/`. CONF-01: LoanApp 500/500 casi conformi
 - Il lavoro c'era già su `origin/feat/sim-fuzzy-calendars` (15 commit, misura
   dichiarata, mai portato in PR): ripreso, `origin/main` mergiato (conflitti solo in
   `PLAN.md`, `HANDOFF.md`, `LOG.md`).
-- In corso: verifica indipendente della meta sullo stack reale, code review, PR.
+- Misura (2026-11-24, stack reale): import 76/76, motore Prosimos in processo 31/31,
+  API 6/6 con `DELIR_TEST_PROSIMOS_URL=$PROSIMOS_BASE_URL` (nuovo test: lo scenario
+  FUZZY scoperto da SIMOD fa import → coda → runner HTTP 2.1 → database, 100 casi).
+- In corso: code review, PR.
 
 ## CI
 
