@@ -20,7 +20,7 @@ Modello:
 
 ## 2026-11-24 — IMP-01 avviso sugli arrivi troncati — fatto
 
-- Branch / PR: `feat/sim-import-expon-warning`.
+- Branch / PR: `feat/sim-import-expon-warning`, #185.
 - Meta: importando uno scenario con arrivi `expon` e media vicina al massimo, DeliR
   avvisa in linguaggio di business con cosa cambia e cosa fare; lo scenario resta
   com'era; avvisano le 4 Procure_to_Pay, nessuno dei 15 altri; gate UX → raggiunta.
