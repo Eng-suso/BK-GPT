@@ -41,6 +41,16 @@ def test_phases_come_from_the_worker_line_of_each_run(tmp_path):
     assert measured["motore"]["mean"] == 1.5
 
 
+def test_other_lines_are_ignored_and_a_rerun_counts_its_last_line(tmp_path):
+    log = _log(tmp_path, [
+        "ERROR backend.simulation.service simulazione 7: analisi del risultato fallita",
+        "INFO backend.simulation.service simulazione 7: in coda 0.500 s, motore 9.000 s",
+        "INFO backend.simulation.service simulazione 7: motore 2.000 s, analisi 0.100 s",
+    ])
+    assert phases(log, [7]) == {"motore": {"mean": 2.0, "max": 2.0, "sum": 2.0},
+                                "analisi": {"mean": 0.1, "max": 0.1, "sum": 0.1}}
+
+
 def test_a_run_without_its_line_is_an_error(tmp_path):
     log = _log(tmp_path, ["simulazione 7: motore 2.000 s"])
     with pytest.raises(RuntimeError, match="fasi mancanti"):

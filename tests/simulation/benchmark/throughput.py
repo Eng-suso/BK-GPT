@@ -58,7 +58,8 @@ START = "2026-01-05T08:00:00+00:00"
 TARGET_SECONDS = 60.0
 _TIMEOUT_SECONDS = 900.0
 _POLL_SECONDS = 0.2
-_PHASE_LINE = re.compile(r"simulazione (\d+): (.*)$")
+# Solo la riga di ``_PhaseTimer``: "simulazione 7: in coda 1.000 s, motore 2.000 s, ...".
+_PHASE_LINE = re.compile(r"simulazione (\d+): ((?:[a-z ]+ \d+\.\d{3} s, )*[a-z ]+ \d+\.\d{3} s)$")
 # Costo orario per ruolo: il JSON del paper li ha a zero, il what-if di un cliente no.
 _COST_PER_HOUR = {"Applicant": 0.0, "Clerk": 32.0, "Loan Officer": 45.0, "Senior Officer": 60.0,
                   "Appraiser": 50.0, "AML Investigator": 55.0}
@@ -171,29 +172,30 @@ def product_stack(workers: int, work: Path):
     runner_log, api_log = work / f"runner-{workers}.log", work / f"api-{workers}.log"
     log_config = work / "logging.json"
     log_config.write_text(json.dumps(_LOG_CONFIG), encoding="utf-8")
-    runner = subprocess.Popen(
-        [str(runner_venv / "bin" / "gunicorn"), "--bind", f"127.0.0.1:{runner_port}", "--workers", str(workers),
-         "--timeout", "1800", "runner:app"],
-        cwd=RUNNER_DIR, env={**os.environ, "RUNNER_DATA_DIR": str(work / "runner-data")},
-        stdout=runner_log.open("w"), stderr=subprocess.STDOUT,
-    )
-    api = None
-    try:
-        _wait_healthy(f"http://127.0.0.1:{runner_port}/health", runner, runner_log)
-        api = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "backend.app:app", "--host", "127.0.0.1", "--port", str(api_port),
-             "--workers", "1", "--log-config", str(log_config), "--no-access-log"],
-            cwd=ROOT,
-            env={**os.environ, "PROSIMOS_BASE_URL": f"http://127.0.0.1:{runner_port}",
-                 "SIMULATION_MAX_CONCURRENT_RUNS": str(workers)},
-            stdout=api_log.open("w"), stderr=subprocess.STDOUT,
+    with runner_log.open("w") as runner_out, api_log.open("w") as api_out:
+        runner = subprocess.Popen(
+            [str(runner_venv / "bin" / "gunicorn"), "--bind", f"127.0.0.1:{runner_port}", "--workers", str(workers),
+             "--timeout", "1800", "runner:app"],
+            cwd=RUNNER_DIR, env={**os.environ, "RUNNER_DATA_DIR": str(work / "runner-data")},
+            stdout=runner_out, stderr=subprocess.STDOUT,
         )
-        _wait_healthy(f"http://127.0.0.1:{api_port}/health", api, api_log)
-        yield f"http://127.0.0.1:{api_port}", api_log
-    finally:
-        if api is not None:
-            _stop(api)
-        _stop(runner)
+        api = None
+        try:
+            _wait_healthy(f"http://127.0.0.1:{runner_port}/health", runner, runner_log)
+            api = subprocess.Popen(
+                [sys.executable, "-m", "uvicorn", "backend.app:app", "--host", "127.0.0.1", "--port", str(api_port),
+                 "--workers", "1", "--log-config", str(log_config), "--no-access-log"],
+                cwd=ROOT,
+                env={**os.environ, "PROSIMOS_BASE_URL": f"http://127.0.0.1:{runner_port}",
+                     "SIMULATION_MAX_CONCURRENT_RUNS": str(workers)},
+                stdout=api_out, stderr=subprocess.STDOUT,
+            )
+            _wait_healthy(f"http://127.0.0.1:{api_port}/health", api, api_log)
+            yield f"http://127.0.0.1:{api_port}", api_log
+        finally:
+            if api is not None:
+                _stop(api)
+            _stop(runner)
 
 
 def _ok(response: httpx.Response) -> httpx.Response:
@@ -258,16 +260,24 @@ def whatif(base_url: str, body: dict, label: str) -> dict:
 
 
 def phases(api_log: Path, run_ids: list[int]) -> dict[str, dict[str, float]]:
-    """Le fasi dei run di questo what-if, dalla riga di ``_PhaseTimer``: media e massimo."""
-    wanted, seen = set(run_ids), {}
+    """Le fasi dei run di questo what-if, dalla riga di ``_PhaseTimer``: media e massimo.
+
+    Di un run eseguito piu' volte (rimesso in coda) conta l'ultima riga, quella
+    del tentativo che l'ha completato.
+    """
+    wanted, last = set(run_ids), {}
     for line in api_log.read_text(encoding="utf-8").splitlines():
         match = _PHASE_LINE.search(line)
         if match and int(match.group(1)) in wanted:
-            for part in match.group(2).split(", "):
-                name, seconds, _ = part.rsplit(" ", 2)
-                seen.setdefault(name, []).append(float(seconds))
-    if any(len(values) != len(wanted) for values in seen.values()) or not seen:
-        raise RuntimeError(f"fasi mancanti nel log dell'API ({api_log}): {sorted(seen)}")
+            last[int(match.group(1))] = {
+                name: float(seconds) for name, seconds, _ in (part.rsplit(" ", 2) for part in match.group(2).split(", "))
+            }
+    seen: dict[str, list[float]] = {}
+    for run in last.values():
+        for name, seconds in run.items():
+            seen.setdefault(name, []).append(seconds)
+    if wanted - last.keys() or any(len(values) != len(wanted) for values in seen.values()):
+        raise RuntimeError(f"fasi mancanti nel log dell'API ({api_log}) per i run {sorted(wanted - last.keys())}")
     return {name: {"mean": statistics.fmean(v), "max": max(v), "sum": sum(v)} for name, v in seen.items()}
 
 
