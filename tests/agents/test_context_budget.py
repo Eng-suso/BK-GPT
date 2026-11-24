@@ -132,7 +132,7 @@ def test_patch_prompt_inlines_current_canvas_map_without_raw_xml():
         {"scope_type": "canvas", "chat_mode": "edit", "effective_bpmn_xml": xml},
         compact_canvas_patch=True,
     )
-    assert "canvas-map 1" in prompt
+    assert "canvas-map 2" in prompt
     assert "\tReview\t" in prompt
     assert xml not in prompt
 
@@ -152,7 +152,7 @@ def test_patch_prompt_never_exposes_partial_map(monkeypatch):
             {"scope_type": "canvas", "chat_mode": "edit", "effective_bpmn_xml": xml},
             compact_canvas_patch=True,
         )
-        if "canvas-map 1" in prompt:
+        if "canvas-map 2" in prompt:
             assert "Flow_2" in prompt
             assert "Mappa canvas non inclusa" not in prompt
         else:

@@ -14,7 +14,7 @@ def test_map_lists_every_semantic_id_and_control_edge():
     xml = FIXTURE.read_text(encoding="utf-8")
     root = ET.fromstring(xml)
     lines = [line.split("\t") for line in compact_canvas_map(xml).splitlines()[2:]]
-    mapped_ids = {line[1] for line in lines if line[0] in {"N", "F"}}
+    mapped_ids = {line[1] for line in lines if line[0] in {"N", "F", "A"}}
     semantic_ids = {element.attrib["id"] for element in root.iter()
                     if element.tag.startswith("{" + BPMN_NS + "}") and "id" in element.attrib}
     assert mapped_ids == semantic_ids
@@ -23,6 +23,18 @@ def test_map_lists_every_semantic_id_and_control_edge():
     mapped_edges = {(line[1], line[2], line[3]) for line in lines if line[0] == "F"}
     assert expected_edges <= mapped_edges
     assert "<bpmn" not in compact_canvas_map(xml)
+
+
+def test_map_shows_which_step_uses_which_document():
+    xml = FIXTURE.read_text(encoding="utf-8")
+    assert "A	Request_Data	Open_Request	Request_Document" in compact_canvas_map(xml)
+    inline = ('<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D"><process id="P">'
+              '<task id="T"><dataInputAssociation id="In"><sourceRef>Doc</sourceRef>'
+              '<targetRef>T_in</targetRef></dataInputAssociation>'
+              '<dataOutputAssociation id="Out"><targetRef>Store</targetRef></dataOutputAssociation></task>'
+              '<dataObjectReference id="Doc"/><dataStoreReference id="Store"/></process></definitions>')
+    mapped = compact_canvas_map(inline)
+    assert "A	In	Doc	T" in mapped and "A	Out	T	Store" in mapped
 
 
 def test_map_escapes_labels_and_rejects_entities():
@@ -43,5 +55,5 @@ def test_map_operation_uses_live_canvas_without_database_write(monkeypatch):
     result = canvas_tools.manage_canvas_bpmn_model.func(
         bpmn_model_id="model-1", operation="map", state={}, tool_call_id="call-1",
     )
-    assert "canvas-map 1" in str(result)
+    assert "canvas-map 2" in str(result)
     assert "<definitions" not in str(result)
