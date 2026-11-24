@@ -11,6 +11,7 @@ Dumas, "SIMOD: Automated discovery of business process simulation models",
 | `config/*.yml`, `config/benchmark/` | `resources/config/` | configurazioni di partenza per lo spike G3 (SIMOD come discovery) |
 | `event-logs/Insurance_Claims_train.csv`, `_test.csv` | `tests/assets/` | log con la colonna `extraneous_delay` nota: verifica di B5 |
 | `event-logs/LoanApp_simplified.csv.gz`, `.bpmn` | `tests/assets/` | caso minimo per i test di import e discovery |
+| `discovered/Insurance_Claims_fuzzy/` | prodotto da DeliR, non presente upstream | scenario con calendari FUZZY scoperto da SIMOD 5.2.1 (commit qui sopra) sul log `Insurance_Claims_train.csv` con il BPMN di `extraneous-delays/inputs/synthetic/Insurance_Claims.bpmn` e `config.yml` accanto; unica modifica: `process_model` reso relativo. Prova di CAL-01 |
 
-Nessuna modifica ai file. Il resto del repo SIMOD si scarica con
+Nessuna modifica ai file copiati da upstream. Il resto del repo SIMOD si scarica con
 `scripts/fetch_datasets.py simod`.
