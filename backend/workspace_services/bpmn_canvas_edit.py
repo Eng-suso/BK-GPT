@@ -210,6 +210,11 @@ def update_bpmn_element(
     return _xml_to_string(root), {"before": before, "after": after}
 
 
+_DEPENDENT_CONNECTOR_TYPES = {
+    "association", "messageFlow", "dataInputAssociation", "dataOutputAssociation",
+}
+
+
 def delete_bpmn_element(xml: str, element_id: str) -> tuple[str, dict]:
     """
     Delete a BPMN element and its related flows, boundary events, references, and diagram metadata.
@@ -220,7 +225,9 @@ def delete_bpmn_element(xml: str, element_id: str) -> tuple[str, dict]:
     
     Returns:
         tuple[str, dict]: Updated BPMN XML and a summary containing the deleted element,
-            removed connected flow IDs, and removed boundary-event IDs.
+            removed connected flow IDs, removed boundary-event IDs and removed
+            connector IDs (associations, message flows, data associations; an
+            empty string stands for a connector without ID).
     """
     root = _parse_bpmn_xml(xml)
     element = _find_editable_element(root, element_id)
@@ -243,6 +250,20 @@ def delete_bpmn_element(xml: str, element_id: str) -> tuple[str, dict]:
                     _remove_flow_references(root, flow_id)
                 _remove_element(root, flow)
 
+    # Associations, message flows and data associations cannot point at an
+    # element that no longer exists: the layout would refuse the dangling edge.
+    removed_connectors = []
+    for connector in list(root.iter()):
+        kind = _local_name(connector.tag)
+        if _namespace(connector.tag) != BPMN_NS or kind not in _DEPENDENT_CONNECTOR_TYPES:
+            continue
+        ends = {connector.attrib.get("sourceRef"), connector.attrib.get("targetRef")}
+        ends |= {(ref.text or "").strip() for ref in connector
+                 if _local_name(ref.tag) in {"sourceRef", "targetRef"}}
+        if ends & doomed_ids and connector is not element:
+            removed_connectors.append(connector.attrib.get("id", ""))
+            _remove_element(root, connector)
+
     if element_type == "sequenceFlow":
         _remove_flow_references(root, element_id)
     for doomed in list(root.iter()):
@@ -253,7 +274,7 @@ def delete_bpmn_element(xml: str, element_id: str) -> tuple[str, dict]:
             if ref.text in doomed_ids:
                 lane.remove(ref)
     _remove_element(root, element)
-    _remove_di_for_elements(root, doomed_ids)
+    _remove_di_for_elements(root, doomed_ids | {item for item in removed_connectors if item})
 
     updated_xml = layout_bpmn_di(_xml_to_string(root))
     return updated_xml, {
@@ -262,6 +283,7 @@ def delete_bpmn_element(xml: str, element_id: str) -> tuple[str, dict]:
         "type": element_type,
         "removed_connected_flows": [flow_id for flow_id in removed_flows if flow_id],
         "removed_boundary_events": sorted(doomed_ids - {element_id}),
+        "removed_connectors": removed_connectors,
     }
 
 

@@ -98,8 +98,11 @@ def assert_local_edit_integrity(
     elif operation == "delete_element":
         if not element_id:
             raise ValueError("Eliminazione locale senza ID dell'elemento.")
+        connectors = tuple(change.get("removed_connectors", ()))
+        if "" in connectors:
+            raise ValueError("Eliminazione locale con collegamenti senza ID: canvas invariato.")
         removed = frozenset({element_id, *change.get("removed_connected_flows", ()),
-                             *change.get("removed_boundary_events", ())})
+                             *change.get("removed_boundary_events", ()), *connectors})
         before = _semantic_projection(before_xml, omit_ids=removed)
         after = _semantic_projection(after_xml)
     elif operation == "clear_canvas":

@@ -91,3 +91,24 @@ def test_second_lane_addition_preserves_existing_pool_and_lane():
         before_xml=with_first, after_xml=with_second,
         operation="add_element", change=change,
     )
+
+
+def test_deleting_a_task_also_removes_its_data_association():
+    purchase = (Path(__file__).resolve().parents[1] / "fixtures/purchase_layout.bpmn").read_text(
+        encoding="utf-8"
+    )
+    after, change = delete_bpmn_element(purchase, "Open_Request")
+    assert change["removed_connectors"] == ["Request_Data"]
+    assert 'id="Request_Data"' not in after and 'bpmnElement="Request_Data"' not in after
+    assert 'id="Request_Document"' in after
+    assert_local_edit_integrity(
+        before_xml=purchase, after_xml=after, operation="delete_element", change=change,
+    )
+
+
+def test_delete_without_connector_ids_fails_closed():
+    with pytest.raises(ValueError, match="collegamenti senza ID"):
+        assert_local_edit_integrity(
+            before_xml=XML, after_xml=XML, operation="delete_element",
+            change={"id": "Review", "removed_connectors": [""]},
+        )
