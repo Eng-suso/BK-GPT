@@ -32,6 +32,23 @@ describe("simulation duration disclosure", () => {
     expect(JSON.parse(screen.getByTestId("duration").textContent ?? "{}")).toMatchObject({ stdMinutes: 20, minMinutes: 10, maxMinutes: 1900 });
   });
 
+  it("warns when arrivals will come denser than written and offers the fix (IMP-01)", async () => {
+    const user = userEvent.setup();
+    render(<Harness kind="arrival" initial={{ meanMinutes: 1805 / 60, distribution: "expon", minMinutes: 5 / 60, maxMinutes: 60 }} />);
+    const notice = screen.getByText("I casi arriveranno più spesso del previsto").closest("section")!;
+    expect(notice).toHaveTextContent("I casi arriveranno più spesso del previsto");
+    expect(notice).toHaveTextContent("in media arriva un caso ogni 21 min invece che ogni 30 min, circa il 45% di casi in più");
+    expect(notice).not.toHaveTextContent(/esponenzial|expon|troncat/i);
+    await user.click(within(notice).getByRole("button", { name: "Porta il massimo a 2h 30 min" }));
+    expect(screen.queryByText("I casi arriveranno più spesso del previsto")).not.toBeInTheDocument();
+    expect(JSON.parse(screen.getByTestId("duration").textContent ?? "{}").maxMinutes).toBeCloseTo(150.4, 1);
+  });
+
+  it("does not warn for task durations with the same numbers", () => {
+    render(<Harness initial={{ meanMinutes: 1805 / 60, distribution: "expon", minMinutes: 5 / 60, maxMinutes: 60 }} />);
+    expect(screen.queryByText("I casi arriveranno più spesso del previsto")).not.toBeInTheDocument();
+  });
+
   it("shows required uniform bounds immediately", () => {
     render(<Harness initial={{ meanMinutes: 20, distribution: "uniform", minMinutes: 5, maxMinutes: 30 }} />);
     expect(screen.getByLabelText("Minimo, min · Valuta richiesta")).toBeVisible();

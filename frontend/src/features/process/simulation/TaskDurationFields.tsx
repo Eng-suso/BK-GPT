@@ -1,10 +1,13 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { InlineNotice } from "@/components/feedback";
+import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
 
+import { formatDuration } from "./simulationResults";
 import { DISTRIBUTIONS, type DistributionName } from "./simulationTypes";
-import { DISTRIBUTION_PARAMETERS, taskDurationIssue, type DurationDraft } from "./simulationScenario";
+import { DISTRIBUTION_PARAMETERS, arrivalsRunFaster, taskDurationIssue, type DurationDraft } from "./simulationScenario";
 
 const NATIVE_SELECT = "h-8 w-full min-w-0 ui-field rounded-xl px-2 text-sm";
 
@@ -27,13 +30,17 @@ export function TaskDurationFields<T extends DurationDraft>({
   /** ``arrival``: il tempo fra due arrivi dei casi, con le sue etichette (A2-3). */
   kind?: "duration" | "arrival";
 }): React.JSX.Element {
-  const { t } = useTranslation("process");
+  const { t, i18n } = useTranslation("process");
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const parameters = DISTRIBUTION_PARAMETERS[task.distribution];
   const issue = taskDurationIssue(task);
   const issueId = `sim-duration-issue-${elementId}`;
   const explanationId = `sim-duration-explanation-${elementId}`;
   const isArrival = kind === "arrival";
+  const faster = isArrival && issue === null ? arrivalsRunFaster(task) : null;
+  const lang = i18n.language?.startsWith("en") ? "en" : "it";
+  // Al minuto, come le altre durate del pannello: "21 min", non "20 min 40 s".
+  const readable = (seconds: number) => formatDuration(seconds >= 60 ? Math.round(seconds / 60) * 60 : seconds, lang);
   const interpretation = task.distribution === "uniform"
     ? t(isArrival ? "simulation.config.durationGuide.uniformArrival" : "simulation.config.durationGuide.uniformTask", { min: task.minMinutes ?? "—", max: task.maxMinutes ?? "—" })
     : t(`simulation.config.durationGuide.${task.distribution}${isArrival ? "Arrival" : "Task"}`, { mean: task.meanMinutes });
@@ -99,6 +106,24 @@ export function TaskDurationFields<T extends DurationDraft>({
         {optional("maxMinutes", t("simulation.config.maxMin"))}
       </div>}
       <p id={explanationId} className="text-xs leading-relaxed text-muted-foreground">{interpretation}</p>
+      {faster && task.maxMinutes !== undefined && (
+        <InlineNotice
+          tone="warning"
+          title={t("simulation.config.arrivalsFaster.title")}
+          action={(
+            <Button type="button" size="sm" variant="outline" onClick={() => onChange({ ...task, maxMinutes: faster.suggestedMaxMinutes })}>
+              {t("simulation.config.arrivalsFaster.action", { suggested: readable(faster.suggestedMaxMinutes * 60) })}
+            </Button>
+          )}
+        >
+          {t("simulation.config.arrivalsFaster.body", {
+            max: readable(task.maxMinutes * 60),
+            produced: readable(faster.producedSeconds),
+            mean: readable(task.meanMinutes * 60),
+            more: faster.morePercent,
+          })}
+        </InlineNotice>
+      )}
       <details className="sim-duration-details rounded-md border border-border px-3 py-2" open={advancedOpen || issue !== null} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
           <summary className="cursor-pointer text-xs font-medium text-foreground">{t("simulation.config.durationGuide.technicalDetails")}</summary>
           {task.distribution !== "fixed" && task.distribution !== "uniform" && <>
