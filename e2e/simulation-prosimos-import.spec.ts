@@ -82,7 +82,7 @@ const imported = {
 
 type State = { modelRuns: unknown[]; importRequests: unknown[] };
 
-async function fixture(page: Page, { refuse = false } = {}): Promise<State> {
+async function fixture(page: Page, { refuse = false, broken = false, delayMs = 0 } = {}): Promise<State> {
   const state: State = { modelRuns: [], importRequests: [] };
   await page.addInitScript((stored) => {
     Object.assign(window, { DELIR_API_BASE: "http://127.0.0.1:8000" });
@@ -103,6 +103,11 @@ async function fixture(page: Page, { refuse = false } = {}): Promise<State> {
     };
     else if (path.endsWith("/prosimos-import")) {
       state.importRequests.push(request.postDataJSON());
+      if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
+      if (broken) {
+        await route.fulfill({ status: 500, json: { ok: false, data: null, error: { code: "internal", message: "Internal Server Error", request_id: "r", origin: "server", retryable: false }, meta: { request_id: "r", duration_ms: 1 } } });
+        return;
+      }
       if (refuse) {
         await route.fulfill({ status: 400, json: { ok: false, data: null, error: { code: "bad_request", message: "Lo scenario usa calendari «FUZZY»: DeliR importa solo calendari fissi (CRISP).", request_id: "r", origin: "server", retryable: false }, meta: { request_id: "r", duration_ms: 1 } } });
         return;
@@ -139,6 +144,8 @@ test("a SIMOD scenario the editor cannot hold is read by the server and simulate
   await expect(panel).toBeVisible();
   await expect(panel).toContainText("Attività: 3 · Risorse: 1 · Decisioni: 1 · Attese: 0");
   await expect(panel).toContainText("ricavato da un event log con SIMOD");
+  // C'e' una nota da verificare: il pannello non promette "senza modifiche".
+  await expect(panel).toContainText("con gli adattamenti elencati sotto");
   // Prima cio' che va verificato, in parole semplici; il dettaglio tecnico su richiesta.
   await expect(panel.getByText("Da verificare")).toBeVisible();
   await expect(panel).toContainText("1 decisione con percorsi senza probabilità");
@@ -164,5 +171,34 @@ test("a scenario the server cannot import explains why and changes nothing", asy
   await alert.getByText("Mostra il motivo tecnico").click();
   await expect(alert).toContainText("FUZZY");
   await expect(dialog.getByRole("button", { name: "Simula così com'è" })).toHaveCount(0);
+  expect(state.modelRuns).toEqual([]);
+});
+
+test("a technical failure of the server keeps the editor's own reason", async ({ page }) => {
+  const state = await fixture(page, { broken: true });
+  const dialog = await upload(page);
+
+  const alert = dialog.getByRole("alert");
+  await expect(alert).toContainText("Il file non è stato applicato");
+  await alert.getByText("Mostra il motivo tecnico").click();
+  await expect(alert).not.toContainText("Internal Server Error");
+  await expect(alert.locator("details p")).not.toBeEmpty();
+  expect(state.modelRuns).toEqual([]);
+});
+
+test("a slow answer for a file the consultant left behind never comes back", async ({ page }) => {
+  const state = await fixture(page, { delayMs: 1500 });
+  const dialog = await upload(page);
+  await expect(dialog.getByRole("status").filter({ hasText: "Verifico lo scenario con DeliR" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect.poll(() => state.importRequests.length).toBe(1);
+  await page.waitForTimeout(2000);
+
+  await page.getByRole("button", { name: "Origine parametri" }).click();
+  await page.getByRole("button", { name: /Importa una configurazione/ }).click();
+  const reopened = page.getByRole("dialog", { name: "Importa una configurazione" });
+  await expect(reopened).toBeVisible();
+  await expect(reopened.getByRole("region", { name: "DeliR può simulare questo scenario così com'è" })).toHaveCount(0);
   expect(state.modelRuns).toEqual([]);
 });
