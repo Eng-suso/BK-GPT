@@ -6,8 +6,9 @@ dei tre (G3).
 
 ## Punti attivi
 
-Nessuno. SIM-36, G3 e B6 sono chiusi: prossimo secondo [`PLAN.md`](./PLAN.md) è **B3**
-(discovery dei parametri), che parte dalla decisione G3 (sezione sotto).
+Nessuno. SIM-36, G3 e B6 sono chiusi. Prossimi secondo [`PLAN.md`](./PLAN.md):
+**SIM-36b** ("B = A" sui 3 log train/test) e **IMP-01** (avviso sugli arrivi troncati),
+poi **B3**, che parte dalla decisione G3 (sezione sotto).
 
 ## B6 (fatto il 2026-11-24, `spike/sim-throughput`)
 
@@ -73,6 +74,12 @@ Da sapere per B3 (e B5):
 - **Harness:** `Scenario(name, "real-life", source=cartella)` valuta uno scenario esterno
   con lo stesso log di test; `within_intervals` è la regola "pari" condivisa con B2.
 - La discovery non è riproducibile (nessun seed in SIMOD): gli scenari usati sono nel repo.
+- **Per SIM-36b:** G3 ha già misurato "B = A" con A = train e B = test, riusando
+  `run_baseline.NaiveTwin` (righe "gemello ingenuo" di `g3/results.md`, `naive_metrics` in
+  `g3/evaluate.py`): SIM-36b lo porta nel formato e nella cartella del benchmark.
+- **Per la meta di B3** (batte "B = A" su W1, RED e AED senza sovrapposizione): nessuno
+  scenario SIMOD ci arriva; il migliore, BPIC 2017 W con ritardi estranei, batte su RED e
+  W1 ma perde su AED (106,3 ± 9,3 contro 42,8 ± 4,0).
 - **Proposto, non fatto:** un punto Prod perché l'import rifiuti (o segnali) un gateway che
   torna indietro con probabilità 1 e uscita 0.
 
@@ -114,16 +121,20 @@ test `event type selection…` cliccava. Il test ora tocca l'arco visibile.
 
 ## Decisioni aperte per Sohayb
 
-- Impostare `DELIR_ADMIN_TOKEN` in staging e prod: senza, le cancellazioni ora
-  rispondono 403 (SEC-ADMIN).
 - Copiare comunque nel repo pubblico BPIC 2012/2013/2020 e Prosimos?
-- Confermare la meta marcata *proposta* di B3 in `PLAN.md` (gateway ±0,05, durate
-  ±10%).
-- Arrivi `expon` di Procure_to_Pay: vedi "Richieste per Sohayb" nella sezione B2.
 - G3: aprire un punto Prod perché l'import rifiuti o segnali un gateway che torna indietro
   con probabilità 1 e uscita 0 (SIMOD lo produce su AcademicCredentials e oggi passa).
 - G3: confermare le condizioni per SIMOD come motore di discovery (voce G3 di `LOG.md`),
   prima che B3 ci costruisca sopra.
+
+Decise da Sohayb il 2026-11-24 (motivi in `LOG.md`):
+
+- Benchmark A→B: i 3 log reali train/test del paper sono il banco principale
+  (SIM-36b); BPIC 2012 resta; BPIC 2013 incidents non serve a giudicare un twin.
+- Meta di B3 confermata, con "batte B = A" misurato sui 3 log train/test.
+- Arrivi `expon` di Procure_to_Pay: l'import avvisa il consulente (IMP-01).
+- `DELIR_ADMIN_TOKEN` in staging e prod e la VM per l'isolamento fra clienti: li
+  fa Sohayb; nessun agente può farlo dal repo.
 
 ## B2 (fatto il 2026-11-24, PR #174)
 
