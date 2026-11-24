@@ -70,17 +70,6 @@ def discovered_scenarios() -> list[tuple[str, str, Path]]:
     return found
 
 
-def import_notes(path: harness.ProductPath, scenario: harness.Scenario) -> list[dict]:
-    """Le note del report d'import: cosa DeliR ha dovuto adattare o dichiarare."""
-    bpmn_xml = scenario.model.with_suffix(".bpmn").read_text(encoding="utf-8")
-    imported = path.import_scenario(
-        path.new_process(f"G3 {scenario.name}"),
-        json.loads(scenario.model.with_suffix(".json").read_text(encoding="utf-8")),
-        bpmn_xml,
-    )
-    return imported.get("notes", [])
-
-
 def evaluate_all(*, seed: int, replicas: int) -> dict:
     from fastapi.testclient import TestClient
 
@@ -89,14 +78,20 @@ def evaluate_all(*, seed: int, replicas: int) -> dict:
     found = discovered_scenarios()
     if not found:
         raise SystemExit("nessuno scenario in discovered/: lancia prima discover.sh")
+    # Prima di simulare: lo scenario del paper si prende da B2, con lo stesso seed e le stesse repliche.
+    b2 = json.loads(B2_BASELINE.read_text(encoding="utf-8"))
+    if (b2["seed"], b2["replicas"]) != (seed, replicas):
+        raise SystemExit(f"b2/baseline.json ha seed {b2['seed']} e {b2['replicas']} repliche: rilancia B2 o usa gli stessi")
     simod = []
     with TestClient(app) as client:
         path = harness.ProductPath(client)
         for log, variant, folder in found:
             scenario = harness.Scenario(log, "real-life", source=folder)
-            result = harness.evaluate(path, scenario, seed=seed, replicas=replicas)
+            imported = harness.import_into_new_process(path, scenario)
+            result = harness.evaluate(path, scenario, seed=seed, replicas=replicas, imported=imported)
             result["variant"] = variant
-            result["import_notes"] = import_notes(path, scenario)
+            # Il report d'import intero: cosa DeliR ha dovuto adattare o dichiarare.
+            result["import_notes"] = imported[1].get("notes", [])
             result["discovery"] = json.loads((folder / "discovery.json").read_text(encoding="utf-8"))
             runtimes = folder / "simod_runtimes.json"
             if runtimes.is_file():
@@ -106,9 +101,6 @@ def evaluate_all(*, seed: int, replicas: int) -> dict:
             simod.append(result)
             print(f"{log} {variant}: valutato", file=sys.stderr, flush=True)
 
-    b2 = json.loads(B2_BASELINE.read_text(encoding="utf-8"))
-    if (b2["seed"], b2["replicas"]) != (seed, replicas):
-        raise SystemExit(f"b2/baseline.json ha seed {b2['seed']} e {b2['replicas']} repliche: rilancia B2 o usa gli stessi")
     paper_in_delir = {r["scenario"]: r["metrics"] for r in b2["scenarios"] if r["kind"] == "real-life"}
     published = harness.paper_reference()
     return {
@@ -191,7 +183,7 @@ def notes_table(results: dict) -> str:
         topics = Counter(f"{n['kind']}: {n['topic']}" for n in r["import_notes"])
         listed = "; ".join(f"{topic} ×{count}" for topic, count in sorted(topics.items()))
         lines.append(f"| {r['scenario']} | {r['variant']} | {r['discovery'].get('simod_seconds', '—')} "
-            f"| {r['discovery']['discovery_seconds']} | {listed or 'nessuna'} |")
+            f"| {r['discovery'].get('discovery_seconds', '—')} | {listed or 'nessuna'} |")
     return "\n".join(lines) + "\n"
 
 
@@ -223,7 +215,10 @@ def report(results: dict) -> str:
         "Media ± semiampiezza dell'IC 95%, distanze in ore sul log di test (più basso è meglio). "
         "\"pari\": lo scarto fra le medie è minore della somma degli intervalli.\n\n"
         + table(results) + "\n## Esito\n\n" + verdict_table(results)
-        + "\n## Discovery e import\n\n" + notes_table(results)
+        + "\n## Discovery e import\n\n"
+        + "fuzz ed extr riusano il BPMN di diff: il loro tempo si aggiunge a quello di diff. "
+        "Le diagnosi (-loopfix) non sono discovery: sono lo scenario di partenza con il ciclo riaperto.\n\n"
+        + notes_table(results)
         + "\n## Valutazione di SIMOD contro quella di DeliR\n\n" + simod_self_check(results)
     )
 
