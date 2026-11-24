@@ -87,8 +87,7 @@ non lo conta come errore di accuratezza del modello.
 
 Nel checkout originario sono passati 436 test BPMN prima dell'ultimo gate L3,
 poi 70 test mirati dopo il gate; Ruff e `git diff --check` erano verdi. **Rifare
-le verifiche su questo worktree e sulla CI della PR**, che parte dal branch
-remoto aggiornato. In particolare verificare la costruzione completa e le
+le verifiche sulla CI della PR** dopo ogni modifica. In particolare verificare la costruzione completa e le
 review, la compatibilita' con gli altri lavori confluiti nel branch e il
 comportamento di canvas vuoti, subprocessi ed eventi.
 
@@ -112,7 +111,14 @@ release. Non salvare dati cliente grezzi, segreti o credenziali nella PR.
 
 ## Contesto del branch
 
-Questa PR e' basata su `origin/feat/sim-prosimos-import` aggiornato. Il checkout
-locale originario era fermo a un commit piu' vecchio e conteneva anche modifiche
-non committate a simulazione, MCP, `pyproject.toml` e `uv.lock`. Solo il lavoro
-canvas e' stato trasferito qui; non includere quelle modifiche parallele.
+Questa PR parte da `origin/main` (40edf62d, dopo #174) e punta a `main`. Il
+lavoro e' nato in un checkout fermo su `feat/sim-prosimos-import` (gia'
+mergiato con #169) insieme a modifiche parallele su simulazione e MCP. Qui c'e'
+solo il lavoro canvas; il server MCP ha una PR separata. Non includere
+modifiche a simulazione, `pyproject.toml` o `uv.lock`.
+
+Verifica su questa base (24/11/2026): 518 test superati
+(`tests/bpmn`, `tests/agents/test_canvas_graph.py`,
+`tests/agents/test_context_budget.py`, `tests/evals/l0_deterministic/test_canvas_*`)
+sullo stack di test 55301; Ruff e `git diff --check` verdi. Nessuna migrazione
+Alembic nuova.
