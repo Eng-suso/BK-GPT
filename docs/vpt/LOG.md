@@ -18,6 +18,157 @@ Modello:
 
 ---
 
+## 2026-11-24 — SIM-36b baseline "B = A" sui log train/test — fatto
+
+- Branch / PR: `feat/sim-benchmark-train-test`.
+- Meta: "B = A" (impara dal train, prevede il test) misurata sui 3 log reali del paper con
+  metriche, repliche e formato di B2, salvata con il comando per rifarla; BPIC 2013
+  incidents marcato come non adatto al confronto A→B → raggiunta. Comando:
+  `run_baseline.py AcademicCredentials BPIC_2012_W BPIC_2017_W` (seed 20261124, 10 repliche, ore):
+
+  | Log | W1 | NGD | RED | AED | CED | CAR |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | AcademicCredentials | 28,827 ± 3,601 | 0,179 ± 0,006 | 25,856 ± 2,223 | 62,309 ± 6,194 | 1,391 ± 0,116 | 95,460 ± 17,106 |
+  | BPIC_2012_W | 28,061 ± 2,000 | 0,083 ± 0,005 | 10,140 ± 2,565 | 29,710 ± 4,414 | 0,800 ± 0,155 | 38,215 ± 4,309 |
+  | BPIC_2017_W | 30,602 ± 1,481 | 0,079 ± 0,001 | 11,359 ± 1,570 | 42,785 ± 4,042 | 0,660 ± 0,011 | 35,916 ± 3,821 |
+
+  Contro lo scenario SIMOD del paper di B2: "B = A" migliore in 17 confronti su 18, pari
+  su CAR di AcademicCredentials. Stessi file bit per bit su due passate; i JSON SIM-36 di
+  BPIC 2012 e 2013 rilanciati con metriche identiche (aggiunti solo `split` e la marcatura).
+- Iterazioni: 1) estensione di `run_baseline.py` (A = train, B = test, fuso UTC perché i
+  CSV non ne hanno) → numeri uguali a quelli della decisione del 2026-11-24; 2) la
+  marcatura di BPIC 2013 non compariva con il JSON vecchio: rilancio dei BPIC.
+- Code review: `code-review` 7 rilievi, tutti corretti (log mancante in B2 → nota invece
+  di KeyError; file di B2 scelto dal chiamante, `--b2`; un log con seed diverso non
+  cancella il confronto degli altri; nota di BPIC 2013 solo se il log è nella cartella;
+  `compare_with_paper` usa la regola comune; docstring; etichette pubbliche
+  `METRIC_LABELS`). `backend/CODE_QUALITY.md`: nessun rilievo (script di benchmark, nessun
+  errore inghiottito: log indisponibile o confronto non fatto sono scritti). ast-grep
+  (4 regole): 0. ruff e mypy puliti. `simplify` con 4 revisori: una fonte per log
+  (`SOURCES`) invece dei rami `if key in REAL_LIFE`, `ROOT` e `manifest_entry(id)`
+  riusati, un solo `cell()` per media ± intervallo, etichetta del benchmark nella fonte.
+  Non applicati, con motivo: `within_intervals` resta identica a G3 (stesso hunk, merge
+  pulito); costanti dei percorsi train/test comuni con G3 (da fare quando G3 è su main);
+  rilettura dei CSV nei test (≈20 KB, trascurabile).
+- Skill: `code-review`, `simplify`. Nessuna di frontend: punto di ricerca senza UI,
+  niente gate UX.
+- Decisioni: nessuna meta cambiata.
+- Prossimo passo: G3 e B3 misurano il twin contro questa baseline; G3 può usare
+  `run_baseline.measure` invece della sua copia del gemello.
+
+---
+
+## 2026-11-24 — G3 spike SIMOD — fatto
+
+- Branch / PR: `spike/sim-simod-discovery`.
+- Meta: SIMOD scopre i 3 log reali dal train, lo scenario si importa in DeliR (FUZZY
+  compresi), si valuta sul test con l'harness di B2 contro lo scenario del paper, decisione
+  scritta → raggiunta. Comandi: `tests/simulation/benchmark/g3/discover.sh all`, poi
+  `uv run python tests/simulation/benchmark/g3/evaluate.py` sullo stack reale (seed
+  20261124, 10 repliche). Tabelle complete in `tests/simulation/benchmark/g3/results.md`.
+- Misura (ore, media ± IC 95%, più basso è meglio; "ingenuo" è il "B = A" di SIM-36 con
+  A = train e B = test):
+
+  | Log | Scenario | RED | AED | W1 cycle time | CAR |
+  | --- | --- | --- | --- | --- | --- |
+  | AcademicCredentials | SIMOD 5.2.1 fissi | 6649 ± 2136 | 6904 ± 2196 | 295,4 ± 29,7 | 254,2 ± 36,4 |
+  | AcademicCredentials | SIMOD 5.2.1 FUZZY | 10074 ± 3042 | 10372 ± 3061 | 324,0 ± 67,2 | 270,1 ± 41,5 |
+  | AcademicCredentials | paper in DeliR | 77,5 ± 0,2 | 121,4 ± 23,3 | 174,8 ± 0,4 | 131,0 ± 25,9 |
+  | AcademicCredentials | ingenuo | 25,9 ± 2,2 | 62,3 ± 6,2 | 28,8 ± 3,6 | 95,5 ± 17,1 |
+  | BPIC 2012 W | SIMOD 5.2.1 fissi | 178,0 ± 0,1 | 172,6 ± 9,2 | 175,3 ± 0,0 | 41,5 ± 6,5 |
+  | BPIC 2012 W | SIMOD 5.2.1 FUZZY | 87,5 ± 9,8 | 123,0 ± 9,6 | 307,4 ± 50,1 | 66,0 ± 9,1 |
+  | BPIC 2012 W | SIMOD 5.2.1 fissi + ritardi estranei | 65,3 ± 2,4 | 92,7 ± 10,9 | 42,5 ± 2,1 | 65,8 ± 10,4 |
+  | BPIC 2012 W | paper in DeliR | 178,5 ± 0,0 | 221,5 ± 8,2 | 175,7 ± 0,0 | 85,8 ± 8,1 |
+  | BPIC 2012 W | ingenuo | 10,1 ± 2,6 | 29,7 ± 4,4 | 28,1 ± 2,0 | 38,2 ± 4,3 |
+  | BPIC 2017 W | SIMOD 5.2.1 fissi | 183,0 ± 0,0 | 244,4 ± 14,2 | 252,9 ± 0,0 | 112,7 ± 11,6 |
+  | BPIC 2017 W | SIMOD 5.2.1 FUZZY | 167,1 ± 0,7 | 241,8 ± 12,0 | 230,2 ± 0,9 | 123,6 ± 11,3 |
+  | BPIC 2017 W | SIMOD 5.2.1 fissi + ritardi estranei | 8,1 ± 0,5 | 106,3 ± 9,3 | 17,9 ± 1,7 | 154,6 ± 9,0 |
+  | BPIC 2017 W | paper in DeliR | 183,5 ± 0,0 | 303,4 ± 9,7 | 253,3 ± 0,0 | 169,6 ± 9,4 |
+  | BPIC 2017 W | ingenuo | 11,4 ± 1,6 | 42,8 ± 4,0 | 30,6 ± 1,5 | 35,9 ± 3,8 |
+
+  - Contro lo scenario del paper: SIMOD 5.2.1 a calendari fissi è migliore su 4/4 metriche
+    sia su BPIC 2012 W sia su BPIC 2017 W. Su AcademicCredentials è molto peggiore.
+  - Contro l'ingenuo: vince solo BPIC 2017 W con i ritardi estranei, su RED (8,1 contro 11,4)
+    e W1 (17,9 contro 30,6). AED e CAR restano dell'ingenuo ovunque; BPIC 2012 W CRISP è pari
+    su CAR. In tutto 2 coppie log × metrica vinte su 12.
+- Tempo di discovery (SIMOD, preprocessing + pipeline, 4 vCPU; wall-clock nel report):
+  AcademicCredentials 106 s, BPIC 2012 W 687 s, BPIC 2017 W 1545 s a calendari fissi; FUZZY
+  e ritardi estranei riusano quel BPMN e aggiungono 389-1133 s. I `diff` sono stati misurati
+  con 3 discovery in parallelo.
+- Cosa l'import ha dovuto adattare: niente. Solo note informative: attività istantanee
+  (1-16 per scenario) e "calendari probabilistici" sui FUZZY (306 calendari su
+  AcademicCredentials, importati grazie a CAL-01). I timer dei ritardi estranei entrano
+  senza note. DeliR riproduce la valutazione di SIMOD stesso (BPIC 2012 W fissi: RED
+  178,0/178,0, W1 175,3/175,3; tabella in `results.md`): l'import è fedele, gli scarti
+  sono del modello scoperto.
+- Cosa SIMOD non sa fare (visto qui):
+  - **Cicli senza uscita.** Su AcademicCredentials il gateway dopo "Avanzar recepcion
+    documentos" ha uscita 0 e ritorno 1 (attività in 2 casi su 398 del train): chi entra
+    ripete ~1000 volte, RED 6649 h. SIMOD lo vede nella sua valutazione (RED ~6240 h) e lo
+    sceglie lo stesso: la sua metrica di ottimizzazione (2-gram) non lo punisce. Riaperto il
+    ciclo alla frequenza del train (`fix_dead_loops.py`, diagnosi, non uno scenario SIMOD):
+    RED 77,9 ± 0,5, pari al paper; AED 233 e CAR 254 restano peggiori.
+  - **Ritardi estranei su AcademicCredentials:** SIMOD crolla (timestamp nel 2262,
+    `OutOfBoundsDatetime` in pandas) per lo stesso ciclo. Traccia in `g3/failures/`.
+  - **Riproducibilità:** nessun seed (hyperopt): rilanciata, la discovery dà scenari
+    diversi. Gli scenari usati sono nel repo.
+  - **Arrivi:** CAR peggiore dell'ingenuo in 7 scenari SIMOD su 8, pari nell'ottavo (BPIC 2012 W fissi).
+  - I calendari FUZZY non sono meglio dei fissi: W1 peggiore su BPIC 2012 W (307 contro 175).
+- Nota di B2 su Procure_to_Pay: non tocca questi confronti. Gli arrivi scoperti sono tutti
+  lognorm (lo scenario del paper usa gamma), con media lontana dal massimo; nessun `expon`
+  troncato.
+- **Decisione G3: SIMOD sì, come motore di discovery di DeliR, a queste condizioni.**
+  1. Gira come lavoro in background in un servizio a parte, come il runner: Python 3.12,
+     Java, da 2 a 45 minuti per log su 4 vCPU. Lo scenario prodotto si salva con versione e
+     configurazione, perché la discovery non è riproducibile.
+  2. Variante di partenza: calendari fissi + ritardi estranei. È l'unica che si avvicina
+     all'ingenuo (BPIC 2017 W lo batte su RED e W1); senza ritardi W1 è 6-8 volte quello
+     dell'ingenuo.
+  3. Prima di proporlo al consulente, DeliR controlla lo scenario: un gateway che torna
+     indietro con probabilità 1 e uscita 0 blocca l'import con un messaggio chiaro (oggi
+     passa in silenzio). Su log piccoli come AcademicCredentials (398 casi) lo scenario non
+     è affidabile.
+  4. Uno scenario SIMOD non è "validato" finché non batte "B = A" sul test con gli
+     intervalli: oggi succede su 2 coppie log × metrica su 12. La meta H1 di B3 (batte "B =
+     A" su ≥ 3 log) SIMOD da solo non la raggiunge: B3 parte da SIMOD con i ritardi
+     estranei come base e lavora su arrivi (CAR) e attese (AED).
+- Cosa è cambiato:
+  - `tests/simulation/benchmark/g3/`: configurazioni, `discover.sh`, `evaluate.py`,
+    `fix_dead_loops.py`, scenari scoperti, risultati, README con i comandi.
+  - `eval_harness.py`: `Scenario.source` per scenari esterni; `import_into_new_process` e
+    `within_intervals` condivisi. Verificato che `b2/baseline.json` dei 3 reali resta
+    identico.
+  - Nessun file di prodotto toccato; `run_baseline.py` e B6 non toccati, solo riusato
+    `NaiveTwin`.
+- Iterazioni:
+  1) Gemello ingenuo mio, spostato sul primo inizio, sostituito da quello di SIM-36 (mediana,
+     repliche con intervallo): AED di AcademicCredentials da 165 a 62 h.
+  2) Aggiunta la variante con i ritardi estranei (configurazioni `_extr` di SIMOD) quando è
+     stato chiaro che il divario con l'ingenuo è nelle attese, tema del paper.
+  3) Le prime discovery hanno perso `runtimes.json` per una modifica allo script in corsa:
+     copiato a mano, script ora tutto dentro `main`.
+- Code review:
+  - `code-review`: 10 rilievi, tutti corretti. I principali: `all` si fermava al crash noto;
+    una discovery fallita lasciava lo scenario vecchio; il controllo del seed di B2 arrivava
+    dopo 15 minuti di simulazioni; doppio import per scenario; tempi ereditati sulle diagnosi.
+  - `backend/CODE_QUALITY.md` e le 4 regole ast-grep: 0 rilievi; aggiunti i test delle
+    trasformazioni deterministiche (`g3/test_g3_spike.py`).
+  - `simplify` con 4 revisori: 5 corretti (regola degli intervalli condivisa con B2,
+    grafo BPMN del backend nella diagnosi, etichette uniche, cartella nel risultato, niente
+    `deepcopy`) e 3 saltati con motivo (letture ripetute dei log < 1% del tempo; percorsi dei
+    log scritti a mano, pochi e a basso rischio in uno spike).
+  - Nessuna autenticazione o isolamento fra clienti toccati: niente `security-review`.
+- Skill: `code-review`, `simplify`. Nessuna di frontend: punto di ricerca senza UI, quindi
+  niente gate UX.
+- Con la meta di B3 decisa da Sohayb lo stesso giorno (batte "B = A" train/test su W1, RED e
+  AED senza sovrapposizione), nessuno scenario SIMOD passa: il migliore (BPIC 2017 W con
+  ritardi estranei) vince su RED e W1, perde su AED.
+- Prossimo passo: SIM-36b (il "B = A" train/test è già misurato qui, da portare nel
+  benchmark) e IMP-01, poi B3 con SIMOD (fissi + ritardi estranei) come candidato di
+  partenza; proposto un punto Prod per il controllo dei cicli senza uscita nell'import.
+
+---
+
 ## 2026-11-24 — B6 throughput del simulatore (G2) — fatto
 
 - Branch / PR: `spike/sim-throughput`.
@@ -61,6 +212,35 @@ Modello:
   le ripetizioni esistono solo su `simulation-runs`.
 - Prossimo passo: B7 (ottimizzazione) puo' partire quando V3 e' chiuso; G3 e B3 come
   da piano.
+
+---
+
+## 2026-11-24 — decisioni di Sohayb su benchmark, B3, import e infrastruttura — fatto
+
+- Branch / PR: `docs/vpt-decisions-2026-11-24`. Solo piano e documenti.
+- Misure che hanno portato alle decisioni (strumenti di SIM-36, seed 20261124):
+  - **Taglio A/B su BPIC 2012.** Metà dei casi, metà del tempo e metà del tempo senza
+    l'1% di code danno W1 16,3, 16,5 e 17,6 h. Il criterio conta poco.
+  - **Taglio A/B su BPIC 2013 incidents.** Con ogni taglio il 100% dei casi di B è
+    troncato dalla fine del log; con la metà del tempo A ha 7 casi. Il log è una foto
+    degli incidenti aperti a maggio 2012, non un flusso.
+  - **"B = A" sui 3 log train/test del paper** contro il modello SIMOD simulato da B2:
+    "B = A" vince 14 confronti su 15 con intervalli separati (pari su CAR di
+    AcademicCredentials). W1 vale 28,8 contro 174,8 h, 28,1 contro 175,7 h e 30,6
+    contro 253,3 h.
+- Decisioni (Sohayb, 2026-11-24):
+  1. Il benchmark A→B principale sono i 3 log train/test; nuovo punto SIM-36b. BPIC
+     2012 resta. BPIC 2013 incidents si marca come non adatto al confronto A→B.
+  2. La meta di B3 sui sintetici è confermata (gateway ±0,05, durate ±10%). Sui reali
+     "batte B = A" diventa: sui 3 log train/test, su W1, RED e AED, con intervalli al
+     95% separati. NGD resta fuori dal criterio perché "B = A" ripete tracce reali e
+     parte avvantaggiato sui percorsi.
+  3. L'import avvisa sugli arrivi `expon` con media vicina al massimo; nuovo punto IMP-01.
+  4. `DELIR_ADMIN_TOKEN` in staging e prod e la VM per l'isolamento fra clienti li
+     sblocca Sohayb.
+- Mete abbassate: nessuna. La meta di B3 sui reali è più precisa e più dura (tutti e 3
+  i log, tre metriche).
+- Prossimo passo: SIM-36b in una sessione nuova, poi G3 e B3; IMP-01 in parallelo.
 
 ---
 

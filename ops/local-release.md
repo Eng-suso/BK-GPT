@@ -51,8 +51,23 @@ locali, senza stampare i valori. Il validatore estende la classe
 `backend.settings.Settings` con campi Compose tipizzati da Pydantic e usa
 `SecretStr` per mascherare le credenziali nelle rappresentazioni. La generazione
 resta affidata a `secrets`; `SecretStr` non cifra i file e non sostituisce un
-Secret Manager. L'overlay locale forza tracing LangSmith spento e svuota chiave
-LangSmith e token admin anche se la shell contiene questi valori. Le altre
+Secret Manager. L'overlay locale forza tracing LangSmith spento e svuota la chiave
+LangSmith anche se la shell contiene questi valori.
+
+STAGING e PROD-SIM hanno la stessa configurazione d'accesso della produzione.
+Ognuno ha un `DELIR_ADMIN_TOKEN` proprio, diverso dal token API, che serve per
+cancellare clienti, progetti, processi o il workspace (header
+`X-DeliR-Admin-Token`). Fuori da dev l'app **non parte** (fail closed) se:
+- manca la chiave admin, oppure e' piu' corta di 32 caratteri, oppure coincide
+  col token API;
+- il token API e' piu' corto di 32 caratteri;
+- l'allowlist dei tenant e' vuota, oppure non contiene il tenant di default;
+- `DELIR_CORS_ORIGINS` contiene `*` o e' vuota.
+
+L'errore elenca tutti i problemi insieme, con il nome delle variabili e mai i
+valori. Un file generato prima della chiave admin si aggiorna con `init`, che
+aggiunge solo le chiavi mancanti: le password dei database non vengono mai
+rigenerate, perche' sono gia' scritte nei volumi. Le altre
 variabili Compose che la shell sovrascriverebbe sono rifiutate dal validatore.
 Non eseguire `docker compose config` senza
 `--quiet`: l'output completo contiene le credenziali interpolate.
@@ -63,7 +78,7 @@ In PowerShell, prepara il virtualenv dal root con
 `uv --cache-dir .uv-cache sync --locked`, poi entra nella cartella `ops`:
 
 ```powershell
-& ..\.venv\Scripts\python.exe local_release.py init staging     # solo al primo avvio; non sovrascrive
+& ..\.venv\Scripts\python.exe local_release.py init staging     # crea il file, o aggiunge solo le chiavi nuove
 & ..\.venv\Scripts\python.exe local_release.py check staging
 
 # Solo database e grafo, per lavoro senza app/Docling/Prosimos:

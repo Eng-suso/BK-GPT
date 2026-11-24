@@ -44,8 +44,13 @@ SECRET_KEYS = (
     "DELIR_WORKSPACE_PASSWORD",
     "NEO4J_PASSWORD",
     "DELIR_API_TOKEN",
+    "DELIR_ADMIN_TOKEN",
 )
-COMPARISON_SECRET_KEYS = (*SECRET_KEYS, "OPENAI_API_KEY", "DELIR_ADMIN_TOKEN")
+#: Segreti che `init` puo' aggiungere a un file gia' esistente. Solo quelli che
+#: non vivono dentro un volume: una password PostgreSQL o Neo4j nuova non
+#: cambierebbe quella gia' inizializzata nel volume e lo stack non partirebbe.
+UPGRADABLE_SECRET_KEYS = ("DELIR_ADMIN_TOKEN",)
+COMPARISON_SECRET_KEYS = (*SECRET_KEYS, "OPENAI_API_KEY")
 COMPOSE_ENV_KEYS = (
     *COMPARISON_SECRET_KEYS,
     *PORT_KEYS,
@@ -98,6 +103,7 @@ class LocalReleaseSettings(Settings):
     DELIR_WORKSPACE_PASSWORD: SecretStr
     neo4j_password: SecretStr
     delir_api_token: SecretStr
+    delir_admin_token: SecretStr
     openai_api_key: SecretStr
     delir_default_tenant_id: str = Field(min_length=1, pattern=TENANT_PATTERN.pattern)
     delir_allowed_tenant_ids: str = Field(min_length=1)
@@ -112,6 +118,7 @@ class LocalReleaseSettings(Settings):
         "DELIR_WORKSPACE_PASSWORD",
         "neo4j_password",
         "delir_api_token",
+        "delir_admin_token",
     )
     @classmethod
     def valid_secret(cls, value: SecretStr) -> SecretStr:
@@ -133,6 +140,9 @@ class LocalReleaseSettings(Settings):
             raise ValueError("tenant di default assente dalla allowlist")
         if self.DELIR_PUBLIC_ORIGIN != f"http://127.0.0.1:{self.APP_PORT}":
             raise ValueError("origine locale non corrisponde alla porta app")
+        if self.delir_admin_token.get_secret_value() == self.delir_api_token.get_secret_value():
+            # Stessa regola dell'avvio dell'app: altrimenti chiunque usi l'app e' admin.
+            raise ValueError("token admin uguale al token API")
         return self
 
 
@@ -184,6 +194,24 @@ def generate(mode: str) -> Path:
     with target.open("x", encoding="utf-8", newline="\n") as file:
         file.write(content)
     return target
+
+
+def add_missing_secrets(mode: str) -> list[str]:
+    """Aggiunge a un file esistente i segreti introdotti dopo la sua generazione.
+
+    Non tocca nessun valore presente. Restituisce i nomi aggiunti, mai i valori.
+    """
+    target = env_path(mode)
+    values = read_env(target)
+    missing = [key for key in UPGRADABLE_SECRET_KEYS if not values.get(key)]
+    if not missing:
+        return []
+    content = target.read_text(encoding="utf-8-sig")
+    lines = [line for line in content.splitlines() if line.split("=", 1)[0].strip() not in missing]
+    lines += [f"{key}={secrets.token_hex(24)}" for key in missing]
+    with target.open("w", encoding="utf-8", newline="\n") as file:
+        file.write("\n".join(lines) + "\n")
+    return missing
 
 
 def _ports(values: dict[str, str], defaults: tuple[int, ...]) -> set[int]:
@@ -410,7 +438,11 @@ def main() -> int:
         try:
             target = generate(args.mode)
         except FileExistsError:
-            print(f"{env_path(args.mode).name} esiste gia': nessuna modifica")
+            added = add_missing_secrets(args.mode)
+            if added:
+                print(f"{env_path(args.mode).name}: aggiunti {', '.join(added)}; valori non mostrati")
+            else:
+                print(f"{env_path(args.mode).name} esiste gia': nessuna modifica")
         else:
             print(f"creato {target.name}; valori non mostrati")
     errors = validate(args.mode)
