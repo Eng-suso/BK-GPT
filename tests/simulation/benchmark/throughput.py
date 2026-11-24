@@ -234,21 +234,25 @@ def whatif(base_url: str, body: dict, label: str) -> dict:
                 raise TimeoutError(f"what-if {label}: non finito dopo {_TIMEOUT_SECONDS:g} s")
             time.sleep(_POLL_SECONDS)
         completed = time.perf_counter() - started
+        runs.sort(key=lambda r: r["request"]["replication_index"])
+        # Prima i KPI, come li legge il pannello; poi i log, come li scarica il consulente.
+        kpis = [_ok(client.get(f"/v1/workspace/simulation-runs/{run['id']}")).json().get("summary") for run in runs]
+        kpi_read = time.perf_counter() - started
+        logs = [_ok(client.get(f"/v1/workspace/simulation-runs/{run['id']}/event-log", params={"format": "csv"})).text
+                for run in runs]
+        total = time.perf_counter() - started
         fingerprints = {}
-        for run in sorted(runs, key=lambda r: r["request"]["replication_index"]):
-            saved = _ok(client.get(f"/v1/workspace/simulation-runs/{run['id']}")).json()
-            log = _ok(client.get(f"/v1/workspace/simulation-runs/{run['id']}/event-log", params={"format": "csv"})).text
-            if not saved.get("summary") or not log:
+        for run, kpi, log in zip(runs, kpis, logs, strict=True):
+            if not kpi or not log:
                 raise RuntimeError(f"run {run['id']}: KPI o log non leggibili")
             fingerprints[str(run["request"]["replication_index"])] = {
                 "seed": run["request"]["seed"],
-                "kpi": _digest(json.dumps(saved["summary"], sort_keys=True)),
+                "kpi": _digest(json.dumps(kpi, sort_keys=True)),
                 "event_log": _digest(log),
             }
-        total = time.perf_counter() - started
     return {
-        "run_ids": sorted(r["id"] for r in runs),
-        "accepted_s": accepted, "completed_s": completed, "total_s": total,
+        "run_ids": [r["id"] for r in runs],
+        "accepted_s": accepted, "completed_s": completed, "kpi_read_s": kpi_read, "total_s": total,
         "runs_per_minute": REPLICAS / total * 60, "fingerprints": fingerprints,
     }
 
@@ -290,17 +294,19 @@ _PHASES = ("in coda", "motore", "analisi", "salvataggio")
 def table(results: list[dict]) -> str:
     lines = [
         f"What-if: {REPLICAS} ripetizioni x {CASES} casi, scenario Loan_Application, seed {SEED}. "
-        f"Meta: meno di {TARGET_SECONDS:g} s dalla richiesta al risultato riletto.",
+        f"Meta: meno di {TARGET_SECONDS:g} s dalla richiesta al risultato riletto (KPI e log di tutte le ripetizioni).",
+        "Tempi dall'invio della richiesta; le fasi sono la media per run.",
         "",
-        "| Worker | Giro | Totale (s) | Run/min | Accettato (s) | Tutti completati (s) | "
-        + " | ".join(f"{p} media (s)" for p in _PHASES) + " | Meta |",
-        "| --- | --- | --- | --- | --- | --- |" + " --- |" * len(_PHASES) + " --- |",
+        "| Worker | Giro | Totale (s) | Run/min | Accettato (s) | Tutti completati (s) | KPI letti (s) | "
+        + " | ".join(f"{p} (s)" for p in _PHASES) + " | Meta |",
+        "| --- | --- | --- | --- | --- | --- | --- |" + " --- |" * len(_PHASES) + " --- |",
     ]
     for r in results:
         cells = " | ".join(f"{r['phases'][p]['mean']:.2f}" if p in r["phases"] else "-" for p in _PHASES)
         lines.append(
             f"| {r['workers']} | {r['round']} | {r['total_s']:.1f} | {r['runs_per_minute']:.1f} | {r['accepted_s']:.2f} "
-            f"| {r['completed_s']:.1f} | {cells} | {'raggiunta' if r['total_s'] < TARGET_SECONDS else 'no'} |"
+            f"| {r['completed_s']:.1f} | {r['kpi_read_s']:.1f} | {cells} "
+            f"| {'raggiunta' if r['total_s'] < TARGET_SECONDS else 'no'} |"
         )
     return "\n".join(lines) + "\n"
 
