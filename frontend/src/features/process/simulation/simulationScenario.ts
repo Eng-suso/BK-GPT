@@ -345,7 +345,7 @@ export function horizonIssue(draft: ScenarioDraft): "range" | null {
 /** IMP-01: oltre questo scarto fra media scritta e media simulata il ritmo dei casi cambia. */
 const ARRIVAL_DRIFT = 0.1;
 
-export type ArrivalsFaster = { producedSeconds: number; morePercent: number; suggestedMaxMinutes: number };
+export type ArrivalsFaster = { meanSeconds: number; maxSeconds: number; producedSeconds: number; morePercent: number; suggestedMaxMinutes: number };
 
 /**
  * Gli arrivi esponenziali con il massimo vicino alla media arrivano piu' fitti di quanto
@@ -357,12 +357,15 @@ export function arrivalsRunFaster(arrival: DurationDraft): ArrivalsFaster | null
   const mean = arrival.meanMinutes * 60;
   const minimum = (arrival.minMinutes ?? 0) * 60;
   const scale = mean - minimum;
-  const span = arrival.maxMinutes * 60 - minimum;
+  const maximum = arrival.maxMinutes * 60;
+  const span = maximum - minimum;
   if (!(scale > 0) || !(span > 0)) return null;
   const tail = Math.exp(-span / scale);
   const produced = minimum + scale - (span * tail) / (1 - tail);
   if (produced >= mean * (1 - ARRIVAL_DRIFT)) return null;
   return {
+    meanSeconds: mean,
+    maxSeconds: maximum,
     producedSeconds: produced,
     morePercent: Math.round(((mean / produced - 1) * 100) / 5) * 5,
     suggestedMaxMinutes: arrival.meanMinutes * 5,

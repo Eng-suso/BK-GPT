@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import golden from "../../../../../tests/fixtures/simulation/arrivals_truncation_golden.json";
+
 import {
   DEFAULT_SCENARIO,
   arrivalDuration,
@@ -104,5 +106,17 @@ describe("the arrivals warning on a whole draft (IMP-01)", () => {
     const months = [{ month: 12, percent: 40 }];
     const next = withArrival(draft({ ...denser, arrival: { ...denser.arrival, months, bandAttribute: true } }), { meanMinutes: 30, distribution: "expon", maxMinutes: 150 });
     expect(next.arrival).toMatchObject({ months, bandAttribute: true, maxMinutes: 150 });
+  });
+});
+
+describe("the truncation rule matches the backend's (shared golden)", () => {
+  it.each(golden.cases)("$name", ({ mean, minimum, maximum, produced, more }) => {
+    const faster = arrivalsRunFaster({ meanMinutes: mean / 60, distribution: "expon", minMinutes: minimum / 60, maxMinutes: maximum / 60 });
+    if (more === null) {
+      expect(faster).toBeNull();
+      return;
+    }
+    expect(faster?.producedSeconds).toBeCloseTo(produced, 2);
+    expect(faster?.morePercent).toBe(more);
   });
 });

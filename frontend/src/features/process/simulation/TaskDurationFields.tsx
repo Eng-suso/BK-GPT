@@ -40,7 +40,7 @@ export function TaskDurationFields<T extends DurationDraft>({
   const issueId = `sim-duration-issue-${elementId}`;
   const explanationId = `sim-duration-explanation-${elementId}`;
   const isArrival = kind === "arrival";
-  const lang = i18n.language?.startsWith("en") ? "en" : "it";
+  const lang = i18n.language?.startsWith("it") ? "it" : "en";
   // Al minuto, come le altre durate del pannello: "21 min", non "20 min 40 s".
   const readable = (seconds: number) => formatDuration(seconds >= 60 ? Math.round(seconds / 60) * 60 : seconds, lang);
   const interpretation = task.distribution === "uniform"
@@ -109,15 +109,15 @@ export function TaskDurationFields<T extends DurationDraft>({
         {optional("maxMinutes", t("simulation.config.maxMin"))}
       </div>}
       <p id={explanationId} className="text-xs leading-relaxed text-muted-foreground">{interpretation}</p>
-      {faster && task.maxMinutes !== undefined && (
+      {faster && (
         <InlineNotice
           tone="warning"
           title={t("simulation.config.arrivalsFaster.title")}
         >
           <p>{t("simulation.config.arrivalsFaster.body", {
-            max: readable(task.maxMinutes * 60),
+            max: readable(faster.maxSeconds),
             produced: readable(faster.producedSeconds),
-            mean: readable(task.meanMinutes * 60),
+            mean: readable(faster.meanSeconds),
             more: faster.morePercent,
           })}</p>
           {/* Sotto il testo, non a fianco: nel pannello stretto il testo resta leggibile. */}
