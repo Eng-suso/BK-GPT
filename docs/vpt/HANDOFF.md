@@ -10,6 +10,14 @@ Nessuno. Prossimi secondo l'ordine di [`PLAN.md`](./PLAN.md): **SIM-36** (baseli
 pubblica su BPIC 2012/2013) e **G3** (spike SIMOD), in parallelo; poi **B3**. Tutti si
 misurano con l'harness di B2 (sezione sotto).
 
+## SIM-36b (in corso dal 2026-11-24, `feat/sim-benchmark-train-test`)
+
+Baseline "B = A" sui 3 log reali train/test del paper (A = train, B = test) con
+`run_baseline.py` e `NaiveTwin` di SIM-36, metriche e repliche di B2. BPIC 2013
+incidents da marcare come non adatto al confronto A→B. In parallelo: IMP-01.
+
+- Stato: branch creato da `origin/main`, nessuna misura ancora.
+
 ## B6 (fatto il 2026-11-24, `spike/sim-throughput`)
 
 Throughput del simulatore (G2). Meta raggiunta: un what-if da 10 ripetizioni × 1.000
