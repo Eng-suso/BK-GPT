@@ -1485,9 +1485,9 @@
             "cycle": "Average case duration",
             "p50": "Half of the cases finish within",
             "p90": "9 cases in 10 finish within",
-            "between": "Waiting between activities",
+            "between": "Average waiting per case",
             "processing": "Work time per case",
-            "throughput": "Cases closed per hour"
+            "throughput": "Cases completed per hour"
           },
           "pooled": "Across all simulated cases together: P50 {{p50}}, P90 {{p90}}. The table instead shows the mean of each simulation's percentiles.",
           "distances": "Distributions: mean cycle distance {{cycle}} ± {{cycleCi}} (95% CI); path distance {{ngd}}% ± {{ngdCi}} points (95% CI, 2-grams).",
@@ -1539,7 +1539,7 @@
         },
         "notComparable": {
           "noStart": "the log has no start times",
-          "noFirstEnable": "the log does not record when the case is ready to start",
+          "noFirstEnable": "the log does not say when the case is ready",
           "noCost": "the log has no cost",
           "missing": "value missing"
         },

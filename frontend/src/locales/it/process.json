@@ -1485,9 +1485,9 @@
             "cycle": "Durata media di un caso",
             "p50": "Metà dei casi si chiude entro",
             "p90": "9 casi su 10 si chiudono entro",
-            "between": "Attesa fra un'attività e l'altra",
+            "between": "Attesa media per caso",
             "processing": "Tempo di lavoro per caso",
-            "throughput": "Casi chiusi all'ora"
+            "throughput": "Casi completati all'ora"
           },
           "pooled": "Su tutti i casi simulati insieme: P50 {{p50}}, P90 {{p90}}. La tabella mostra invece la media dei percentili delle singole simulazioni.",
           "distances": "Distribuzioni: distanza media dei tempi {{cycle}} ± {{cycleCi}} (IC 95%); distanza dei percorsi {{ngd}}% ± {{ngdCi}} punti (IC 95%, 2-grammi).",
@@ -1539,7 +1539,7 @@
         },
         "notComparable": {
           "noStart": "il log non registra l'inizio",
-          "noFirstEnable": "il log non registra quando il caso è pronto a partire",
+          "noFirstEnable": "il log non dice quando il caso è pronto",
           "noCost": "il log non ha costi",
           "missing": "valore assente"
         },
