@@ -29,6 +29,14 @@ Throughput del simulatore (G2). In parallelo con G3 e SIM-36, file separati.
 - Misura 2 (dopo (a): la richiesta di un gruppo avvia un drenaggio per posto libero,
   `fill_simulation_slots`): 1 worker 21,1-22,1 s (27-28 run/min), 2 worker
   13,8-14,5 s (42-44), 4 worker 10,1-11,1 s (54-59). `--check` verde: impronte uguali.
+- Profilo: il runner aggiunge ~0 al motore (Prosimos `run_simulation` e' tutto il
+  tempo, soprattutto campionamento scipy); la rilettura lenta e' l'export del log
+  (0,3 s a run, su richiesta), i KPI si leggono in 6 ms. Con 4 worker su 4 CPU il
+  what-if e' vicino al minimo (~3 ondate da ~2,3 s).
+- Misura 3 (finale, script con KPI e log separati, `tests/simulation/benchmark/b6/throughput.md`):
+  1 worker 21,1-21,4 s (28 run/min), 2 worker 12,8-13,5 s (45-47), 4 worker
+  10,4-10,7 s (56-58). Meta raggiunta, `--check` verde.
+- Prossimo: harness B2 bit per bit, code review, PR.
 
 ## Ultima misura
 
