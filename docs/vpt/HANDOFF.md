@@ -33,7 +33,14 @@ loro voci di [`LOG.md`](./LOG.md).
   uscita 0 e ritorno 1,0 (nel train l'attività compare in 2 casi su 398), quindi un caso
   ripete fino al tetto di Prosimos (~1000 volte). SIMOD lo conferma nella sua valutazione
   (RED ~6240 h): l'import di DeliR è fedele, ma non segnala il ciclo senza uscita.
-- In corso (background): BPIC 2012 W e 2017 W `diff`, AcademicCredentials `fuzz`.
+- Misura del 2026-11-24 ~17:00 (seed 20261124, 10 repliche), senza BPIC 2017 W:
+  BPIC 2012 W CRISP batte lo scenario del paper su RED, AED, W1 e CAR (178,0 / 172,6 /
+  175,3 / 41,5 h contro 178,5 / 221,4 / 175,7 / 85,8). AcademicCredentials con il ciclo
+  riaperto (`fix_dead_loops.py`, diagnosi) torna pari al paper su RED, peggio su AED e CAR.
+  Il gemello ingenuo batte tutti gli scenari SIMOD su RED, AED e W1.
+- Arrivi: tutti lognorm o gamma con media lontana dal massimo, nessun `expon`: la nota di
+  B2 su Procure_to_Pay non tocca questi confronti.
+- In corso (background): BPIC 2017 W `diff`, poi `fuzz`, poi `evaluate.py` su tutto.
 
 ## CAL-01 (fatto il 2026-11-24, PR #172)
 
