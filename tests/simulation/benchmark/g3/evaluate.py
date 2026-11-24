@@ -127,23 +127,49 @@ def _verdict(ours: dict, reference: dict) -> str:
     return "meglio" if gap < 0 else "peggio"
 
 
+VARIANT_LABELS = {
+    "diff": "SIMOD 5.2.1, calendari fissi",
+    "fuzz": "SIMOD 5.2.1, calendari FUZZY",
+    "diff-loopfix": "diagnosi: fissi, ciclo riaperto",
+    "fuzz-loopfix": "diagnosi: FUZZY, ciclo riaperto",
+}
+
+
+def _rows(results: dict, log: str) -> list[tuple[str, dict]]:
+    """Le fonti di un log, nell'ordine della tabella: (etichetta, metriche)."""
+    rows = [
+        (VARIANT_LABELS.get(r["variant"], r["variant"]), r["metrics"])
+        for r in results["simod"] if r["scenario"] == log
+    ]
+    rows.append(("scenario SIMOD del paper, in DeliR (B2)", results["paper_scenario_in_delir"][log]))
+    rows.append(("paper, pubblicato", results["paper_published"][log]))
+    rows.append(("gemello ingenuo (train)", results["naive_twin"][log]))
+    return rows
+
+
 def table(results: dict) -> str:
     lines = [
-        "| Log | Metrica (ore) | SIMOD 5.2.1 diff | SIMOD 5.2.1 fuzz | Scenario del paper in DeliR | Paper pubblicato | Gemello ingenuo | diff contro paper | diff contro ingenuo |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Log | Scenario | " + " | ".join(LABELS[m] for m in COMPARED) + " |",
+        "| --- | --- |" + " --- |" * len(COMPARED),
     ]
-    by_key = {(r["scenario"], r["variant"]): r["metrics"] for r in results["simod"]}
     for log in harness.REAL_LIFE:
-        for metric in COMPARED:
-            diff = by_key.get((log, "diff"), {}).get(metric)
-            fuzz = by_key.get((log, "fuzz"), {}).get(metric)
-            paper = results["paper_scenario_in_delir"][log][metric]
-            naive = results["naive_twin"][log][metric]
-            lines.append(
-                f"| {log} | {LABELS[metric]} | {_cell(diff)} | {_cell(fuzz)} | {_cell(paper)} "
-                f"| {_cell(results['paper_published'][log].get(metric))} | {_cell(naive)} "
-                f"| {_verdict(diff, paper) if diff else '—'} | {_verdict(diff, naive) if diff else '—'} |"
-            )
+        for label, metrics in _rows(results, log):
+            lines.append(f"| {log} | {label} | " + " | ".join(_cell(metrics.get(m)) for m in COMPARED) + " |")
+    return "\n".join(lines) + "\n"
+
+
+def verdict_table(results: dict) -> str:
+    """Ogni scenario SIMOD contro lo scenario del paper e contro il gemello ingenuo."""
+    lines = [
+        "| Log | Scenario | contro | " + " | ".join(LABELS[m] for m in COMPARED) + " |",
+        "| --- | --- | --- |" + " --- |" * len(COMPARED),
+    ]
+    for r in results["simod"]:
+        log = r["scenario"]
+        for against, reference in (("paper in DeliR", results["paper_scenario_in_delir"][log]),
+                                   ("ingenuo", results["naive_twin"][log])):
+            cells = " | ".join(_verdict(r["metrics"][m], reference[m]) for m in COMPARED)
+            lines.append(f"| {log} | {VARIANT_LABELS.get(r['variant'], r['variant'])} | {against} | {cells} |")
     return "\n".join(lines) + "\n"
 
 
@@ -167,7 +193,8 @@ def main(argv: list[str] | None = None) -> int:
         f"# G3: SIMOD contro paper e gemello ingenuo (seed {args.seed}, {args.replicas} repliche)\n\n"
         "Media ± semiampiezza dell'IC 95%, distanze in ore sul log di test (più basso è meglio). "
         "\"pari\": lo scarto fra le medie è minore della somma degli intervalli.\n\n"
-        + table(results) + "\n## Discovery e import\n\n" + notes_table(results)
+        + table(results) + "\n## Esito\n\n" + verdict_table(results)
+        + "\n## Discovery e import\n\n" + notes_table(results)
     )
     (HERE / "results.md").write_text(report, encoding="utf-8")
     print(report)
