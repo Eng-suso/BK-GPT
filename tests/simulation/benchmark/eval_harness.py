@@ -245,6 +245,11 @@ def paper_reference() -> dict[str, dict[str, tuple[float, float]]]:
     return reference
 
 
+def within_intervals(ours: dict, reference: dict) -> bool:
+    """Pari se lo scarto fra le medie e' minore della somma dei due intervalli (meta 2 di B2)."""
+    return abs(ours["mean"] - reference["mean"]) < ours["ci95"] + reference["ci95"]
+
+
 def compare_with_paper(results: list[dict]) -> list[dict]:
     paper = paper_reference()
     rows = []
