@@ -335,6 +335,11 @@
   }
  ],
  "waits": [],
+ "merges": [
+  "node-bc6cf7be-585d-43c8-b863-e42f0d17d8c1",
+  "node-20dac9b8-662e-44fb-b53b-064ae61d0e9a",
+  "node-f43ea5cd-3e62-43f6-bdaf-46611a4bfb23"
+ ],
  "standard_calendar": {
   "id": "delir-calendar-standard",
   "name": "Standard office calendar",
