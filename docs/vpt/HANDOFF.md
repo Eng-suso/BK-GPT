@@ -17,7 +17,15 @@ Throughput del simulatore (G2). In parallelo con G3 e SIM-36, file separati.
 - Script di carico: `uv run python tests/simulation/benchmark/throughput.py`
   (what-if 10 ripetizioni × 1.000 casi, Loan_Application, seed 20261124, con 1, 2 e 4
   worker del runner; API uvicorn vera, coda Postgres, worker, runner Prosimos 2.1).
-- Misure: nessuna ancora.
+- Misura 1 (codice di `main`, 4 CPU, 3 giri): what-if completo 21,5-23,6 s con 1
+  worker (25-28 run/min), 14,9-18,8 s con 2 (32-40), 11,5-16,3 s con 4 (37-52).
+  Meta < 60 s raggiunta ovunque; impronte di KPI e log identiche in tutti i 9 giri,
+  salvate in `tests/simulation/benchmark/b6/fingerprints.json` (`--check` le confronta).
+  Per run: motore ~1,6 s, analisi del log ~0,2 s, salvataggio ~0,1 s.
+  Colli di bottiglia visti: (a) la richiesta avvia un solo drenaggio, gli altri posti
+  li riempie il giro periodico ogni 10 s, quindi con 4 worker il primo giro scala male;
+  (b) la rilettura dei 10 risultati (run + log) prende ~3 s.
+  Tabella: `tests/simulation/benchmark/b6/throughput-before.md`.
 
 ## Ultima misura
 

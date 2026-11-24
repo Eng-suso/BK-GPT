@@ -1,0 +1,747 @@
+{
+  "scenario": "Loan_Application",
+  "replicas": 10,
+  "cases": 1000,
+  "seed": 20261124,
+  "cpus": 4,
+  "results": [
+    {
+      "accepted_s": 0.1168863999999985,
+      "completed_s": 18.90719893399995,
+      "total_s": 22.01117940299997,
+      "runs_per_minute": 27.25887554749675,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 8.5261,
+          "max": 16.634,
+          "sum": 85.261
+        },
+        "motore": {
+          "mean": 1.5692,
+          "max": 1.917,
+          "sum": 15.692
+        },
+        "analisi": {
+          "mean": 0.1972,
+          "max": 0.481,
+          "sum": 1.972
+        },
+        "salvataggio": {
+          "mean": 0.0834,
+          "max": 0.126,
+          "sum": 0.834
+        }
+      },
+      "workers": 1,
+      "round": 1
+    },
+    {
+      "accepted_s": 0.12407346899999538,
+      "completed_s": 18.441069306999964,
+      "total_s": 21.517939426999988,
+      "runs_per_minute": 27.88371080026093,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 8.3323,
+          "max": 16.271,
+          "sum": 83.32300000000001
+        },
+        "motore": {
+          "mean": 1.549,
+          "max": 1.772,
+          "sum": 15.49
+        },
+        "analisi": {
+          "mean": 0.17270000000000002,
+          "max": 0.383,
+          "sum": 1.727
+        },
+        "salvataggio": {
+          "mean": 0.0834,
+          "max": 0.102,
+          "sum": 0.834
+        }
+      },
+      "workers": 1,
+      "round": 2
+    },
+    {
+      "accepted_s": 0.10481796599998461,
+      "completed_s": 20.359114647000013,
+      "total_s": 23.61862342699999,
+      "runs_per_minute": 25.403682050076675,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 9.17,
+          "max": 18.196,
+          "sum": 91.7
+        },
+        "motore": {
+          "mean": 1.7224,
+          "max": 1.918,
+          "sum": 17.224
+        },
+        "analisi": {
+          "mean": 0.186,
+          "max": 0.488,
+          "sum": 1.86
+        },
+        "salvataggio": {
+          "mean": 0.0858,
+          "max": 0.111,
+          "sum": 0.858
+        }
+      },
+      "workers": 1,
+      "round": 3
+    },
+    {
+      "accepted_s": 0.12355263000000605,
+      "completed_s": 15.75983817399998,
+      "total_s": 18.801653043999977,
+      "runs_per_minute": 31.912087655051867,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 7.5232,
+          "max": 13.315,
+          "sum": 75.232
+        },
+        "motore": {
+          "mean": 1.6460000000000001,
+          "max": 1.914,
+          "sum": 16.46
+        },
+        "analisi": {
+          "mean": 0.20400000000000001,
+          "max": 0.451,
+          "sum": 2.04
+        },
+        "salvataggio": {
+          "mean": 0.0986,
+          "max": 0.24,
+          "sum": 0.986
+        }
+      },
+      "workers": 2,
+      "round": 1
+    },
+    {
+      "accepted_s": 0.11731381100003091,
+      "completed_s": 11.532168807000005,
+      "total_s": 14.866401623000002,
+      "runs_per_minute": 40.359463925132516,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 4.4155999999999995,
+          "max": 9.343,
+          "sum": 44.156
+        },
+        "motore": {
+          "mean": 1.6187999999999998,
+          "max": 1.977,
+          "sum": 16.188
+        },
+        "analisi": {
+          "mean": 0.183,
+          "max": 0.442,
+          "sum": 1.83
+        },
+        "salvataggio": {
+          "mean": 0.1595,
+          "max": 0.503,
+          "sum": 1.595
+        }
+      },
+      "workers": 2,
+      "round": 2
+    },
+    {
+      "accepted_s": 0.10619239499999367,
+      "completed_s": 14.180748087999973,
+      "total_s": 17.136332507999953,
+      "runs_per_minute": 35.0133262015017,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 6.483700000000001,
+          "max": 12.044,
+          "sum": 64.837
+        },
+        "motore": {
+          "mean": 1.6527,
+          "max": 2.047,
+          "sum": 16.527
+        },
+        "analisi": {
+          "mean": 0.21030000000000001,
+          "max": 0.445,
+          "sum": 2.103
+        },
+        "salvataggio": {
+          "mean": 0.12290000000000001,
+          "max": 0.234,
+          "sum": 1.229
+        }
+      },
+      "workers": 2,
+      "round": 3
+    },
+    {
+      "accepted_s": 0.11542437499997504,
+      "completed_s": 13.454188920999968,
+      "total_s": 16.316906020999966,
+      "runs_per_minute": 36.771677132159496,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 6.9611,
+          "max": 11.17,
+          "sum": 69.611
+        },
+        "motore": {
+          "mean": 1.5805,
+          "max": 1.808,
+          "sum": 15.805
+        },
+        "analisi": {
+          "mean": 0.198,
+          "max": 0.412,
+          "sum": 1.98
+        },
+        "salvataggio": {
+          "mean": 0.10169999999999998,
+          "max": 0.194,
+          "sum": 1.017
+        }
+      },
+      "workers": 4,
+      "round": 1
+    },
+    {
+      "accepted_s": 0.1219507850000241,
+      "completed_s": 8.846981808000066,
+      "total_s": 11.828953640000066,
+      "runs_per_minute": 50.72299869120095,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 4.0085999999999995,
+          "max": 6.103,
+          "sum": 40.086
+        },
+        "motore": {
+          "mean": 1.7192,
+          "max": 1.986,
+          "sum": 17.192
+        },
+        "analisi": {
+          "mean": 0.304,
+          "max": 0.448,
+          "sum": 3.04
+        },
+        "salvataggio": {
+          "mean": 0.2266,
+          "max": 0.492,
+          "sum": 2.266
+        }
+      },
+      "workers": 4,
+      "round": 2
+    },
+    {
+      "accepted_s": 0.09560296400002244,
+      "completed_s": 8.735810442000002,
+      "total_s": 11.481995303999952,
+      "runs_per_minute": 52.255725953047516,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 2.9938,
+          "max": 6.185,
+          "sum": 29.938
+        },
+        "motore": {
+          "mean": 1.7174,
+          "max": 2.224,
+          "sum": 17.174
+        },
+        "analisi": {
+          "mean": 0.3536,
+          "max": 0.726,
+          "sum": 3.536
+        },
+        "salvataggio": {
+          "mean": 0.1902,
+          "max": 0.437,
+          "sum": 1.9020000000000001
+        }
+      },
+      "workers": 4,
+      "round": 3
+    }
+  ]
+}

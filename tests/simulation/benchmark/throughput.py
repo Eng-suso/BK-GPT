@@ -92,7 +92,7 @@ def whatif_request() -> dict:
     for profile in source["resource_profiles"]:
         (member,) = profile["resource_list"]
         resources.append({
-            "id": profile["id"], "name": profile["name"], "amount": int(member["amount"]),
+            "id": member["id"], "name": profile["name"], "amount": int(member["amount"]),
             "cost_per_hour": _COST_PER_HOUR[profile["name"]], "calendar_id": member["calendar"],
         })
     tasks = []
@@ -205,7 +205,7 @@ def _ok(response: httpx.Response) -> httpx.Response:
 def _new_process(client: httpx.Client, label: str) -> str:
     client_id = _ok(client.post("/v1/workspace/clients", json={"name": f"B6 {label}"})).json()["id"]
     project_id = _ok(client.post("/v1/workspace/projects", json={"client_id": client_id, "name": f"B6 {label}"})).json()["id"]
-    return _ok(client.post(f"/v1/workspace/projects/{project_id}/processes", json={"name": "B6 Loan application"})).json()[
+    return _ok(client.post(f"/v1/workspace/projects/{project_id}/processes", json={"name": f"B6 Loan application {label}"})).json()[
         "bpmn_model_id"
     ]
 
@@ -341,6 +341,7 @@ def main(argv: list[str] | None = None) -> int:
     report = table(results)
     (args.out / "throughput.md").write_text(f"# Throughput del simulatore (B6)\n\n{report}", encoding="utf-8")
     if args.save_fingerprints and not differences:
+        reference_path.parent.mkdir(parents=True, exist_ok=True)
         reference_path.write_text(
             json.dumps({"scenario": "Loan_Application", "seed": SEED, "cases": CASES,
                         "replicas": results[0]["fingerprints"]}, indent=2) + "\n",
