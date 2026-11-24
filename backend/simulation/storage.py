@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import object_session
+from sqlalchemy.orm import Session, object_session
 
 from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.schemas.simulation_model import CreateSimulationModelRunRequest
@@ -196,38 +196,34 @@ def complete_simulation_run(
     log_csv: str | None = None,
     worker_id: str | None = None,
 ) -> dict[str, Any]:
-    run = _update_simulation_run(
+    # Stato, KPI e log nella stessa transazione: chi vede il run "completed"
+    # trova anche i suoi KPI e il suo log (B6: il giro della coda li esegue
+    # mentre l'API risponde ad altri). Un risultato scartato perche' arrivato
+    # dopo la chiusura non lascia dietro di se' nemmeno l'artefatto.
+    return _update_simulation_run(
         run_id=run_id,
         status="completed",
         result=result,
         error=None,
         worker_id=worker_id,
+        artifact=(summary, replay) if summary is not None or replay is not None else None,
+        log_csv=log_csv,
     )
-    # Il risultato puo' essere stato scartato perche' arrivato dopo la chiusura:
-    # in quel caso non deve lasciare dietro di se' nemmeno l'artefatto.
-    if run["status"] == "completed" and (summary is not None or replay is not None):
-        _write_simulation_artifact(run_id=run_id, summary=summary or {}, replay=replay or {})
-        run["summary"] = summary
-    if run["status"] == "completed" and log_csv:
-        _write_simulation_log(run_id=run_id, log_csv=log_csv)
-    return run
 
 
-def _write_simulation_log(*, run_id: int, log_csv: str) -> None:
-    with workspace_connection() as session:
-        existing = session.get(WorkspaceSimulationRunLog, run_id)
-        if existing is None:
-            session.add(
-                WorkspaceSimulationRunLog(
-                    run_id=run_id,
-                    tenant_id=get_current_tenant_id(),
-                    log_csv=log_csv,
-                    created_at=now_iso(),
-                )
+def _write_simulation_log(session: Session, *, run_id: int, log_csv: str) -> None:
+    existing = session.get(WorkspaceSimulationRunLog, run_id)
+    if existing is None:
+        session.add(
+            WorkspaceSimulationRunLog(
+                run_id=run_id,
+                tenant_id=get_current_tenant_id(),
+                log_csv=log_csv,
+                created_at=now_iso(),
             )
-        else:
-            existing.log_csv = log_csv
-        session.flush()
+        )
+    else:
+        existing.log_csv = log_csv
 
 
 def get_simulation_log_csv(run_id: int) -> str | None:
@@ -241,29 +237,28 @@ def get_simulation_log_csv(run_id: int) -> str | None:
 
 
 def _write_simulation_artifact(
+    session: Session,
     *,
     run_id: int,
     summary: dict[str, Any],
     replay: dict[str, Any],
 ) -> None:
-    with workspace_connection() as session:
-        existing = session.get(WorkspaceSimulationRunArtifact, run_id)
-        if existing is None:
-            session.add(
-                WorkspaceSimulationRunArtifact(
-                    run_id=run_id,
-                    tenant_id=get_current_tenant_id(),
-                    replay_schema_version=settings.sim_replay_schema_version,
-                    summary_json=json.dumps(summary, ensure_ascii=False),
-                    replay_json=json.dumps(replay, ensure_ascii=False),
-                    created_at=now_iso(),
-                )
+    existing = session.get(WorkspaceSimulationRunArtifact, run_id)
+    if existing is None:
+        session.add(
+            WorkspaceSimulationRunArtifact(
+                run_id=run_id,
+                tenant_id=get_current_tenant_id(),
+                replay_schema_version=settings.sim_replay_schema_version,
+                summary_json=json.dumps(summary, ensure_ascii=False),
+                replay_json=json.dumps(replay, ensure_ascii=False),
+                created_at=now_iso(),
             )
-        else:
-            existing.replay_schema_version = settings.sim_replay_schema_version
-            existing.summary_json = json.dumps(summary, ensure_ascii=False)
-            existing.replay_json = json.dumps(replay, ensure_ascii=False)
-        session.flush()
+        )
+    else:
+        existing.replay_schema_version = settings.sim_replay_schema_version
+        existing.summary_json = json.dumps(summary, ensure_ascii=False)
+        existing.replay_json = json.dumps(replay, ensure_ascii=False)
 
 
 def get_simulation_replay(run_id: int) -> dict[str, Any] | None:
@@ -345,6 +340,8 @@ def _update_simulation_run(
     result: ProsimosSimulationResult,
     error: str | None,
     worker_id: str | None = None,
+    artifact: tuple[dict[str, Any] | None, dict[str, Any] | None] | None = None,
+    log_csv: str | None = None,
 ) -> dict[str, Any]:
     with workspace_connection() as session:
         run = session.get(WorkspaceSimulationRun, run_id)
@@ -373,5 +370,13 @@ def _update_simulation_run(
         run.outputs_json = json.dumps(result.outputs, ensure_ascii=False)
         run.error = error
         run.completed_at = now_iso()
+        if artifact is not None:
+            summary, replay = artifact
+            _write_simulation_artifact(session, run_id=run_id, summary=summary or {}, replay=replay or {})
+        if log_csv:
+            _write_simulation_log(session, run_id=run_id, log_csv=log_csv)
         session.flush()
-        return simulation_run_to_dict(run)
+        updated = simulation_run_to_dict(run)
+        if artifact is not None:
+            updated["summary"] = artifact[0]
+        return updated

@@ -10,6 +10,39 @@ Nessuno. Prossimi secondo l'ordine di [`PLAN.md`](./PLAN.md): **SIM-36** (baseli
 pubblica su BPIC 2012/2013) e **G3** (spike SIMOD), in parallelo; poi **B3**. Tutti si
 misurano con l'harness di B2 (sezione sotto).
 
+## B6 (fatto il 2026-11-24, `spike/sim-throughput`)
+
+Throughput del simulatore (G2). Meta raggiunta: un what-if da 10 ripetizioni × 1.000
+casi va dalla richiesta ai KPI e ai log riletti in 11-26 s (4 CPU), con risultati
+identici bit per bit.
+
+```bash
+scripts/vpt_stack.sh start && eval "$(scripts/vpt_stack.sh env)"
+uv run python tests/simulation/benchmark/throughput.py --check   # 1, 2, 4 worker × 3 giri, ~4 min
+```
+
+- **Percorso:** API uvicorn vera (`backend.app`), coda Postgres, worker in processo,
+  runner Prosimos 2.1 con N worker gunicorn e `SIMULATION_MAX_CONCURRENT_RUNS=N`;
+  `POST simulation-runs` con `replications: 10` come il pannello. Scenario
+  Loan_Application (sintetico del paper) tradotto nei campi del pannello, seed 20261124.
+- **Misura finale** (`tests/simulation/benchmark/b6/throughput.md`): 1 worker 22,9-26,1 s
+  (23-26 run/min), 2 worker 14,3-14,5 s (41-42), 4 worker 11,3-11,5 s (52-53). Prima
+  (`throughput-before.md`): 4 worker 11,5-16,3 s, irregolare.
+- **Fasi per run** (riga di log `simulazione N: in coda …, motore …, analisi …,
+  salvataggio …`, `_PhaseTimer`): motore 1,5-1,9 s, analisi 0,2-0,5 s, salvataggio
+  0,1-0,3 s. Il motore e' tutto Prosimos (campionamento scipy): il runner non aggiunge
+  nulla. Con 4 worker su 4 CPU siamo vicini al minimo (~3 ondate).
+- **Cambiato:** una richiesta di run sveglia subito il giro della coda
+  (`wake_simulation_worker`), che riempie i posti liberi; prima gli altri posti
+  aspettavano fino a 10 s. Un run diventa `completed` nella stessa transazione dei suoi
+  KPI e del suo log (prima chi leggeva poteva trovare "completed" senza log: 404).
+- **Risultati invariati:** impronte SHA-256 di KPI e log in `b6/fingerprints.json`
+  (`--check`); harness B2: `baseline.json` identico (`24809a7f…`), 9/9 dentro.
+- **Da sapere:** l'export del log costa ~0,3 s a run (download su richiesta); il
+  risveglio vale nello stesso processo: con piu' processi API un posto liberato da un
+  altro processo aspetta ancora il giro (servirebbe `LISTEN/NOTIFY`). B7 puo' contare
+  su ~50 run/min da 1.000 casi con 4 worker.
+
 ## Ultima misura
 
 B2, seed 20261124, 10 repliche sullo stack reale: `baseline.json` identico bit per bit
