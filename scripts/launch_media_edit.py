@@ -291,7 +291,7 @@ def render(name: str, cut: dict) -> Path:
     first = shots[0].frame(min(0.2, shots[0].duration)) if loop else None
 
     VIDEO.mkdir(parents=True, exist_ok=True)
-    out = VIDEO / f"delir-{name}-it.mp4"
+    out = VIDEO / f"{cut.get('file', f'delir-{name}-it')}.mp4"
     encoder = subprocess.Popen(
         ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
          "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)],
