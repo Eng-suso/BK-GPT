@@ -63,9 +63,32 @@ def test_a_simod_scenario_comes_back_as_a_model_with_notes(client):
     )
     assert body["simod"]["model_type"] == scenario["model_type"]
     assert all(
-        note["kind"] in {"info", "approximated"} and note["message"]
+        note["kind"] in {"info", "approximated", "warning"} and note["message"]
         for note in body["notes"]
     )
+
+
+def test_procure_to_pay_warns_about_denser_arrivals_and_keeps_them(client):
+    """IMP-01: l'avviso arriva al consulente; gli arrivi restano quelli del file."""
+    bpmn_model_id = _bpmn_model_id(client)
+    scenario, bpmn = _scenario("synthetic/Procure_to_Pay_3_timers")
+
+    response = client.post(
+        f"/v1/workspace/bpmn-models/{bpmn_model_id}/prosimos-import",
+        json={"scenario": scenario, "current_bpmn_xml": bpmn},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    warnings = [n for n in body["notes"] if n["topic"] == "arrivals_faster"]
+    assert [n["kind"] for n in warnings] == ["warning"]
+    assert "circa il 45% di casi in più" in warnings[0]["message"]
+    assert body["model"]["arrival"]["interarrival"] == {
+        "kind": "exponential",
+        "mean": 1805.0,
+        "minimum": 5.0,
+        "maximum": 3600.0,
+    }
 
 
 def test_a_scenario_that_would_lose_something_is_a_400_with_the_reason(client):
