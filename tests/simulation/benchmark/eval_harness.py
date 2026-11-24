@@ -29,6 +29,7 @@ import argparse
 import csv
 import io
 import json
+import math
 import sys
 import time
 import uuid
@@ -40,10 +41,10 @@ if __package__ in (None, ""):  # lanciato come script
 
 from tests.simulation.benchmark.log_distance import (
     METRICS,
-    Event,
     distances,
     events_from_rows,
     mean_confidence_interval,
+    parse_instant,
     read_csv_log,
 )
 
@@ -58,6 +59,7 @@ REAL_LIFE = ("AcademicCredentials", "BPIC_2012_W", "BPIC_2017_W")
 # Come il paper: 10 simulazioni per modello (``for i in range(10)``).
 PAPER_REPLICAS = 10
 DEFAULT_SEED = 20261124
+MAX_REPLICAS = 31  # quante ne copre la tabella t di log_distance
 # Le tre metriche che il paper pubblica (o da cui si ricava) per la riga ``original``.
 PAPER_METRICS_COMPARED = ("relative_event", "absolute_event", "cycle_time_w1")
 _RUN_TIMEOUT_SECONDS = 1800.0
@@ -140,11 +142,30 @@ class ProductPath:
                 raise TimeoutError(f"run {queued['id']} ({key}) ancora {run['status']} dopo {_RUN_TIMEOUT_SECONDS:g} s")
             time.sleep(0.5)
 
-    def event_log(self, run_id: int) -> list[Event]:
+    def event_log(self, run_id: int) -> list[dict[str, str]]:
         response = self.client.get(f"/v1/workspace/simulation-runs/{run_id}/event-log", params={"format": "csv"})
         if response.status_code != 200:
             raise RuntimeError(f"log del run {run_id}: {response.status_code} {response.text[:300]}")
-        return events_from_rows(csv.DictReader(io.StringIO(response.text)))
+        return list(csv.DictReader(io.StringIO(response.text)))
+
+
+def check_same_log(kpi_cycle_avg: float, rows: list[dict[str, str]], label: str) -> None:
+    """Il log riletto dall'API e' quello su cui il database ha calcolato i KPI.
+
+    Il KPI di DeliR misura il caso dalla prima abilitazione (l'arrivo) all'ultima
+    fine; le distanze del paper dal primo inizio. Qui serve la definizione del KPI.
+    """
+    by_case: dict[str, list[dict[str, str]]] = {}
+    for row in rows:
+        by_case.setdefault(row["case_id"], []).append(row)
+    cycles = [
+        (max(parse_instant(r["end_time"]) for r in case) - min(parse_instant(r["enable_time"]) for r in case)).total_seconds()
+        for case in by_case.values()
+    ]
+    from_log = math.fsum(cycles) / len(cycles)
+    # Il CSV esportato arrotonda al microsecondo: lo scarto ammesso e' di quell'ordine.
+    if abs(from_log - kpi_cycle_avg) > 1e-3:
+        raise RuntimeError(f"{label}: cycle time medio {from_log} dal log, {kpi_cycle_avg} dai KPI")
 
 
 def summarize(values: list[float]) -> dict:
@@ -170,12 +191,17 @@ def evaluate(path: ProductPath, scenario: Scenario, *, seed: int, replicas: int)
             bpmn_model_id, imported["model"], bpmn_xml,
             cases=cases, start=start, seed=seed + replica, key=f"{scenario.name}-{replica}",
         )
-        engine_versions.add(str((run.get("result") or {}).get("EngineVersion")))
+        version = (run.get("result") or {}).get("EngineVersion")
+        if not version:
+            raise RuntimeError(f"run {run['id']} ({scenario.name}): il runner non ha detto la versione del motore")
+        engine_versions.add(str(version))
         summary = run.get("summary") or {}
         if summary.get("casesCompleted") != cases:
             raise RuntimeError(f"{scenario.name}: {summary.get('casesCompleted')} casi completati su {cases}")
+        rows = path.event_log(run["id"])
+        check_same_log(summary["cycle"]["avg"], rows, f"run {run['id']} ({scenario.name})")
         kpi_cycle.append(summary["cycle"]["avg"])
-        measured.append(distances(reference, path.event_log(run["id"])))
+        measured.append(distances(reference, events_from_rows(rows)))
 
     return {
         "scenario": scenario.name,
@@ -187,7 +213,7 @@ def evaluate(path: ProductPath, scenario: Scenario, *, seed: int, replicas: int)
         "engine_versions": sorted(engine_versions),
         "import_notes": len(imported.get("notes", [])),
         "metrics": {metric: summarize([m[metric] for m in measured]) for metric in METRICS},
-        # Dal riepilogo del run nel database, per riconoscere il log riletto.
+        # Dal riepilogo del run nel database; ``check_same_log`` lo confronta con il log riletto.
         "kpi_cycle_time_avg_seconds": summarize(kpi_cycle),
     }
 
@@ -284,6 +310,8 @@ def run(selected: list[Scenario], *, seed: int, replicas: int, out: Path) -> lis
             print(f"{scenario.name}: {time.perf_counter() - started:.1f} s", file=sys.stderr, flush=True)
 
     out.mkdir(parents=True, exist_ok=True)
+    # Un file di una passata precedente non resta accanto a una passata diversa.
+    (out / "paper-comparison.md").unlink(missing_ok=True)
     baseline = {
         "harness": "B2, tests/simulation/benchmark/eval_harness.py",
         "metrics": "log-distance-measures 2.2 (port in log_distance.py); tempi in ore, ngram in [0, 1]",
@@ -310,6 +338,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--refresh-paper-cycle-time", type=Path, metavar="OUTPUTS",
                         help="ricalcola la fixture di W1 dal real-life-evaluation del paper ed esce")
     args = parser.parse_args(argv)
+    if not 2 <= args.replicas <= MAX_REPLICAS:
+        parser.error(f"--replicas va da 2 a {MAX_REPLICAS}: serve un intervallo di confidenza")
+    if args.scenarios and args.out.resolve() == DEFAULT_OUT.resolve():
+        parser.error("con una parte degli scenari indica --out: la baseline in b2/ e' quella dei 19")
     if args.refresh_paper_cycle_time:
         refresh_paper_cycle_time(args.refresh_paper_cycle_time)
         return 0

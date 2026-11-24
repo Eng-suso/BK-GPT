@@ -99,7 +99,7 @@ def wasserstein_1d(u: Sequence[int], v: Sequence[int]) -> float:
     return area / (n_u * n_v)
 
 
-def _cases(log: Iterable[Event]) -> dict[str, list[Event]]:
+def cases(log: Iterable[Event]) -> dict[str, list[Event]]:
     cases: dict[str, list[Event]] = {}
     for event in log:
         cases.setdefault(event.case_id, []).append(event)
@@ -117,7 +117,7 @@ def _floor_hour(instant: datetime) -> datetime:
 def cycle_time_w1(original: Sequence[Event], simulated: Sequence[Event]) -> float:
     """``cycle_time_distribution_distance`` con bin di un'ora, come SIMOD."""
     durations = [
-        [max(e.end for e in events) - min(e.start for e in events) for events in _cases(log).values()]
+        [max(e.end for e in events) - min(e.start for e in events) for events in cases(log).values()]
         for log in (original, simulated)
     ]
     shortest = min(min(durations[0]), min(durations[1]))
@@ -128,7 +128,7 @@ def cycle_time_w1(original: Sequence[Event], simulated: Sequence[Event]) -> floa
 def _ngrams(log: Sequence[Event], n: int) -> Counter[tuple[str | None, ...]]:
     grams: Counter[tuple[str | None, ...]] = Counter()
     padding: list[str | None] = [None] * (n - 1)
-    for events in _cases(log).values():
+    for events in cases(log).values():
         # Ordinamento stabile per (inizio, fine), come sort_values di pandas su due colonne.
         trace = padding + [e.activity for e in sorted(events, key=lambda e: (e.start, e.end))] + padding
         grams.update(tuple(trace[i : i + n]) for i in range(len(trace) - n + 1))
@@ -145,7 +145,7 @@ def ngram_distance(original: Sequence[Event], simulated: Sequence[Event], n: int
 def _relative_bins(log: Sequence[Event]) -> list[int]:
     starts: list[int] = []
     ends: list[int] = []
-    for events in _cases(log).values():
+    for events in cases(log).values():
         case_start = min(e.start for e in events)
         starts += [_hour_bin((e.start - case_start).total_seconds()) for e in events]
         ends += [_hour_bin((e.end - case_start).total_seconds()) for e in events]
@@ -192,7 +192,7 @@ def circadian_event_distance(original: Sequence[Event], simulated: Sequence[Even
 
 def case_arrival_distance(original: Sequence[Event], simulated: Sequence[Event]) -> float:
     """``case_arrival_distribution_distance`` (CAR): arrivo dei casi dalla prima ora dei due log."""
-    arrivals = [[min(e.start for e in events) for events in _cases(log).values()] for log in (original, simulated)]
+    arrivals = [[min(e.start for e in events) for events in cases(log).values()] for log in (original, simulated)]
     origin = _floor_hour(min(min(arrivals[0]), min(arrivals[1])))
     bins = [[_hour_bin((a - origin).total_seconds()) for a in side] for side in arrivals]
     return wasserstein_1d(bins[0], bins[1])
