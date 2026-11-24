@@ -59,7 +59,47 @@ Modello:
   nota parla di persone e fasce, il dettaglio tecnico è dietro "Dettagli", nessun
   testo tagliato, focus visibile; e2e `simulation-prosimos-import` 10/10 su chromium e
   mobile-chrome.
-- Prossimo passo: B2 e UX-01 (in corso in altre sessioni).
+- Prossimo passo: B2 (in corso in un'altra sessione); UX-01 è chiuso.
+
+---
+
+## 2026-11-24 — UX-01 reale contro simulato leggibile — fatto
+
+- Branch / PR: `fix/ux-real-vs-simulated`, #173.
+- Meta: nel percorso ordinario nessun termine tecnico, plurali corretti, pannello leggibile su
+  mobile senza scorrere oltre il canvas, gate UX → raggiunta. Misura: e2e
+  `e2e/simulation-eventlog.spec.ts` 14/14 su chromium e mobile-chrome con axe pulito e un
+  controllo che fallisce se il testo visibile contiene IC 95%, P50, P90, 2-grammi, warm-up,
+  errore assoluto medio, replica/repliche o KPI; vitest `src/features/process/simulation` 438/438.
+- Skill: ui-ux-designer, web-design-guidelines, accessibility-compliance-accessibility-audit,
+  ui-visual-validator; code-review, simplify.
+- Prova del consulente (cosa ho cambiato e perché, rileggendo da non statistico):
+  - "Validazione aggregata" → "Confronto con il log reale": dice cosa si confronta, non il metodo.
+  - "1 repliche confrontate con 3 casi reali" → "1 simulazione a confronto con 3 casi reali.":
+    "replica" e "run" sono gergo; il plurale era sbagliato. Ora i conteggi hanno _one/_other in it ed en.
+  - Colonne "Media repliche · IC 95%", "Scarto medio", "Errore assoluto medio" → "Simulato (media)"
+    e "Differenza"; IC, scarto ed errore assoluto vanno nei "Dettagli per specialisti" con
+    distanze (2-grammi), percentili su tutti i casi, seed e warm-up.
+  - P50/P90 → "Metà dei casi si chiude entro", "9 casi su 10 si chiudono entro": è la domanda
+    che il consulente si fa. "Tempo di attraversamento" → "Durata di un caso".
+    "Lavorazione" → "Tempo di lavoro". "KPI" → "Indicatore".
+  - Verdetto spostato in alto ("prima la risposta") e riscritto in percentuali con soglie in parole.
+  - Con una sola simulazione la tabella aggregata ripeteva quella della simulazione scelta: tolta.
+    Con un gruppo resta, con gli stessi nomi di riga e la frase che spiega sopra/sotto.
+  - L'avviso sui casi diversi ora dice i numeri ("Il log ha 3 casi, la simulazione 300 casi") e non
+    nomina il warm-up; la nota sulla taratura è riscritta senza "capacità predittiva".
+  - "abilitazione"/"eseguibile" → "quando il caso è pronto a partire"; i motivi in colonna sono più corti.
+  - Avvisi a fondo pagina con plurali veri: "1 attività del log non è nel modello: resta fuori dal confronto".
+- Mobile: sotto i 1199px il pannello dell'event log viene prima del disegno, e
+  `overflow-anchor: none` evita che la pagina salti sul disegno quando un passo cambia altezza
+  (prima il contenitore finiva scrollato a 721 px, sul canvas).
+- Gate UX: 16 screenshot in `docs/vpt/ux/ux-01/` (desktop 1440×900 e Pixel 7; schermata e pannello
+  intero; una simulazione, gruppo, dettagli aperti, log con soli completamenti), tutti aperti e
+  letti. Correzioni nate dalla lettura: nomi diversi per lo stesso indicatore nelle due tabelle,
+  marcatore del `<details>` sparito, motivo "non confrontabile" su 5 righe.
+- Review: `code-review` 4 rilievi, tutti corretti; `simplify` 4 revisori, corretti 9 rilievi,
+  saltati 2 fuori scopo (vedi PR e HANDOFF).
+- Prossimo passo: B2 e CAL-01 proseguono nelle loro sessioni.
 
 ---
 

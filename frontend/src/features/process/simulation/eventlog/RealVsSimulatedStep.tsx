@@ -8,11 +8,11 @@ import { Button } from "@/ui/button";
 import { http, httpErrorMessage } from "@/lib/http";
 
 import type { NodeDecoration } from "../canvas/SimulationCanvas";
-import { formatCount, formatCurrency, formatDuration, MISSING_VALUE } from "../simulationResults";
+import { formatCurrency, formatDuration, MISSING_VALUE } from "../simulationResults";
 import type { SimulationSummary } from "../simulationTypes";
 import { formatRunOption, useSimulationSection } from "../useSimulationSection";
 import type { EventLogSummary } from "./eventLogTypes";
-import { compareRealToSimulated, signedPercent, withComparableKpis, type ActivityGap, type ComparableKpis, type GapFormat, type KpiGap } from "./realVsSimulated";
+import { compareRealToSimulated, countLabel, signedPercent, withComparableKpis, type ActivityGap, type ComparableKpis, type GapFormat, type KpiGap } from "./realVsSimulated";
 import { ValidationReport } from "./ValidationReport";
 import { FIDELITY_BADGE_TONE, type OnLogOverlay } from "./logOverlay";
 
@@ -82,16 +82,17 @@ export function RealVsSimulatedStep({ eventLogId, summary, realCases, onDecorati
     );
   }
 
+  // Il server confronta i tempi solo se il log ha inizio e fine; altrimenti il confronto è locale.
+  const serverReport = Boolean(eventLogId) && summary.timing !== "complete_only";
   const validated = selectedValidation.data?.kpis ? selectedValidation.data : null;
   const comparable = validated
     ? withComparableKpis(comparison, validated.kpis, validated.initialActivities)
-    : !eventLogId || summary.timing === "complete_only" ? comparison : null;
+    : !serverReport ? comparison : null;
   const cycle = comparable?.process.find((row) => row.key === "cycleAvg");
   const p90 = comparable?.process.find((row) => row.key === "cycleP90");
+  const cases = (count: number) => countLabel(t, "simulation.eventLog.compare.casesLabel", count, lang);
   return (
     <section className="sim-eventlog-step" aria-label={t("simulation.eventLog.step.compare")}>
-      {eventLogId && <ValidationReport eventLogId={eventLogId} run={run} runs={runs} completeOnly={summary.timing === "complete_only"} />}
-      <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.intro")}</p>
       <label className="sim-field">
         <span>{t("simulation.eventLog.compare.run")}</span>
         <select value={run.id} onChange={(event) => setRunId(Number(event.target.value))}>
@@ -99,15 +100,18 @@ export function RealVsSimulatedStep({ eventLogId, summary, realCases, onDecorati
         </select>
       </label>
 
+      {/* Prima la risposta, poi i numeri che la sostengono. */}
       {comparable?.fidelity && (
         <div className="sim-fidelity-verdict" data-fidelity={comparable.fidelity} role="status">
           <strong>{t(`simulation.eventLog.compare.verdict.${comparable.fidelity}`)}</strong>
           <span>{t("simulation.eventLog.compare.verdictDetail", { cycle: signedPercent(cycle?.gap ?? null, lang), p90: signedPercent(p90?.gap ?? null, lang) })}</span>
         </div>
       )}
-      <p className="sim-eventlog-hint">
-        {t("simulation.eventLog.compare.cases", { real: formatCount(realCases, lang), simulated: formatCount(run.summary?.casesCompleted ?? 0, lang) })}
-      </p>
+      {eventLogId && <ValidationReport eventLogId={eventLogId} run={run} runs={runs} completeOnly={summary.timing === "complete_only"} />}
+      {/* Il report del server avvisa già se i casi sono diversi; senza report lo si dice qui. */}
+      {!serverReport && <p className="sim-eventlog-hint">
+        {t("simulation.eventLog.compare.cases", { real: cases(realCases), simulated: cases(run.summary?.casesCompleted ?? 0) })}
+      </p>}
 
       <h3 className="sim-eventlog-title">{t("simulation.eventLog.compare.process")}</h3>
       {selectedValidation.isLoading && <p role="status">{t("simulation.eventLog.compare.validation.loading")}</p>}
