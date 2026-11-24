@@ -33,6 +33,19 @@ describe("server import of a Prosimos scenario", () => {
     ]);
   });
 
+  it("a warning goes with what needs checking, after what DeliR adjusted", () => {
+    const groups = groupNotes([
+      { kind: "info", topic: "merge_gateway", message: "d", element_id: null },
+      { kind: "warning", topic: "arrivals_faster", message: "w", element_id: null },
+      { kind: "approximated", topic: "missing_branch", message: "c", element_id: "G" },
+    ]);
+    expect(groups.map((group) => [group.topic, group.kind])).toEqual([
+      ["missing_branch", "approximated"],
+      ["arrivals_faster", "warning"],
+      ["merge_gateway", "info"],
+    ]);
+  });
+
   it("a plain Prosimos scenario is not presented as discovered by SIMOD", () => {
     expect(importSummary({ ...result, simod: {} }).fromSimod).toBe(false);
   });

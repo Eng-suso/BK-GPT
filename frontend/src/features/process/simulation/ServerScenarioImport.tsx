@@ -5,7 +5,7 @@ import { Button } from "@/ui/button";
 
 import { groupNotes, importSummary, type ProsimosImport } from "./prosimosServerImport";
 
-const KNOWN_TOPICS = new Set(["merge_gateway", "unused_calendar", "instant_activity", "missing_branch", "rounded_probabilities", "probabilistic_calendars"]);
+const KNOWN_TOPICS = new Set(["merge_gateway", "unused_calendar", "instant_activity", "missing_branch", "rounded_probabilities", "probabilistic_calendars", "arrivals_faster"]);
 
 /** B1b: lo scenario che l'editor non rappresenta, letto dal server e pronto da simulare cosi' com'e'. */
 export function ServerScenarioImport({ name, result, running, onRun }: {
@@ -17,8 +17,12 @@ export function ServerScenarioImport({ name, result, running, onRun }: {
   const { t } = useTranslation("process");
   const summary = importSummary(result);
   const groups = groupNotes(result.notes);
-  const attention = groups.filter((group) => group.kind === "approximated");
+  const attention = groups.filter((group) => group.kind !== "info");
   const info = groups.filter((group) => group.kind === "info");
+  // "Adattamenti" solo se DeliR ha cambiato qualcosa; un avviso lascia lo scenario com'era.
+  const description = groups.some((group) => group.kind === "approximated")
+    ? "descriptionAdjusted"
+    : attention.length > 0 ? "descriptionCheck" : "description";
 
   const renderGroup = (group: (typeof groups)[number]) => (
     <li key={group.topic}>
@@ -37,7 +41,7 @@ export function ServerScenarioImport({ name, result, running, onRun }: {
       <div>
         <h3 className="font-semibold">{t("simulation.scenario.serverImport.title")}</h3>
         <p className="mt-1 text-muted-foreground">
-          {t(attention.length > 0 ? "simulation.scenario.serverImport.descriptionAdjusted" : "simulation.scenario.serverImport.description", { name })}
+          {t(`simulation.scenario.serverImport.${description}`, { name })}
         </p>
       </div>
       <p className="font-medium">{t("simulation.scenario.serverImport.summary", summary)}</p>

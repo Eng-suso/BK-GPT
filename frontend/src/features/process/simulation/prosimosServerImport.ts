@@ -10,7 +10,7 @@ const SCENARIO_NAME_MAX = 200;
 
 /** B1b: uno scenario Prosimos o SIMOD che l'editor non sa rappresentare, letto dal server. */
 const noteSchema = z.object({
-  kind: z.enum(["info", "approximated"]),
+  kind: z.enum(["info", "approximated", "warning"]),
   topic: z.string(),
   message: z.string(),
   element_id: z.string().nullable().optional(),
@@ -46,16 +46,19 @@ export function importSummary(result: ProsimosImport): ImportSummary {
 
 export type NoteGroup = { topic: string; kind: ProsimosImportNote["kind"]; notes: ProsimosImportNote[] };
 
+// Un gruppo prende il tipo piu' serio fra le sue note; i gruppi piu' seri vengono prima.
+const SEVERITY: Record<ProsimosImportNote["kind"], number> = { info: 0, warning: 1, approximated: 2 };
+
 /** Le note per argomento, prima quelle da verificare: 16 attivita' istantanee sono una riga, non sedici. */
 export function groupNotes(notes: ProsimosImportNote[]): NoteGroup[] {
   const groups = new Map<string, NoteGroup>();
   for (const note of notes) {
     const group = groups.get(note.topic) ?? { topic: note.topic, kind: note.kind, notes: [] };
-    if (note.kind === "approximated") group.kind = "approximated";
+    if (SEVERITY[note.kind] > SEVERITY[group.kind]) group.kind = note.kind;
     group.notes.push(note);
     groups.set(note.topic, group);
   }
-  return [...groups.values()].sort((a, b) => Number(b.kind === "approximated") - Number(a.kind === "approximated"));
+  return [...groups.values()].sort((a, b) => SEVERITY[b.kind] - SEVERITY[a.kind]);
 }
 
 type Json = Record<string, unknown>;
