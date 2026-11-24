@@ -935,6 +935,99 @@
         "webm_crf": 36,
         "mp4_crf": 25
       }
+    },
+    "social-45-en": {
+      "hold": 0,
+      "chips": false,
+      "stages": false,
+      "disclaimer": "disclaimer-simple-en",
+      "crossfade": 0.5,
+      "file": "delir-social-45s-en",
+      "scenes": [
+        {
+          "id": "social-en-intro",
+          "speed": 1.0
+        },
+        {
+          "id": "s-en-discovery",
+          "from": 0.6,
+          "segments": [
+            {
+              "to": "sent",
+              "speed": 3.5
+            },
+            {
+              "to": "answered",
+              "speed": 2.0
+            },
+            {
+              "to": 17.5,
+              "speed": 1.2
+            }
+          ],
+          "overlays": [
+            "social-en-discovery"
+          ]
+        },
+        {
+          "id": "s-en-fonti",
+          "from": 3.6,
+          "keep": 6.6,
+          "speed": 1.6,
+          "overlays": [
+            "social-en-fonti"
+          ]
+        },
+        {
+          "id": "s-en-evidenze",
+          "from": 2.4,
+          "keep": 9.0,
+          "speed": 1.5,
+          "overlays": [
+            "social-en-evidenze"
+          ]
+        },
+        {
+          "id": "s-en-replay-as-is",
+          "from": 1.0,
+          "keep": 8.0,
+          "speed": 1.2,
+          "overlays": [
+            "social-en-replay-as-is"
+          ]
+        },
+        {
+          "id": "s-en-heatmap",
+          "from": 1.6,
+          "keep": 6.5,
+          "speed": 1.0,
+          "overlays": [
+            "social-en-heatmap"
+          ]
+        },
+        {
+          "id": "s-en-replay-to-be",
+          "from": 1.0,
+          "keep": 8.0,
+          "speed": 1.2,
+          "overlays": [
+            "social-en-replay-to-be"
+          ]
+        },
+        {
+          "id": "s-en-consegna",
+          "from": 5.0,
+          "keep": 4.0,
+          "speed": 1.0,
+          "overlays": [
+            "social-en-consegna"
+          ]
+        },
+        {
+          "id": "social-en-outro",
+          "speed": 1.0
+        }
+      ]
     }
   },
   "hero": [
@@ -1045,6 +1138,14 @@
     {
       "id": "s-en-contesto",
       "hero": true
+    },
+    {
+      "id": "social-en-intro",
+      "card": true
+    },
+    {
+      "id": "social-en-outro",
+      "card": true
     }
   ]
 }
