@@ -96,6 +96,11 @@ def evaluate_all(*, seed: int, replicas: int) -> dict:
             result["variant"] = variant
             result["import_notes"] = import_notes(path, scenario)
             result["discovery"] = json.loads((folder / "discovery.json").read_text(encoding="utf-8"))
+            runtimes = folder / "simod_runtimes.json"
+            if runtimes.is_file():
+                phases = json.loads(runtimes.read_text(encoding="utf-8"))
+                # Come dice SIMOD: preprocessing + pipeline, senza la sua valutazione finale.
+                result["discovery"]["simod_seconds"] = round(phases["preprocessing"] + phases["SIMOD_TOTAL_RUNTIME"])
             simod.append(result)
             print(f"{log} {variant}: valutato", file=sys.stderr, flush=True)
 
@@ -176,11 +181,15 @@ def verdict_table(results: dict) -> str:
 
 
 def notes_table(results: dict) -> str:
-    lines = ["| Log | Variante | Discovery (s) | Note d'import |", "| --- | --- | --- | --- |"]
+    lines = [
+        "| Log | Variante | Discovery SIMOD (s) | Wall-clock (s) | Note d'import |",
+        "| --- | --- | --- | --- | --- |",
+    ]
     for r in results["simod"]:
         topics = Counter(f"{n['kind']}: {n['topic']}" for n in r["import_notes"])
         listed = "; ".join(f"{topic} ×{count}" for topic, count in sorted(topics.items()))
-        lines.append(f"| {r['scenario']} | {r['variant']} | {r['discovery']['discovery_seconds']} | {listed or 'nessuna'} |")
+        lines.append(f"| {r['scenario']} | {r['variant']} | {r['discovery'].get('simod_seconds', '—')} "
+            f"| {r['discovery']['discovery_seconds']} | {listed or 'nessuna'} |")
     return "\n".join(lines) + "\n"
 
 
