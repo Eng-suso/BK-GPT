@@ -14,6 +14,8 @@ from threading import Lock
 
 from lxml import etree
 
+from backend.agents.run_context import BpmnSaveRejected
+
 _XSD_PATH = Path(__file__).resolve().parent / "xsd" / "BPMN20.xsd"
 _SCHEMA_LOCK = Lock()
 _LOCAL_EDIT_SOURCES = {
@@ -24,6 +26,47 @@ _LOCAL_EDIT_SOURCES = {
     "canvas_agent_layout",
 }
 _COMPLETE_MODEL_SOURCES = {"canvas_construction_apply", "review_approval"}
+
+
+_UNCHANGED = "Il canvas resta com'era."
+
+
+def _step(finding: dict) -> str:
+    name = finding.get("element_name")
+    return f"il passaggio «{name}»" if name else "un passaggio senza nome"
+
+
+def _behavior_sentence(finding: dict) -> str:
+    code = finding.get("code")
+    step = _step(finding)
+    if code == "deadlock":
+        name = finding.get("element_name")
+        point = f"il punto di sincronizzazione «{name}»" if name else "un punto di sincronizzazione"
+        return f"{point} aspetterebbe per sempre rami che, dopo una scelta, non arrivano"
+    if code == "lack_of_synchronization":
+        return (f"{step} verrebbe eseguito due volte per la stessa pratica, perche' rami "
+                "paralleli si riuniscono senza sincronizzarsi")
+    if code == "unreachable_node":
+        return f"{step} non si raggiunge dall'inizio del processo"
+    if code == "dead_end_node":
+        return f"da {step} non si arriva a una fine del processo"
+    if code == "no_start_event":
+        return "manca l'evento che fa partire il processo"
+    if code == "no_end_event":
+        return "manca un evento che chiude il processo"
+    if code == "no_option_to_complete":
+        return "alcuni percorsi girano in tondo senza poter terminare"
+    return "un collegamento porta a un elemento che non fa parte di questo processo"
+
+
+def _behavior_message(findings: list[dict]) -> str:
+    sentences = list(dict.fromkeys(_behavior_sentence(item) for item in findings))
+    if not sentences:
+        return f"Il diagramma non e' stato salvato: il flusso non e' stato verificato per intero. {_UNCHANGED}"
+    head = sentences[0]
+    more = len(sentences) - 1
+    tail = f" (e {more} {'altro problema' if more == 1 else 'altri problemi'} nel flusso)" if more else ""
+    return f"Il diagramma non e' stato salvato: {head}{tail}. {_UNCHANGED}"
 
 
 @lru_cache(maxsize=1)
@@ -60,22 +103,45 @@ def assert_agent_bpmn_xsd_transition(*, previous_xml: str | None, proposed_xml: 
     if not (source in _LOCAL_EDIT_SOURCES or source in {"canvas_construction_apply", "review_approval", "plan_draft"}):
         return
     if "<!DOCTYPE" in proposed_xml.upper() or "<!ENTITY" in proposed_xml.upper():
-        raise ValueError("BPMN 2.0.2 XSD: DTD ed entita' XML non sono consentite.")
+        raise BpmnSaveRejected(
+            f"Il diagramma non e' stato salvato: contiene istruzioni XML non ammesse. {_UNCHANGED}",
+            technical_issues=["BPMN 2.0.2 XSD: DTD ed entita' XML non sono consentite."],
+            level="L2",
+        )
     from backend.workspace_services.bpmn_canvas_edit import validate_bpmn_xml
 
     local = validate_bpmn_xml(proposed_xml)
     if local["issues"]:
-        raise ValueError("BPMN non valido: " + "; ".join(local["issues"][:3]))
+        raise BpmnSaveRejected(
+            f"Il diagramma non e' stato salvato: la struttura BPMN non e' completa. {_UNCHANGED}",
+            technical_issues=["BPMN non valido: " + issue for issue in local["issues"]],
+            level="L2",
+        )
     proposed = omg_xsd_issues(proposed_xml)
     if proposed:
         previous = omg_xsd_issues(previous_xml) if source in _LOCAL_EDIT_SOURCES and previous_xml else []
         if not (previous and not (Counter(proposed) - Counter(previous))):
-            raise ValueError("BPMN 2.0.2 XSD: " + "; ".join(proposed[:3]))
+            count = len(proposed)
+            raise BpmnSaveRejected(
+                "Il diagramma non e' stato salvato: non rispetta lo standard BPMN 2.0 "
+                f"({count} {'problema tecnico' if count == 1 else 'problemi tecnici'}). {_UNCHANGED}",
+                technical_issues=["BPMN 2.0.2 XSD: " + issue for issue in proposed],
+                level="L2",
+            )
     if source in _COMPLETE_MODEL_SOURCES:
         from backend.bpmn.xml_behavior import analyze_canvas_xml_behavior
 
         behavior = analyze_canvas_xml_behavior(proposed_xml)
         if behavior["processes_analyzed"] == 0 or behavior["processes_skipped"]:
-            raise ValueError("BPMN L3: il grafo principale non e' stato analizzato per intero.")
+            raise BpmnSaveRejected(
+                _behavior_message([]),
+                technical_issues=["BPMN L3: il grafo principale non e' stato analizzato per intero.",
+                                  *behavior["warnings"]],
+                level="L3",
+            )
         if behavior["issues"]:
-            raise ValueError("BPMN L3: " + "; ".join(behavior["issues"][:3]))
+            raise BpmnSaveRejected(
+                _behavior_message(behavior["findings"]),
+                technical_issues=["BPMN L3: " + issue for issue in behavior["issues"]],
+                level="L3",
+            )

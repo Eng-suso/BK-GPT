@@ -200,7 +200,7 @@ def test_approval_rejects_nonconformant_xml_without_approving_or_saving(review_m
     )
     monkeypatch.setattr(reviews, "optimize_bpmn_layout", lambda *_args, **_kwargs: (invalid, {}))
 
-    with pytest.raises(ValueError, match="targetNamespace"):
+    with pytest.raises(ValueError, match="standard BPMN 2.0"):
         wd.approve_bpmn_review(review_model, override=True)
 
     assert wd.get_bpmn_model(review_model)["xml"] is None
@@ -224,7 +224,7 @@ def test_approval_rejects_orphaned_canvas_xml_without_approving_or_saving(review
                                '<bpmn:endEvent id="End"')
     monkeypatch.setattr(reviews, "optimize_bpmn_layout", lambda *_args, **_kwargs: (orphan, {}))
 
-    with pytest.raises(ValueError, match="BPMN L3.*Orphan"):
+    with pytest.raises(ValueError, match="«Unconnected» non si raggiunge"):
         wd.approve_bpmn_review(review_model, override=True)
     assert wd.get_bpmn_model(review_model)["xml"] is None
     assert wd.list_bpmn_versions(review_model) == []

@@ -23,7 +23,7 @@ def test_agent_construction_rejects_invalid_bpmn_without_creating_version():
         model_id = process["bpmn_model_id"]
         invalid = VALID_XML.replace(' targetNamespace="urn:delir:test:valid"', "")
 
-        with pytest.raises(ValueError, match="targetNamespace"):
+        with pytest.raises(ValueError, match="standard BPMN 2.0"):
             wd.update_bpmn_model(model_id, invalid, source="canvas_construction_apply")
         assert wd.get_bpmn_model(model_id)["xml"] is None
         assert wd.list_bpmn_versions(model_id) == []
@@ -47,7 +47,7 @@ def test_complete_agent_construction_rejects_orphan_before_database_write():
                                    '<bpmn:task id="Orphan" name="Unconnected" />\n    '
                                    '<bpmn:endEvent id="End"')
 
-        with pytest.raises(ValueError, match="BPMN L3.*Orphan"):
+        with pytest.raises(ValueError, match="«Unconnected» non si raggiunge"):
             wd.update_bpmn_model(model_id, orphan, source="canvas_construction_apply")
         assert wd.get_bpmn_model(model_id)["xml"] is None
         assert wd.list_bpmn_versions(model_id) == []

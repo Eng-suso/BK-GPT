@@ -75,6 +75,26 @@ class BpmnVersionConflict(ValueError):
     """
 
 
+class BpmnSaveRejected(ValueError):
+    """Il gate BPMN (L2/L3) ha rifiutato una scrittura prima di salvare.
+
+    Sta qui per lo stesso motivo di `BpmnVersionConflict`. Il messaggio e i
+    dettagli li costruisce `backend/bpmn/omg_conformance.py`.
+
+    `str(exc)` e' scritto per il consulente: nomina i passaggi con la loro
+    etichetta, mai con ID o path XML, e dice che nulla e' cambiato. Il modello
+    e i log ricevono anche `technical_issues` (ID, path XSD) per correggere;
+    `level` dice quale gate ha rifiutato (`L2` schema e struttura, `L3`
+    comportamento).
+    """
+
+    def __init__(self, consultant_message: str, *, technical_issues: list[str], level: str) -> None:
+        super().__init__(consultant_message)
+        self.consultant_message = consultant_message
+        self.technical_issues = list(technical_issues)
+        self.level = level
+
+
 @dataclass
 class TurnWrites:
     """Cosa il turno corrente ha scritto sul canvas, e da quando lavora.
