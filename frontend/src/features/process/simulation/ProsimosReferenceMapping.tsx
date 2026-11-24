@@ -5,14 +5,15 @@ import type { ProsimosIdMapping } from "./prosimosJson";
 import { prosimosReferenceFields } from "./prosimosReferences";
 import type { ScenarioTemplate } from "./simulationTypes";
 
-export function ProsimosReferenceMapping({ source, template, mapping, onChange }: {
+export function ProsimosReferenceMapping({ source, template, merges, mapping, onChange }: {
   source: Record<string, unknown>;
   template: ScenarioTemplate;
+  merges?: ReadonlySet<string>;
   mapping: ProsimosIdMapping;
   onChange: (mapping: ProsimosIdMapping) => void;
 }): React.JSX.Element {
   const { t } = useTranslation("process");
-  const fields = prosimosReferenceFields(source, template, mapping);
+  const fields = prosimosReferenceFields(source, template, mapping, merges);
   const labels: Record<keyof ProsimosIdMapping, string> = {
     tasks: t("simulation.scenario.referenceTask"), gateways: t("simulation.scenario.referenceGateway"),
     flows: t("simulation.scenario.referenceFlow"), waits: t("simulation.scenario.referenceWait"),

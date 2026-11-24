@@ -20,7 +20,7 @@ import { useScenarioLab } from "../useScenarioLab";
 import { ScenarioTabs } from "../ScenarioTabs";
 import { exportScenarioJson, importScenarioJson } from "../scenarioJson";
 import { ProsimosReferenceMapping } from "../ProsimosReferenceMapping";
-import { prosimosReferenceFields } from "../prosimosReferences";
+import { mergeGatewayIds, prosimosReferenceFields } from "../prosimosReferences";
 import type { ProsimosIdMapping } from "../prosimosJson";
 import { applyNumericJsonMapping, numericJsonFields, type NumericJsonField, type NumericMapping } from "../scenarioJsonMapping";
 import { changedElements } from "../scenarioWorkspace";
@@ -84,6 +84,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
     handleSensitivity,
     activeRun,
   } = lab;
+  const merges = React.useMemo(() => mergeGatewayIds(bpmnXml), [bpmnXml]);
   const announceProsimosImport = (name: string, candidate: ScenarioDraft) => {
     toast.success(t("simulation.scenario.importApplied"), { description: t("simulation.scenario.importAppliedProsimos", {
       name, activities: Object.keys(candidate.tasks).length, resources: candidate.resources.length, decisions: Object.keys(candidate.gateways).length,
@@ -158,7 +159,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
         toast.success(t("simulation.scenario.importApplied"), { description: t("simulation.scenario.importAppliedDraft", { name: file.name }) });
         setImportOpen(false);
       } else if (source && "resource_profiles" in source && "task_resource_distribution" in source) {
-        if (template && prosimosReferenceFields(source, template, {}).length > 0) {
+        if (template && prosimosReferenceFields(source, template, {}, merges).length > 0) {
           setProsimosSource({ name: file.name, data: source });
           return;
         }
@@ -213,7 +214,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
       await checkOnServer(name, remapProsimosIds(data, prosimosMapping), cause);
     }
   };
-  const prosimosFields = prosimosSource && template ? prosimosReferenceFields(prosimosSource.data, template, prosimosMapping) : [];
+  const prosimosFields = prosimosSource && template ? prosimosReferenceFields(prosimosSource.data, template, prosimosMapping, merges) : [];
   const prosimosMappingReady = prosimosFields.length > 0 && prosimosFields.every((field) => Boolean(prosimosMapping[field.kind]?.[field.key]));
   const downloadScenario = () => {
     const blob = new Blob([exportScenarioJson(draft, lab.bpmnModelId)], { type: "application/json" });
@@ -354,7 +355,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
           </div>}
           <p role="status" className="text-sm text-muted-foreground empty:hidden">{serverChecking ? t("simulation.scenario.serverImport.checking") : ""}</p>
           {serverImport && <ServerScenarioImport name={serverImport.name} result={serverImport.result} running={serverRunning} onRun={() => void runServerImport()} />}
-          {prosimosSource && template && <ProsimosReferenceMapping source={prosimosSource.data} template={template} mapping={prosimosMapping} onChange={(next) => { setProsimosMapping(next); setImportError(null); }} />}
+          {prosimosSource && template && <ProsimosReferenceMapping source={prosimosSource.data} template={template} merges={merges} mapping={prosimosMapping} onChange={(next) => { setProsimosMapping(next); setImportError(null); }} />}
           {genericSource && <div className="grid gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm" role="status">
             <div>
               <p className="font-semibold">{t("simulation.scenario.fileRead")}: {genericSource.name}</p>
