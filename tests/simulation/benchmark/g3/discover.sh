@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # G3: SIMOD 5.2.1 scopre uno scenario dal log di train di un log reale.
 #
-#   tests/simulation/benchmark/g3/discover.sh <log> <diff|fuzz>
+#   tests/simulation/benchmark/g3/discover.sh <log> <diff|fuzz|extr>
 #   tests/simulation/benchmark/g3/discover.sh all        # i 3 log, prima diff poi fuzz
 #
 # <log> e' AcademicCredentials, BPIC_2012_W o BPIC_2017_W. Le configurazioni in
 # configs/ sono quelle del benchmark di SIMOD (datasets/simod/config/benchmark)
-# con i percorsi verso i nostri log; "fuzz" riusa il BPMN scoperto da "diff",
-# come upstream. Lo scenario migliore finisce in discovered/<log>_<variante>/,
+# con i percorsi verso i nostri log. "diff": calendari fissi (CRISP), come lo
+# scenario del paper; "fuzz": calendari FUZZY; "extr": calendari fissi e ritardi
+# estranei (eclipse-aware). "fuzz" ed "extr" riusano il BPMN di "diff", come upstream. Lo scenario migliore finisce in discovered/<log>_<variante>/,
 # il tempo di discovery in discovered/<log>_<variante>/discovery.json.
 #
 # SIMOD gira in un venv suo (Python 3.12), come il runner: lo crea la prima volta.
@@ -67,11 +68,11 @@ EOF
 main() {
   ensure_simod
   if [[ "${1:-}" == "all" ]]; then
-    for variant in diff fuzz; do
+    for variant in diff fuzz extr; do
       for log in AcademicCredentials BPIC_2012_W BPIC_2017_W; do discover "$log" "$variant"; done
     done
   else
-    discover "${1:?log}" "${2:?diff o fuzz}"
+    discover "${1:?log}" "${2:?diff, fuzz o extr}"
   fi
 }
 
