@@ -10,6 +10,7 @@
  */
 import type { EventLogSummary } from "./eventLogTypes";
 import type { SimulationSummary } from "../simulationTypes";
+import { formatCount } from "../simulationResults";
 
 export type Fidelity = "close" | "calibrate" | "far";
 export type GapFormat = "duration" | "rate" | "currency";
@@ -247,6 +248,11 @@ export function realProcessingByElement(real: EventLogSummary): Map<string, { se
 export function signedPercent(gap: number | null, lang: "it" | "en"): string {
   if (gap === null || !Number.isFinite(gap)) return "—";
   return new Intl.NumberFormat(lang === "it" ? "it-IT" : "en-US", { style: "percent", maximumFractionDigits: 0, signDisplay: "exceptZero" }).format(gap);
+}
+
+/** Un conteggio con il plurale giusto e le migliaia separate: "1 caso", "1.000 casi". */
+export function countLabel(t: (key: string, options: Record<string, unknown>) => string, key: string, count: number, lang: "it" | "en"): string {
+  return t(key, { count, value: formatCount(count, lang) });
 }
 
 /** Il log mappato piu' recente: e' il riferimento reale dell'inspector. */

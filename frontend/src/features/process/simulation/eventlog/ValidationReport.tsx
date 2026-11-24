@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import { InlineNotice } from "@/components/feedback";
 import { httpErrorMessage, http } from "@/lib/http";
 
-import { formatDuration } from "../simulationResults";
+import { formatCount, formatDuration } from "../simulationResults";
+import { countLabel } from "./realVsSimulated";
 import { groupMembers } from "../replications";
 import type { SimulationRun } from "../simulationTypes";
 
@@ -16,7 +17,7 @@ type Report = {
   simulatedCases: number[];
   replications: number;
   runIds: number[];
-  kpis: Record<"cycle" | "p50" | "p90" | "between" | "processing" | "throughput", Kpi>;
+  kpis: Record<Metric, Kpi>;
   distances: { cycleW1: Estimate; ngd: Estimate };
   pooledCycle: { p50: number; p90: number };
   firstWaitSimulated: Estimate | null;
@@ -45,8 +46,16 @@ export function ValidationReport({ eventLogId, run, runs, completeOnly = false }
   });
   const number = (value: number) => value.toLocaleString(lang === "it" ? "it-IT" : "en-US", { maximumFractionDigits: 2 });
   const duration = (seconds: number) => formatDuration(seconds, lang);
-  const rows = ["cycle", "p50", "p90", "between", "processing", "throughput"] as const;
-  const display = (key: typeof rows[number], value: number) => key === "throughput" ? `${number(value)}/h` : duration(value);
+  const count = (key: string, value: number) => countLabel(t, `simulation.eventLog.compare.${key}`, value, lang);
+  // Con simulazioni di dimensioni diverse si mostra l'intervallo: una media potrebbe coincidere con il log.
+  const simulatedCases = (counts: number[]) => {
+    const low = Math.min(...counts), high = Math.max(...counts);
+    return low === high ? count("casesLabel", low) : t("simulation.eventLog.compare.casesRange", { count: high, low: formatCount(low, lang), high: formatCount(high, lang) });
+  };
+  const display = (key: Metric, value: number) => key === "throughput" ? `${number(value)}/h` : duration(value);
+  // Con una sola simulazione l'intervallo non esiste: si mostra solo il valore.
+  const withCi = (value: string, half: number | null, format: (half: number) => string) => half === null ? value : `${value} ± ${format(half)} (${t("simulation.eventLog.compare.validation.ci")})`;
+  const signed = (key: Metric, value: number) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${display(key, Math.abs(value))}`;
   const missingStart = report.data?.provenance.runs.some((item) => !item.startDate) ?? false;
 
   return (
@@ -60,48 +69,32 @@ export function ValidationReport({ eventLogId, run, runs, completeOnly = false }
         {httpErrorMessage(report.error, t("simulation.eventLog.compare.validation.error"))}
       </InlineNotice>}
       {report.data && <>
-        <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.validation.scope", { runs: report.data.replications, cases: report.data.referenceCases })}</p>
+        <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.validation.scope", {
+          simulations: count("validation.simulations", report.data.replications),
+          cases: count("validation.realCases", report.data.referenceCases),
+        })}</p>
         {missingStart && <InlineNotice tone="error" title={t("simulation.eventLog.compare.validation.unanchoredTitle")}>
           {t("simulation.eventLog.compare.validation.unanchored")}
         </InlineNotice>}
         {!missingStart && <>
-        {report.data.simulatedCases.some((count) => count !== report.data.referenceCases) &&
+        {report.data.simulatedCases.some((cases) => cases !== report.data.referenceCases) &&
           <InlineNotice tone="warning" title={t("simulation.eventLog.compare.validation.caseCountTitle")}>
-            {t("simulation.eventLog.compare.validation.caseCount")}
+            {t("simulation.eventLog.compare.validation.caseCount", {
+              count: report.data.replications,
+              real: count("casesLabel", report.data.referenceCases),
+              simulated: simulatedCases(report.data.simulatedCases),
+            })}
           </InlineNotice>}
-        <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.validation.basis")}</p>
+        {/* Con una sola simulazione la tabella della simulazione scelta, qui sotto, dice già tutto. */}
+        {report.data.replications > 1 && <>
+          <KpiTable kpis={report.data.kpis} columns={[
+            [t("simulation.eventLog.compare.real"), (key, value) => display(key, value.real)],
+            [t("simulation.eventLog.compare.validation.simulatedMean"), (key, value) => display(key, value.mean)],
+            [t("simulation.eventLog.compare.validation.difference"), (key, value) => signed(key, value.bias)],
+          ]} />
+          <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.intro")}</p>
+        </>}
         <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.validation.calibration")}</p>
-        <div className="overflow-x-auto">
-          <table className="sim-gap-table">
-            <thead><tr>
-              <th scope="col">{t("simulation.eventLog.compare.kpi")}</th>
-              <th scope="col">{t("simulation.eventLog.compare.real")}</th>
-              <th scope="col">{t("simulation.eventLog.compare.validation.replicaMean")}</th>
-              <th scope="col">{t("simulation.eventLog.compare.validation.bias")}</th>
-              <th scope="col">{t("simulation.eventLog.compare.validation.mae")}</th>
-            </tr></thead>
-            <tbody>{rows.map((key) => {
-              const value = report.data.kpis[key];
-              return <tr key={key}>
-                <th scope="row">{t(`simulation.eventLog.compare.validation.metric.${key}`)}</th>
-                <td>{display(key, value.real)}</td>
-                <td>{display(key, value.mean)}{value.ci95Half !== null && <small>± {display(key, value.ci95Half)} (95%)</small>}</td>
-                <td>{value.bias > 0 ? "+" : value.bias < 0 ? "−" : ""}{display(key, Math.abs(value.bias))}</td>
-                <td>{display(key, value.mae)}</td>
-              </tr>;
-            })}</tbody>
-          </table>
-        </div>
-        <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.validation.uncertainty")}</p>
-        <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.validation.pooled", {
-          p50: duration(report.data.pooledCycle.p50), p90: duration(report.data.pooledCycle.p90),
-        })}</p>
-        <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.validation.distances", {
-          cycle: duration(report.data.distances.cycleW1.mean),
-          cycleCi: report.data.distances.cycleW1.ci95Half === null ? "—" : duration(report.data.distances.cycleW1.ci95Half),
-          ngd: number(report.data.distances.ngd.mean * 100),
-          ngdCi: report.data.distances.ngd.ci95Half === null ? "—" : number(report.data.distances.ngd.ci95Half * 100),
-        })}</p>
         </>}
         {!missingStart && report.data.firstWaitSimulated && <InlineNotice tone="warning" title={t("simulation.eventLog.compare.validation.firstWaitTitle")}>
           {t("simulation.eventLog.compare.validation.firstWait", { value: duration(report.data.firstWaitSimulated.mean) })}
@@ -110,8 +103,25 @@ export function ValidationReport({ eventLogId, run, runs, completeOnly = false }
           <InlineNotice tone="warning" title={t("simulation.eventLog.compare.validation.qualityTitle")}>
             {t("simulation.eventLog.compare.validation.quality", report.data.quality)}
           </InlineNotice>}
-        <details>
-          <summary>{t("simulation.eventLog.compare.validation.provenance")}</summary>
+        <details className="sim-validation-details">
+          <summary>{t("simulation.eventLog.compare.validation.details")}</summary>
+          {!missingStart && <>
+          <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.validation.basis")}</p>
+          <KpiTable kpis={report.data.kpis} caption={t("simulation.eventLog.compare.validation.specialistCaption")} columns={[
+            [t("simulation.eventLog.compare.validation.replicaMean"), (key, value) => withCi(display(key, value.mean), value.ci95Half, (half) => display(key, half))],
+            [t("simulation.eventLog.compare.validation.bias"), (key, value) => signed(key, value.bias)],
+            [t("simulation.eventLog.compare.validation.mae"), (key, value) => display(key, value.mae)],
+          ]} />
+          <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.validation.uncertainty")}</p>
+          <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.validation.pooled", {
+            p50: duration(report.data.pooledCycle.p50), p90: duration(report.data.pooledCycle.p90),
+          })}</p>
+          <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.validation.distances", {
+            cycle: withCi(duration(report.data.distances.cycleW1.mean), report.data.distances.cycleW1.ci95Half, duration),
+            ngd: withCi(`${number(report.data.distances.ngd.mean * 100)}%`, report.data.distances.ngd.ci95Half, (half) => t("simulation.eventLog.compare.validation.points", { value: number(half * 100) })),
+          })}</p>
+          </>}
+          <h4 className="sim-eventlog-title">{t("simulation.eventLog.compare.validation.provenance")}</h4>
           <ul className="list-disc pl-5 text-sm text-muted-foreground">
             {report.data.provenance.runs.map((item) => <li key={item.runId}>
               #{item.runId} · {item.engine ?? "—"} {item.engineVersion ?? ""} · seed {item.seed ?? "—"} · {item.startDate ?? t("simulation.eventLog.compare.validation.startMissing")} · warm-up {item.warmupCases}
@@ -120,5 +130,32 @@ export function ValidationReport({ eventLogId, run, runs, completeOnly = false }
         </details>
       </>}
     </section>
+  );
+}
+
+/** I sei indicatori del report con i nomi della tabella del processo: stesse parole nelle due tabelle. */
+const METRICS = { cycle: "cycleAvg", p50: "cycleP50", p90: "cycleP90", between: "waitingAvg", processing: "processingAvg", throughput: "throughput" } as const;
+type Metric = keyof typeof METRICS;
+
+function KpiTable({ kpis, columns, caption }: {
+  kpis: Report["kpis"];
+  columns: [header: string, cell: (key: Metric, value: Kpi) => React.ReactNode][];
+  caption?: string;
+}): React.JSX.Element {
+  const { t } = useTranslation("process");
+  return (
+    <div className="overflow-x-auto">
+      <table className="sim-gap-table">
+        {caption && <caption className="sr-only">{caption}</caption>}
+        <thead><tr>
+          <th scope="col">{t("simulation.eventLog.compare.kpi")}</th>
+          {columns.map(([header]) => <th key={header} scope="col">{header}</th>)}
+        </tr></thead>
+        <tbody>{(Object.keys(METRICS) as Metric[]).map((key) => <tr key={key}>
+          <th scope="row">{t(`simulation.eventLog.compare.kpiName.${METRICS[key]}`)}</th>
+          {columns.map(([header, cell]) => <td key={header}>{cell(key, kpis[key])}</td>)}
+        </tr>)}</tbody>
+      </table>
+    </div>
   );
 }
