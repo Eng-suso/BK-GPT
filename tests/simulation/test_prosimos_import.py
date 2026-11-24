@@ -250,8 +250,8 @@ def test_probabilities_far_from_one_are_refused() -> None:
         import_prosimos(source, bpmn)
 
 
-def _copy(name: str) -> tuple[dict, str]:
-    source, bpmn = _pair(INPUTS / "synthetic" / f"{name}.json")
+def _copy(name: str, folder: str = "synthetic") -> tuple[dict, str]:
+    source, bpmn = _pair(INPUTS / folder / f"{name}.json")
     return json.loads(json.dumps(source)), bpmn
 
 
@@ -314,8 +314,7 @@ def test_arrivals_cannot_be_instant() -> None:
 def _fuzzy(name: str) -> tuple[dict, str]:
     """Lo scenario ``name`` con i calendari delle risorse resi probabilistici, nel
     formato FUZZY che SIMOD scrive e Prosimos 2.1 legge (``parse_fuzzy_calendar``)."""
-    source, bpmn = _pair(INPUTS / f"{name}.json")
-    source = json.loads(json.dumps(source))
+    source, bpmn = _copy(*reversed(name.split("/")))
     source["model_type"] = "FUZZY"
     source["granule_size"] = {"value": 60, "time_unit": "MINUTES"}
     for k, calendar in enumerate(source["resource_calendars"]):
@@ -374,22 +373,17 @@ def test_fuzzy_calendars_round_trip_with_their_probabilities(load) -> None:
     used = {
         r["calendar"] for p in source["resource_profiles"] for r in p["resource_list"]
     }
-    expected = {
-        c["id"]: (
-            _probabilistic(c["time_periods"]),
-            _probabilistic(c["workload_ratio"]),
-        )
-        for c in source["resource_calendars"]
-        if c["id"] in used
-    }
-    got = {
-        c["id"]: (
-            _probabilistic(c["time_periods"]),
-            _probabilistic(c["workload_ratio"]),
-        )
-        for c in compiled["resource_calendars"]
-    }
-    assert got == expected
+    def by_id(calendars: list[dict]) -> dict:
+        return {
+            c["id"]: (
+                _probabilistic(c["time_periods"]),
+                _probabilistic(c["workload_ratio"]),
+            )
+            for c in calendars
+        }
+
+    expected = by_id([c for c in source["resource_calendars"] if c["id"] in used])
+    assert by_id(compiled["resource_calendars"]) == expected
     # Gli arrivi restano su un calendario fisso: Prosimos lo legge cosi'.
     assert all("probability" not in p for p in compiled["arrival_time_calendar"])
     assert any(n.topic == "probabilistic_calendars" for n in result.notes)

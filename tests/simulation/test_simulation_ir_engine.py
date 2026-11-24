@@ -884,17 +884,21 @@ def test_sensitivity_variants_move_the_cycle_time_on_the_engine():
     bpmn = contract_spike.BPMN_PATH.read_text(encoding="utf-8")
 
     def cycle(request) -> float:
-        rows = _run(_model(), seed=11, payload=build_prosimos_scenario(bpmn_xml=bpmn, request=request).payload)
-        cases: dict[str, list[float]] = {}
-        for row in rows:
-            span = cases.setdefault(row["case_id"], [row["start"], row["end"]])
-            span[0], span[1] = min(span[0], row["start"]), max(span[1], row["end"])
-        return sum(end - start for start, end in cases.values()) / len(cases)
+        return _mean_cycle(_run(_model(), seed=11, payload=build_prosimos_scenario(bpmn_xml=bpmn, request=request).payload))
 
     approve = SensitivityFactor(kind="duration", element_id="T_approve", label="Approva")
     arrivals = SensitivityFactor(kind="arrival")
     assert cycle(perturb(base, approve, "high", 0.2)) > cycle(perturb(base, approve, "low", 0.2))
     assert cycle(perturb(base, arrivals, "low", 0.2)) > cycle(perturb(base, arrivals, "high", 0.2))
+
+
+def _mean_cycle(rows: list[dict]) -> float:
+    """Tempo di ciclo medio: dal primo inizio all'ultima fine di ogni caso."""
+    cases: dict[str, list[float]] = {}
+    for row in rows:
+        span = cases.setdefault(row["case_id"], [row["start"], row["end"]])
+        span[0], span[1] = min(span[0], row["start"]), max(span[1], row["end"])
+    return sum(end - start for start, end in cases.values()) / len(cases)
 
 
 def _fuzzy_insurance_claims(availability: float) -> tuple[dict, str]:
@@ -921,12 +925,8 @@ def test_an_imported_fuzzy_scenario_runs_and_its_availability_matters():
         source, bpmn = _fuzzy_insurance_claims(availability)
         model = import_prosimos(source, bpmn).model
         rows = _run(model, seed=3, bpmn=bpmn, cases=120)
-        cases: dict[str, list[float]] = {}
-        for row in rows:
-            span = cases.setdefault(row["case_id"], [row["start"], row["end"]])
-            span[0], span[1] = min(span[0], row["start"]), max(span[1], row["end"])
-        assert len(cases) == 120
-        return sum(end - start for start, end in cases.values()) / len(cases)
+        assert len({row["case_id"] for row in rows}) == 120
+        return _mean_cycle(rows)
 
     # Risorse disponibili un'ora su cinque: i casi aspettano di piu'.
     # Misurato: ~193.000 s contro ~1.800 s con seed 3.
