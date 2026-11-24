@@ -1,22 +1,27 @@
 import type { Conformance } from "./eventLogTypes";
+import type { Fidelity } from "./realVsSimulated";
 
-/** Dice allo studio che l'overlay e' di aderenza, non di scarto dei tempi: cambia la legenda. */
-export const CONFORMANCE_MARKER = "sim-conformance";
+/**
+ * Le fasce dell'aderenza. Stessi tre livelli (e colori) del confronto reale
+ * contro simulato, soglie proprie: qui si misura una quota di casi, non uno
+ * scarto di tempi.
+ */
+export const ADHERENCE_CLOSE = 0.9;
+export const ADHERENCE_CALIBRATE = 0.6;
+/** Quota di casi che escono da un passo: fino al 10% vicino, fino al 40% da rivedere. */
+export const DEVIATION_CLOSE = 0.1;
+export const DEVIATION_CALIBRATE = 0.4;
 
-/** Quanto i casi reali seguono il disegno, con le stesse tre fasce del confronto reale/simulato. */
-export type Adherence = "close" | "calibrate" | "far";
-
-export function adherence(share: number): Adherence {
-  if (share >= 0.9) return "close";
-  if (share >= 0.6) return "calibrate";
-  return "far";
+/** Quanto i casi reali seguono il disegno, dalla quota di casi conformi. */
+export function adherence(share: number): Fidelity {
+  if (share >= ADHERENCE_CLOSE) return "close";
+  return share >= ADHERENCE_CALIBRATE ? "calibrate" : "far";
 }
 
-/** La fascia di un passo dalla quota di casi che ne escono: fino al 10%, fino al 40%, oltre. */
-export function deviationLevel(share: number): Adherence {
-  if (share <= 0.1) return "close";
-  if (share <= 0.4) return "calibrate";
-  return "far";
+/** La fascia di un passo dalla quota di casi che ne escono, estremi compresi nella fascia piu' bassa. */
+export function deviationLevel(share: number): Fidelity {
+  if (share <= DEVIATION_CLOSE) return "close";
+  return share <= DEVIATION_CALIBRATE ? "calibrate" : "far";
 }
 
 export type DeviationRow = {
@@ -31,20 +36,23 @@ export type DeviationRow = {
 };
 
 /**
- * Le deviazioni da mostrare: solo i passi con un nome (un gateway senza nome
- * non dice niente al process owner, e il suo scarto si ritrova sulle attivita'
- * accanto), dal piu' frequente.
+ * Gli elementi con un nome. Un gateway o un evento senza nome non dice niente
+ * al process owner (il server ne rimanda l'id come nome): lo scarto si ritrova
+ * sulle attivita' accanto.
  */
+function namedDeviations(result: Conformance) {
+  return result.deviations.filter((item) => item.name && item.name !== item.element_id);
+}
+
+/** Le deviazioni da mostrare, dal passo che tocca piu' casi. */
 export function deviationRows(result: Conformance): DeviationRow[] {
-  return result.deviations
-    .filter((item) => item.name && item.name !== item.element_id)
-    .map((item) => ({
-      elementId: item.element_id,
-      name: item.name,
-      outOfOrder: item.executed_out_of_order,
-      skipped: item.left_waiting,
-      share: result.cases ? item.cases_affected / result.cases : 0,
-    }));
+  return namedDeviations(result).map((item) => ({
+    elementId: item.element_id,
+    name: item.name,
+    outOfOrder: item.executed_out_of_order,
+    skipped: item.left_waiting,
+    share: result.cases ? item.cases_affected / result.cases : 0,
+  }));
 }
 
 export type OffPathVariant = {
@@ -58,12 +66,8 @@ export type OffPathVariant = {
 
 /** I percorsi reali che escono dal disegno, i piu' frequenti prima. */
 export function offPathVariants(result: Conformance, limit = 5): OffPathVariant[] {
-  const names = new Map(result.deviations.map((item) => [item.element_id, item.name] as const));
-  // Un elemento senza nome (gateway, evento) non si mostra: lo scarto si vede sui passi accanto.
-  const named = (ids: string[]) =>
-    ids
-      .map((id) => names.get(id))
-      .filter((name, index, all): name is string => Boolean(name) && !ids.includes(name!) && all.indexOf(name) === index);
+  const names = new Map(namedDeviations(result).map((item) => [item.element_id, item.name] as const));
+  const named = (ids: string[]) => [...new Set(ids.flatMap((id) => names.get(id) ?? []))];
   return result.variants
     .filter((variant) => !variant.fits)
     .slice(0, limit)

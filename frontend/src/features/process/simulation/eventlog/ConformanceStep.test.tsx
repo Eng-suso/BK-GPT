@@ -43,10 +43,10 @@ describe("ConformanceStep", () => {
     expect(screen.getByText("Fitness")).not.toBeVisible();
 
     await userEvent.click(screen.getByRole("button", { name: "Mostra sul disegno" }));
-    expect(onDecorations).toHaveBeenLastCalledWith([
-      expect.objectContaining({ elementId: "T2", badge: "30%" }),
-      expect.objectContaining({ elementId: "T3", badge: "30%" }),
-    ]);
+    expect(onDecorations).toHaveBeenLastCalledWith({
+      items: [expect.objectContaining({ elementId: "T2", badge: "30%" }), expect.objectContaining({ elementId: "T3", badge: "30%" })],
+      legend: { label: "simulation.eventLog.conformance.legend", levels: "simulation.eventLog.conformance.legendLevel" },
+    });
     await userEvent.click(screen.getByRole("button", { name: "Avanti" }));
     expect(onNext).toHaveBeenCalled();
   });

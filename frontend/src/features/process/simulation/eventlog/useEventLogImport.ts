@@ -46,6 +46,8 @@ export function useEventLogConformance(eventLogId: string, mappedAt: string | nu
   return useQuery({
     queryKey: eventLogKeys.conformance(eventLogId, mappedAt),
     queryFn: () => fetchEventLogConformance(eventLogId),
+    // Il replay rilegge tutto il log: si ricalcola quando cambia il mapping (nella chiave), non a ogni ritorno sul passo.
+    staleTime: 5 * 60_000,
     retry: false,
   });
 }
