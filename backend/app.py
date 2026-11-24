@@ -38,14 +38,104 @@ from fastapi.staticfiles import StaticFiles
 logger = logging.getLogger(__name__)
 
 
+#: Lunghezza minima dei token in un ambiente vero. `local_release.py` ne genera
+#: da 48 caratteri e `.env.example` suggerisce `secrets.token_urlsafe(48)` (64):
+#: sotto 32 e' quasi sempre un valore scritto a mano ("test", "change-me").
+MIN_TOKEN_LENGTH = 32
+
+
+def _allowed_tenants() -> list[str]:
+    return [item.strip() for item in settings.delir_allowed_tenant_ids.split(",") if item.strip()]
+
+
+def auth_configuration_problems() -> list[str]:
+    """Cosa, nella configurazione d'accesso, renderebbe indifendibile questo processo.
+
+    Fuori da una macchina di sviluppo ogni voce e' un modo concreto di aprire
+    la porta: un token che si indovina, un amministratore che coincide con
+    chiunque abbia il token API, un tenant scelto dal client senza allowlist,
+    un'origine `*`. Le restituisce tutte insieme: chi configura un ambiente
+    corregge il file una volta sola invece di scoprirle a una a una a ogni
+    riavvio. I messaggi nominano le variabili, mai i valori.
+
+    In sviluppo conta solo che, se l'autenticazione e' accesa, esista il token:
+    senza, ogni richiesta riceverebbe 503.
+    """
+    environment = current_environment()
+    api_token = (settings.delir_api_token or "").strip()
+
+    if environment in OPEN_ENVIRONMENTS:
+        if settings.delir_auth_enabled and not api_token:
+            return [
+                "DELIR_AUTH_ENABLED acceso senza DELIR_API_TOKEN: ogni richiesta "
+                "riceverebbe 503, che sembra un guasto e invece e' configurazione."
+            ]
+        return []
+
+    if not settings.delir_auth_enabled:
+        permessi = ", ".join(sorted(OPEN_ENVIRONMENTS))
+        # Con l'autenticazione spenta il resto non conta: e' gia' tutto aperto.
+        return [
+            f"DELIR_ENVIRONMENT={environment} con DELIR_AUTH_ENABLED spento: "
+            "il prodotto accetterebbe qualunque chiamata, da qualunque origine, "
+            "con permessi di amministratore. Accendi l'autenticazione, oppure "
+            f"dichiara uno degli ambienti aperti ({permessi}) se questa e' "
+            "davvero una macchina di sviluppo."
+        ]
+
+    problems: list[str] = []
+    admin_token = (settings.delir_admin_token or "").strip()
+
+    if not api_token:
+        problems.append("DELIR_API_TOKEN mancante: ogni richiesta riceverebbe 503.")
+    elif len(api_token) < MIN_TOKEN_LENGTH:
+        problems.append(
+            f"DELIR_API_TOKEN piu' corto di {MIN_TOKEN_LENGTH} caratteri: generane uno "
+            "con `python -c \"import secrets; print(secrets.token_urlsafe(48))\"`."
+        )
+
+    if not admin_token:
+        problems.append(
+            "DELIR_ADMIN_TOKEN mancante: cancellare clienti, progetti, processi o "
+            "l'intero workspace richiede una chiave distinta dal token API."
+        )
+    elif len(admin_token) < MIN_TOKEN_LENGTH:
+        problems.append(f"DELIR_ADMIN_TOKEN piu' corto di {MIN_TOKEN_LENGTH} caratteri.")
+    elif api_token and admin_token == api_token:
+        problems.append(
+            "DELIR_ADMIN_TOKEN uguale a DELIR_API_TOKEN: chiunque usi l'app sarebbe "
+            "amministratore."
+        )
+
+    allowed = _allowed_tenants()
+    if not allowed:
+        problems.append(
+            "DELIR_ALLOWED_TENANT_IDS vuota: il tenant lo sceglierebbe il client "
+            "con un header, senza nessun limite."
+        )
+    elif settings.delir_default_tenant_id.strip() not in allowed:
+        problems.append("DELIR_DEFAULT_TENANT_ID non compare in DELIR_ALLOWED_TENANT_IDS.")
+
+    origins = [o.strip() for o in settings.delir_cors_origins.split(",") if o.strip()]
+    if not origins or "*" in origins:
+        problems.append(
+            "DELIR_CORS_ORIGINS deve elencare le origini del frontend, senza `*`."
+        )
+
+    return problems
+
+
 def assert_environment_is_defensible() -> Literal["open", "guarded"]:
-    """Rifiuta di avviare un ambiente dichiarato vero senza autenticazione.
+    """Rifiuta di avviare un processo la cui configurazione d'accesso lascia la porta aperta.
 
     Con `delir_auth_enabled` a falso il prodotto accetta qualunque chiamata, con
     CORS `*` e `is_admin` acceso per tutti - cancellazioni comprese. In
     sviluppo e' comodo ed e' il default. In un ambiente dichiarato staging o
     prod e' un deploy senza porta, e il difetto di prima era che non lo diceva
-    nessuno: partiva e basta.
+    nessuno: partiva e basta. Lo stesso vale per una porta chiusa male: senza
+    chiave amministrativa, con un token debole o senza allowlist dei tenant il
+    processo partiva con un warning. Ora non parte (fail closed): vedi
+    `auth_configuration_problems`.
 
     Returns:
         Literal["open", "guarded"]: `"guarded"` quando una richiesta deve
@@ -54,37 +144,14 @@ def assert_environment_is_defensible() -> Literal["open", "guarded"]:
             in un test e, domani, mostrare in `/health`.
 
     Raises:
-        RuntimeError: Quando l'ambiente e' dichiarato vero e l'autenticazione e'
-            spenta, o e' accesa e manca il token.
+        RuntimeError: Con l'elenco completo dei problemi, quando ce n'e' almeno uno.
     """
     environment = current_environment()
-
-    if not settings.delir_auth_enabled and environment not in OPEN_ENVIRONMENTS:
-        permessi = ", ".join(sorted(OPEN_ENVIRONMENTS))
+    problems = auth_configuration_problems()
+    if problems:
         raise RuntimeError(
-            f"DELIR_ENVIRONMENT={environment} con DELIR_AUTH_ENABLED spento: "
-            "il prodotto accetterebbe qualunque chiamata, da qualunque origine, "
-            "con permessi di amministratore. Accendi l'autenticazione, oppure "
-            f"dichiara uno degli ambienti aperti ({permessi}) se questa e' "
-            "davvero una macchina di sviluppo."
-        )
-
-    if settings.delir_auth_enabled and not (settings.delir_api_token or "").strip():
-        raise RuntimeError(
-            "DELIR_AUTH_ENABLED acceso senza DELIR_API_TOKEN: ogni richiesta "
-            "riceverebbe 503, che sembra un guasto e invece e' configurazione."
-        )
-
-    if (
-        settings.delir_auth_enabled
-        and environment not in OPEN_ENVIRONMENTS
-        and not (settings.delir_admin_token or "").strip()
-    ):
-        logger.warning(
-            "DELIR_ADMIN_TOKEN non configurato (DELIR_ENVIRONMENT=%s): le operazioni "
-            "amministrative (cancellazioni di clienti, progetti, processi, workspace) "
-            "rispondono 403 finche' non lo si imposta.",
-            environment,
+            f"Configurazione d'accesso non difendibile (DELIR_ENVIRONMENT={environment}):\n- "
+            + "\n- ".join(problems)
         )
 
     if not settings.delir_auth_enabled:
