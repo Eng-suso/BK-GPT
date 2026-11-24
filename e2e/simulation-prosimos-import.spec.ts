@@ -82,7 +82,17 @@ const imported = {
 
 type State = { modelRuns: unknown[]; importRequests: unknown[] };
 
-async function fixture(page: Page, { refuse = false, broken = false, delayMs = 0 } = {}): Promise<State> {
+/** CAL-01: SIMOD ha stimato la probabilita' di trovare libere le persone, fascia per fascia. */
+const importedFuzzy = {
+  ...imported,
+  notes: [
+    ...imported.notes,
+    { kind: "info", topic: "probabilistic_calendars", message: "Probabilità di trovare libere le risorse stimata dai dati per 1 calendario, a fasce di 60 minuti.", element_id: null },
+  ],
+  simod: { ...imported.simod, model_type: "FUZZY", granule_size: { value: 60, time_unit: "MINUTES" } },
+};
+
+async function fixture(page: Page, { refuse = false, broken = false, fuzzy = false, delayMs = 0 } = {}): Promise<State> {
   const state: State = { modelRuns: [], importRequests: [] };
   await page.addInitScript((stored) => {
     Object.assign(window, { DELIR_API_BASE: "http://127.0.0.1:8000" });
@@ -109,10 +119,10 @@ async function fixture(page: Page, { refuse = false, broken = false, delayMs = 0
         return;
       }
       if (refuse) {
-        await route.fulfill({ status: 400, json: { ok: false, data: null, error: { code: "bad_request", message: "Lo scenario usa calendari «FUZZY»: DeliR importa solo calendari fissi (CRISP).", request_id: "r", origin: "server", retryable: false }, meta: { request_id: "r", duration_ms: 1 } } });
+        await route.fulfill({ status: 400, json: { ok: false, data: null, error: { code: "bad_request", message: "Lo scenario usa l'elaborazione a lotti (batch_processing), che DeliR non simula ancora.", request_id: "r", origin: "server", retryable: false }, meta: { request_id: "r", duration_ms: 1 } } });
         return;
       }
-      data = imported;
+      data = fuzzy ? importedFuzzy : imported;
     }
     else if (path.endsWith("/simulation-model-runs")) { state.modelRuns.push(request.postDataJSON()); data = { ...run, id: 77, status: "pending", scenario_name: "simod-scenario.json" }; }
     else if (path.endsWith("/simulation-template")) data = template;
@@ -169,9 +179,24 @@ test("a scenario the server cannot import explains why and changes nothing", asy
   const alert = dialog.getByRole("alert");
   await expect(alert).toContainText("Il file non è stato applicato");
   await alert.getByText("Mostra il motivo tecnico").click();
-  await expect(alert).toContainText("FUZZY");
+  await expect(alert).toContainText("batch_processing");
   await expect(dialog.getByRole("button", { name: "Simula così com'è" })).toHaveCount(0);
   expect(state.modelRuns).toEqual([]);
+});
+
+test("a SIMOD scenario with probabilistic availability is explained and simulated as it is", async ({ page }) => {
+  const state = await fixture(page, { fuzzy: true });
+  const dialog = await upload(page);
+
+  const panel = dialog.getByRole("region", { name: "DeliR può simulare questo scenario così com'è" });
+  await expect(panel).toBeVisible();
+  // Prima la frase per il consulente, il dettaglio tecnico solo su richiesta.
+  await expect(panel).toContainText("Le persone non sono sempre libere nei loro orari");
+  await expect(panel).not.toContainText("FUZZY");
+  await expect(panel).not.toContainText("altra nota");
+
+  await panel.getByRole("button", { name: "Simula così com'è" }).click();
+  await expect.poll(() => state.modelRuns.length).toBe(1);
 });
 
 test("a technical failure of the server keeps the editor's own reason", async ({ page }) => {

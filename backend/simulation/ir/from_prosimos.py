@@ -19,6 +19,8 @@ from defusedxml import ElementTree
 from pydantic import ValidationError
 
 from backend.simulation.ir.model import (
+    END_OF_DAY,
+    MIDNIGHT,
     Activity,
     Arrival,
     Assignment,
@@ -155,9 +157,11 @@ def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
         else "Importato da uno scenario Prosimos",
     )
     notes: list[ImportNote] = []
+    fuzzy = str(scenario.get("model_type") or "CRISP").upper() == "FUZZY"
+    granule = _granule_minutes(scenario.get("granule_size")) if fuzzy else None
 
     calendars = [
-        _calendar(entry, index)
+        _calendar(entry, index, fuzzy=fuzzy)
         for index, entry in enumerate(_list(scenario, "resource_calendars"))
     ]
     arrival_calendar = Calendar(
@@ -173,6 +177,16 @@ def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
         for index, entry in enumerate(_list(scenario, "resource_profiles"))
     ]
     used = {resource.calendar_id for pool in pools for resource in pool.resources}
+    if fuzzy:
+        notes.append(
+            ImportNote(
+                "info",
+                "probabilistic_calendars",
+                f"Probabilità di trovare libere le risorse stimata dai dati per "
+                f"{len(used)} {'calendario' if len(used) == 1 else 'calendari'}, "
+                f"a fasce di {granule:g} minuti.",
+            )
+        )
     for calendar in calendars:
         if calendar.id not in used:
             notes.append(
@@ -211,6 +225,8 @@ def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
                 for i, entry in enumerate(scenario.get("prioritisation_rules") or [])
             ),
             waits=tuple(waits),
+            availability="probabilistic" if fuzzy else "fixed",
+            granule_minutes=granule,
         )
     except ValidationError as exc:
         raise ProsimosImportError(_explain(exc)) from exc
@@ -224,10 +240,10 @@ def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
 
 def _check_sections(scenario: dict) -> None:
     model_type = scenario.get("model_type")
-    if model_type is not None and str(model_type).upper() != "CRISP":
+    if model_type is not None and str(model_type).upper() not in {"CRISP", "FUZZY"}:
         raise ProsimosImportError(
-            f"Lo scenario usa calendari «{model_type}» (disponibilità probabilistica delle "
-            "risorse): DeliR importa solo calendari fissi (CRISP). Riscoprilo con calendari fissi."
+            f"Tipo di calendari «{model_type}» sconosciuto: DeliR legge calendari fissi (CRISP) "
+            "e probabilistici (FUZZY)."
         )
     for key, reason in _NOT_YET.items():
         if scenario.get(key):
@@ -444,26 +460,50 @@ def _pool(entry: Any, index: int, provenance: Provenance) -> ResourcePool:
         raise ProsimosImportError(f"{path}: {_explain(exc)}") from exc
 
 
-def _calendar(entry: Any, index: int) -> Calendar:
+def _calendar(entry: Any, index: int, *, fuzzy: bool = False) -> Calendar:
     path = f"resource_calendars[{index}]"
     periods = tuple(
-        _period(p, f"{path}.time_periods[{i}]")
+        _period(p, f"{path}.time_periods[{i}]", probabilistic=fuzzy)
         for i, p in enumerate(_items(entry, "time_periods", path))
     )
+    if fuzzy:
+        workload = tuple(
+            _period(p, f"{path}.workload_ratio[{i}]", probabilistic=True)
+            for i, p in enumerate(_items(entry, "workload_ratio", path))
+        )
+    elif entry.get("workload_ratio"):
+        raise ProsimosImportError(
+            f"{path}: quote di lavoro (workload_ratio) in uno scenario a calendari fissi."
+        )
+    else:
+        workload = ()
     try:
         return Calendar(
             id=_text(entry, "id", path),
             name=_text(entry, "name", path),
             periods=periods,
+            workload=workload,
         )
     except ValidationError as exc:
         raise ProsimosImportError(f"{path}: {_explain(exc)}") from exc
 
 
-def _period(entry: Any, path: str) -> CalendarPeriod:
+def _probability(entry: dict, path: str) -> float:
+    # Prosimos leggerebbe 0, cioe' "mai disponibile": meglio dirlo che indovinare.
+    if entry.get("probability") is None:
+        raise ProsimosImportError(
+            f"{path}: fascia senza probabilità di disponibilità."
+        )
+    return _number(entry["probability"], f"{path}.probability")
+
+
+def _period(entry: Any, path: str, *, probabilistic: bool = False) -> CalendarPeriod:
     if not isinstance(entry, dict):
         raise ProsimosImportError(f"{path}: periodo del calendario non valido.")
-    extra = sorted(set(entry) - {"from", "to", "beginTime", "endTime"})
+    allowed = {"from", "to", "beginTime", "endTime"} | (
+        {"probability"} if probabilistic else set()
+    )
+    extra = sorted(set(entry) - allowed)
     if extra:
         raise ProsimosImportError(
             f"{path}: campi del calendario che DeliR non sa usare ({', '.join(extra)})."
@@ -473,10 +513,52 @@ def _period(entry: Any, path: str) -> CalendarPeriod:
             from_day=entry.get("from"),
             to_day=entry.get("to"),
             begin=entry.get("beginTime"),
-            end=entry.get("endTime"),
+            end=_fuzzy_end(entry.get("endTime")) if probabilistic else entry.get("endTime"),
+            probability=_probability(entry, path) if probabilistic else None,
         )
     except ValidationError as exc:
         raise ProsimosImportError(f"{path}: {_explain(exc)}") from exc
+
+
+def _fuzzy_end(value: Any) -> Any:
+    # SIMOD scrive la fascia che arriva a mezzanotte con endTime "00:00:00"
+    # (pix_framework, ``_interval_index_to_time``): nell'IR e' la fine giornata.
+    if isinstance(value, str) and value[:8] == MIDNIGHT:
+        return END_OF_DAY
+    return value
+
+
+_GRANULE_UNITS = {"SECONDS": 1 / 60, "MINUTES": 1.0, "HOURS": 60.0}
+
+
+def _granule_minutes(value: Any) -> int:
+    """La granularita' dei calendari FUZZY in minuti, come la legge Prosimos."""
+    if isinstance(value, dict):
+        unit = str(value.get("time_unit", "")).upper()
+        if unit not in _GRANULE_UNITS:
+            raise ProsimosImportError(
+                f"granule_size: unità «{value.get('time_unit')}» non valida."
+            )
+        minutes = (
+            _number(value.get("value"), "granule_size.value") * _GRANULE_UNITS[unit]
+        )
+    elif value is not None:
+        minutes = _number(value, "granule_size")
+    else:
+        raise ProsimosImportError(
+            "Calendari FUZZY senza granule_size: serve la durata delle fasce."
+        )
+    if not 0 < minutes <= 1440:
+        raise ProsimosImportError(
+            f"granule_size: {minutes:g} minuti non è una fascia valida."
+        )
+    if minutes != int(minutes):
+        # Solo la conversione: che la fascia divida la giornata lo verifica l'IR.
+        raise ProsimosImportError(
+            f"granule_size: {minutes:g} minuti. Il motore divide la giornata in fasce "
+            "uguali di minuti interi (per esempio 15, 30 o 60)."
+        )
+    return int(minutes)
 
 
 def _case_attribute(entry: Any, index: int, notes: list[ImportNote]) -> CaseAttribute:

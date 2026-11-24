@@ -64,6 +64,51 @@ Modello:
 
 ---
 
+## 2026-11-24 — CAL-01 calendari probabilistici (FUZZY) di SIMOD — fatto
+
+- Branch / PR: `feat/sim-fuzzy-calendars`. Il lavoro c'era già su quel branch (15
+  commit di una sessione precedente, mai in PR, partiti prima di #170): ripreso,
+  mergiato `origin/main`, verificato e completato.
+- Meta: uno scenario SIMOD con calendari FUZZY si importa senza perdere la
+  disponibilità probabilistica, si ricompila identico e gira sul runner Prosimos 2.1
+  dello stack; nessun rifiuto per FUZZY → raggiunta. Misura sullo stack reale:
+  scenario scoperto da SIMOD 5.2.1 (`differentiated_fuzzy`, fasce di 60 minuti) sul log
+  `Insurance_Claims_train.csv` in `datasets/simod/discovered/Insurance_Claims_fuzzy/`;
+  import e round trip 81/81 (`uv run pytest --noconftest tests/simulation/test_prosimos_import.py`),
+  motore 32/32 (venv del runner), API 6/6 con
+  `DELIR_TEST_PROSIMOS_URL=$PROSIMOS_BASE_URL`: import → coda → runner HTTP 2.1 →
+  database, 100 casi, `completed`. Suite `tests/simulation` con Postgres: 681 passati.
+  Disponibilità al 20% contro 95%: tempo di ciclo medio ~193.000 s contro ~1.800 s.
+- Iterazioni (sessione precedente): granularità in minuti interi; disponibilità *o*
+  carico in `is_available`; SIMOD installato e lanciato sul dataset; nota per il
+  consulente; code review con 7 rilievi chiusi.
+- Iterazioni (questa sessione): 1) mancava il run sul runner HTTP dello stack (il test
+  API usava un motore finto): test nuovo sul percorso del prodotto; 2) leggendo
+  Prosimos e pix_framework: SIMOD scrive la fascia fino a mezzanotte con `endTime`
+  "00:00:00" e l'IR la rifiutava, cioè un rifiuto per FUZZY su scenari veri (quello del
+  dataset finisce alle 15 e non lo mostrava); il motore leggeva "23:59:59" perdendo
+  l'ultima fascia e spostava in silenzio gli orari fuori granulo. Test rossi, poi
+  corretti; due casi sintetici del round trip usavano un granulo che non cadeva sui
+  loro orari; 3) probabilità accettate e ignorate su fasce degli arrivi e delle durate:
+  ora il tipo le esclude.
+- Code review: `code-review` (3 rilievi, tutti corretti), `backend/CODE_QUALITY.md`,
+  ast-grep (0 rilievi su `backend/simulation/ir`), ruff e mypy puliti; `simplify` con 4
+  revisori: corretti posizione di `probability`, riuso di `_clock`, `MIDNIGHT`, un
+  ciclo solo, loader condiviso dello scenario SIMOD. Non applicati, con motivo:
+  `availability` resta un `Literal` esplicito accanto a `granule_minutes`
+  (CODE_QUALITY: Literal per i modi); i controlli dell'import restano perché danno il
+  percorso nel file; gli helper che rendono FUZZY gli scenari sintetici producono
+  probabilità diverse di proposito. Efficienza: nessun rilievo (1,5 ms per
+  validazione su 896 fasce).
+- Skill: `code-review`, `simplify`, `ui-visual-validator`. Gate UX: screenshot desktop
+  e mobile (pannello, pagina, focus da tastiera) in `docs/vpt/ux/cal-01/`, letti: la
+  nota parla di persone e fasce, il dettaglio tecnico è dietro "Dettagli", nessun
+  testo tagliato, focus visibile; e2e `simulation-prosimos-import` 10/10 su chromium e
+  mobile-chrome.
+- Prossimo passo: B2 (in corso in un'altra sessione); UX-01 è chiuso.
+
+---
+
 ## 2026-11-24 — UX-01 reale contro simulato leggibile — fatto
 
 - Branch / PR: `fix/ux-real-vs-simulated`, #173.

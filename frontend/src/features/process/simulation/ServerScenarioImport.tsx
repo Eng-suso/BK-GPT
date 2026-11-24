@@ -5,7 +5,7 @@ import { Button } from "@/ui/button";
 
 import { groupNotes, importSummary, type ProsimosImport } from "./prosimosServerImport";
 
-const KNOWN_TOPICS = new Set(["merge_gateway", "unused_calendar", "instant_activity", "missing_branch", "rounded_probabilities"]);
+const KNOWN_TOPICS = new Set(["merge_gateway", "unused_calendar", "instant_activity", "missing_branch", "rounded_probabilities", "probabilistic_calendars"]);
 
 /** B1b: lo scenario che l'editor non rappresenta, letto dal server e pronto da simulare cosi' com'e'. */
 export function ServerScenarioImport({ name, result, running, onRun }: {
