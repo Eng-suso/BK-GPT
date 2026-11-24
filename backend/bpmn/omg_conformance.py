@@ -44,7 +44,7 @@ def _behavior_sentence(finding: dict) -> str:
         point = f"il punto di sincronizzazione «{name}»" if name else "un punto di sincronizzazione"
         return f"{point} aspetterebbe per sempre rami che, dopo una scelta, non arrivano"
     if code == "lack_of_synchronization":
-        return (f"{step} verrebbe eseguito due volte per la stessa pratica, perche' rami "
+        return (f"{step} verrebbe eseguito due volte per la stessa pratica, perché rami "
                 "paralleli si riuniscono senza sincronizzarsi")
     if code == "unreachable_node":
         return f"{step} non si raggiunge dall'inizio del processo"
@@ -62,11 +62,11 @@ def _behavior_sentence(finding: dict) -> str:
 def _behavior_message(findings: list[dict]) -> str:
     sentences = list(dict.fromkeys(_behavior_sentence(item) for item in findings))
     if not sentences:
-        return f"Il diagramma non e' stato salvato: il flusso non e' stato verificato per intero. {_UNCHANGED}"
+        return f"Il diagramma non è stato salvato: il flusso non è stato verificato per intero. {_UNCHANGED}"
     head = sentences[0]
     more = len(sentences) - 1
     tail = f" (e {more} {'altro problema' if more == 1 else 'altri problemi'} nel flusso)" if more else ""
-    return f"Il diagramma non e' stato salvato: {head}{tail}. {_UNCHANGED}"
+    return f"Il diagramma non è stato salvato: {head}{tail}. {_UNCHANGED}"
 
 
 @lru_cache(maxsize=1)
@@ -104,7 +104,7 @@ def assert_agent_bpmn_xsd_transition(*, previous_xml: str | None, proposed_xml: 
         return
     if "<!DOCTYPE" in proposed_xml.upper() or "<!ENTITY" in proposed_xml.upper():
         raise BpmnSaveRejected(
-            f"Il diagramma non e' stato salvato: contiene istruzioni XML non ammesse. {_UNCHANGED}",
+            f"Il diagramma non è stato salvato: contiene istruzioni XML non ammesse. {_UNCHANGED}",
             technical_issues=["BPMN 2.0.2 XSD: DTD ed entita' XML non sono consentite."],
             level="L2",
         )
@@ -113,7 +113,7 @@ def assert_agent_bpmn_xsd_transition(*, previous_xml: str | None, proposed_xml: 
     local = validate_bpmn_xml(proposed_xml)
     if local["issues"]:
         raise BpmnSaveRejected(
-            f"Il diagramma non e' stato salvato: la struttura BPMN non e' completa. {_UNCHANGED}",
+            f"Il diagramma non è stato salvato: la struttura BPMN non è completa. {_UNCHANGED}",
             technical_issues=["BPMN non valido: " + issue for issue in local["issues"]],
             level="L2",
         )
@@ -123,7 +123,7 @@ def assert_agent_bpmn_xsd_transition(*, previous_xml: str | None, proposed_xml: 
         if not (previous and not (Counter(proposed) - Counter(previous))):
             count = len(proposed)
             raise BpmnSaveRejected(
-                "Il diagramma non e' stato salvato: non rispetta lo standard BPMN 2.0 "
+                "Il diagramma non è stato salvato: non rispetta lo standard BPMN 2.0 "
                 f"({count} {'problema tecnico' if count == 1 else 'problemi tecnici'}). {_UNCHANGED}",
                 technical_issues=["BPMN 2.0.2 XSD: " + issue for issue in proposed],
                 level="L2",

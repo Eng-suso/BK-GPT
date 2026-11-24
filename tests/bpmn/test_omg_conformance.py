@@ -46,7 +46,7 @@ def test_valid_existing_model_cannot_regress_on_local_edit():
 
 def test_agent_model_rejects_dangling_sequence_flow_even_if_xsd_accepts_qname():
     broken = VALID_XML.replace('sourceRef="Review"', 'sourceRef="Unknown"')
-    with pytest.raises(BpmnSaveRejected, match="struttura BPMN non e' completa") as rejected:
+    with pytest.raises(BpmnSaveRejected, match="struttura BPMN non è completa") as rejected:
         assert_agent_bpmn_xsd_transition(
             previous_xml=VALID_XML, proposed_xml=broken, source="canvas_facade_connect"
         )
@@ -124,7 +124,7 @@ def test_l3_rejection_speaks_to_the_consultant_and_keeps_ids_for_the_agent():
         )
     message = str(rejected.value)
     assert message == (
-        "Il diagramma non e' stato salvato: il punto di sincronizzazione «Both reviews done» "
+        "Il diagramma non è stato salvato: il punto di sincronizzazione «Both reviews done» "
         "aspetterebbe per sempre rami che, dopo una scelta, non arrivano. Il canvas resta com'era."
     )
     assert "Join" not in message.replace("«Both reviews done»", "")
@@ -151,5 +151,5 @@ def test_agent_tool_error_carries_both_consultant_text_and_repair_detail():
             previous_xml=VALID_XML, proposed_xml=_deadlocking(VALID_XML), source="canvas_construction_apply",
         )
     result = report_tool_error(rejected.value)
-    assert result.startswith("Modifica non salvata: Il diagramma non e' stato salvato")
+    assert result.startswith("Modifica non salvata: Il diagramma non è stato salvato")
     assert "da non mostrare al consulente" in result and "(Join)" in result
