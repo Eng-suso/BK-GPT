@@ -1,24 +1,32 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-23, fine della sessione che ha preparato dataset e workflow.
+Aggiornato: 2026-11-24, chiusura di CAL-01.
 
 ## Punto attivo
 
-Nessuno. **B1a e B1b sono fatti** (`feat/sim-prosimos-import-ui`, PR verso `main` che
-contiene anche B1a: mergiandola si chiude anche #169).
+Nessuno. **CAL-01 è fatto** (`feat/sim-fuzzy-calendars`, PR sopra #170): gli scenari
+SIMOD con calendari FUZZY si importano, si ricompilano identici e girano su Prosimos 2.1.
+Si mergia dopo #170 (B1a + B1b).
 
-Prossimo: **CAL-01, calendari FUZZY di SIMOD** (richiesta di Sohayb: DeliR deve
-gestire tutto). Oggi `from_prosimos.py` li rifiuta con il motivo perché l'IR non
-rappresenta la disponibilità probabilistica. Primo passo: verificare nel sorgente di
-Prosimos 2.1 (`scripts/fetch_datasets.py fetch prosimos`) il formato dei calendari
-FUZZY e che il runner li esegua; poi IR, import, compilazione, test.
-
-In alternativa **UX-01** (leggibilità di "Reale contro simulato").
+Prossimo: **UX-01** (leggibilità di "Reale contro simulato") oppure **B2** (harness di
+valutazione), come da `PLAN.md`.
 
 ## Ultima misura
 
-B1b: e2e `e2e/simulation-prosimos-import.spec.ts` 8/8 (chromium e mobile-chrome),
-test API 4/4, unit 4/4; gate UX in `docs/vpt/ux/b1b-server-import/`.
+CAL-01: scenario scoperto da SIMOD 5.2.1 sul log del dataset
+(`datasets/simod/discovered/Insurance_Claims_fuzzy/`, `config.yml` accanto): round trip
+identico e 100 casi sul motore; disponibilità al 20% contro 95% → tempo di ciclo medio
+~193.000 s contro ~1.800 s. Suite `tests/simulation` con Postgres: 675 passati.
+
+## Da sapere sui calendari FUZZY
+
+- Prosimos considera libera una risorsa se lo dice la disponibilità **o** il carico
+  (`FuzzyModel.is_available`): un carico a 1 annulla la disponibilità.
+- La granularità deve dividere la giornata in fasce uguali di minuti interi.
+- Ogni fascia vuole la sua probabilità: Prosimos non ha un default e si ferma.
+- Per rilanciare SIMOD: venv Python 3.12, `pip install` del repo SIMOD dalla cache
+  (`scripts/fetch_datasets.py fetch simod`), serve Java; un errore Java finale sul
+  layout del BPMN non impedisce `best_result/`.
 
 ## Come riprendere B1
 
