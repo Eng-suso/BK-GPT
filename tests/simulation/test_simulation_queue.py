@@ -131,6 +131,27 @@ def test_every_run_writes_the_time_of_its_phases_even_when_it_fails(model, fake_
     assert "analisi" not in lines[f"simulazione {failed['id']}"]
 
 
+def test_a_run_is_completed_only_together_with_its_kpis_and_log(model, monkeypatch):
+    """B6: chi vede "completed" trova anche il log; se il log non si scrive, il run non e' completato."""
+    from tests.simulation.engine_log import ENGINE_LOG
+
+    run = _enqueue(model, 1)
+    claimed = queue.claim_next_run("w1")
+
+    def broken(*_args, **_kwargs):
+        raise OSError("disco pieno")
+
+    monkeypatch.setattr("backend.simulation.storage._write_simulation_log", broken)
+    with pytest.raises(OSError):
+        complete_simulation_run(
+            run_id=run["id"], result=ProsimosSimulationResult(payload={}, event_log_csv=ENGINE_LOG),
+            summary={"cycle": {}}, replay={}, log_csv=ENGINE_LOG, worker_id=claimed.worker_id,
+        )
+    after = get_simulation_run(run["id"])
+    assert after["status"] == "pending"
+    assert after["summary"] is None
+
+
 def test_a_full_queue_is_a_429_with_the_reason(api_client, model, monkeypatch):
     monkeypatch.setattr(settings, "simulation_max_queued_runs", 1)
     monkeypatch.setattr("backend.api.routes.simulation.drain_simulation_queue", lambda: None)
