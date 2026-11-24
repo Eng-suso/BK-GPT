@@ -19,14 +19,12 @@ test API 4/4, unit 4/4; gate UX in `docs/vpt/ux/b1b-server-import/`.
 CONF-02: e2e `simulation-eventlog` 12/12 su chromium e mobile-chrome, axe pulito;
 screenshot in `docs/vpt/ux/conformance/`. CONF-01: LoanApp 500/500 casi conformi.
 
-## Come riprendere CAL-01
+## CAL-01 (in corso dal 2026-11-24)
 
-1. Leggi [`WORKFLOW.md`](./WORKFLOW.md) e la voce più recente di [`LOG.md`](./LOG.md).
-2. Scarica Prosimos 2.1 (`uv run python scripts/fetch_datasets.py fetch prosimos`) e
-   leggi come rappresenta ed esegue i calendari FUZZY.
-3. Serve uno scenario SIMOD con calendari FUZZY scoperto sul dataset: il test di
-   import e round trip va scritto per primo e deve fallire.
-4. Estendi IR, `from_prosimos.py` e `compile_for_prosimos`; poi run sul runner.
+- Il lavoro c'era già su `origin/feat/sim-fuzzy-calendars` (15 commit, misura
+  dichiarata, mai portato in PR): ripreso, `origin/main` mergiato (conflitti solo in
+  `PLAN.md`, `HANDOFF.md`, `LOG.md`).
+- In corso: verifica indipendente della meta sullo stack reale, code review, PR.
 
 ## CI
 
