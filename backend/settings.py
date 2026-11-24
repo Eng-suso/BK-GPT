@@ -221,6 +221,22 @@ class Settings(BaseSettings):
     delir_default_tenant_id: str = "local"
     delir_allowed_tenant_ids: str = ""
     delir_cors_origins: str = "http://127.0.0.1:3030,http://localhost:3030"
+    # Chi prova l'identita' di chi chiama, quando l'autenticazione e' accesa:
+    # `token` = il token condiviso DELIR_API_TOKEN (pilota), `supabase` = un
+    # access token di Supabase Auth per persona (Track B,
+    # docs/deployment-and-tenancy.md B1). Un valore diverso blocca l'avvio.
+    delir_auth_provider: str = "token"
+    # L'URL del progetto Supabase, senza `/` finale: `https://<ref>.supabase.co`
+    # in cloud, `http://127.0.0.1:54321` con la CLI locale. Da qui derivano
+    # l'issuer atteso (`<url>/auth/v1`) e le chiavi pubbliche (JWKS).
+    supabase_url: str = ""
+    supabase_jwt_audience: str = "authenticated"
+    # Ogni quanto si rileggono le chiavi pubbliche. Un `kid` sconosciuto le fa
+    # rileggere subito (rotazione), al massimo una volta ogni 30 secondi.
+    supabase_jwks_ttl_seconds: int = 600
+    # Se Supabase non risponde si usano le chiavi gia' lette per al massimo
+    # questo tempo; poi ogni richiesta autenticata viene rifiutata (fail closed).
+    supabase_jwks_max_stale_seconds: int = 3600
     # Gli host esterni a cui l'app puo' mandare dati, separati da virgola (es.
     # `api.openai.com,api.smith.langchain.com`). In staging e prod e' la lista
     # dei fornitori registrati: una destinazione attiva fuori lista blocca
