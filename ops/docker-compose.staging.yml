@@ -41,7 +41,7 @@ services:
       DELIR_ENVIRONMENT: ${DELIR_LOCAL_ENVIRONMENT:?serve DELIR_LOCAL_ENVIRONMENT}
       FORWARDED_ALLOW_IPS: 127.0.0.1
       WORKERS_IN_PROCESS: "false"
-      DELIR_ADMIN_TOKEN: ""
+      # DELIR_ADMIN_TOKEN arriva dal file .env.<ambiente>: senza, l'app non parte.
       LANGSMITH_TRACING: "false"
       LANGSMITH_API_KEY: ""
       # Fornitori esterni registrati: vedi docs/compliance/fornitori-e-invii-dati.md.
