@@ -259,13 +259,12 @@ def compare_with_paper(results: list[dict]) -> list[dict]:
         for metric in PAPER_METRICS_COMPARED:
             ours = result["metrics"][metric]
             paper_mean, paper_ci = paper[result["scenario"]][metric]
-            gap = abs(ours["mean"] - paper_mean)
-            allowed = ours["ci95"] + paper_ci
             rows.append({
                 "log": result["scenario"], "metric": metric,
                 "delir_mean": ours["mean"], "delir_ci95": ours["ci95"],
                 "paper_mean": paper_mean, "paper_ci95": paper_ci,
-                "gap": gap, "allowed": allowed, "inside": gap < allowed,
+                "gap": abs(ours["mean"] - paper_mean), "allowed": ours["ci95"] + paper_ci,
+                "inside": within_intervals(ours, {"mean": paper_mean, "ci95": paper_ci}),
             })
     return rows
 
@@ -287,7 +286,7 @@ def comparison_table(rows: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
-_SHORT = {
+METRIC_LABELS = {
     "cycle_time_w1": "W1 cycle time (ore)", "ngram": "NGD", "relative_event": "RED (ore)",
     "absolute_event": "AED (ore)", "circadian_event": "CED (ore)", "case_arrival": "CAR (ore)",
 }
@@ -296,7 +295,7 @@ _SHORT = {
 def baseline_table(results: list[dict]) -> str:
     """Le sei metriche di ogni scenario, media ± intervallo: il riferimento di B3 e B5."""
     lines = [
-        "| Scenario | " + " | ".join(_SHORT[m] for m in METRICS) + " |",
+        "| Scenario | " + " | ".join(METRIC_LABELS[m] for m in METRICS) + " |",
         "| --- |" + " --- |" * len(METRICS),
     ]
     for r in results:
