@@ -253,14 +253,17 @@ def delete_bpmn_element(xml: str, element_id: str) -> tuple[str, dict]:
     # Associations, message flows and data associations cannot point at an
     # element that no longer exists: the layout would refuse the dangling edge.
     removed_connectors = []
+    # Connectors nested in the deleted element leave with it.
+    inside = {id(node) for node in element.iter()}
     for connector in list(root.iter()):
         kind = _local_name(connector.tag)
-        if _namespace(connector.tag) != BPMN_NS or kind not in _DEPENDENT_CONNECTOR_TYPES:
+        if (_namespace(connector.tag) != BPMN_NS or kind not in _DEPENDENT_CONNECTOR_TYPES
+                or id(connector) in inside):
             continue
         ends = {connector.attrib.get("sourceRef"), connector.attrib.get("targetRef")}
         ends |= {(ref.text or "").strip() for ref in connector
                  if _local_name(ref.tag) in {"sourceRef", "targetRef"}}
-        if ends & doomed_ids and connector is not element:
+        if ends & doomed_ids:
             removed_connectors.append(connector.attrib.get("id", ""))
             _remove_element(root, connector)
 

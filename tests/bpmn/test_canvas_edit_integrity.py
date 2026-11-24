@@ -112,3 +112,16 @@ def test_delete_without_connector_ids_fails_closed():
             before_xml=XML, after_xml=XML, operation="delete_element",
             change={"id": "Review", "removed_connectors": [""]},
         )
+
+
+def test_connectors_nested_in_the_deleted_task_leave_with_it():
+    xml = XML.replace(
+        '<bpmn:task id="Review" name="Review request" />',
+        '<bpmn:task id="Review" name="Review request"><bpmn:dataInputAssociation id="Review_Input">'
+        '<bpmn:sourceRef>Doc</bpmn:sourceRef></bpmn:dataInputAssociation></bpmn:task>'
+        '<bpmn:dataObjectReference id="Doc" name="Request form" />',
+    )
+    after, change = delete_bpmn_element(xml, "Review")
+    assert change["removed_connectors"] == []
+    assert "dataInputAssociation" not in after and 'id="Doc"' in after
+    assert_local_edit_integrity(before_xml=xml, after_xml=after, operation="delete_element", change=change)
