@@ -15,11 +15,14 @@ import gzip
 from dataclasses import dataclass
 from pathlib import Path
 
-from backend.eventlog.mapping import ColumnMapping, QualityReport, apply_mapping
+from backend.eventlog.mapping import ColumnMapping, QualityReport, TimestampFormat, apply_mapping
 from backend.eventlog.model import EventLog
 from backend.eventlog.readers import read_xes
 from scripts import fetch_datasets
 
+# Entrambi i log sono in ora dell'Europa centrale (+01/+02): i timestamp XES hanno
+# il fuso, e il gemello ingenuo sposta il calendario in questa zona.
+_CET = TimestampFormat(timezone="Europe/Amsterdam")
 # BPIC 2012: una riga per transizione (start/complete).
 _TRANSITIONS = ColumnMapping(
     case_id=("case:concept:name",),
@@ -27,6 +30,7 @@ _TRANSITIONS = ColumnMapping(
     timestamp="time:timestamp",
     lifecycle="lifecycle:transition",
     resource="org:resource",
+    timestamps=_CET,
 )
 # BPIC 2013: ogni riga e' un cambio di stato istantaneo. Il ciclo di vita non e'
 # start/complete ma il sottostato ("Accepted" + "In Progress"): fa parte
@@ -36,38 +40,25 @@ _STATUS_CHANGES = ColumnMapping(
     activity=("concept:name", "lifecycle:transition"),
     end="time:timestamp",
     resource="org:resource",
+    timestamps=_CET,
 )
 
 
 @dataclass(frozen=True, slots=True)
 class Dataset:
+    """Un log del benchmark: titolo, fonte, licenza, URL e MD5 stanno nel manifest."""
+
     key: str
     manifest_id: str
-    title: str
-    doi: str
-    license: str
     mapping: ColumnMapping
-    # Il fuso dei timestamp: entrambi i log sono in ora dell'Europa centrale (+01/+02).
-    zone: str = "Europe/Amsterdam"
 
 
 DATASETS: dict[str, Dataset] = {
-    "bpic2012": Dataset(
-        key="bpic2012",
-        manifest_id="bpic2012",
-        title="BPI Challenge 2012 (richieste di prestito)",
-        doi="10.4121/uuid:3926db30-f712-4394-aebc-75976070e91f",
-        license="4TU General Terms of Use",
-        mapping=_TRANSITIONS,
-    ),
-    "bpic2013_incidents": Dataset(
-        key="bpic2013_incidents",
-        manifest_id="bpic2013-incidents",
-        title="BPI Challenge 2013, incidenti (Volvo IT)",
-        doi="10.4121/uuid:500573e6-accc-4b0c-9576-aa5468b10cee",
-        license="4TU General Terms of Use",
-        mapping=_STATUS_CHANGES,
-    ),
+    d.key: d
+    for d in (
+        Dataset("bpic2012", "bpic2012", _TRANSITIONS),
+        Dataset("bpic2013_incidents", "bpic2013-incidents", _STATUS_CHANGES),
+    )
 }
 
 
@@ -75,10 +66,14 @@ class DatasetUnavailable(RuntimeError):
     """4TU non risponde, o il file non e' quello dichiarato nel manifest."""
 
 
+def manifest_entry(dataset: Dataset) -> dict:
+    return fetch_datasets.load_manifest()[dataset.manifest_id]
+
+
 def fetch(dataset: Dataset) -> Path:
     """Il file del dataset nella cache di ``fetch_datasets``, scaricato e verificato se manca."""
     try:
-        entry = fetch_datasets.load_manifest()[dataset.manifest_id]
+        entry = manifest_entry(dataset)
         return fetch_datasets.fetch(entry) / entry["file"]
     except (fetch_datasets.DatasetError, OSError) as exc:
         raise DatasetUnavailable(f"{dataset.key}: {exc}") from exc

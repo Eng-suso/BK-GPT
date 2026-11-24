@@ -6,7 +6,7 @@
   "scenario": "bpic2012",
   "status": "measured",
   "title": "BPI Challenge 2012 (richieste di prestito)",
-  "doi": "10.4121/uuid:3926db30-f712-4394-aebc-75976070e91f",
+  "source": "https://doi.org/10.4121/uuid:3926db30-f712-4394-aebc-75976070e91f",
   "license": "4TU General Terms of Use",
   "twin": "naive: B = A",
   "rows_excluded": {

@@ -45,7 +45,7 @@ def serve(tmp_path, monkeypatch, dataset, body: bytes, *, md5: str | None = None
     source.parent.mkdir()
     source.write_bytes(body)
     entry = {
-        "id": dataset.manifest_id, "mode": "fetch", "license": dataset.license,
+        "id": dataset.manifest_id, "mode": "fetch", "license": "4TU General Terms of Use",
         "url": source.as_uri(), "file": FILE, "md5": md5 or hashlib.md5(body).hexdigest(),
     }
     monkeypatch.setattr(fetch_datasets, "load_manifest", lambda: {dataset.manifest_id: entry})
@@ -60,7 +60,7 @@ def test_the_benchmark_logs_are_in_the_manifest_with_their_licence():
     manifest = fetch_datasets.load_manifest()
     for dataset in DATASETS.values():
         entry = manifest[dataset.manifest_id]
-        assert (entry["license"], entry["mode"]) == (dataset.license, "fetch")
+        assert (entry["license"], entry["mode"]) == ("4TU General Terms of Use", "fetch")
 
 
 def test_the_file_is_kept_only_with_the_md5_of_the_manifest(tmp_path, monkeypatch):

@@ -6,7 +6,7 @@
   "scenario": "bpic2013_incidents",
   "status": "measured",
   "title": "BPI Challenge 2013, incidenti (Volvo IT)",
-  "doi": "10.4121/uuid:500573e6-accc-4b0c-9576-aa5468b10cee",
+  "source": "https://doi.org/10.4121/uuid:500573e6-accc-4b0c-9576-aa5468b10cee",
   "license": "4TU General Terms of Use",
   "twin": "naive: B = A",
   "rows_excluded": {},
