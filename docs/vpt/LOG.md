@@ -18,6 +18,49 @@ Modello:
 
 ---
 
+## 2026-11-24 — SIM-36 baseline pubblica "B = A" — fatto
+
+- Branch / PR: `feat/sim-benchmark-baseline`, #178.
+- Meta: baseline "B = A" misurata su BPIC 2012 e BPIC 2013 incidents e salvata nel repo con
+  il comando per rifarla → raggiunta. Comandi: `run_baseline.py bpic2012`,
+  `run_baseline.py bpic2013_incidents`; log scaricati con `fetch_datasets.py`, MD5 del
+  manifest verificato. Seed 20261124, 10 repliche, ore:
+  - BPIC 2012: W1 16,931 ± 1,518, NGD 0,055 ± 0,002, RED 16,554 ± 1,567, AED 60,281 ± 3,275,
+    CED 0,222 ± 0,013, CAR 48,697 ± 2,653.
+  - BPIC 2013 incidents: W1 383,995 ± 7,811, NGD 0,329 ± 0,004, RED 176,788 ± 3,981,
+    AED 334,396 ± 16,091, CED 1,751 ± 0,079, CAR 290,944 ± 6,383.
+  Stesso seed, stessi file bit per bit.
+- Iterazioni:
+  1) BPIC 2013 letto con 0 eventi: il ciclo di vita è un sottostato. Ora è parte
+     dell'attività, con eventi istantanei.
+  2) Spostamento di A non a settimane intere: CED 6,7 h su BPIC 2012, misurava la rotazione
+     del calendario. Con le settimane intere: 0,35.
+  3) Code review: l'ancoraggio sul minimo portava un caso del 2010 a spostare tutto, con
+     AED 17.945 h. Con l'ancoraggio sulla mediana: 334 h.
+  4) Ora legale: spostare in UTC perdeva un'ora (CED 0,21 dopo). Spostare ogni evento
+     sull'orologio locale cambiava le durate a cavallo del cambio d'ora: ora si sposta
+     l'inizio del caso.
+  5) Il primo JSON perdeva la descrizione delle distanze, sovrascritta dalle metriche.
+- Cosa è cambiato:
+  - `run_baseline.py` usa le distanze di B2, scrive un file per log e non sovrascrive una
+    misura con un motivo di indisponibilità.
+  - `benchmark_datasets.py` scarica dal manifest, con una mappatura e un fuso per log.
+  - `benchmark_metrics.py` è stato tolto.
+  - `docs/simulation-benchmark.md` riscritto.
+- Decisioni:
+  - Ancoraggio sulla mediana e settimane intere: scelta di metodo, documentata.
+  - Lo scarto fino a 3,5 giorni resta in AED e CAR.
+  - Nessuna meta cambiata.
+- Code review:
+  - `code-review`: 9 rilievi, 7 corretti e 2 motivati.
+  - `backend/CODE_QUALITY.md` e ast-grep: 0 rilievi.
+  - `simplify` con 4 revisori: 5 corretti, 6 saltati con motivo (dettaglio nella PR).
+- Skill: `code-review`, `simplify`. Nessuna skill di frontend: punto di ricerca senza UI,
+  quindi niente gate UX.
+- Prossimo passo: G3 e B3 misurano il twin contro questa baseline con lo stesso comando.
+
+---
+
 ## 2026-11-24 — B2 harness di valutazione — fatto
 
 - Branch / PR: `feat/sim-eval-harness`.
