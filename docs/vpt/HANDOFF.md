@@ -28,6 +28,12 @@ loro voci di [`LOG.md`](./LOG.md).
 - Prima misura, gemello ingenuo (train spostato di settimane intere) sul test:
   RED 24,0 / 9,7 / 11,0 h e W1 26,2 / 28,0 / 30,9 h (AcademicCredentials, BPIC 2012 W,
   BPIC 2017 W), molto sotto lo scenario SIMOD del paper (RED 77 / 179 / 184 h).
+- AcademicCredentials CRISP scoperto in 126 s. Nell'harness RED 6649 ± 2136 h, W1 295 h,
+  contro 77 e 175 h del paper: un gateway di ciclo dopo "Avanzar recepcion documentos" ha
+  uscita 0 e ritorno 1,0 (nel train l'attività compare in 2 casi su 398), quindi un caso
+  ripete fino al tetto di Prosimos (~1000 volte). SIMOD lo conferma nella sua valutazione
+  (RED ~6240 h): l'import di DeliR è fedele, ma non segnala il ciclo senza uscita.
+- In corso (background): BPIC 2012 W e 2017 W `diff`, AcademicCredentials `fuzz`.
 
 ## CAL-01 (fatto il 2026-11-24, PR #172)
 
