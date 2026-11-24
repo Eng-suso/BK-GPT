@@ -51,13 +51,23 @@ class Dataset:
     key: str
     manifest_id: str
     mapping: ColumnMapping
+    # Perche' il log non serve a giudicare una previsione A -> B; None se serve.
+    unsuitable_for_a_to_b: str | None = None
 
 
 DATASETS: dict[str, Dataset] = {
     d.key: d
     for d in (
         Dataset("bpic2012", "bpic2012", _TRANSITIONS),
-        Dataset("bpic2013_incidents", "bpic2013-incidents", _STATUS_CHANGES),
+        Dataset(
+            "bpic2013_incidents",
+            "bpic2013-incidents",
+            _STATUS_CHANGES,
+            unsuitable_for_a_to_b=(
+                "foto degli incidenti aperti a maggio 2012, non un flusso: con ogni taglio il 100% dei casi "
+                "di B e' troncato dalla fine del log (decisione di Sohayb, 2026-11-24)"
+            ),
+        ),
     )
 }
 
