@@ -122,6 +122,19 @@ Stato del lavoro aperto della PR (aggiornato il 24/11/2026, secondo giro):
    `e2e-fullstack/save-gate.spec.ts` sul processo "Approvazione fatture" del
    seed.
 
+Terzo giro (24/11/2026, chiave Groq di test):
+
+- Benchmark su tre modelli Groq con client che aspetta i limiti al minuto e
+  conta i retry: tool loop `gpt-oss-20b` 7 casi x 3 (XML 21/21, mappa 20/21,
+  token -77,17%), L4 `qwen3.8-27b` 5 casi x 3 (recall 15/15 ovunque, falsi
+  positivi XML 0 / DSL 2 / mappa 3), runtime di produzione su una coppia.
+- `benchmark_canvas_prompt_budget`: nel Patch/Edit la prima chiamata con mappa
+  e' per il 71% prompt fisso. E' qui il prossimo margine sul KPI per
+  operazione, non nella rappresentazione del canvas.
+- La mappa ora porta associazioni e data association (`canvas-map 2`).
+- Da sistemare nel prodotto: nel giro runtime la risposta al consulente
+  conteneva ID tecnici, contro il contratto del subgraph.
+
 Non attivare il DSL v1/v2 per scritture LLM per inseguire il solo target token:
 la correttezza dei modelli accettati e la fedelta' alle fonti sono gate di
 release. Non salvare dati cliente grezzi, segreti o credenziali nella PR.
