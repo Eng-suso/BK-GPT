@@ -14,6 +14,8 @@ import {
   apiUploadedSourceSchema,
   apiRestoreBpmnVersionSchema,
 } from "./workspace";
+import { apiIdentitySchema } from "@/features/identity/api";
+import { apiAuthConfigSchema } from "@/lib/authConfig";
 
 /**
  * Contract guard: every zod schema the frontend uses to parse a backend
@@ -45,6 +47,8 @@ const SCHEMA_BY_COMPONENT: Record<string, ZodType> = {
   BpmnModelResponse: apiBpmnModelSchema,
   BpmnVersionResponse: apiBpmnVersionSchema,
   RestoreBpmnVersionResponse: apiRestoreBpmnVersionSchema,
+  AuthConfig: apiAuthConfigSchema,
+  CurrentIdentity: apiIdentitySchema,
 };
 
 /** A representative on-the-wire value for one distilled type token. */

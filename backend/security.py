@@ -86,6 +86,52 @@ def _token_from_credentials(credentials: HTTPAuthorizationCredentials | None) ->
     return credentials.credentials
 
 
+SUPABASE_PROVIDER = "supabase"
+_UNAUTHORIZED = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Credenziali API mancanti o non valide.",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+
+
+def _authenticate_bearer(supplied_token: str | None) -> tuple[str | None, str]:
+    """Chi prova di essere il portatore del token: `(user_id, auth_mode)`.
+
+    Con il token condiviso l'identita' non esiste (`None`): il token prova solo
+    di essere un client autorizzato. Con Supabase l'identita' e' il `sub` del
+    token, e solo quello: un header non puo' cambiarla.
+
+    Raises:
+        HTTPException: 401 se il token non prova niente; 503 se Supabase non e'
+            verificabile da troppo tempo o non e' autorizzato come destinazione.
+    """
+    if not supplied_token:
+        raise _UNAUTHORIZED
+
+    if settings.delir_auth_provider == SUPABASE_PROVIDER:
+        from backend.auth.supabase_jwt import (
+            IdentityProviderUnavailable,
+            InvalidAccessToken,
+            get_verifier,
+        )
+        from backend.llm.egress import EgressBlocked
+
+        try:
+            identity = get_verifier().verify(supplied_token)
+        except InvalidAccessToken as exc:
+            raise _UNAUTHORIZED from exc
+        except (IdentityProviderUnavailable, EgressBlocked) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Verifica dell'identita' non disponibile.",
+            ) from exc
+        return identity.subject, SUPABASE_PROVIDER
+
+    if not compare_digest(supplied_token, _configured_api_token()):
+        raise _UNAUTHORIZED
+    return None, "bearer"
+
+
 def require_principal(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
@@ -106,20 +152,13 @@ def require_principal(
         request.state.auth_principal = principal
         return principal
 
-    supplied_token = _token_from_credentials(credentials)
-    expected_token = _configured_api_token()
-    if not supplied_token or not compare_digest(supplied_token, expected_token):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenziali API mancanti o non valide.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    subject, auth_mode = _authenticate_bearer(_token_from_credentials(credentials))
 
     principal = AuthPrincipal(
-        user_id=x_delir_user_id or "api-client",
+        user_id=subject or x_delir_user_id or "api-client",
         tenant_id=tenant_id,
         is_admin=not (settings.delir_admin_token or "").strip() and _admin_without_token(),
-        auth_mode="bearer",
+        auth_mode=auth_mode,
     )
     set_current_tenant_id(tenant_id)
     request.state.auth_principal = principal
@@ -184,11 +223,15 @@ async def authenticate_websocket(websocket: WebSocket) -> AuthPrincipal | None:
         set_current_tenant_id(tenant_id)
         return principal
 
-    expected_token = _configured_api_token()
-    if not supplied_token or not compare_digest(supplied_token, expected_token):
-        await websocket.close(code=1008)
+    try:
+        subject, auth_mode = _authenticate_bearer(supplied_token)
+    except HTTPException as exc:
+        # 1008: credenziali rifiutate; 1011: verifica non disponibile lato server.
+        await websocket.close(code=1011 if exc.status_code >= 500 else 1008)
         return None
 
-    principal = AuthPrincipal(user_id="api-client", tenant_id=tenant_id, auth_mode="bearer")
+    principal = AuthPrincipal(
+        user_id=subject or "api-client", tenant_id=tenant_id, auth_mode=auth_mode
+    )
     set_current_tenant_id(tenant_id)
     return principal

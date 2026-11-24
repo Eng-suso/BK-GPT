@@ -17,7 +17,7 @@ primi 3–5 clienti pilota senza affidarsi a isolamento "per convenzione".
 | Track | Cosa | Stato |
 |---|---|---|
 | **A — Infra hardening + deploy** | tunnel, chiusura porte, Kamal, build GHCR, zero-downtime | 🟡 in corso — A2, A3 fatti (pilota: compose, Kamal rimandato) |
-| **B — Tenant boundary end-to-end** | Supabase Auth + membership + kill `default_consultant_id` + code/worker tenant-aware + RLS workspace | ⬜ non iniziata |
+| **B — Tenant boundary end-to-end** | Supabase Auth + membership + kill `default_consultant_id` + code/worker tenant-aware + RLS workspace | 🟡 in corso — B1 nel codice; progetti cloud staging/prod da creare |
 
 **Gate cliente #1** = Track B chiusa. Fino ad allora staging/prod possono girare
 con token condiviso + Cloudflare Access (allowlist email).
@@ -313,7 +313,7 @@ consultant, propagato **anche nei job asincroni**.
 worker + i **tre** datastore (canonical Postgres, workspace Postgres, Mem0
 pgvector). Mem0 è il più sensibile: il recall entra nel prompt LLM.
 
-### B1 — Progetto Supabase + JWT verifier + prod-guard  ⬜
+### B1 — Progetto Supabase + JWT verifier + prod-guard  🟡
 - **Supabase:** progetto in **regione EU** (Frankfurt — non si sposta dopo).
   Signing algorithm = **ES256** (attivare/ruotare esplicitamente le asymmetric
   signing keys; il JWKS pubblico serve solo con chiavi asimmetriche). Sign-up
@@ -343,7 +343,27 @@ pgvector). Mem0 è il più sensibile: il recall entra nel prompt LLM.
   alg errato/iss errato → 401; `ENVIRONMENT=production` + auth off → l'app non
   parte. CI resta col path `delir_auth_enabled=false` (fixture fake-JWT per i
   test del path auth, **CI non tocca Supabase**).
-- **Note:** _(vuoto)_
+- **Note (2026-11-24):**
+  - Fatto nel codice: `backend/auth/supabase_jwt.py` (solo ES256, `iss`/`aud`/
+    `role`/`is_anonymous`/`sub` UUID, leeway 60 s, cache JWKS in memoria con
+    TTL 10 min, refresh su `kid` sconosciuto al massimo ogni 30 s, stale-on-error
+    1 h poi 503). `DELIR_AUTH_PROVIDER=token|supabase`: il token condiviso resta
+    il default finche' i progetti cloud non esistono. Supabase e' la
+    destinazione egress `identity_provider`.
+  - Prod-guard: fuori da dev l'app non parte senza `SUPABASE_URL` (https se
+    l'host e' esterno), senza `SUPABASE_PUBLISHABLE_KEY` o con una secret /
+    `service_role` key al suo posto.
+  - Frontend: `GET /v1/auth/config` (pubblico) da' provider, URL e publishable
+    key a runtime, quindi una sola build per tutti gli ambienti. Login
+    email+password nel cancello, sessione in `sessionStorage`, "Esci" nel menu.
+  - Locale/CI: `ops/supabase` (CLI, solo db+GoTrue+Kong, ES256, sign-up chiusi,
+    token 30 min). **Correzione all'accettazione:** CI usa Supabase *locale*
+    (job `e2e-auth`), mai un progetto cloud.
+  - La config sta in `ops/supabase` e non in `supabase/`: l'integrazione GitHub
+    del progetto esistente aprirebbe preview branch per PR.
+  - Aperto: creare i due progetti cloud (staging, prod; Free, EU), chiavi
+    asimmetriche ES256, sign-up OFF, TTL 30 min; poi `DELIR_AUTH_PROVIDER=supabase`
+    nei rispettivi `.env`. La chiave admin resta finche' non arrivano i ruoli (B2).
 
 ### B2 — Modello tenant su Postgres Oracle  ⬜
 - **Cosa:** tabelle (workspace DB o nuovo schema `identity`):
@@ -684,3 +704,4 @@ pgvector). Mem0 è il più sensibile: il recall entra nel prompt LLM.
 | _(brainstorm, +Mem0)_ | Sohayb + Claude | Mem0 aggiunto come terzo datastore tenant-sensitive: nuovo step **B8** (isolamento tenant), `mem0_user_id` nel kill-list di B4, `mem0_worker` in B5, backup A8 esteso ai 3 db, GDPR B10 purga anche Mem0, snapshot + alternative aggiornati. |
 | 2026-09-03 | Codex | Blocker 3 confermato da Sohayb: `develop` deploya staging, label `deploy-staging` su PR per on-demand, `main` + CI verde + approval deploya prod. Restano aperti i blocker VM Oracle A1 e dominio Cloudflare. |
 | 2026-10-31 | Claude | Pilota fase 1: A2 + A3 fatti. Immagine ARM64 con frontend dentro, migratore unico sotto lock, `/health/ready`, overlay `ops/docker-compose.prod.yml` (app + Prosimos + volume `delir_appdata` + tetti di memoria 11 GB su 12, controllati da `tests/server/test_prod_compose.py`). Kamal (A5) rimandato: per un consulente basta compose con downtime breve al rilascio. |
+| 2026-11-24 | Claude | Fail closed all'avvio sulla configurazione d'accesso (#182). B1 nel codice: verifier Supabase ES256, login per persona nel frontend, Supabase locale per dev/CI, E2E `e2e-auth`. Progetti cloud ancora da creare. |

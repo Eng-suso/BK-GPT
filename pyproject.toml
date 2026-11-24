@@ -35,6 +35,7 @@ dependencies = [
     "docling-core[chunking]>=2.99.0",
     "pypdfium2>=5.13.0",
     "defusedxml>=0.7.1",
+    "pyjwt[crypto]>=2.10",
 ]
 
 [dependency-groups]

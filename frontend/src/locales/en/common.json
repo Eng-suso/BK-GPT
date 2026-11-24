@@ -49,7 +49,13 @@
     "token": "API token",
     "enter": "Continue",
     "invalid": "Invalid tenant or token for this environment.",
-    "unavailable": "The backend is unavailable. Check that this environment is running and retry."
+    "unavailable": "The backend is unavailable. Check that this environment is running and retry.",
+    "personalDescription": "Sign in with your DeliR account and choose the workspace. The session stays in this browser tab.",
+    "email": "Email",
+    "password": "Password",
+    "entering": "Signing in…",
+    "invalidLogin": "Invalid email or password.",
+    "invalidTenant": "Signed in, but this workspace is not authorised for you in this environment."
   },
   "home": {
     "description": "Operational overview of clients, projects and processes in the workspace.",
@@ -329,7 +335,8 @@
     "noPersonYet": "The product does not know who you are yet: per-person sign-in comes with authentication.",
     "access": {
       "open": "Authentication not configured",
-      "shared": "Shared credential access"
+      "shared": "Shared credential access",
+      "personal": "Personal sign-in"
     },
     "section": {
       "title": "Access",
@@ -343,7 +350,9 @@
       "pending": "Per-person identity — who validated a model, who answered a question — comes with real authentication. Until then every action is recorded as the workspace, not as someone.",
       "failed": "The access state could not be read."
     },
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "signOut": "Sign out",
+    "personalHint": "You are recognised as a person: your actions carry your identifier."
   },
   "period": {
     "label": "Period: {{period}}",
