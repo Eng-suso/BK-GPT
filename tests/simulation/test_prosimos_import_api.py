@@ -6,6 +6,7 @@ Serve il database (come gli altri test dell'API): gira con la suite completa.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -184,3 +185,47 @@ def test_a_fuzzy_scenario_reaches_the_engine_with_its_probabilities(client, monk
     for calendar in payload["resource_calendars"]:
         assert {p["probability"] for p in calendar["time_periods"]} == {0.4}
         assert {p["probability"] for p in calendar["workload_ratio"]} == {0.7}
+
+
+@pytest.mark.skipif(
+    not os.environ.get("DELIR_TEST_PROSIMOS_URL"),
+    reason="serve il runner Prosimos 2.1 dello stack: DELIR_TEST_PROSIMOS_URL=$PROSIMOS_BASE_URL",
+)
+def test_the_simod_fuzzy_scenario_runs_on_the_stack_runner(client):
+    """CAL-01: lo scenario FUZZY scoperto da SIMOD fa il percorso del prodotto.
+
+    Import dal server, run in coda, runner Prosimos 2.1 vero, esito letto dal database.
+    """
+    folder = ROOT / "datasets" / "simod" / "discovered" / "Insurance_Claims_fuzzy"
+    scenario = json.loads((folder / "Insurance_Claims_fuzzy.json").read_text(encoding="utf-8"))
+    bpmn = (folder / "Insurance_Claims_fuzzy.bpmn").read_text(encoding="utf-8")
+    bpmn_model_id = _bpmn_model_id(client)
+
+    imported = client.post(
+        f"/v1/workspace/bpmn-models/{bpmn_model_id}/prosimos-import",
+        json={"scenario": scenario, "current_bpmn_xml": bpmn},
+    )
+    assert imported.status_code == 200, imported.text
+    run = client.post(
+        f"/v1/workspace/bpmn-models/{bpmn_model_id}/simulation-model-runs",
+        json={
+            "model": imported.json()["model"],
+            "current_bpmn_xml": bpmn,
+            "total_cases": 100,
+            "seed": 7,
+            "scenario_name": "SIMOD FUZZY",
+        },
+    )
+    assert run.status_code == 200, run.text
+
+    # TestClient esegue il drenaggio della coda prima di rispondere: il run e' finito.
+    finished = client.get(f"/v1/workspace/simulation-runs/{run.json()['id']}").json()
+    assert finished["status"] == "completed", finished["error"]
+    assert finished["result"]["EngineVersion"].startswith("2.1")
+    sent = finished["scenario"]
+    assert sent["model_type"] == "FUZZY"
+    assert sent["granule_size"] == scenario["granule_size"]
+    assert {c["id"] for c in sent["resource_calendars"]} <= {
+        c["id"] for c in scenario["resource_calendars"]
+    }
+    assert finished["summary"]["casesCompleted"] == 100
