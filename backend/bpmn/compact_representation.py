@@ -2,6 +2,12 @@
 
 The line based DeliR DSL keeps every semantic XML element and attribute, including
 unknown extensions. Diagram geometry is excluded and can be rebuilt by layout.
+
+Namespace declarations travel as ``@xmlns:prefix`` fields on the root, so QName
+values such as ``xsi:type="bpmn:tFormalExpression"`` or ``messageRef="tns:M"``
+keep resolving to the same namespace after a round trip. Documents that bind
+one prefix to two namespaces, or whose prefix ElementTree would reuse for
+another namespace on output, are refused instead of being rewritten.
 """
 
 from __future__ import annotations
@@ -9,6 +15,7 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 import re
 from io import StringIO
+from xml.sax.saxutils import quoteattr
 
 from defusedxml.ElementTree import fromstring, iterparse
 
@@ -94,17 +101,54 @@ def _unescape(value: str) -> str:
     return "".join(result)
 
 
+_XMLNS = "xmlns"
+_QNAME_PREFIX = re.compile(r"(?<![\w.-])([A-Za-z_][\w.-]*):[A-Za-z_][\w.-]*")
+
+
+def _namespace_declarations(xml: str) -> dict[str, str]:
+    declarations: dict[str, str] = {}
+    for _event, (prefix, uri) in iterparse(StringIO(xml), events=("start-ns",)):
+        if declarations.get(prefix, uri) != uri:
+            raise ValueError(f"DeliR DSL: il prefisso XML '{prefix}' e' legato a due namespace.")
+        declarations[prefix] = uri
+    return declarations
+
+
 def _prepared_root(xml: str) -> ET.Element:
     root = _without_di(fromstring(xml))
     if root is None:
         raise ValueError("BPMN root cannot be diagram geometry")
-    aliases = {prefix for _, (prefix, _) in iterparse(StringIO(xml), events=("start-ns",)) if prefix}
-    qname = re.compile(r"(?<![\w.-])([A-Za-z_][\w.-]*):[A-Za-z_][\w.-]*")
-    for element in root.iter():
-        for value in (*element.attrib.values(), element.text or ""):
-            if any(match.group(1) in aliases for match in qname.finditer(value)):
-                raise ValueError("DeliR DSL non supporta prefissi XML usati nei valori QName.")
+    values = [value for element in root.iter() for value in (*element.attrib.values(), element.text or "")]
+    used = {match.group(1) for value in values for match in _QNAME_PREFIX.finditer(value)}
+    # Element and attribute names carry their full namespace already; only the
+    # prefixes that QName values use, and the default namespace that unprefixed
+    # QName values resolve against, need to survive.
+    for prefix, uri in _namespace_declarations(xml).items():
+        if not prefix or prefix in used:
+            root.set(f"{_XMLNS}:{prefix}" if prefix else _XMLNS, uri)
     return root
+
+
+def _serialize_with_declarations(root: ET.Element) -> str:
+    """Serialize and re-declare the source prefixes that QName values rely on."""
+    wanted = {key: root.attrib.pop(key) for key in list(root.attrib)
+              if key == _XMLNS or key.startswith(_XMLNS + ":")}
+    if _XMLNS in wanted and any(not element.tag.startswith("{") for element in root.iter()):
+        raise ValueError("DeliR DSL: namespace di default con elementi senza namespace.")
+    output = ET.tostring(root, encoding="unicode")
+    present = {prefix: uri for _event, (prefix, uri) in iterparse(StringIO(output), events=("start-ns",))}
+    extra = []
+    for key, uri in sorted(wanted.items()):
+        prefix = key.partition(":")[2]
+        if prefix in present:
+            if present[prefix] != uri:
+                raise ValueError(f"DeliR DSL: il prefisso XML '{prefix}' non si puo' ricostruire.")
+            continue
+        extra.append(f" {key}={quoteattr(uri)}")
+    if not extra:
+        return output
+    head = re.match(r"<[^\s/>]+", output)
+    return output[:head.end()] + "".join(extra) + output[head.end():]
 
 
 def encode_delir_dsl(xml: str) -> str:
@@ -232,7 +276,7 @@ def decode_delir_dsl_v2(source: str) -> str:
         parents = parents[:depth] + [element]
     if root is None:
         raise ValueError("Empty DeliR DSL v2 document")
-    return ET.tostring(root, encoding="unicode")
+    return _serialize_with_declarations(root)
 
 
 def decode_delir_dsl(source: str) -> str:
@@ -279,4 +323,4 @@ def decode_delir_dsl(source: str) -> str:
         parents = parents[:depth] + [element]
     if root is None:
         raise ValueError("Empty DeliR DSL document")
-    return ET.tostring(root, encoding="unicode")
+    return _serialize_with_declarations(root)
