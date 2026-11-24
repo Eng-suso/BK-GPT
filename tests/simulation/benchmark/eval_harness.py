@@ -40,7 +40,9 @@ if __package__ in (None, ""):  # lanciato come script
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from tests.simulation.benchmark.log_distance import (
+    MAX_REPLICAS,
     METRICS,
+    cycle_time_w1,
     distances,
     events_from_rows,
     mean_confidence_interval,
@@ -59,7 +61,6 @@ REAL_LIFE = ("AcademicCredentials", "BPIC_2012_W", "BPIC_2017_W")
 # Come il paper: 10 simulazioni per modello (``for i in range(10)``).
 PAPER_REPLICAS = 10
 DEFAULT_SEED = 20261124
-MAX_REPLICAS = 31  # quante ne copre la tabella t di log_distance
 # Le tre metriche che il paper pubblica (o da cui si ricava) per la riga ``original``.
 PAPER_METRICS_COMPARED = ("relative_event", "absolute_event", "cycle_time_w1")
 _RUN_TIMEOUT_SECONDS = 1800.0
@@ -90,14 +91,18 @@ class ProductPath:
 
     def __init__(self, client) -> None:
         self.client = client
-        # Ogni passata simula davvero: senza una chiave sua, la coda restituirebbe
-        # i run di una passata precedente con lo stesso seed.
+        # Ogni passata ha clienti e processi suoi: la chiave d'idempotenza dei run
+        # contiene il processo, quindi nessun run di una passata precedente torna indietro.
         self.session = uuid.uuid4().hex[:12]
+        self.seen_runs: set[int] = set()
 
-    def _ok(self, response) -> dict:
+    def _checked(self, response):
         if response.status_code != 200:
             raise RuntimeError(f"{response.request.method} {response.request.url.path}: {response.status_code} {response.text[:500]}")
-        return response.json()
+        return response
+
+    def _ok(self, response) -> dict:
+        return self._checked(response).json()
 
     def new_process(self, name: str) -> str:
         client_id = self._ok(self.client.post("/v1/workspace/clients", json={"name": f"B2 {self.session}"}))["id"]
@@ -127,10 +132,12 @@ class ProductPath:
                     "start_date": start,
                     "seed": seed,
                     "scenario_name": "B2 as-is",
-                    "idempotency_key": f"b2-{self.session}-{key}",
                 },
             )
         )
+        if queued["id"] in self.seen_runs:
+            raise RuntimeError(f"run {queued['id']} ({key}) gia' visto: la coda non ha simulato di nuovo")
+        self.seen_runs.add(queued["id"])
         deadline = time.monotonic() + _RUN_TIMEOUT_SECONDS
         while True:
             run = self._ok(self.client.get(f"/v1/workspace/simulation-runs/{queued['id']}"))
@@ -143,9 +150,7 @@ class ProductPath:
             time.sleep(0.5)
 
     def event_log(self, run_id: int) -> list[dict[str, str]]:
-        response = self.client.get(f"/v1/workspace/simulation-runs/{run_id}/event-log", params={"format": "csv"})
-        if response.status_code != 200:
-            raise RuntimeError(f"log del run {run_id}: {response.status_code} {response.text[:300]}")
+        response = self._checked(self.client.get(f"/v1/workspace/simulation-runs/{run_id}/event-log", params={"format": "csv"}))
         return list(csv.DictReader(io.StringIO(response.text)))
 
 
@@ -249,11 +254,12 @@ def compare_with_paper(results: list[dict]) -> list[dict]:
             ours = result["metrics"][metric]
             paper_mean, paper_ci = paper[result["scenario"]][metric]
             gap = abs(ours["mean"] - paper_mean)
+            allowed = ours["ci95"] + paper_ci
             rows.append({
                 "log": result["scenario"], "metric": metric,
                 "delir_mean": ours["mean"], "delir_ci95": ours["ci95"],
                 "paper_mean": paper_mean, "paper_ci95": paper_ci,
-                "gap": gap, "allowed": ours["ci95"] + paper_ci, "inside": gap < ours["ci95"] + paper_ci,
+                "gap": gap, "allowed": allowed, "inside": gap < allowed,
             })
     return rows
 
@@ -280,12 +286,10 @@ def refresh_paper_cycle_time(outputs: Path) -> None:
     logs = {}
     for log in REAL_LIFE:
         test = read_csv_log(INPUTS / "real-life" / f"{log}_test.csv.gz")
-        values = [
-            distances(test, read_csv_log(outputs / log / f"{log}_sim_original_{i}.csv"))["cycle_time_w1"]
+        logs[log] = summarize([
+            cycle_time_w1(test, read_csv_log(outputs / log / f"{log}_sim_original_{i}.csv"))
             for i in range(PAPER_REPLICAS)
-        ]
-        average, half = mean_confidence_interval(values)
-        logs[log] = {"mean": average, "ci95": half, "replicas": values}
+        ])
     PAPER_CYCLE_TIME.write_text(
         json.dumps({
             "source": "extraneous-delays-outputs (Zenodo 10.5281/zenodo.10435849), real-life-evaluation/<log>/<log>_sim_original_<0..9>.csv contro <log>_test.csv.gz",

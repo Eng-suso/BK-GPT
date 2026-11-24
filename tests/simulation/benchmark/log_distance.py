@@ -49,6 +49,7 @@ _T_975 = (
     2.0796138447276795, 2.0738730679040254, 2.0686576104190486, 2.0638985616280245, 2.0595385527532972,
     2.0555294386428735, 2.0518305164802846, 2.0484071417952454, 2.045229642132703, 2.0422724563012378,
 )
+MAX_REPLICAS = len(_T_975) + 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,7 +122,7 @@ def cycle_time_w1(original: Sequence[Event], simulated: Sequence[Event]) -> floa
         for log in (original, simulated)
     ]
     shortest = min(min(durations[0]), min(durations[1]))
-    bins = [[math.floor((d - shortest).total_seconds() / _HOUR) for d in side] for side in durations]
+    bins = [[_hour_bin((d - shortest).total_seconds()) for d in side] for side in durations]
     return wasserstein_1d(bins[0], bins[1])
 
 
@@ -215,8 +216,8 @@ def distances(original: Sequence[Event], simulated: Sequence[Event]) -> dict[str
 def mean_confidence_interval(values: Sequence[float]) -> tuple[float, float]:
     """Media e semiampiezza dell'intervallo t di Student al 95%, come il paper."""
     n = len(values)
-    if not 2 <= n <= len(_T_975) + 1:
-        raise ValueError(f"Servono da 2 a {len(_T_975) + 1} repliche, non {n}.")
+    if not 2 <= n <= MAX_REPLICAS:
+        raise ValueError(f"Servono da 2 a {MAX_REPLICAS} repliche, non {n}.")
     average = math.fsum(values) / n
     std = math.sqrt(math.fsum((v - average) ** 2 for v in values) / (n - 1))
     return average, _T_975[n - 2] * std / math.sqrt(n)

@@ -15,7 +15,9 @@ from pathlib import Path
 
 import pytest
 
+from tests.simulation.benchmark.eval_harness import INPUTS, PAPER_METRICS, PAPER_REPLICAS
 from tests.simulation.benchmark.log_distance import (
+    _T_975,
     METRICS,
     Event,
     distances,
@@ -25,10 +27,7 @@ from tests.simulation.benchmark.log_distance import (
 )
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[2]
-INPUTS = ROOT / "datasets" / "extraneous-delays" / "inputs"
 REFERENCE = json.loads((HERE / "fixtures" / "log_distance_reference.json").read_text(encoding="utf-8"))
-PAPER = ROOT / "datasets" / "extraneous-delays" / "paper-results" / "real-life-evaluation" / "metrics.csv"
 
 
 @pytest.mark.parametrize("pair", REFERENCE["pairs"], ids=lambda p: p["simulated"].split("/")[-1])
@@ -55,6 +54,10 @@ def test_the_interval_is_the_t_student_one_of_the_paper():
         mean_confidence_interval([1.0])
 
 
+def test_the_whole_t_table_is_scipy_s():
+    assert list(_T_975) == REFERENCE["t_975"]
+
+
 def test_naive_timestamps_are_utc_and_gzip_is_read(tmp_path):
     path = tmp_path / "log.csv"
     with path.open("w", newline="") as handle:
@@ -72,10 +75,10 @@ OUTPUTS = Path.home() / ".cache" / "delir-datasets" / "extraneous-delays-outputs
 @pytest.mark.skipif(not OUTPUTS.exists(), reason="serve `fetch_datasets.py fetch extraneous-delays-outputs`")
 @pytest.mark.parametrize("process", ["AcademicCredentials", "BPIC_2012_W"])
 def test_the_port_reproduces_the_paper_row_from_its_own_logs(process):
-    with PAPER.open(newline="") as handle:
+    with PAPER_METRICS.open(newline="") as handle:
         row = next(r for r in csv.DictReader(handle) if r["name"] == f"{process}_original")
     test_log = read_csv_log(INPUTS / "real-life" / f"{process}_test.csv.gz")
-    measured = [distances(test_log, read_csv_log(OUTPUTS / process / f"{process}_sim_original_{i}.csv")) for i in range(10)]
+    measured = [distances(test_log, read_csv_log(OUTPUTS / process / f"{process}_sim_original_{i}.csv")) for i in range(PAPER_REPLICAS)]
 
     for metric, column in (("relative_event", "relative"), ("absolute_event", "absolute")):
         mean, half = mean_confidence_interval([m[metric] for m in measured])

@@ -9,7 +9,8 @@ backend, in un venv apposta:
     /tmp/ldm/bin/python -I tests/simulation/benchmark/log_distance_reference.py
 
 Le chiamate sono quelle del paper e di SIMOD: parametri di default della
-libreria, cycle time con bin di un'ora, 3-grammi normalizzati.
+libreria, cycle time con bin di un'ora, 3-grammi normalizzati. Accanto, i
+quantili t di Student che il paper usa per l'intervallo al 95%.
 """
 
 from __future__ import annotations
@@ -68,7 +69,14 @@ def main() -> int:
         {"original": a, "simulated": b, "distances": distances(read(INPUTS / a), read(INPUTS / b))}
         for a, b in PAIRS
     ]
-    report = {"library": f"log-distance-measures {version('log-distance-measures')}", "pairs": pairs}
+    from scipy.stats import t
+
+    report = {
+        "library": f"log-distance-measures {version('log-distance-measures')}",
+        "pairs": pairs,
+        # L'intervallo del paper (compute_mean_conf_interval): t.ppf(0.975, df) per df = 1..30.
+        "t_975": [float(t.ppf(0.975, df)) for df in range(1, 31)],
+    }
     OUT.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(f"scritto {OUT}", file=sys.stderr)
     return 0
