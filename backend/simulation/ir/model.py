@@ -141,7 +141,18 @@ Weekday = Literal["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATUR
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{1,6})?$")
 
 
-class CalendarPeriod(_Strict):
+#: La fine giornata nell'IR, al microsecondo come la scrive SIMOD nei calendari fissi.
+END_OF_DAY = "23:59:59.999999"
+#: Come SIMOD e il motore fuzzy di Prosimos scrivono la fine di una fascia che arriva a mezzanotte.
+MIDNIGHT = "00:00:00"
+
+
+def is_end_of_day(value: str) -> bool:
+    """CAL-01: la fine di un periodo che arriva a mezzanotte (23:59:59, con o senza frazione)."""
+    return value[:8] == "23:59:59"
+
+
+class WeekPeriod(_Strict):
     """Da un giorno a un altro (inclusi), fra due orari dello stesso giorno.
 
     Un turno notturno sono due periodi (22:00-23:59:59 e 00:00-06:00 del giorno
@@ -152,10 +163,6 @@ class CalendarPeriod(_Strict):
     to_day: Weekday
     begin: str
     end: str
-    # CAL-01: in un modello a disponibilita' probabilistica (i calendari FUZZY che
-    # SIMOD scopre dai log) la probabilita' che la risorsa sia disponibile in
-    # questa fascia, o la sua quota di lavoro nel calendario ``workload``.
-    probability: float | None = Field(default=None, ge=0, le=1)
 
     @model_validator(mode="after")
     def _valid_times(self):
@@ -167,6 +174,18 @@ class CalendarPeriod(_Strict):
                 f"{self.begin}-{self.end}: un periodo che passa la mezzanotte va diviso in due"
             )
         return self
+
+
+class CalendarPeriod(WeekPeriod):
+    """Un periodo di un calendario.
+
+    CAL-01: in un modello a disponibilita' probabilistica (i calendari FUZZY che
+    SIMOD scopre dai log) ``probability`` e' la probabilita' che la risorsa sia
+    disponibile in questa fascia, o la sua quota di lavoro nel calendario ``workload``.
+    Solo i calendari la hanno: su fasce degli arrivi e delle durate nessuno la applicherebbe.
+    """
+
+    probability: float | None = Field(default=None, ge=0, le=1)
 
 
 class Calendar(_Strict):
@@ -336,7 +355,7 @@ class Rework(_Strict):
     provenance: Provenance | None = None
 
 
-class DurationWindow(CalendarPeriod):
+class DurationWindow(WeekPeriod):
     """SIM-33b: un'attivita' che inizia in questa fascia dura ``factor`` volte tanto.
 
     "Dopo le 16 una pratica richiede il 30% in piu'" e' ``factor`` 1,3 dalle
@@ -498,7 +517,7 @@ class PriorityRule(_Strict):
     condition: Condition
 
 
-class ArrivalBand(CalendarPeriod):
+class ArrivalBand(WeekPeriod):
     """SIM-08: in questa fascia i casi arrivano in media ogni ``mean_seconds``.
 
     Dentro la fascia gli arrivi sono un processo di Poisson; fuori da ogni
@@ -564,7 +583,7 @@ def _check_band_attribute(arrival: "Arrival", case_attributes: "tuple[CaseAttrib
 _WEEKDAYS = ("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY")
 
 
-def _check_apart(periods: "tuple[CalendarPeriod, ...]", message: str) -> None:
+def _check_apart(periods: "tuple[WeekPeriod, ...]", message: str) -> None:
     """Fasce della settimana che non si toccano: un istante sta al piu' in una."""
     intervals = sorted(
         (day * 86_400 + _clock(period.begin), day * 86_400 + _clock(period.end))
@@ -623,7 +642,7 @@ class SimulationModel(_Strict):
             return self.arrival.bands
         assert isinstance(self.arrival.interarrival, Exponential)
         calendar = next(c for c in self.calendars if c.id == self.arrival.calendar_id)
-        return tuple(ArrivalBand(**period.model_dump(), mean_seconds=self.arrival.interarrival.mean)
+        return tuple(ArrivalBand(**period.model_dump(exclude={"probability"}), mean_seconds=self.arrival.interarrival.mean)
                      for period in calendar.periods)
 
     @model_validator(mode="after")
@@ -691,10 +710,8 @@ def _check_availability(model: "SimulationModel") -> None:
     """CAL-01: o tutti i calendari delle risorse sono probabilistici, o nessuno."""
     by_id = {calendar.id: calendar for calendar in model.calendars}
     arrival = by_id.get(model.arrival.calendar_id)
-    if (arrival is not None and arrival.is_probabilistic()) or any(
-        band.probability is not None for band in model.arrival.bands
-    ):
-        raise ValueError("calendario e fasce degli arrivi sono sempre fissi: le probabilita' valgono per le risorse")
+    if arrival is not None and arrival.is_probabilistic():
+        raise ValueError("il calendario degli arrivi e' sempre fisso: le probabilita' valgono per le risorse")
     if model.availability == "fixed":
         probabilistic = sorted(c.id for c in model.calendars if c.is_probabilistic() or c.workload)
         if probabilistic or model.granule_minutes is not None:
@@ -715,34 +732,17 @@ def _check_availability(model: "SimulationModel") -> None:
         calendar = by_id.get(calendar_id)
         if calendar is None:
             continue
-        if any(period.probability is None for period in calendar.all_periods()):
-            raise ValueError(f"calendario {calendar_id}: ogni fascia ha la sua probabilita' di disponibilita'")
+        granule = model.granule_minutes * 60
         for period in calendar.all_periods():
+            if period.probability is None:
+                raise ValueError(f"calendario {calendar_id}: ogni fascia ha la sua probabilita'")
             # Prosimos riporta ogni orario all'inizio della sua fascia: fuori dalla
             # griglia la disponibilita' cambierebbe senza che nessuno lo dica.
-            if not (_on_granule(period.begin, model.granule_minutes, end=False)
-                    and _on_granule(period.end, model.granule_minutes, end=True)):
+            if _clock(period.begin) % granule or not (is_end_of_day(period.end) or _clock(period.end) % granule == 0):
                 raise ValueError(
                     f"calendario {calendar_id}: {period.begin}-{period.end} non segue le fasce "
                     f"di {model.granule_minutes} minuti dello scenario"
                 )
-
-
-def _on_granule(value: str, granule: int, *, end: bool) -> bool:
-    """L'orario cade su un confine di fascia; la fine giornata (23:59:59...) conta come mezzanotte."""
-    if end and is_end_of_day(value):
-        return True
-    hours, minutes, seconds = value.split(":")
-    return float(seconds) == 0 and (int(hours) * 60 + int(minutes)) % granule == 0
-
-
-#: La fine giornata nell'IR, al microsecondo come la scrive SIMOD nei calendari fissi.
-END_OF_DAY = "23:59:59.999999"
-
-
-def is_end_of_day(value: str) -> bool:
-    """CAL-01: la fine di un periodo che arriva a mezzanotte (23:59:59, con o senza frazione)."""
-    return value[:8] == "23:59:59"
 
 
 def _unique(what: str, values: list[str]) -> None:

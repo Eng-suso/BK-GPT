@@ -22,11 +22,13 @@ from backend.simulation.ir.model import (
     Exponential,
     Fixed,
     Gamma,
+    MIDNIGHT,
     LogNormal,
     Normal,
     Resource,
     SimulationModel,
     Uniform,
+    WeekPeriod,
     is_end_of_day,
 )
 
@@ -244,26 +246,31 @@ def _calendar(calendar: Calendar, *, fuzzy: bool = False) -> dict:
     payload = {
         "id": calendar.id,
         "name": calendar.name,
-        "time_periods": [_period(period, fuzzy=fuzzy) for period in calendar.periods],
+        "time_periods": [_slot(period) if fuzzy else _period(period) for period in calendar.periods],
     }
     if fuzzy:
         # Prosimos legge entrambe le sezioni di un calendario FUZZY.
-        payload["workload_ratio"] = [_period(period, fuzzy=True) for period in calendar.workload]
+        payload["workload_ratio"] = [_slot(period) for period in calendar.workload]
     return payload
 
 
-def _period(period: CalendarPeriod, *, fuzzy: bool = False) -> dict:
-    payload: dict = {
+def _period(period: WeekPeriod) -> dict:
+    return {
         "from": period.from_day,
         "to": period.to_day,
         "beginTime": period.begin,
-        # Il motore fuzzy legge 23:59:59 come la fascia prima e perderebbe l'ultima:
-        # la fine giornata si scrive "00:00:00", come la scrive SIMOD.
-        "endTime": "00:00:00" if fuzzy and is_end_of_day(period.end) else period.end,
+        "endTime": period.end,
     }
-    if period.probability is not None:
-        payload["probability"] = float(period.probability)
-    return payload
+
+
+def _slot(period: CalendarPeriod) -> dict:
+    """Una fascia di un calendario FUZZY, come la scrive SIMOD."""
+    return {
+        **_period(period),
+        # Il motore fuzzy legge 23:59:59 come la fascia prima e perderebbe l'ultima.
+        "endTime": MIDNIGHT if is_end_of_day(period.end) else period.end,
+        "probability": period.probability,
+    }
 
 
 def _case_attribute(attribute) -> dict:

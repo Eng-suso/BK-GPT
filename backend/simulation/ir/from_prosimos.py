@@ -20,6 +20,7 @@ from pydantic import ValidationError
 
 from backend.simulation.ir.model import (
     END_OF_DAY,
+    MIDNIGHT,
     Activity,
     Arrival,
     Assignment,
@@ -522,7 +523,7 @@ def _period(entry: Any, path: str, *, probabilistic: bool = False) -> CalendarPe
 def _fuzzy_end(value: Any) -> Any:
     # SIMOD scrive la fascia che arriva a mezzanotte con endTime "00:00:00"
     # (pix_framework, ``_interval_index_to_time``): nell'IR e' la fine giornata.
-    if isinstance(value, str) and value[:8] == "00:00:00":
+    if isinstance(value, str) and value[:8] == MIDNIGHT:
         return END_OF_DAY
     return value
 
