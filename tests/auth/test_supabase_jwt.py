@@ -240,3 +240,14 @@ def test_without_ever_reading_the_keys_nothing_is_accepted(verifier, keys, jwks)
 
     with pytest.raises(IdentityProviderUnavailable):
         verifier.verify(_token(keys[0]))
+
+
+def test_a_stale_limit_shorter_than_the_ttl_never_refuses_fresh_keys(keys, jwks, clock):
+    cache = JwksCache("x", ttl_seconds=600, max_stale_seconds=0, fetch=lambda _: jwks(f"{ISSUER}/.well-known/jwks.json"), clock=clock)
+    verifier = SupabaseTokenVerifier(SUPABASE_URL, audience="authenticated", jwks=cache)
+
+    assert verifier.verify(_token(keys[0])).subject == SUBJECT
+    jwks.down = True
+    clock.now += 600
+    with pytest.raises(IdentityProviderUnavailable):
+        verifier.verify(_token(keys[0]))

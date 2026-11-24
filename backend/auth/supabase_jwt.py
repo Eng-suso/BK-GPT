@@ -115,7 +115,10 @@ class JwksCache:
                 except Exception as exc:  # noqa: BLE001 - rete, JSON, chiavi: tutto e' "non disponibile"
                     failure = exc
             now = self._clock()
-            if self._loaded_at is None or now - self._loaded_at >= self._max_stale:
+            # Dentro il TTL le chiavi sono fresche per definizione: `max_stale`
+            # allunga quel tempo quando Supabase non risponde, non lo accorcia.
+            usable_for = max(self._ttl, self._max_stale)
+            if self._loaded_at is None or now - self._loaded_at >= usable_for:
                 raise IdentityProviderUnavailable(
                     "chiavi pubbliche di Supabase non leggibili"
                 ) from failure
