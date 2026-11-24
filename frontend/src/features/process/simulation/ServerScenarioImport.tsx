@@ -36,7 +36,9 @@ export function ServerScenarioImport({ name, result, running, onRun }: {
     <section className="grid gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm" aria-label={t("simulation.scenario.serverImport.title")}>
       <div>
         <h3 className="font-semibold">{t("simulation.scenario.serverImport.title")}</h3>
-        <p className="mt-1 text-muted-foreground">{t("simulation.scenario.serverImport.description", { name })}</p>
+        <p className="mt-1 text-muted-foreground">
+          {t(attention.length > 0 ? "simulation.scenario.serverImport.descriptionAdjusted" : "simulation.scenario.serverImport.description", { name })}
+        </p>
       </div>
       <p className="font-medium">{t("simulation.scenario.serverImport.summary", summary)}</p>
       {summary.fromSimod && <p className="text-muted-foreground">{t("simulation.scenario.serverImport.fromSimod")}</p>}
