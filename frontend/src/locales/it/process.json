@@ -1556,7 +1556,13 @@
         "method": "Metodo",
         "methodValue": "Token-based replay sulla rete di Petri del BPMN",
         "excluded": "Casi esclusi (varianti rare)",
-        "limits": "Si controlla l'ordine dei passi, non le condizioni sui dati (per esempio una soglia di importo). I casi ancora aperti risultano incompleti."
+        "limits": "Si controlla l'ordine dei passi, non le condizioni sui dati (per esempio una soglia di importo). I casi ancora aperti risultano incompleti.",
+        "legend": "Casi che escono dal disegno",
+        "legendLevel": {
+          "close": "meno del 10%",
+          "calibrate": "10–40%",
+          "far": "oltre il 40%"
+        }
       }
     },
     "queue": {

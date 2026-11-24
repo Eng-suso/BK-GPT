@@ -1,5 +1,8 @@
 import type { Conformance } from "./eventLogTypes";
 
+/** Dice allo studio che l'overlay e' di aderenza, non di scarto dei tempi: cambia la legenda. */
+export const CONFORMANCE_MARKER = "sim-conformance";
+
 /** Quanto i casi reali seguono il disegno, con le stesse tre fasce del confronto reale/simulato. */
 export type Adherence = "close" | "calibrate" | "far";
 

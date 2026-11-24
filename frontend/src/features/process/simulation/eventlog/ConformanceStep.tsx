@@ -9,7 +9,7 @@ import { Skeleton } from "@/ui/skeleton";
 
 import type { NodeDecoration } from "../canvas/SimulationCanvas";
 import { formatCount, formatPercent } from "../simulationResults";
-import { adherence, deviationRows, offPathVariants, type Adherence } from "./conformanceView";
+import { adherence, CONFORMANCE_MARKER, deviationRows, offPathVariants, type Adherence } from "./conformanceView";
 import { useEventLogConformance } from "./useEventLogImport";
 
 const BADGE_TONE: Record<Adherence, NodeDecoration["badgeTone"]> = { close: "neutral", calibrate: "warning", far: "danger" };
@@ -34,7 +34,7 @@ export function ConformanceStep({ eventLogId, mappedAt, onDecorations, onReviewA
   const decorations = React.useMemo<NodeDecoration[]>(
     () => rows.map((row) => {
       const tone = adherence(1 - row.share);
-      return { elementId: row.elementId, markers: [`sim-fidelity-${tone}`], badge: formatPercent(row.share), badgeTone: BADGE_TONE[tone] };
+      return { elementId: row.elementId, markers: [`sim-fidelity-${tone}`, CONFORMANCE_MARKER], badge: formatPercent(row.share), badgeTone: BADGE_TONE[tone] };
     }),
     [rows],
   );

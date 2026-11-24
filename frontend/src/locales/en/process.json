@@ -1556,7 +1556,13 @@
         "method": "Method",
         "methodValue": "Token-based replay on the Petri net of the BPMN",
         "excluded": "Excluded cases (rare variants)",
-        "limits": "Step order is checked, not conditions on data (for example an amount threshold). Cases still open show as incomplete."
+        "limits": "Step order is checked, not conditions on data (for example an amount threshold). Cases still open show as incomplete.",
+        "legend": "Cases leaving the design",
+        "legendLevel": {
+          "close": "under 10%",
+          "calibrate": "10–40%",
+          "far": "over 40%"
+        }
       }
     },
     "queue": {
