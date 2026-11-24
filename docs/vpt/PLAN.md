@@ -61,7 +61,7 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 
 | Blocco | Branch | Binario | Meta | Misura | Dipende da | Stato |
 | --- | --- | --- | --- | --- | --- | --- |
-| G3 spike SIMOD | `spike/sim-simod-discovery` | Ric | SIMOD scopre i 3 log reali dal train, valutati sul test; lo scenario prodotto si importa in DeliR; decisione G3 scritta in `LOG.md` | harness B2 sugli scenari SIMOD | B1, B2 | da fare |
+| G3 spike SIMOD | `spike/sim-simod-discovery` | Ric | SIMOD scopre i 3 log reali dal train, valutati sul test; lo scenario prodotto si importa in DeliR; decisione G3 scritta in `LOG.md` | harness B2 sugli scenari SIMOD | B1, B2 | fatto (2026-11-24): SIMOD sì a condizioni, vedi `LOG.md` |
 | B3 discovery dei parametri (SIM-16) | `feat/sim-discovery-core` | Ric → Prod | Sui sintetici: probabilità dei gateway entro ±0,05 e media delle durate entro ±10% della verità; sui 3 log reali train/test il twin scoperto dal train batte "B = A" di SIM-36b su W1 del cycle time, RED e AED, con intervalli al 95% che non si sovrappongono (H1) | harness B2 + baseline SIM-36b | G3, SIM-36b | da fare |
 | VPT-08 traccia di derivazione | `feat/sim-derivation-trace` | Prod | 100% dei parametri non Manual risale al passaggio esatto della fonte o all'osservazione | test sul contratto dei candidati | B3 | da fare |
 | B4 checklist del twin (SIM-18) | `feat/sim-discovery-ui` | Prod | E2E: un log porta a un twin validato senza toccare JSON; gate UX superato con la prova del consulente | Playwright | B3 | da fare |

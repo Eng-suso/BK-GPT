@@ -1,0 +1,15 @@
+{
+  "simod_version": "5.2.1",
+  "diagnostic": {
+    "from": "AcademicCredentials_fuzz",
+    "dead_loops_reopened": [
+      {
+        "gateway": "node_59fc62b1-3b4e-4c11-ba7b-1cab3392cdaa",
+        "after": "Avanzar recepcion documentos",
+        "exit_probability": 0.6666666666666666,
+        "train_cases": 2,
+        "train_executions": 3
+      }
+    ]
+  }
+}

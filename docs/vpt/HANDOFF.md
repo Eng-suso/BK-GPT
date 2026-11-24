@@ -1,14 +1,14 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-24, dopo la chiusura in parallelo di B2 (harness di valutazione),
-CAL-01 (calendari FUZZY di SIMOD, PR #172) e UX-01 ("Reale contro simulato"
-leggibile, PR #173). Ricomposto da chi ha chiuso l'ultimo dei tre (B2).
+Aggiornato: 2026-11-24, dopo la chiusura in parallelo di SIM-36 (baseline "B = A", PR
+#178), B6 (throughput, PR #179) e G3 (spike SIMOD). Ricomposto da chi ha chiuso l'ultimo
+dei tre (G3).
 
 ## Punti attivi
 
-Nessuno. Prossimi secondo l'ordine di [`PLAN.md`](./PLAN.md): **SIM-36** (baseline
-pubblica su BPIC 2012/2013) e **G3** (spike SIMOD), in parallelo; poi **B3**. Tutti si
-misurano con l'harness di B2 (sezione sotto).
+SIM-36, G3, B6 e SIM-36b sono chiusi. **IMP-01** (avviso sugli arrivi troncati) è in
+mano a un'altra sessione. Prossimo secondo [`PLAN.md`](./PLAN.md): **B3**, che parte
+dalla decisione G3 e si misura contro "B = A" di SIM-36b (sezioni sotto).
 
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
@@ -66,10 +66,43 @@ uv run python tests/simulation/benchmark/throughput.py --check   # 1, 2, 4 worke
 
 ## Ultima misura
 
-B2, seed 20261124, 10 repliche sullo stack reale: `baseline.json` identico bit per bit
-su due passate; 9/9 metriche dentro contro il paper sui 3 log reali; baseline dei 16
-sintetici in `tests/simulation/benchmark/b2/baseline.md`. CAL-01 e UX-01: misure nelle
-loro voci di [`LOG.md`](./LOG.md).
+G3, seed 20261124, 10 repliche sullo stack reale: SIMOD 5.2.1 a calendari fissi batte lo
+scenario del paper su 4/4 metriche su BPIC 2012 W e 2017 W; il "B = A" di SIM-36 resta
+migliore di ogni scenario SIMOD, salvo BPIC 2017 W con ritardi estranei su RED e W1.
+B6: what-if 10 × 1.000 casi in 11-26 s. SIM-36: baseline in `tests/simulation/benchmark/sim36/`.
+
+## G3 spike SIMOD (fatto il 2026-11-24)
+
+Decisione e numeri nella voce G3 di [`LOG.md`](./LOG.md); tabelle complete in
+`tests/simulation/benchmark/g3/results.md`. In breve: **SIMOD sì come motore di discovery,
+a condizioni** (servizio in background, variante fissi + ritardi estranei, controllo dei
+cicli senza uscita, "validato" solo se batte "B = A").
+
+```bash
+scripts/vpt_stack.sh start && eval "$(scripts/vpt_stack.sh env)"
+tests/simulation/benchmark/g3/discover.sh all     # SIMOD 5.2.1, venv in /var/tmp/delir-vpt-stack/simod-venv, serve Java
+uv run python tests/simulation/benchmark/g3/evaluate.py          # ~20 min, 10 scenari × 10 repliche
+uv run python tests/simulation/benchmark/g3/evaluate.py --report-only   # solo results.md
+```
+
+Da sapere per B3 (e B5):
+
+- **Asticella:** il "B = A" di SIM-36 con A = train e B = test (`run_baseline.NaiveTwin`).
+  Vince su quasi tutto; SIMOD lo batte solo su BPIC 2017 W con i ritardi estranei (RED 8,1
+  contro 11,4, W1 17,9 contro 30,6). AED e CAR restano dell'ingenuo ovunque.
+- **Punto di partenza:** `g3/discovered/<log>_extr` (BPIC 2012 W e 2017 W); per
+  AcademicCredentials SIMOD lascia un ciclo senza uscita e `extr` crolla.
+- **Harness:** `Scenario(name, "real-life", source=cartella)` valuta uno scenario esterno
+  con lo stesso log di test; `within_intervals` è la regola "pari" condivisa con B2.
+- La discovery non è riproducibile (nessun seed in SIMOD): gli scenari usati sono nel repo.
+- **Per SIM-36b:** G3 ha già misurato "B = A" con A = train e B = test, riusando
+  `run_baseline.NaiveTwin` (righe "gemello ingenuo" di `g3/results.md`, `naive_metrics` in
+  `g3/evaluate.py`): SIM-36b lo porta nel formato e nella cartella del benchmark.
+- **Per la meta di B3** (batte "B = A" su W1, RED e AED senza sovrapposizione): nessuno
+  scenario SIMOD ci arriva; il migliore, BPIC 2017 W con ritardi estranei, batte su RED e
+  W1 ma perde su AED (106,3 ± 9,3 contro 42,8 ± 4,0).
+- **Proposto, non fatto:** un punto Prod perché l'import rifiuti (o segnali) un gateway che
+  torna indietro con probabilità 1 e uscita 0.
 
 ## CAL-01 (fatto il 2026-11-24, PR #172)
 
@@ -110,6 +143,10 @@ test `event type selection…` cliccava. Il test ora tocca l'arco visibile.
 ## Decisioni aperte per Sohayb
 
 - Copiare comunque nel repo pubblico BPIC 2012/2013/2020 e Prosimos?
+- G3: aprire un punto Prod perché l'import rifiuti o segnali un gateway che torna indietro
+  con probabilità 1 e uscita 0 (SIMOD lo produce su AcademicCredentials e oggi passa).
+- G3: confermare le condizioni per SIMOD come motore di discovery (voce G3 di `LOG.md`),
+  prima che B3 ci costruisca sopra.
 
 Decise da Sohayb il 2026-11-24 (motivi in `LOG.md`):
 
