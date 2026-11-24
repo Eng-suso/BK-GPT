@@ -24,7 +24,9 @@ Scrive ``results.json`` e ``results.md`` in questa cartella.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
+import statistics
 import sys
 from collections import Counter
 from dataclasses import replace
@@ -193,22 +195,54 @@ def notes_table(results: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--seed", type=int, default=harness.DEFAULT_SEED)
-    parser.add_argument("--replicas", type=int, default=harness.PAPER_REPLICAS)
-    args = parser.parse_args(argv)
-    results = evaluate_all(seed=args.seed, replicas=args.replicas)
-    (HERE / "results.json").write_text(json.dumps(results, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    report = (
-        f"# G3: SIMOD contro paper e gemello ingenuo (seed {args.seed}, {args.replicas} repliche)\n\n"
+def simod_self_check(results: dict) -> str:
+    """La valutazione di SIMOD (sui suoi 10 log, motore suo) accanto a quella di DeliR: l'import e' fedele?"""
+    lines = [
+        "| Log | Variante | RED SIMOD | RED DeliR | W1 SIMOD | W1 DeliR |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for r in results["simod"]:
+        own = DISCOVERED / f"{r['scenario']}_{r['variant']}" / "simod_evaluation_metrics.csv"
+        if not own.is_file():
+            continue
+        by_metric: dict[str, list[float]] = {}
+        with own.open(newline="") as handle:
+            for row in csv.DictReader(handle):
+                by_metric.setdefault(row["metric"], []).append(float(row["distance"]))
+        red, w1 = (statistics.fmean(by_metric[k]) for k in ("relative_event_distribution", "cycle_time_distribution"))
+        lines.append(
+            f"| {r['scenario']} | {r['variant']} | {red:.1f} | {r['metrics']['relative_event']['mean']:.1f} "
+            f"| {w1:.1f} | {r['metrics']['cycle_time_w1']['mean']:.1f} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def report(results: dict) -> str:
+    return (
+        f"# G3: SIMOD contro paper e gemello ingenuo (seed {results['seed']}, {results['replicas']} repliche)\n\n"
         "Media ± semiampiezza dell'IC 95%, distanze in ore sul log di test (più basso è meglio). "
         "\"pari\": lo scarto fra le medie è minore della somma degli intervalli.\n\n"
         + table(results) + "\n## Esito\n\n" + verdict_table(results)
         + "\n## Discovery e import\n\n" + notes_table(results)
+        + "\n## Valutazione di SIMOD contro quella di DeliR\n\n" + simod_self_check(results)
     )
-    (HERE / "results.md").write_text(report, encoding="utf-8")
-    print(report)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--seed", type=int, default=harness.DEFAULT_SEED)
+    parser.add_argument("--replicas", type=int, default=harness.PAPER_REPLICAS)
+    parser.add_argument("--report-only", action="store_true",
+                        help="riscrive results.md da results.json, senza simulare")
+    args = parser.parse_args(argv)
+    if args.report_only:
+        results = json.loads((HERE / "results.json").read_text(encoding="utf-8"))
+    else:
+        results = evaluate_all(seed=args.seed, replicas=args.replicas)
+        (HERE / "results.json").write_text(json.dumps(results, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    text = report(results)
+    (HERE / "results.md").write_text(text, encoding="utf-8")
+    print(text)
     return 0
 
 
