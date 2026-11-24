@@ -62,11 +62,18 @@ EOF
   echo "$log $variant: $((ended - started)) s" >&2
 }
 
-ensure_simod
-if [[ "${1:-}" == "all" ]]; then
-  for variant in diff fuzz; do
-    for log in AcademicCredentials BPIC_2012_W BPIC_2017_W; do discover "$log" "$variant"; done
-  done
-else
-  discover "${1:?log}" "${2:?diff o fuzz}"
-fi
+# Tutto dentro main: bash legge lo script mentre gira, cosi' una modifica a meta'
+# discovery non cambia la coda del run in corso.
+main() {
+  ensure_simod
+  if [[ "${1:-}" == "all" ]]; then
+    for variant in diff fuzz; do
+      for log in AcademicCredentials BPIC_2012_W BPIC_2017_W; do discover "$log" "$variant"; done
+    done
+  else
+    discover "${1:?log}" "${2:?diff o fuzz}"
+  fi
+}
+
+main "$@"
+exit

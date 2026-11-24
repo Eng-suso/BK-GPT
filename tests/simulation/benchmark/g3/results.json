@@ -1,0 +1,1596 @@
+{
+  "spike": "G3, tests/simulation/benchmark/g3/evaluate.py",
+  "seed": 20261124,
+  "replicas": 10,
+  "simod": [
+    {
+      "scenario": "AcademicCredentials",
+      "kind": "real-life",
+      "reference_log": "datasets/extraneous-delays/inputs/real-life/AcademicCredentials_test.csv.gz",
+      "cases": 398,
+      "start": "2016-04-15T23:47:55+00:00",
+      "seeds": [
+        20261124,
+        20261125,
+        20261126,
+        20261127,
+        20261128,
+        20261129,
+        20261130,
+        20261131,
+        20261132,
+        20261133
+      ],
+      "engine_versions": [
+        "2.1.0"
+      ],
+      "import_notes": [
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Avanzar recepcion documentos»: 2 risorse su 3 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_948adeb3-ad53-4aa2-a377-787f1ccea96e"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Notificacion estudiante cancelacion soli»: 50 risorse su 50 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_122e0602-6221-4641-8b7f-29dfe34c7c22"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Homologacion por grupo de cursos»: 19 risorse su 50 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_57cf14f7-0c93-44a7-89fb-1254b0736054"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Transferir Creditos»: 10 risorse su 10 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_48a6e920-4e9f-4e26-88ca-e84928937409"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Transferir creditos homologables»: 9 risorse su 9 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_cbf140cf-a039-470e-9be3-c1444129300a"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Visto Bueno Cierre Proceso»: 7 risorse su 15 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_815ceda3-5fd2-4cbb-8c84-c7d7def739dc"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Radicar Solicitud Homologacion»: 161 risorse su 229 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_a79829cc-881c-4017-88e8-14ce5ce73d31"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Traer informacion estudiante - banner»: 227 risorse su 227 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_5a95775f-02b1-4de3-825b-8e79667e79ba"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Evaluacion curso»: 16 risorse su 38 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_cc826522-ca63-478e-af58-5a952fdf3418"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Validacion final»: 9 risorse su 13 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_9f0c94f6-0d9e-4b76-816b-4beb7d3216eb"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Validar solicitud»: 11 risorse su 26 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_0d4c41cc-fb9b-45ee-8bb8-e2590436b8df"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Cancelar Solicitud»: 29 risorse su 50 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_9bf9c513-0f62-48a9-8c07-1d012f526c5e"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Revisar curso»: 16 risorse su 22 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_8f624a7d-b065-4846-b5f3-2ccac1c18bad"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Recepcion de documentos»: 1 risorsa su 4 la svolge in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_917ce391-54f8-4053-9f7b-159804254a0b"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Cancelar curso»: 5 risorse su 10 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_7ddfe1a2-c906-4af0-8c41-0d88c4ae938c"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Validar solicitud / pre-homologacion»: 2 risorse su 7 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_b7a275fa-ece7-400b-9e85-a5b17914830e"
+        }
+      ],
+      "metrics": {
+        "cycle_time_w1": {
+          "mean": 295.34874371859297,
+          "ci95": 29.659709368880186,
+          "replicas": [
+            309.84170854271355,
+            308.49748743718595,
+            309.143216080402,
+            308.5854271356784,
+            310.02763819095475,
+            306.52763819095475,
+            308.9396984924623,
+            177.39447236180905,
+            306.6959798994975,
+            307.83417085427135
+          ]
+        },
+        "ngram": {
+          "mean": 0.7297856919381762,
+          "ci95": 0.03228378796163254,
+          "replicas": [
+            0.7044662654418752,
+            0.7354022049816251,
+            0.709447697420478,
+            0.7666666666666667,
+            0.7008345142497244,
+            0.768001907486886,
+            0.8000855249091298,
+            0.6455743180552979,
+            0.7612655800575263,
+            0.7061122401125528
+          ]
+        },
+        "relative_event": {
+          "mean": 6649.072094969652,
+          "ci95": 2135.719013356083,
+          "replicas": [
+            9516.51924497788,
+            7054.83611868666,
+            9501.187572836337,
+            5644.536364163035,
+            9370.823046816467,
+            5676.619069444147,
+            4723.725232626242,
+            78.52848103556367,
+            5710.444612394926,
+            9213.501206715266
+          ]
+        },
+        "absolute_event": {
+          "mean": 6903.526231739224,
+          "ci95": 2196.14887649533,
+          "replicas": [
+            9851.183037450304,
+            7502.915022861989,
+            9633.621156563015,
+            5662.147599311925,
+            9544.416621204831,
+            5796.101624425528,
+            4906.568842594569,
+            196.36699296677256,
+            6056.7387629410505,
+            9885.202657072265
+          ]
+        },
+        "circadian_event": {
+          "mean": 4.263934693746529,
+          "ci95": 0.10222379983365973,
+          "replicas": [
+            4.164777944259027,
+            4.365999041302547,
+            4.274932070164868,
+            4.387243783016941,
+            3.9914273515893472,
+            4.380471672176792,
+            4.382269306612669,
+            4.064835512077087,
+            4.343435796067895,
+            4.283954460198115
+          ]
+        },
+        "case_arrival": {
+          "mean": 254.17286432160805,
+          "ci95": 36.39631967981016,
+          "replicas": [
+            258.2788944723618,
+            333.0778894472362,
+            317.96231155778895,
+            219.6180904522613,
+            249.65577889447235,
+            175.39447236180905,
+            232.19346733668343,
+            216.82412060301507,
+            229.20100502512562,
+            309.52261306532665
+          ]
+        }
+      },
+      "kpi_cycle_time_avg_seconds": {
+        "mean": 511248.20111857326,
+        "ci95": 115716.8961360399,
+        "replicas": [
+          558726.1420409685,
+          561835.3062047749,
+          558359.3292738721,
+          569002.9435651704,
+          558090.0598817117,
+          565813.2801947264,
+          562756.2816252672,
+          50986.68006628662,
+          566189.1566325678,
+          560722.8317003873
+        ]
+      },
+      "variant": "diff",
+      "discovery": {
+        "simod_version": "5.2.1",
+        "configuration": "configs/AcademicCredentials_diff.yml",
+        "discovery_seconds": 126,
+        "python": "3.12.3",
+        "java": "openjdk version \"21.0.13.1\" 2026-11-17"
+      }
+    },
+    {
+      "scenario": "AcademicCredentials",
+      "kind": "real-life",
+      "reference_log": "datasets/extraneous-delays/inputs/real-life/AcademicCredentials_test.csv.gz",
+      "cases": 398,
+      "start": "2016-04-15T23:47:55+00:00",
+      "seeds": [
+        20261124,
+        20261125,
+        20261126,
+        20261127,
+        20261128,
+        20261129,
+        20261130,
+        20261131,
+        20261132,
+        20261133
+      ],
+      "engine_versions": [
+        "2.1.0"
+      ],
+      "import_notes": [
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Avanzar recepcion documentos»: 2 risorse su 3 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_948adeb3-ad53-4aa2-a377-787f1ccea96e"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Notificacion estudiante cancelacion soli»: 50 risorse su 50 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_122e0602-6221-4641-8b7f-29dfe34c7c22"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Homologacion por grupo de cursos»: 19 risorse su 50 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_57cf14f7-0c93-44a7-89fb-1254b0736054"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Transferir Creditos»: 10 risorse su 10 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_48a6e920-4e9f-4e26-88ca-e84928937409"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Transferir creditos homologables»: 9 risorse su 9 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_cbf140cf-a039-470e-9be3-c1444129300a"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Visto Bueno Cierre Proceso»: 7 risorse su 15 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_815ceda3-5fd2-4cbb-8c84-c7d7def739dc"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Radicar Solicitud Homologacion»: 161 risorse su 229 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_a79829cc-881c-4017-88e8-14ce5ce73d31"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Traer informacion estudiante - banner»: 227 risorse su 227 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_5a95775f-02b1-4de3-825b-8e79667e79ba"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Evaluacion curso»: 16 risorse su 38 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_cc826522-ca63-478e-af58-5a952fdf3418"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Validacion final»: 9 risorse su 13 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_9f0c94f6-0d9e-4b76-816b-4beb7d3216eb"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Validar solicitud»: 11 risorse su 26 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_0d4c41cc-fb9b-45ee-8bb8-e2590436b8df"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Cancelar Solicitud»: 29 risorse su 50 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_9bf9c513-0f62-48a9-8c07-1d012f526c5e"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Revisar curso»: 16 risorse su 22 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_8f624a7d-b065-4846-b5f3-2ccac1c18bad"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Recepcion de documentos»: 1 risorsa su 4 la svolge in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_917ce391-54f8-4053-9f7b-159804254a0b"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Cancelar curso»: 5 risorse su 10 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_7ddfe1a2-c906-4af0-8c41-0d88c4ae938c"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Validar solicitud / pre-homologacion»: 2 risorse su 7 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_b7a275fa-ece7-400b-9e85-a5b17914830e"
+        }
+      ],
+      "metrics": {
+        "cycle_time_w1": {
+          "mean": 176.2748743718593,
+          "ci95": 0.6955737112874991,
+          "replicas": [
+            177.66582914572865,
+            175.21608040201005,
+            175.70100502512562,
+            175.35175879396985,
+            176.54522613065328,
+            176.66834170854273,
+            177.3894472361809,
+            177.39447236180905,
+            175.25628140703517,
+            175.5603015075377
+          ]
+        },
+        "ngram": {
+          "mean": 0.6452474435195497,
+          "ci95": 0.00696487431760253,
+          "replicas": [
+            0.6397656397656397,
+            0.6419033289448938,
+            0.6513966480446928,
+            0.6279329608938548,
+            0.6633737185461324,
+            0.6420146040067403,
+            0.6407657657657657,
+            0.6455743180552979,
+            0.6438612933458294,
+            0.6558861578266494
+          ]
+        },
+        "relative_event": {
+          "mean": 77.8695547711834,
+          "ci95": 0.4466681501720978,
+          "replicas": [
+            78.65585018209659,
+            77.44202805024953,
+            77.33638353962205,
+            77.33135841399391,
+            77.17466752883765,
+            78.5110717435176,
+            78.62193140213792,
+            78.52848103556367,
+            77.67139941182192,
+            77.42237640399314
+          ]
+        },
+        "absolute_event": {
+          "mean": 233.3705731391279,
+          "ci95": 41.92851199742507,
+          "replicas": [
+            228.90934724431847,
+            333.1126527275856,
+            298.9411101930233,
+            183.35467803221925,
+            227.25882217864407,
+            144.54747968495278,
+            211.63706997138118,
+            196.36699296677256,
+            213.17831851444984,
+            296.3992598779323
+          ]
+        },
+        "circadian_event": {
+          "mean": 3.9882770489342945,
+          "ci95": 0.07154769516039555,
+          "replicas": [
+            3.964836949378228,
+            4.122343734426634,
+            3.910813936341488,
+            4.0895565267762795,
+            3.8159260860938136,
+            4.054319126293602,
+            4.0357697886730675,
+            4.064835512077087,
+            3.939437679549018,
+            3.8849311497337267
+          ]
+        },
+        "case_arrival": {
+          "mean": 254.16105527638192,
+          "ci95": 36.386286629750025,
+          "replicas": [
+            258.2788944723618,
+            333.0778894472362,
+            317.90201005025125,
+            219.37939698492463,
+            249.7537688442211,
+            175.4572864321608,
+            232.21859296482413,
+            216.82412060301507,
+            229.25879396984925,
+            309.45979899497485
+          ]
+        }
+      },
+      "kpi_cycle_time_avg_seconds": {
+        "mean": 53574.341855816325,
+        "ci95": 2286.534743934235,
+        "replicas": [
+          50041.954598697586,
+          55626.717139226705,
+          53321.660949685465,
+          59112.53459319277,
+          55128.30519912291,
+          52737.47976728061,
+          48520.00461467666,
+          50986.68006628662,
+          56600.66387712776,
+          53667.41775286617
+        ]
+      },
+      "variant": "diff-loopfix",
+      "discovery": {
+        "simod_version": "5.2.1",
+        "configuration": "configs/AcademicCredentials_diff.yml",
+        "discovery_seconds": 126,
+        "python": "3.12.3",
+        "java": "openjdk version \"21.0.13.1\" 2026-11-17",
+        "diagnostic": {
+          "from": "AcademicCredentials_diff",
+          "dead_loops_reopened": [
+            {
+              "gateway": "node_59fc62b1-3b4e-4c11-ba7b-1cab3392cdaa",
+              "after": "Avanzar recepcion documentos",
+              "exit_probability": 0.6666666666666666,
+              "train_cases": 2,
+              "train_executions": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenario": "AcademicCredentials",
+      "kind": "real-life",
+      "reference_log": "datasets/extraneous-delays/inputs/real-life/AcademicCredentials_test.csv.gz",
+      "cases": 398,
+      "start": "2016-04-15T23:47:55+00:00",
+      "seeds": [
+        20261124,
+        20261125,
+        20261126,
+        20261127,
+        20261128,
+        20261129,
+        20261130,
+        20261131,
+        20261132,
+        20261133
+      ],
+      "engine_versions": [
+        "2.1.0"
+      ],
+      "import_notes": [
+        {
+          "kind": "info",
+          "topic": "probabilistic_calendars",
+          "message": "Probabilità di trovare libere le risorse stimata dai dati per 306 calendari, a fasce di 60 minuti.",
+          "element_id": null
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Traer informacion estudiante - banner»: 227 risorse su 227 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_5a95775f-02b1-4de3-825b-8e79667e79ba"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Notificacion estudiante cancelacion soli»: 50 risorse su 50 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_122e0602-6221-4641-8b7f-29dfe34c7c22"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Revisar curso»: 10 risorse su 22 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_8f624a7d-b065-4846-b5f3-2ccac1c18bad"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Transferir Creditos»: 10 risorse su 10 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_48a6e920-4e9f-4e26-88ca-e84928937409"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Transferir creditos homologables»: 9 risorse su 9 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_cbf140cf-a039-470e-9be3-c1444129300a"
+        }
+      ],
+      "metrics": {
+        "cycle_time_w1": {
+          "mean": 323.96130653266334,
+          "ci95": 67.16845008208786,
+          "replicas": [
+            414.1934673366834,
+            375.3241206030151,
+            392.0929648241206,
+            377.99748743718595,
+            303.10552763819095,
+            272.4924623115578,
+            434.77638190954775,
+            275.07286432160805,
+            122.60050251256281,
+            271.9572864321608
+          ]
+        },
+        "ngram": {
+          "mean": 0.3994785289052805,
+          "ci95": 0.08455116649928272,
+          "replicas": [
+            0.43137254901960786,
+            0.5418729817007535,
+            0.5477129757969933,
+            0.543536467816215,
+            0.3218190461099667,
+            0.3269992082343626,
+            0.42309261525907793,
+            0.333961671379202,
+            0.1994019809381424,
+            0.3250157927984839
+          ]
+        },
+        "relative_event": {
+          "mean": 10074.224100650117,
+          "ci95": 3042.150575119901,
+          "replicas": [
+            15003.59099287322,
+            8575.440109755958,
+            8768.005684066286,
+            8702.935450660758,
+            11782.552124764437,
+            10754.397624233485,
+            15371.261957460621,
+            10674.231985095246,
+            78.4007594175954,
+            11031.424318173551
+          ]
+        },
+        "absolute_event": {
+          "mean": 10371.841863996367,
+          "ci95": 3061.356644668274,
+          "replicas": [
+            15068.120400438398,
+            8558.41740452424,
+            9333.163110844724,
+            9032.006161654797,
+            12063.973866777034,
+            11298.679639295093,
+            15967.722288548935,
+            10765.447060742825,
+            342.9931102496263,
+            11287.895596888016
+          ]
+        },
+        "circadian_event": {
+          "mean": 1.8681426109889816,
+          "ci95": 0.24543867336270828,
+          "replicas": [
+            1.9100279637933024,
+            2.3372036152301634,
+            2.2812288838357992,
+            2.3074043520404928,
+            1.6621650937064993,
+            1.6502190809716344,
+            1.9139384162966424,
+            1.7171234483817392,
+            1.3757213922299634,
+            1.5263938634035814
+          ]
+        },
+        "case_arrival": {
+          "mean": 270.05452261306533,
+          "ci95": 41.48251375475105,
+          "replicas": [
+            238.4748743718593,
+            177.79396984924622,
+            330.34422110552765,
+            321.3743718592965,
+            312.84422110552765,
+            332.0427135678392,
+            265.964824120603,
+            304.4422110552764,
+            214.46231155778895,
+            202.80150753768845
+          ]
+        }
+      },
+      "kpi_cycle_time_avg_seconds": {
+        "mean": 2091001.756528189,
+        "ci95": 239699.55655309517,
+        "replicas": [
+          2389343.991008549,
+          2257395.7896209285,
+          2348676.268446058,
+          2292691.9967975547,
+          2032499.2668969175,
+          1899911.8943247239,
+          2493868.478885454,
+          1933330.7595151183,
+          1369720.0879389658,
+          1892579.031847622
+        ]
+      },
+      "variant": "fuzz",
+      "discovery": {
+        "simod_version": "5.2.1",
+        "configuration": "configs/AcademicCredentials_fuzz.yml",
+        "discovery_seconds": 453,
+        "python": "3.12.3",
+        "java": "openjdk version \"21.0.13.1\" 2026-11-17"
+      }
+    },
+    {
+      "scenario": "AcademicCredentials",
+      "kind": "real-life",
+      "reference_log": "datasets/extraneous-delays/inputs/real-life/AcademicCredentials_test.csv.gz",
+      "cases": 398,
+      "start": "2016-04-15T23:47:55+00:00",
+      "seeds": [
+        20261124,
+        20261125,
+        20261126,
+        20261127,
+        20261128,
+        20261129,
+        20261130,
+        20261131,
+        20261132,
+        20261133
+      ],
+      "engine_versions": [
+        "2.1.0"
+      ],
+      "import_notes": [
+        {
+          "kind": "info",
+          "topic": "probabilistic_calendars",
+          "message": "Probabilità di trovare libere le risorse stimata dai dati per 306 calendari, a fasce di 60 minuti.",
+          "element_id": null
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Traer informacion estudiante - banner»: 227 risorse su 227 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_5a95775f-02b1-4de3-825b-8e79667e79ba"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Notificacion estudiante cancelacion soli»: 50 risorse su 50 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_122e0602-6221-4641-8b7f-29dfe34c7c22"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Revisar curso»: 10 risorse su 22 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_8f624a7d-b065-4846-b5f3-2ccac1c18bad"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Transferir Creditos»: 10 risorse su 10 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_48a6e920-4e9f-4e26-88ca-e84928937409"
+        },
+        {
+          "kind": "info",
+          "topic": "instant_activity",
+          "message": "«Transferir creditos homologables»: 9 risorse su 9 la svolgono in 0 secondi (attività istantanea nei dati).",
+          "element_id": "node_cbf140cf-a039-470e-9be3-c1444129300a"
+        }
+      ],
+      "metrics": {
+        "cycle_time_w1": {
+          "mean": 119.58718592964824,
+          "ci95": 7.436830808894014,
+          "replicas": [
+            117.15829145728644,
+            121.85678391959799,
+            126.51758793969849,
+            125.22110552763819,
+            132.53768844221105,
+            115.62814070351759,
+            128.40954773869348,
+            108.41959798994975,
+            122.60050251256281,
+            97.52261306532664
+          ]
+        },
+        "ngram": {
+          "mean": 0.20515206172134487,
+          "ci95": 0.008748970856485279,
+          "replicas": [
+            0.20811419984973703,
+            0.22402957486136785,
+            0.2228401928068224,
+            0.20813888370356542,
+            0.20448179271708683,
+            0.20135363790186125,
+            0.20753309714711915,
+            0.18632607062359127,
+            0.1994019809381424,
+            0.1893011866641552
+          ]
+        },
+        "relative_event": {
+          "mean": 80.25212747929957,
+          "ci95": 4.608366755439202,
+          "replicas": [
+            78.73776479686248,
+            83.17774958398078,
+            82.69775303301942,
+            81.44890782590393,
+            87.08792045422366,
+            82.74570412687645,
+            88.72602651057478,
+            71.54336523324218,
+            78.4007594175954,
+            67.95532381071668
+          ]
+        },
+        "absolute_event": {
+          "mean": 398.06728737955666,
+          "ci95": 48.513525803360835,
+          "replicas": [
+            360.5392620902036,
+            286.2904863843246,
+            462.3484787138798,
+            456.8814686851816,
+            465.362616458528,
+            458.33846798841165,
+            419.38948215875206,
+            418.87568184328995,
+            342.9931102496263,
+            309.6538192233692
+          ]
+        },
+        "circadian_event": {
+          "mean": 1.4256481825521095,
+          "ci95": 0.04669699685393372,
+          "replicas": [
+            1.454802628438792,
+            1.4570716109717592,
+            1.565011890120387,
+            1.376609306031825,
+            1.425725183725669,
+            1.456191568960533,
+            1.442188892717082,
+            1.354309090708068,
+            1.3757213922299634,
+            1.3488502616170148
+          ]
+        },
+        "case_arrival": {
+          "mean": 270.2957286432161,
+          "ci95": 41.91996221150161,
+          "replicas": [
+            240.84422110552765,
+            174.51005025125627,
+            334.6256281407035,
+            318.46984924623115,
+            314.8542713567839,
+            332.0427135678392,
+            265.9673366834171,
+            303.14824120603015,
+            214.46231155778895,
+            204.03266331658293
+          ]
+        }
+      },
+      "kpi_cycle_time_avg_seconds": {
+        "mean": 1356463.477486445,
+        "ci95": 33946.50585135627,
+        "replicas": [
+          1328621.6926933394,
+          1344477.9105215934,
+          1407961.28820438,
+          1372208.3925198484,
+          1425679.924046559,
+          1335196.6554132593,
+          1390891.7385212088,
+          1328652.5780917688,
+          1369720.0879389658,
+          1261224.5069135295
+        ]
+      },
+      "variant": "fuzz-loopfix",
+      "discovery": {
+        "simod_version": "5.2.1",
+        "configuration": "configs/AcademicCredentials_fuzz.yml",
+        "discovery_seconds": 453,
+        "python": "3.12.3",
+        "java": "openjdk version \"21.0.13.1\" 2026-11-17",
+        "diagnostic": {
+          "from": "AcademicCredentials_fuzz",
+          "dead_loops_reopened": [
+            {
+              "gateway": "node_59fc62b1-3b4e-4c11-ba7b-1cab3392cdaa",
+              "after": "Avanzar recepcion documentos",
+              "exit_probability": 0.6666666666666666,
+              "train_cases": 2,
+              "train_executions": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenario": "BPIC_2012_W",
+      "kind": "real-life",
+      "reference_log": "datasets/extraneous-delays/inputs/real-life/BPIC_2012_W_test.csv.gz",
+      "cases": 2976,
+      "start": "2012-01-07T09:04:12.635000+00:00",
+      "seeds": [
+        20261124,
+        20261125,
+        20261126,
+        20261127,
+        20261128,
+        20261129,
+        20261130,
+        20261131,
+        20261132,
+        20261133
+      ],
+      "engine_versions": [
+        "2.1.0"
+      ],
+      "import_notes": [],
+      "metrics": {
+        "cycle_time_w1": {
+          "mean": 175.3014448924731,
+          "ci95": 0.03918264109630039,
+          "replicas": [
+            175.2415994623656,
+            175.29569892473117,
+            175.37298387096774,
+            175.31451612903226,
+            175.23555107526883,
+            175.36559139784947,
+            175.2358870967742,
+            175.2923387096774,
+            175.37264784946237,
+            175.28763440860214
+          ]
+        },
+        "ngram": {
+          "mean": 0.5304278858480751,
+          "ci95": 0.0039092493766738606,
+          "replicas": [
+            0.5304628273804007,
+            0.5366378101452798,
+            0.5400160624568088,
+            0.524831712789828,
+            0.5251884025689572,
+            0.5302632803051447,
+            0.5324949922101047,
+            0.5239203516938195,
+            0.5342801637148946,
+            0.5261832552155132
+          ]
+        },
+        "relative_event": {
+          "mean": 177.99488386815818,
+          "ci95": 0.05124966628416503,
+          "replicas": [
+            178.02397681720183,
+            177.99664862295126,
+            178.03303445273642,
+            178.09854597340663,
+            177.95376614058145,
+            178.00876551533673,
+            177.82364507397094,
+            177.97144331116294,
+            178.02884458434252,
+            178.01016818989132
+          ]
+        },
+        "absolute_event": {
+          "mean": 172.59713096293515,
+          "ci95": 9.20442378522704,
+          "replicas": [
+            182.16305057083562,
+            166.12539812108855,
+            179.1252554003221,
+            180.66459000791886,
+            143.1800535305021,
+            177.59833433736048,
+            180.8690357060866,
+            180.47070832996383,
+            158.30186680441201,
+            177.47301682086137
+          ]
+        },
+        "circadian_event": {
+          "mean": 1.279454816263407,
+          "ci95": 0.11806105722014923,
+          "replicas": [
+            1.245169763254973,
+            1.1853924166951466,
+            1.3734825381841436,
+            1.2825146003795294,
+            1.3143546160859894,
+            0.9770423353469126,
+            1.534019090801655,
+            1.27691073504441,
+            1.1188603962134664,
+            1.4868016706278417
+          ]
+        },
+        "case_arrival": {
+          "mean": 41.541498655913976,
+          "ci95": 6.450475596611442,
+          "replicas": [
+            51.47379032258065,
+            34.228158602150536,
+            49.53965053763441,
+            40.92842741935484,
+            23.585349462365592,
+            45.18077956989247,
+            52.74260752688172,
+            44.1192876344086,
+            35.642809139784944,
+            37.974126344086024
+          ]
+        }
+      },
+      "kpi_cycle_time_avg_seconds": {
+        "mean": 8202.160097047446,
+        "ci95": 170.90138470559882,
+        "replicas": [
+          8586.446480075678,
+          8227.984693662855,
+          7866.991751022477,
+          8213.058772853627,
+          8486.410845109933,
+          7930.050735023714,
+          8369.364537127476,
+          8279.73979611086,
+          8082.316106151108,
+          7979.237253336737
+        ]
+      },
+      "variant": "diff",
+      "discovery": {
+        "simod_version": "5.2.1",
+        "configuration": "configs/BPIC_2012_W_diff.yml",
+        "discovery_seconds": 750,
+        "python": "3.12.3",
+        "java": "openjdk version \"21.0.13.1\" 2026-11-17"
+      }
+    },
+    {
+      "scenario": "BPIC_2012_W",
+      "kind": "real-life",
+      "reference_log": "datasets/extraneous-delays/inputs/real-life/BPIC_2012_W_test.csv.gz",
+      "cases": 2976,
+      "start": "2012-01-07T09:04:12.635000+00:00",
+      "seeds": [
+        20261124,
+        20261125,
+        20261126,
+        20261127,
+        20261128,
+        20261129,
+        20261130,
+        20261131,
+        20261132,
+        20261133
+      ],
+      "engine_versions": [
+        "2.1.0"
+      ],
+      "import_notes": [
+        {
+          "kind": "info",
+          "topic": "probabilistic_calendars",
+          "message": "Probabilità di trovare libere le risorse stimata dai dati per 47 calendari, a fasce di 60 minuti.",
+          "element_id": null
+        }
+      ],
+      "metrics": {
+        "cycle_time_w1": {
+          "mean": 307.356686827957,
+          "ci95": 50.106110629817174,
+          "replicas": [
+            223.00470430107526,
+            255.8561827956989,
+            381.2190860215054,
+            413.87264784946234,
+            227.86055107526883,
+            363.875,
+            251.72479838709677,
+            270.877688172043,
+            366.68850806451616,
+            318.58770161290323
+          ]
+        },
+        "ngram": {
+          "mean": 0.4513620294410054,
+          "ci95": 0.0025246303881476194,
+          "replicas": [
+            0.451891424164331,
+            0.45035255391175866,
+            0.4550408719346049,
+            0.4461229349605596,
+            0.45205733808674986,
+            0.4557173019224358,
+            0.4462445317713354,
+            0.4487418800866124,
+            0.4554772102418314,
+            0.45197424732983515
+          ]
+        },
+        "relative_event": {
+          "mean": 87.54225511147973,
+          "ci95": 9.75892947566543,
+          "replicas": [
+            70.80684678923478,
+            79.79018949429746,
+            99.81814550196323,
+            112.10772556450813,
+            70.26667075577478,
+            97.23588004973828,
+            81.0144093367256,
+            82.0902300937609,
+            97.85044115860191,
+            84.44201237019223
+          ]
+        },
+        "absolute_event": {
+          "mean": 122.9989724483219,
+          "ci95": 9.586093801769653,
+          "replicas": [
+            103.2498941404529,
+            112.44125225811504,
+            126.74879314697563,
+            140.24422980044744,
+            110.18079058612383,
+            135.1557755720249,
+            114.58990814658755,
+            124.10841391231202,
+            143.25391794494973,
+            120.0167489752298
+          ]
+        },
+        "circadian_event": {
+          "mean": 1.696162132525783,
+          "ci95": 0.03858077811412393,
+          "replicas": [
+            1.6616860073488715,
+            1.6723441517751316,
+            1.7750674347745907,
+            1.7426093050869784,
+            1.7636684144534167,
+            1.7070621029731856,
+            1.6284067108086067,
+            1.7016885959690107,
+            1.6140626493567538,
+            1.6950259527112836
+          ]
+        },
+        "case_arrival": {
+          "mean": 65.95265456989247,
+          "ci95": 9.131328908373888,
+          "replicas": [
+            52.375,
+            54.56014784946237,
+            70.26075268817205,
+            63.511760752688176,
+            60.33870967741935,
+            76.56149193548387,
+            51.680443548387096,
+            64.17204301075269,
+            92.86592741935483,
+            73.2002688172043
+          ]
+        }
+      },
+      "kpi_cycle_time_avg_seconds": {
+        "mean": 1757274.3270681375,
+        "ci95": 180790.55777577148,
+        "replicas": [
+          1452602.371310998,
+          1568596.5662898321,
+          2023379.8235058086,
+          2139775.046468066,
+          1471839.8177792742,
+          1963606.3022807715,
+          1556845.4096508075,
+          1625065.9516479885,
+          1971278.2044575368,
+          1799753.7772902916
+        ]
+      },
+      "variant": "fuzz",
+      "discovery": {
+        "simod_version": "5.2.1",
+        "configuration": "configs/BPIC_2012_W_fuzz.yml",
+        "discovery_seconds": 456,
+        "python": "3.12.3",
+        "java": "openjdk version \"21.0.13.1\" 2026-11-17"
+      }
+    }
+  ],
+  "paper_scenario_in_delir": {
+    "AcademicCredentials": {
+      "cycle_time_w1": {
+        "mean": 174.83668341708542,
+        "ci95": 0.42114280955893707,
+        "replicas": [
+          175.18341708542712,
+          175.67336683417085,
+          174.79145728643215,
+          174.89698492462313,
+          175.34422110552765,
+          174.2713567839196,
+          173.58040201005025,
+          174.71859296482413,
+          175.17336683417085,
+          174.73366834170855
+        ]
+      },
+      "ngram": {
+        "mean": 0.7634787052190557,
+        "ci95": 0.006081292301403881,
+        "replicas": [
+          0.7636329089872697,
+          0.7717140661029976,
+          0.7740134744947065,
+          0.7513864983744502,
+          0.7610518292682927,
+          0.7696456086286595,
+          0.7685982023331421,
+          0.7491474043198181,
+          0.7677444040558637,
+          0.757852655625357
+        ]
+      },
+      "relative_event": {
+        "mean": 77.46425481400834,
+        "ci95": 0.2101173940604364,
+        "replicas": [
+          78.01411353319052,
+          77.69970122453786,
+          77.20430648769575,
+          77.4184402536954,
+          77.72993104158583,
+          77.63272812124983,
+          77.064465132008,
+          77.28458397276775,
+          77.32935611772643,
+          77.26492225562599
+        ]
+      },
+      "absolute_event": {
+        "mean": 121.39721324126523,
+        "ci95": 23.249135409887234,
+        "replicas": [
+          80.73473314751914,
+          94.11054508124337,
+          136.63105783275094,
+          143.23278333532969,
+          106.16642295292432,
+          99.80364127294547,
+          129.55525191681096,
+          178.00300062705827,
+          88.03871732866284,
+          157.6959789174075
+        ]
+      },
+      "circadian_event": {
+        "mean": 3.328898525107666,
+        "ci95": 0.06872979088915147,
+        "replicas": [
+          3.3076913494132243,
+          3.370726078757822,
+          3.3594688160200805,
+          3.294501320725594,
+          3.4198952142265293,
+          3.276932395004514,
+          3.215707924888728,
+          3.4326522881256185,
+          3.4525508892629175,
+          3.1588589746516345
+        ]
+      },
+      "case_arrival": {
+        "mean": 130.95477386934675,
+        "ci95": 25.910276238483647,
+        "replicas": [
+          88.90201005025126,
+          102.16331658291458,
+          153.49748743718592,
+          143.52010050251258,
+          122.678391959799,
+          103.41206030150754,
+          135.41206030150755,
+          196.51005025125627,
+          90.50753768844221,
+          172.94472361809045
+        ]
+      }
+    },
+    "BPIC_2012_W": {
+      "cycle_time_w1": {
+        "mean": 175.7103494623656,
+        "ci95": 0.03631621057359652,
+        "replicas": [
+          175.7869623655914,
+          175.6659946236559,
+          175.66565860215053,
+          175.6790994623656,
+          175.67069892473117,
+          175.7540322580645,
+          175.65389784946237,
+          175.70698924731184,
+          175.77956989247312,
+          175.74059139784947
+        ]
+      },
+      "ngram": {
+        "mean": 0.8141645916152432,
+        "ci95": 0.001437446466967532,
+        "replicas": [
+          0.8141731535978736,
+          0.8138343296327925,
+          0.8126455906821963,
+          0.8120035095207607,
+          0.8132199605728808,
+          0.8139093732957106,
+          0.8176957653181925,
+          0.8157690041249264,
+          0.8116237211064797,
+          0.8167715083006196
+        ]
+      },
+      "relative_event": {
+        "mean": 178.53831338735435,
+        "ci95": 0.020438366233645117,
+        "replicas": [
+          178.57577393944123,
+          178.5353958638813,
+          178.51289374759602,
+          178.4890369951747,
+          178.51263300293445,
+          178.56142787889442,
+          178.54097492151928,
+          178.52633372079566,
+          178.5733385485881,
+          178.55532525471827
+        ]
+      },
+      "absolute_event": {
+        "mean": 221.44641086553688,
+        "ci95": 8.148366514020392,
+        "replicas": [
+          226.22124734561103,
+          224.7622389316042,
+          211.51801701889798,
+          244.1320469153213,
+          209.26685973875843,
+          215.45392628894058,
+          220.72305781440548,
+          206.06430362278468,
+          226.02196952954776,
+          230.3004414494972
+        ]
+      },
+      "circadian_event": {
+        "mean": 1.251284575431558,
+        "ci95": 0.05554973297297035,
+        "replicas": [
+          1.323205039776559,
+          1.2827619596797417,
+          1.3412807360309433,
+          1.1534628377790208,
+          1.3137693814074682,
+          1.1389720793165936,
+          1.2549864019702681,
+          1.146888787052143,
+          1.3061271940139174,
+          1.2513913372889256
+        ]
+      },
+      "case_arrival": {
+        "mean": 85.774563172043,
+        "ci95": 8.122312315880935,
+        "replicas": [
+          87.52251344086021,
+          88.90087365591398,
+          73.80510752688173,
+          110.39784946236558,
+          76.29435483870968,
+          81.09173387096774,
+          85.49630376344086,
+          71.20900537634408,
+          89.5211693548387,
+          93.50672043010752
+        ]
+      }
+    },
+    "BPIC_2017_W": {
+      "cycle_time_w1": {
+        "mean": 253.31372017353578,
+        "ci95": 0.032510883679683474,
+        "replicas": [
+          253.33866594360086,
+          253.28646963123643,
+          253.36401843817788,
+          253.34734273318873,
+          253.27020065075922,
+          253.29989154013015,
+          253.2222071583514,
+          253.3657809110629,
+          253.30951735357917,
+          253.33310737527114
+        ]
+      },
+      "ngram": {
+        "mean": 0.6146143618509721,
+        "ci95": 0.0009615778142843458,
+        "replicas": [
+          0.6152461425422483,
+          0.6133375020690416,
+          0.6143947053957165,
+          0.6158014622138948,
+          0.6164806393826651,
+          0.6163389082889175,
+          0.6125763260501729,
+          0.6141633898055934,
+          0.6145902241822859,
+          0.6132143185791847
+        ]
+      },
+      "relative_event": {
+        "mean": 183.54465403547573,
+        "ci95": 0.01926364154685389,
+        "replicas": [
+          183.53657222932705,
+          183.5324752683035,
+          183.59462278171432,
+          183.55859528947846,
+          183.5118645951565,
+          183.5438938647897,
+          183.50125195915953,
+          183.5693514004491,
+          183.55170249788551,
+          183.54621046849343
+        ]
+      },
+      "absolute_event": {
+        "mean": 303.35298291746335,
+        "ci95": 9.7381861549378,
+        "replicas": [
+          302.0013726826605,
+          305.58619455864834,
+          307.2870440397502,
+          309.2876585648425,
+          299.3427725739102,
+          287.3961692337476,
+          287.17866047116706,
+          326.701452769539,
+          320.66499132727205,
+          288.0835129530961
+        ]
+      },
+      "circadian_event": {
+        "mean": 0.928443254467344,
+        "ci95": 0.020465153992889756,
+        "replicas": [
+          0.8795745785714794,
+          0.9191982107423945,
+          0.9226456705645009,
+          0.918694502746617,
+          0.9252257405239676,
+          0.9521174574976333,
+          0.9393336018951175,
+          0.9007373101974674,
+          0.9427732218703571,
+          0.984132250063905
+        ]
+      },
+      "case_arrival": {
+        "mean": 169.61963123644253,
+        "ci95": 9.361096116056448,
+        "replicas": [
+          168.07646420824295,
+          172.50216919739697,
+          174.2300704989154,
+          175.59286876355748,
+          165.59747830802604,
+          153.90672451193058,
+          154.0545010845987,
+          190.37852494577007,
+          187.26640455531452,
+          154.59110629067246
+        ]
+      }
+    }
+  },
+  "paper_published": {
+    "AcademicCredentials": {
+      "relative_event": {
+        "mean": 77.21073103049814,
+        "ci95": 0.3504703967019252
+      },
+      "absolute_event": {
+        "mean": 132.8243036825674,
+        "ci95": 26.74594714507362
+      },
+      "cycle_time_w1": {
+        "mean": 174.66206030150755,
+        "ci95": 0.9621481991953514
+      }
+    },
+    "BPIC_2012_W": {
+      "relative_event": {
+        "mean": 178.54536884383614,
+        "ci95": 0.013213866126774469
+      },
+      "absolute_event": {
+        "mean": 223.84323172216676,
+        "ci95": 8.43754150654807
+      },
+      "cycle_time_w1": {
+        "mean": 175.72110215053763,
+        "ci95": 0.0325416437743443
+      }
+    },
+    "BPIC_2017_W": {
+      "relative_event": {
+        "mean": 183.5546544414392,
+        "ci95": 0.01816289780430902
+      },
+      "absolute_event": {
+        "mean": 296.03508226575167,
+        "ci95": 9.530822339626729
+      },
+      "cycle_time_w1": {
+        "mean": 253.33030097613883,
+        "ci95": 0.02074902272841482
+      }
+    }
+  },
+  "naive_twin": {
+    "AcademicCredentials": {
+      "cycle_time_w1": {
+        "mean": 26.170854271356784,
+        "ci95": 0.0
+      },
+      "ngram": {
+        "mean": 0.1703286384976526,
+        "ci95": 0.0
+      },
+      "relative_event": {
+        "mean": 23.983337790353282,
+        "ci95": 0.0
+      },
+      "absolute_event": {
+        "mean": 164.85229852832077,
+        "ci95": 0.0
+      },
+      "circadian_event": {
+        "mean": 1.2849552782870215,
+        "ci95": 0.0
+      },
+      "case_arrival": {
+        "mean": 85.54773869346734,
+        "ci95": 0.0
+      }
+    },
+    "BPIC_2012_W": {
+      "cycle_time_w1": {
+        "mean": 27.985019429362293,
+        "ci95": 0.0
+      },
+      "ngram": {
+        "mean": 0.07536553135257257,
+        "ci95": 0.0
+      },
+      "relative_event": {
+        "mean": 9.740357332596211,
+        "ci95": 0.0
+      },
+      "absolute_event": {
+        "mean": 26.748040772697657,
+        "ci95": 0.0
+      },
+      "circadian_event": {
+        "mean": 0.8809110341266804,
+        "ci95": 0.0
+      },
+      "case_arrival": {
+        "mean": 38.50617680719685,
+        "ci95": 0.0
+      }
+    },
+    "BPIC_2017_W": {
+      "cycle_time_w1": {
+        "mean": 30.889273015559493,
+        "ci95": 0.0
+      },
+      "ngram": {
+        "mean": 0.07718424290945751,
+        "ci95": 0.0
+      },
+      "relative_event": {
+        "mean": 10.955684800358808,
+        "ci95": 0.0
+      },
+      "absolute_event": {
+        "mean": 43.210904526722956,
+        "ci95": 0.0
+      },
+      "circadian_event": {
+        "mean": 0.6623691874296856,
+        "ci95": 0.0
+      },
+      "case_arrival": {
+        "mean": 35.96486494387106,
+        "ci95": 0.0
+      }
+    }
+  }
+}
