@@ -1,14 +1,19 @@
-"""SIM-36: download verificato dei log pubblici, senza rete (transport finto)."""
+"""SIM-36: download verificato dei log pubblici e lettura XES, senza rete.
+
+Il manifest di prova punta a file locali (``file://``): ``fetch_datasets`` li
+scarica con lo stesso codice che usa per 4TU, MD5 compreso.
+"""
 
 import gzip
 import hashlib
 
-import httpx
 import pytest
 
+from scripts import fetch_datasets
 from tests.simulation.benchmark.benchmark_datasets import DATASETS, DatasetUnavailable, fetch, load
 
-DATASET = DATASETS["bpic2012"]
+BPIC2012 = DATASETS["bpic2012"]
+BPIC2013 = DATASETS["bpic2013_incidents"]
 XES = b"""<?xml version="1.0" encoding="UTF-8"?>
 <log xmlns="http://www.xes-standard.org/">
   <trace><string key="concept:name" value="173688"/>
@@ -20,95 +25,88 @@ XES = b"""<?xml version="1.0" encoding="UTF-8"?>
       <string key="org:resource" value="10862"/><date key="time:timestamp" value="2011-10-01T11:45:13.917+02:00"/></event>
   </trace>
 </log>"""
-PAYLOAD = gzip.compress(XES)
+STATUS_XES = b"""<?xml version="1.0" encoding="UTF-8"?>
+<log xmlns="http://www.xes-standard.org/">
+  <trace><string key="concept:name" value="1-364285768"/>
+    <event><string key="concept:name" value="Accepted"/><string key="lifecycle:transition" value="In Progress"/>
+      <string key="org:resource" value="Frederic"/><date key="time:timestamp" value="2010-03-31T16:59:42+02:00"/></event>
+    <event><string key="concept:name" value="Completed"/><string key="lifecycle:transition" value="Closed"/>
+      <string key="org:resource" value="Frederic"/><date key="time:timestamp" value="2010-04-01T10:00:00+02:00"/></event>
+  </trace>
+</log>"""
 
 
-def _client(*, md5: str | None = None, status: int = 200, body: bytes = PAYLOAD) -> tuple[httpx.Client, list[str]]:
-    calls: list[str] = []
+FILE = "log.xes.gz"
 
-    def handler(request: httpx.Request) -> httpx.Response:
-        calls.append(request.url.path)
-        if request.url.path.endswith("/files"):
-            if status != 200:
-                return httpx.Response(status, json={"error": "StorageMaintenance"})
-            return httpx.Response(200, json=[
-                {"name": "readme.txt", "download_url": "https://data.4tu.nl/file/readme", "computed_md5": "x"},
-                {"name": DATASET.file_name, "download_url": "https://data.4tu.nl/file/log", "computed_md5": md5 or hashlib.md5(body).hexdigest()},
-            ])
-        return httpx.Response(200, content=body)
 
-    return httpx.Client(transport=httpx.MockTransport(handler)), calls
+def serve(tmp_path, monkeypatch, dataset, body: bytes, *, md5: str | None = None) -> None:
+    """Un manifest con il solo ``dataset``, servito da un file locale."""
+    source = tmp_path / "source" / FILE
+    source.parent.mkdir()
+    source.write_bytes(body)
+    entry = {
+        "id": dataset.manifest_id, "mode": "fetch", "license": "4TU General Terms of Use",
+        "url": source.as_uri(), "file": FILE, "md5": md5 or hashlib.md5(body).hexdigest(),
+    }
+    monkeypatch.setattr(fetch_datasets, "load_manifest", lambda: {dataset.manifest_id: entry})
 
 
 @pytest.fixture(autouse=True)
 def _cache(tmp_path, monkeypatch):
-    monkeypatch.setenv("DELIR_BENCHMARK_CACHE", str(tmp_path))
+    monkeypatch.setenv("DELIR_DATASETS_CACHE", str(tmp_path / "cache"))
 
 
-def test_the_file_is_kept_only_with_the_md5_of_4tu(tmp_path):
-    client, calls = _client()
-
-    path = fetch(DATASET, client=client)
-
-    assert path == tmp_path / DATASET.file_name
-    assert path.read_bytes() == PAYLOAD
-    assert calls == [f"/v2/articles/{DATASET.article_uuid}/files", "/file/log"]
+def test_the_benchmark_logs_are_in_the_manifest_with_their_licence():
+    manifest = fetch_datasets.load_manifest()
+    for dataset in DATASETS.values():
+        entry = manifest[dataset.manifest_id]
+        assert (entry["license"], entry["mode"]) == ("4TU General Terms of Use", "fetch")
 
 
-def test_a_cached_file_with_the_right_md5_is_not_downloaded_again():
-    fetch(DATASET, client=_client()[0])
-    client, calls = _client()
+def test_the_file_is_kept_only_with_the_md5_of_the_manifest(tmp_path, monkeypatch):
+    serve(tmp_path, monkeypatch, BPIC2012, gzip.compress(XES))
 
-    fetch(DATASET, client=client)
+    path = fetch(BPIC2012)
 
-    assert calls == [f"/v2/articles/{DATASET.article_uuid}/files"]
+    assert path == tmp_path / "cache" / "bpic2012" / FILE
+    assert gzip.decompress(path.read_bytes()) == XES
 
 
-def test_a_different_md5_discards_the_file(tmp_path):
+def test_a_different_md5_discards_the_file(tmp_path, monkeypatch):
+    serve(tmp_path, monkeypatch, BPIC2012, gzip.compress(XES), md5="0" * 32)
+
     with pytest.raises(DatasetUnavailable, match="MD5"):
-        fetch(DATASET, client=_client(md5="0" * 32)[0])
+        fetch(BPIC2012)
 
-    assert not any(tmp_path.iterdir())
-
-
-def test_maintenance_says_to_retry_later():
-    with pytest.raises(DatasetUnavailable, match="503"):
-        fetch(DATASET, client=_client(status=503)[0])
+    assert not any((tmp_path / "cache" / "bpic2012").iterdir())
 
 
-def test_a_downloaded_log_becomes_a_canonical_event_log():
-    log = load(fetch(DATASET, client=_client()[0]))
+def test_an_unreachable_source_says_why(tmp_path, monkeypatch):
+    serve(tmp_path, monkeypatch, BPIC2012, gzip.compress(XES))
+    (tmp_path / "source" / FILE).unlink()
 
+    with pytest.raises(DatasetUnavailable, match="bpic2012"):
+        fetch(BPIC2012)
+
+
+def test_bpic2012_pairs_start_and_complete(tmp_path, monkeypatch):
+    serve(tmp_path, monkeypatch, BPIC2012, gzip.compress(XES))
+
+    log, quality = load(fetch(BPIC2012), BPIC2012.mapping)
+
+    assert quality.rows_excluded == 0
     assert [e.activity for e in log.events] == ["A_SUBMITTED", "W_Afhandelen leads"]
     handled = log.events[1]
     assert handled.start is not None and (handled.end - handled.start).total_seconds() == pytest.approx(507.48)
     assert handled.resource == "10862"
 
 
-def _two_cases_xes() -> bytes:
-    trace = """  <trace><string key="concept:name" value="{case}"/>
-    <event><string key="concept:name" value="Ricevi"/><string key="lifecycle:transition" value="START"/><string key="org:resource" value="anna"/><date key="time:timestamp" value="2011-10-0{day}T09:00:00+02:00"/></event>
-    <event><string key="concept:name" value="Ricevi"/><string key="lifecycle:transition" value="COMPLETE"/><string key="org:resource" value="anna"/><date key="time:timestamp" value="2011-10-0{day}T09:{minutes}:00+02:00"/></event>
-  </trace>"""
-    body = "\n".join(trace.format(case=i, day=i + 1, minutes=10 * (i + 1)) for i in range(4))
-    return f'<?xml version="1.0" encoding="UTF-8"?>\n<log xmlns="http://www.xes-standard.org/">\n{body}\n</log>'.encode()
+def test_bpic2013_status_changes_are_instant_events(tmp_path, monkeypatch):
+    # Il ciclo di vita di BPIC 2013 e' un sottostato, non start/complete: letto
+    # come transizione, il log restava senza eventi.
+    serve(tmp_path, monkeypatch, BPIC2013, gzip.compress(STATUS_XES))
 
+    log, _ = load(fetch(BPIC2013), BPIC2013.mapping)
 
-def test_the_baseline_is_measured_or_says_why_not(tmp_path):
-    import json
-
-    from tests.simulation.benchmark.run_baseline import run
-
-    out = tmp_path / "baseline.json"
-    client, _ = _client(body=gzip.compress(_two_cases_xes()))
-
-    assert run(["bpic2012"], out, client=client) == 0
-    result = json.loads(out.read_text())["results"][0]
-    assert result["status"] == "measured"
-    assert result["cases"] == {"A": 2, "B": 2}
-    assert result["efficiency"]["human_configuration_minutes"] is None
-    # A: casi da 10 e 20 minuti, B: da 30 e 40. Lo scarto medio e' 20 minuti su 35.
-    assert result["metrics"]["cycle_time_distribution"] == pytest.approx(20 / 35, rel=1e-3)
-
-    assert run(["bpic2012"], out, client=_client(status=503)[0]) == 1
-    assert json.loads(out.read_text())["results"][0]["status"] == "unavailable"
+    assert [(e.activity, e.start) for e in log.events] == [("Accepted · In Progress", None), ("Completed · Closed", None)]
+    assert {e.resource for e in log.events} == {"Frederic"}

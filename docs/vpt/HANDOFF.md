@@ -114,6 +114,28 @@ uv run python tests/simulation/benchmark/eval_harness.py Pharmacy --out /tmp/b2 
   con media vicina al massimo, che Prosimos 2.1 tronca in modo diverso dai motori
   precedenti.
 
+## SIM-36 (fatto il 2026-11-24, PR #178)
+
+Baseline "B = A" su BPIC 2012 e BPIC 2013 incidents con le metriche di B2, salvata in
+`tests/simulation/benchmark/sim36/` (solo metriche: i log 4TU non entrano nel repo).
+Per rifarla:
+
+```bash
+uv run python scripts/fetch_datasets.py fetch bpic2012 bpic2013-incidents
+uv run python tests/simulation/benchmark/run_baseline.py bpic2012
+uv run python tests/simulation/benchmark/run_baseline.py bpic2013_incidents
+```
+
+- Misura (seed 20261124, 10 repliche, ore): BPIC 2012 W1 16,9 ± 1,5, AED 60,3 ± 3,3,
+  NGD 0,055; BPIC 2013 W1 384 ± 8, AED 334 ± 16, NGD 0,329. Bit per bit su due passate.
+  Tabella completa e lettura in `docs/simulation-benchmark.md`.
+- **Per B3 e G3:** un twin calibrato su A batte la baseline se il suo intervallo sta sotto
+  quello di "B = A". Su BPIC 2013 il periodo B è troncato dalla fine del log (casi visti
+  al massimo 20 giorni): W1 premia chi tiene conto del taglio. AED e CAR vengono dalla coda
+  2010-2011 di A.
+- BPIC 2013 prima si leggeva con 0 eventi (ciclo di vita = sottostato): ora la mappatura
+  è per dataset in `benchmark_datasets.py`.
+
 ## UX-01 (fatto il 2026-11-24, PR #173)
 
 - La vista "Reale contro simulato" si legge senza gergo; la statistica è in
