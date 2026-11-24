@@ -707,3 +707,13 @@ def test_fixed_arrivals_never_warn() -> None:
     assert not [
         n for n in import_prosimos(source, bpmn).notes if n.topic == "arrivals_faster"
     ]
+
+
+@pytest.mark.parametrize(
+    ("seconds", "text"),
+    [(5, "5 secondi"), (89.6, "1,5 minuti"), (1240.5, "21 minuti"), (3590, "1 ora"), (9025, "2,5 ore")],
+)
+def test_durations_read_as_a_person_would_say_them(seconds, text) -> None:
+    from backend.simulation.ir.from_prosimos import _human_seconds
+
+    assert _human_seconds(seconds) == text

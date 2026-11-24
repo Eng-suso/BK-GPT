@@ -236,7 +236,9 @@ def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
         )
     except ValidationError as exc:
         raise ProsimosImportError(_explain(exc)) from exc
-    notes.extend(_arrival_notes(model.arrival.interarrival))
+    if not model.arrival_bands():
+        # Con le fasce gli arrivi li genera il runner dalla sola media: nessun taglio.
+        notes.extend(_arrival_notes(model.arrival.interarrival))
     return ImportResult(model=model, notes=tuple(notes), simod=simod)
 
 
@@ -711,7 +713,8 @@ def _arrival_notes(interarrival: Any) -> list[ImportNote]:
     )
     if produced >= declared * (1 - _ARRIVAL_DRIFT):
         return []
-    more = round((declared / produced - 1) * 100 / 5) * 5
+    # Mezzi arrotondati per eccesso, come Math.round nell'editor: stesso numero ovunque.
+    more = math.floor((declared / produced - 1) * 100 / 5 + 0.5) * 5
     return [
         ImportNote(
             "warning",
@@ -731,14 +734,19 @@ def _arrival_notes(interarrival: Any) -> list[ImportNote]:
 
 
 def _human_seconds(seconds: float) -> str:
-    """Una durata come la direbbe una persona: «5 secondi», «21 minuti», «2,5 ore»."""
-    if seconds < 90:
-        value, one, many = seconds, "secondo", "secondi"
-    elif seconds < 3600:
-        value, one, many = seconds / 60, "minuto", "minuti"
-    else:
-        value, one, many = seconds / 3600, "ora", "ore"
-    value = round(value) if value >= 10 else round(value * 2) / 2
+    """Una durata come la direbbe una persona: «5 secondi», «21 minuti», «2,5 ore».
+
+    Si arrotonda prima di scegliere l'unita': 3590 secondi sono «1 ora», non «60 minuti».
+    """
+    for size, limit, one, many in (
+        (1, 90, "secondo", "secondi"),
+        (60, 60, "minuto", "minuti"),
+        (3600, math.inf, "ora", "ore"),
+    ):
+        value = seconds / size
+        value = round(value) if value >= 10 else round(value * 2) / 2
+        if value < limit:
+            break
     text = f"{value:g}".replace(".", ",")
     return f"{text} {one if value == 1 else many}"
 
