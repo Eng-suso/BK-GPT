@@ -114,6 +114,11 @@ uv run python tests/simulation/benchmark/eval_harness.py Pharmacy --out /tmp/b2 
   con media vicina al massimo, che Prosimos 2.1 tronca in modo diverso dai motori
   precedenti.
 
+## SIM-36 (in corso dal 2026-11-24)
+
+Branch `feat/sim-benchmark-baseline`, una sessione. Baseline "B = A" su BPIC 2012 e
+BPIC 2013 incidents con le metriche di B2 (`log_distance.py`). Stato: appena partito.
+
 ## UX-01 (fatto il 2026-11-24, PR #173)
 
 - La vista "Reale contro simulato" si legge senza gergo; la statistica è in
