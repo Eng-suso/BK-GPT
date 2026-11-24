@@ -73,7 +73,8 @@ class ClaimedRun:
     warmup_cases: int = 0
     # SIM-03: il periodo simulato, in giorni da ``start_date``. Assente = un numero di casi.
     horizon_days: int | None = None
-    # B6: quando il run e' entrato in coda, per misurare l'attesa.
+    # B6: quando il run e' entrato in coda, per misurare l'attesa. Assente per
+    # un run rimesso in coda: l'ingresso originale conterebbe anche il primo tentativo.
     queued_at: str | None = None
 
 
@@ -209,7 +210,7 @@ def claim_next_run(worker_id: str) -> ClaimedRun | None:
             ),
             warmup_cases=int(request.get("warmup_cases") or 0),
             horizon_days=int(request["horizon_days"]) if request.get("horizon_days") else None,
-            queued_at=run.created_at,
+            queued_at=run.created_at if run.attempts == 1 else None,
         )
 
 
