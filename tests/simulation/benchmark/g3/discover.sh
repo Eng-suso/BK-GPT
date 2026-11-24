@@ -2,14 +2,19 @@
 # G3: SIMOD 5.2.1 scopre uno scenario dal log di train di un log reale.
 #
 #   tests/simulation/benchmark/g3/discover.sh <log> <diff|fuzz|extr>
-#   tests/simulation/benchmark/g3/discover.sh all        # i 3 log, prima diff poi fuzz
+#   tests/simulation/benchmark/g3/discover.sh all        # i 3 log: diff, poi fuzz, poi extr
 #
 # <log> e' AcademicCredentials, BPIC_2012_W o BPIC_2017_W. Le configurazioni in
 # configs/ sono quelle del benchmark di SIMOD (datasets/simod/config/benchmark)
 # con i percorsi verso i nostri log. "diff": calendari fissi (CRISP), come lo
 # scenario del paper; "fuzz": calendari FUZZY; "extr": calendari fissi e ritardi
-# estranei (eclipse-aware). "fuzz" ed "extr" riusano il BPMN di "diff", come upstream. Lo scenario migliore finisce in discovered/<log>_<variante>/,
-# il tempo di discovery in discovered/<log>_<variante>/discovery.json.
+# estranei (eclipse-aware). "fuzz" ed "extr" riusano il BPMN di "diff", come
+# upstream: dopo una nuova "diff" vanno rifatte anche loro.
+#
+# Lo scenario migliore finisce in discovered/<log>_<variante>/, con il tempo di
+# discovery in discovery.json; ci arriva solo se SIMOD riesce, altrimenti resta
+# quello di prima e l'uscita e' diversa da 0. Con "all" un errore non ferma gli
+# altri log (extr su AcademicCredentials crolla dentro SIMOD, vedi failures/).
 #
 # SIMOD gira in un venv suo (Python 3.12), come il runner: lo crea la prima volta.
 set -euo pipefail
@@ -35,23 +40,27 @@ discover() {
   local config="$HERE/configs/${log}_${variant}.yml"
   local out="$HERE/discovered/${log}_${variant}"
   local run="$WORK/${log}_${variant}"
-  [[ -f "$config" ]] || { echo "configurazione mancante: $config" >&2; exit 2; }
-  rm -rf "$run" && mkdir -p "$run" "$out"
+  local staged="$WORK/${log}_${variant}.scenario"
+  [[ -f "$config" ]] || { echo "configurazione mancante: $config" >&2; return 2; }
+  rm -rf "$run" "$staged" && mkdir -p "$run" "$staged"
   local started ended
   started=$(date +%s)
-  "$VENV/bin/simod" --configuration "$config" --output "$run" >"$run.log" 2>&1
+  if ! "$VENV/bin/simod" --configuration "$config" --output "$run" >"$run.log" 2>&1; then
+    echo "$log $variant: SIMOD fallito, vedi $run.log; discovered/ non cambia" >&2
+    return 1
+  fi
   ended=$(date +%s)
-  cp "$run/best_result/${log}_train.bpmn" "$out/${log}.bpmn"
-  cp "$run/best_result/${log}_train.json" "$out/${log}.json"
+  cp "$run/best_result/${log}_train.bpmn" "$staged/${log}.bpmn"
+  cp "$run/best_result/${log}_train.json" "$staged/${log}.json"
   # Tempi per fase secondo SIMOD (la valutazione finale non fa parte della discovery).
-  cp "$run/best_result/runtimes.json" "$out/simod_runtimes.json"
+  cp "$run/best_result/runtimes.json" "$staged/simod_runtimes.json"
   # Le distanze che SIMOD stesso calcola sul log di test, per confronto.
   if [[ -f "$run/best_result/evaluation/evaluation_metrics.csv" ]]; then
-    cp "$run/best_result/evaluation/evaluation_metrics.csv" "$out/simod_evaluation_metrics.csv"
+    cp "$run/best_result/evaluation/evaluation_metrics.csv" "$staged/simod_evaluation_metrics.csv"
   fi
   local version
   version=$("$VENV/bin/simod" --version | awk '{print $NF}')
-  cat >"$out/discovery.json" <<EOF
+  cat >"$staged/discovery.json" <<EOF
 {
   "simod_version": "$version",
   "configuration": "configs/${log}_${variant}.yml",
@@ -60,6 +69,7 @@ discover() {
   "java": "$(java -version 2>&1 | grep -m1 -E 'version' | sed 's/"/\\"/g')"
 }
 EOF
+  rm -rf "$out" && mkdir -p "$(dirname "$out")" && mv "$staged" "$out"
   echo "$log $variant: $((ended - started)) s" >&2
 }
 
@@ -68,12 +78,15 @@ EOF
 main() {
   ensure_simod
   if [[ "${1:-}" == "all" ]]; then
+    local failed=0
     for variant in diff fuzz extr; do
-      for log in AcademicCredentials BPIC_2012_W BPIC_2017_W; do discover "$log" "$variant"; done
+      for log in AcademicCredentials BPIC_2012_W BPIC_2017_W; do
+        discover "$log" "$variant" || failed=1
+      done
     done
-  else
-    discover "${1:?log}" "${2:?diff, fuzz o extr}"
+    return "$failed"
   fi
+  discover "${1:?log}" "${2:?diff, fuzz o extr}"
 }
 
 main "$@"
