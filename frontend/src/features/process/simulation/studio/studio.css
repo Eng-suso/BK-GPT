@@ -328,6 +328,9 @@
 }
 @media(max-width:1199px) {
  .sim-studio-body.has-dock { flex-direction:column; overflow:auto; }
+ /* UX-01: l'event log si legge prima del disegno, e la pagina non salta sul disegno quando un passo cambia altezza. */
+ .sim-studio-dock.is-event-log { order:-1; }
+ .sim-studio-body.has-dock:has(> .is-event-log) { overflow-anchor:none; }
  .sim-studio-body.has-dock .sim-studio-board { flex:none; height:650px; }
  .sim-studio-dock { width:100%; flex:none; min-height:360px; max-height:none; }
  .sim-studio-dock-body { max-height:600px; }

@@ -78,3 +78,15 @@ Meta in [`PLAN.md`](./PLAN.md). Cosa si sa già, per partire subito:
   fedeltà.
 - Esistono già `tests/simulation/benchmark/benchmark_metrics.py` (W1 e W1
   relativo) e `run_baseline.py` (gemello ingenuo su BPIC): riusali dove servono.
+
+## UX-01 (fatto il 2026-11-24, PR #173)
+
+- La vista "Reale contro simulato" si legge senza gergo; la statistica è in
+  "Dettagli per specialisti". Screenshot in `docs/vpt/ux/ux-01/`.
+- Misura: e2e `simulation-eventlog` 14/14 (chromium e mobile-chrome, axe pulito, controllo
+  anti-gergo), vitest simulazione 438/438.
+- Seguito proposto (non fatto, fuori scopo): sotto i 1199px ogni pannello dello studio finisce
+  sotto il disegno; UX-01 sposta prima solo l'event log (`.sim-studio-dock.is-event-log` in
+  `studio.css`). Estenderlo a tutti i pannelli di analisi richiede un gate UX su ciascuno.
+- Seguito proposto: un `formatSigned` comune (oggi copiato in `ValidationReport`,
+  `decisionRecord`, `ScenarioWorkspacePanel`, `ReplicationDelta`).
