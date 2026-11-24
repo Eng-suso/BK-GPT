@@ -5,9 +5,12 @@ Ricomposto da chi ha chiuso l'ultimo dei due (IMP-01).
 
 ## Punti attivi
 
-Nessuno. SIM-36, G3, B6, SIM-36b e IMP-01 sono chiusi. Prossimo secondo
-[`PLAN.md`](./PLAN.md): **B3**, che parte dalla decisione G3 e si misura contro
-"B = A" di SIM-36b (sezioni sotto).
+Nessuno. SIM-36, G3, B6, SIM-36b e IMP-01 sono chiusi. Il 2026-11-24 Sohayb ha
+trasformato il Master Plan V2 in un programma di ricerca (sezione "P0" di
+[`PLAN.md`](./PLAN.md)): prossimi, in parallelo, **LIC-01** (audit delle licenze),
+**PROTO-01** (protocollo sperimentale), **VAL-01** (validazione formale all'import) ed
+**ENG-01** (Simulation Engine Interface); poi **G3b**. B3 parte solo dopo G3b. Nessun
+candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
 
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
@@ -177,12 +180,18 @@ test `event type selection…` cliccava. Il test ora tocca l'arco visibile.
 ## Decisioni aperte per Sohayb
 
 - Copiare comunque nel repo pubblico BPIC 2012/2013/2020 e Prosimos?
-- G3: aprire un punto Prod perché l'import rifiuti o segnali un gateway che torna indietro
-  con probabilità 1 e uscita 0 (SIMOD lo produce su AcademicCredentials e oggi passa).
-- G3: confermare le condizioni per SIMOD come motore di discovery (voce G3 di `LOG.md`),
-  prima che B3 ci costruisca sopra.
+- Confermare le mete marcate *proposta* dei punti P0, B3.1-B3.4, SEL-01, ENG-02, PERF-01
+  e CF-01 in `PLAN.md`.
+- Prosimos 2.1.0 non dichiara una licenza: chiedere ai titolari un chiarimento scritto
+  sull'uso commerciale (LIC-01 prepara la richiesta).
 
 Decise da Sohayb il 2026-11-24 (motivi in `LOG.md`):
+
+- SIMOD resta un benchmark; la sostituzione dipende da G3b. Il motore di esecuzione non è
+  dato per scontato (ENG-01, ENG-02). Ogni componente entra solo con evidenza sperimentale.
+- Validazione formale all'import (VAL-01), che copre anche i cicli senza uscita di G3.
+- Nessun log escluso dal benchmark: le metriche non identificabili si dichiarano NOT
+  VALIDATED (PROTO-01). Questo supera "BPIC 2013 non adatto" della decisione precedente.
 
 - Benchmark A→B: i 3 log reali train/test del paper sono il banco principale
   (SIM-36b); BPIC 2012 resta; BPIC 2013 incidents non serve a giudicare un twin.
