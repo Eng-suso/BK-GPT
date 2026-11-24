@@ -108,7 +108,13 @@ riletti dall'API. Scrive `tests/simulation/benchmark/b2/baseline.json` e
    contro 223,843 ± 8,438; W1 175,710 ± 0,036 contro 175,721 ± 0,033. 2017: RED
    183,545 ± 0,019 contro 183,555 ± 0,018; AED 303,353 ± 9,738 contro 296,035 ± 9,531;
    W1 253,314 ± 0,033 contro 253,330 ± 0,021.
-3. In corso: i 19 scenari due volte con lo stesso seed (meta 1).
+3. Passata completa dei 19 scenari: circa 4,5 minuti (sintetici 8-17 s ciascuno).
+   Code review (`code-review`, 4 rilievi corretti) e `simplify` (9 corretti, 6 saltati
+   con motivo nella PR) fatti; ast-grep pulito. In corso: misura finale, due passate
+   con il seed 20261124 nella stessa sessione, per la meta 1.
+4. Nota: il KPI "cycle" di DeliR misura il caso dalla prima abilitazione (arrivo)
+   all'ultima fine; le distanze del paper dal primo inizio. L'harness controlla che il
+   KPI salvato coincida con il log riletto (stessa definizione, scarto < 1 ms).
 
 Meta in [`PLAN.md`](./PLAN.md). Cosa si sa già, per partire subito:
 
