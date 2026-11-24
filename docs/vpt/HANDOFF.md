@@ -17,6 +17,12 @@ su due passate; 9/9 metriche dentro contro il paper sui 3 log reali; baseline de
 sintetici in `tests/simulation/benchmark/b2/baseline.md`. CAL-01 e UX-01: misure nelle
 loro voci di [`LOG.md`](./LOG.md).
 
+## G3 spike SIMOD (in corso dal 2026-11-24)
+
+- Branch `spike/sim-simod-discovery`, una sessione dedicata (SIM-36 e B6 in parallelo
+  in altre sessioni).
+- Stato: preso il punto, avvio dello stack e installazione di SIMOD.
+
 ## CAL-01 (fatto il 2026-11-24, PR #172)
 
 Gli scenari SIMOD con calendari FUZZY si importano, si ricompilano identici e girano
