@@ -1535,7 +1535,7 @@
           "calibrate": "Some cases leave the designed process",
           "far": "The real process differs from the designed one"
         },
-        "fitting_one": "{{fitting}} of {{total}} case follows the design ({{share}}).",
+        "fitting_one": "{{fitting}} of {{total}} cases follows the design ({{share}}).",
         "fitting_other": "{{fitting}} of {{total}} cases follow the design ({{share}}).",
         "where": "Where cases leave the design",
         "onCanvas": "Show on the design",
@@ -1559,9 +1559,23 @@
         "limits": "Step order is checked, not conditions on data (for example an amount threshold). Cases still open show as incomplete.",
         "legend": "Cases leaving the design",
         "legendLevel": {
-          "close": "under 10%",
+          "close": "up to 10%",
           "calibrate": "10–40%",
           "far": "over 40%"
+        },
+        "noCases": "No log case to replay on the design.",
+        "reason": {
+          "not_mapped": "Complete and confirm the match between log activities and design steps.",
+          "no_model": "The process has no BPMN design to compare with the log yet.",
+          "model_not_replayable": "The design has no activities to compare with the log, or it cannot be read."
+        },
+        "warning": {
+          "multiple_processes": "The design has {{count}} processes: only the one with the most log activities is replayed.",
+          "boundary_without_host": "Boundary event “{{element}}” is not attached to an activity: ignored.",
+          "inclusive_as_exclusive": "Inclusive gateway “{{element}}” has more than {{branches}} branches: treated as exclusive.",
+          "silent_node": "“{{element}}” ({{kind}}) is treated as a pass-through.",
+          "mapped_to_non_activity": "Matched to elements that are not activities of the replayed process: {{activities}}.",
+          "variants_truncated": "Replayed the {{kept}} most frequent variants; {{dropped}} rare variants excluded."
         }
       }
     },

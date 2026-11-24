@@ -1559,9 +1559,23 @@
         "limits": "Si controlla l'ordine dei passi, non le condizioni sui dati (per esempio una soglia di importo). I casi ancora aperti risultano incompleti.",
         "legend": "Casi che escono dal disegno",
         "legendLevel": {
-          "close": "meno del 10%",
+          "close": "fino al 10%",
           "calibrate": "10–40%",
           "far": "oltre il 40%"
+        },
+        "noCases": "Nessun caso del log da rigiocare sul disegno.",
+        "reason": {
+          "not_mapped": "Completa e conferma l'abbinamento delle attività del log ai passi del disegno.",
+          "no_model": "Il processo non ha ancora un disegno BPMN da confrontare con il log.",
+          "model_not_replayable": "Il disegno non ha attività da confrontare con il log, oppure non si riesce a leggerlo."
+        },
+        "warning": {
+          "multiple_processes": "Il disegno ha {{count}} processi: si rigioca solo quello con più attività del log.",
+          "boundary_without_host": "L'evento di bordo «{{element}}» non è attaccato a un'attività: ignorato.",
+          "inclusive_as_exclusive": "Il gateway inclusivo «{{element}}» ha più di {{branches}} rami: trattato come esclusivo.",
+          "silent_node": "«{{element}}» ({{kind}}) è trattato come passaggio senza attività.",
+          "mapped_to_non_activity": "Abbinate a elementi che non sono attività del processo rigiocato: {{activities}}.",
+          "variants_truncated": "Rigiocate le {{kept}} varianti più frequenti; {{dropped}} varianti rare escluse."
         }
       }
     },

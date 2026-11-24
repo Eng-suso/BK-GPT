@@ -9,7 +9,7 @@ import { Skeleton } from "@/ui/skeleton";
 
 import type { NodeDecoration } from "../canvas/SimulationCanvas";
 import { formatCount, formatPercent } from "../simulationResults";
-import { adherence, CONFORMANCE_MARKER, deviationRows, offPathVariants, type Adherence } from "./conformanceView";
+import { adherence, CONFORMANCE_MARKER, deviationLevel, deviationRows, offPathVariants, type Adherence } from "./conformanceView";
 import { useEventLogConformance } from "./useEventLogImport";
 
 const BADGE_TONE: Record<Adherence, NodeDecoration["badgeTone"]> = { close: "neutral", calibrate: "warning", far: "danger" };
@@ -19,11 +19,12 @@ const BADGE_TONE: Record<Adherence, NodeDecoration["badgeTone"]> = { close: "neu
  * quali passi vengono saltati o anticipati e quali percorsi reali escono dal
  * modello. Il numero tecnico (fitness del token replay) sta nei dettagli.
  */
-export function ConformanceStep({ eventLogId, mappedAt, onDecorations, onReviewActivities }: {
+export function ConformanceStep({ eventLogId, mappedAt, onDecorations, onReviewActivities, onNext }: {
   eventLogId: string;
   mappedAt: string | null;
   onDecorations?: (items: NodeDecoration[] | null) => void;
   onReviewActivities: () => void;
+  onNext: () => void;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
@@ -33,7 +34,7 @@ export function ConformanceStep({ eventLogId, mappedAt, onDecorations, onReviewA
   const rows = React.useMemo(() => (result ? deviationRows(result) : []), [result]);
   const decorations = React.useMemo<NodeDecoration[]>(
     () => rows.map((row) => {
-      const tone = adherence(1 - row.share);
+      const tone = deviationLevel(row.share);
       return { elementId: row.elementId, markers: [`sim-fidelity-${tone}`, CONFORMANCE_MARKER], badge: formatPercent(row.share), badgeTone: BADGE_TONE[tone] };
     }),
     [rows],
@@ -46,21 +47,33 @@ export function ConformanceStep({ eventLogId, mappedAt, onDecorations, onReviewA
     return <section className="sim-eventlog-step" aria-label={title} aria-busy="true"><Skeleton className="h-24 w-full" /></section>;
   }
   if (query.isError) {
-    // 409: manca il modello o il mapping. Il server dice quale, in italiano.
-    const unavailable = query.error instanceof HttpError && query.error.status === 409;
+    // 409: manca il modello o il mapping. Il codice stabile dice quale, nella lingua dell'utente.
+    const error = query.error;
+    const unavailable = error instanceof HttpError && error.status === 409;
+    const reason = error instanceof HttpError && unavailable ? unavailableReason(error) : null;
     return (
       <section className="sim-eventlog-step" aria-label={title}>
         <InlineNotice
           tone={unavailable ? "warning" : "error"}
           title={t(unavailable ? "simulation.eventLog.conformance.unavailable" : "simulation.eventLog.conformance.failed")}
-          action={unavailable ? undefined : <Button size="sm" variant="outline" onClick={() => void query.refetch()}>{t("simulation.eventLog.retry")}</Button>}
+          action={unavailable
+            ? reason === "no_model" ? undefined : <Button size="sm" variant="outline" onClick={onReviewActivities}>{t("simulation.eventLog.conformance.reviewActivities")}</Button>
+            : <Button size="sm" variant="outline" onClick={() => void query.refetch()}>{t("simulation.eventLog.retry")}</Button>}
         >
-          {httpErrorMessage(query.error, t("simulation.eventLog.conformance.failed"))}
+          {reason ? t(`simulation.eventLog.conformance.reason.${reason}`) : httpErrorMessage(query.error, t("simulation.eventLog.conformance.failed"))}
         </InlineNotice>
       </section>
     );
   }
   if (!result) return <section className="sim-eventlog-step" aria-label={title} />;
+  if (result.cases === 0) {
+    return (
+      <section className="sim-eventlog-step" aria-label={title}>
+        <InlineNotice tone="warning" title={t("simulation.eventLog.conformance.noCases")} />
+        <div className="sim-eventlog-actions"><Button size="sm" onClick={onNext}>{t("simulation.eventLog.next")}</Button></div>
+      </section>
+    );
+  }
 
   const level = adherence(result.fitting_share);
   const variants = offPathVariants(result);
@@ -77,7 +90,7 @@ export function ConformanceStep({ eventLogId, mappedAt, onDecorations, onReviewA
       <div className="sim-fidelity-verdict" data-fidelity={level} role="status">
         <strong>{t(`simulation.eventLog.conformance.verdict.${level}`)}</strong>
         <span>{t("simulation.eventLog.conformance.fitting", {
-          count: result.cases,
+          count: result.fitting_cases,
           fitting: formatCount(result.fitting_cases, lang),
           total: formatCount(result.cases, lang),
           share: formatPercent(result.fitting_share),
@@ -154,8 +167,18 @@ export function ConformanceStep({ eventLogId, mappedAt, onDecorations, onReviewA
           )}
         </dl>
         <p className="sim-eventlog-hint">{t("simulation.eventLog.conformance.limits")}</p>
-        {result.warnings.length > 0 && <ul className="sim-eventlog-hint">{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
+        {result.warnings.length > 0 && <ul className="sim-eventlog-hint">{result.warnings.map((warning, index) => <li key={index}>{t(`simulation.eventLog.conformance.warning.${warning.code}`, { ...warning.params, defaultValue: warning.code })}</li>)}</ul>}
       </details>
+      <div className="sim-eventlog-actions"><Button size="sm" onClick={onNext}>{t("simulation.eventLog.next")}</Button></div>
     </section>
   );
+}
+
+const UNAVAILABLE_REASONS = ["not_mapped", "no_model", "model_not_replayable"] as const;
+type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
+
+/** Il codice stabile della busta d'errore del server, se e' uno di quelli noti. */
+function unavailableReason(error: HttpError): UnavailableReason | null {
+  const code = (error.body as { error?: { code?: unknown } } | undefined)?.error?.code;
+  return UNAVAILABLE_REASONS.find((item) => item === code) ?? null;
 }

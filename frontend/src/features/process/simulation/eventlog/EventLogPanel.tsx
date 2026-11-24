@@ -361,6 +361,7 @@ function EventLogWizard({ log, onClose, onDecorations }: {
           mappedAt={analysis.event_log.mapped_at}
           onDecorations={onDecorations}
           onReviewActivities={() => setStep("activities")}
+          onNext={() => setStep("compare")}
         />
       )}
 
