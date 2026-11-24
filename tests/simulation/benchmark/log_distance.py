@@ -28,6 +28,7 @@ import math
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 from datetime import UTC, datetime
 from pathlib import Path
 from statistics import mean
@@ -91,7 +92,7 @@ def wasserstein_1d(u: Sequence[int], v: Sequence[int]) -> float:
     values = sorted(count_u.keys() | count_v.keys())
     n_u, n_v = len(u), len(v)
     seen_u = seen_v = area = 0
-    for value, following in zip(values, values[1:]):
+    for value, following in pairwise(values):
         seen_u += count_u[value]
         seen_v += count_v[value]
         area += abs(seen_u * n_v - seen_v * n_u) * (following - value)
