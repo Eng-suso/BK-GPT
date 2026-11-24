@@ -18,6 +18,52 @@ Modello:
 
 ---
 
+## 2026-11-24 — B2 harness di valutazione — fatto
+
+- Branch / PR: `feat/sim-eval-harness`.
+- Meta: (1) stesso seed, stesso `baseline.json` bit per bit sui 19 scenari →
+  raggiunta: due passate complete con il seed 20261124, SHA-256 identico
+  (`24809a7f…`), e `test_same_seed_same_baseline_bit_for_bit` sullo stack reale.
+  (2) 3 log reali contro la riga `original` del paper, 10 repliche come il paper →
+  9/9 dentro (comando: `uv run python tests/simulation/benchmark/eval_harness.py`):
+
+  | Log | Metrica | DeliR | Paper | Scarto | Somma IC |
+  | --- | --- | --- | --- | --- | --- |
+  | AcademicCredentials | RED | 77,464 ± 0,210 | 77,211 ± 0,350 | 0,254 | 0,561 |
+  | AcademicCredentials | AED | 121,397 ± 23,249 | 132,824 ± 26,746 | 11,427 | 49,995 |
+  | AcademicCredentials | W1 cycle time | 174,837 ± 0,421 | 174,662 ± 0,962 | 0,175 | 1,383 |
+  | BPIC 2012 W | RED | 178,538 ± 0,020 | 178,545 ± 0,013 | 0,007 | 0,034 |
+  | BPIC 2012 W | AED | 221,446 ± 8,148 | 223,843 ± 8,438 | 2,397 | 16,586 |
+  | BPIC 2012 W | W1 cycle time | 175,710 ± 0,036 | 175,721 ± 0,033 | 0,011 | 0,069 |
+  | BPIC 2017 W | RED | 183,545 ± 0,019 | 183,555 ± 0,018 | 0,010 | 0,037 |
+  | BPIC 2017 W | AED | 303,353 ± 9,738 | 296,035 ± 9,531 | 7,318 | 19,269 |
+  | BPIC 2017 W | W1 cycle time | 253,314 ± 0,033 | 253,330 ± 0,021 | 0,017 | 0,053 |
+
+  (3) baseline dei 16 sintetici con W1, NGD, RED, AED, CED, CAR e intervalli →
+  `tests/simulation/benchmark/b2/baseline.md`.
+- Iterazioni: 1) punti aperti: 10 repliche (script del paper, upstream `26c88a0^`),
+  libreria Apache 2.0; la libreria 2.2 riproduce `metrics.csv` del paper a tutte le
+  cifre dai suoi log; 2) formule portate in `log_distance.py`, test rosso poi verde
+  contro i numeri della libreria (rel. 1e-9) e contro la riga del paper; 3) harness
+  sul percorso del prodotto: 9/9 dentro al primo giro, nessuna metrica da correggere;
+  4) code review e simplify (sotto); 5) misura finale due volte.
+- Prova sui sintetici: Procure_to_Pay scarta ~250 h sugli arrivi perché il suo log di
+  riferimento ha intervalli quasi costanti (mediana 1802 s, metà centrale 1789-1822 s)
+  mentre Prosimos 2.1 legge `expon [1805, 5, 3600]` come esponenziale tagliato:
+  semantica del motore che ha generato il log, non della pipeline (lo stesso JSON arriva
+  al runner). Dettagli in `HANDOFF.md`, sezione B2.
+- Code review: `code-review` 4 rilievi, tutti corretti (baseline parziale sovrascritta,
+  `--replicas` non validato, KPI non confrontato con il log riletto, versione del motore
+  mancante); `backend/CODE_QUALITY.md` e le 4 regole ast-grep: nessun rilievo;
+  `simplify` 9 corretti, 6 saltati con motivo nella PR. Nessun codice di backend
+  toccato, quindi niente `security-review`.
+- Skill: `code-review`, `simplify` (nessuna di frontend: lavoro di ricerca e backend).
+- Decisioni: metriche portate nel nostro codice invece del venv 3.12; W1 del cycle time
+  del paper ricavato dai suoi log con la stessa libreria, bin di un'ora come SIMOD.
+- Prossimo passo: SIM-36 e G3 in parallelo (ordine del piano), poi B3.
+
+---
+
 ## 2026-11-24 — UX-01 reale contro simulato leggibile — fatto
 
 - Branch / PR: `fix/ux-real-vs-simulated`, #173.

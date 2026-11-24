@@ -8,7 +8,7 @@ reale per il simulatore (`scripts/vpt_stack.sh`, PR #171).
 Tre punti in parallelo, una sessione ciascuno (regole in "Più agenti in parallelo"
 di [`WORKFLOW.md`](./WORKFLOW.md)). Ognuno aggiorna solo la propria sezione qui sotto.
 
-- **B2** harness di valutazione: meta decisa da Sohayb, vedi la sezione B2.
+- **B2** harness di valutazione: fatto il 2026-11-24, vedi la sezione B2.
 - **CAL-01** calendari FUZZY di SIMOD: vedi "Come riprendere CAL-01".
 - **UX-01** leggibilità di "Reale contro simulato".
 
@@ -54,90 +54,57 @@ test `event type selection…` cliccava. Il test ora tocca l'arco visibile.
 - Confermare la meta marcata *proposta* di B3 in `PLAN.md` (gateway ±0,05, durate
   ±10%). Quella di B2 è decisa (2026-11-24).
 
-## B2 (in corso dal 2026-11-24, sessione su `feat/sim-eval-harness`)
+## B2 (fatto il 2026-11-24, branch `feat/sim-eval-harness`)
 
-Meta in [`PLAN.md`](./PLAN.md). Stack: `scripts/vpt_stack.sh start`, poi
-`eval "$(scripts/vpt_stack.sh env)"`.
+Le tre mete sono raggiunte. Per ripartire (B3, B5, G3, VPT-10):
 
-### Punti aperti chiusi (2026-11-24)
+```bash
+scripts/vpt_stack.sh start && eval "$(scripts/vpt_stack.sh env)"
+uv run python tests/simulation/benchmark/eval_harness.py          # 19 scenari, ~5 min
+uv run python tests/simulation/benchmark/eval_harness.py Pharmacy --out /tmp/b2   # una parte
+```
 
-- **Repliche del paper: 10.** Lo script `tests/infsys-real-life-evaluation.py`
-  (cancellato dal repo upstream nel commit `26c88a0`, si legge con `git show
-  26c88a0^:tests/infsys-real-life-evaluation.py`) fa `for i in range(10)`, simula
-  tanti casi quanti il log di test a partire dal suo primo inizio, e calcola media e
-  intervallo t di Student al 95% (`ddof=1`). In `extraneous-delays-outputs` ci sono
-  infatti `<log>_sim_original_0…9.csv`.
-- **Licenza di `log-distance-measures` 2.2: Apache 2.0** (file `LICENSE` del repo
-  `AutomatedProcessImprovement/log-distance-measures`, tag 2.2.0). Si può portare con
-  attribuzione.
-- **La libreria 2.2 riproduce il paper.** Sui 10 log `sim_original` del paper contro
-  il log di test, in un venv 3.12 con `log-distance-measures==2.2.0`:
+- **Percorso:** import da `prosimos-import`, run da `simulation-model-runs` (coda,
+  worker, runner Prosimos 2.1), log degli eventi e KPI riletti dall'API. Casi e inizio
+  come il log di riferimento; seed `20261124 + replica`; 10 repliche come il paper.
+- **Metriche:** `tests/simulation/benchmark/log_distance.py`, port di
+  `log-distance-measures` 2.2 (Apache 2.0). `test_log_distance.py` le confronta con i
+  numeri della libreria (`fixtures/log_distance_reference.json`, rigenerabile in un
+  venv 3.12 con `log_distance_reference.py`) e, se c'è la cache di
+  `extraneous-delays-outputs`, riproduce la riga `original` del paper dai suoi log.
+- **Uscite:** `tests/simulation/benchmark/b2/baseline.json` (bit per bit con lo
+  stesso seed), `baseline.md` (tabella), `paper-comparison.md`.
+- **Repliche del paper: 10** (script `infsys-real-life-evaluation.py`, upstream commit
+  `26c88a0^`). W1 del cycle time il paper non lo pubblica: riferimento ricavato dai
+  suoi 10 log `sim_original` (`fixtures/paper_original_cycle_time_w1.json`).
 
-  | Log | RED | AED | W1 cycle time (ore, bin 1 h) |
-  | --- | --- | --- | --- |
-  | AcademicCredentials | 77,210731 ± 0,350470 | 132,824304 ± 26,745947 | 174,662060 ± 0,962148 |
-  | BPIC 2012 W | 178,545369 ± 0,013214 | 223,843232 ± 8,437542 | 175,721102 ± 0,032542 |
-  | BPIC 2017 W | 183,554654 ± 0,018163 | 296,035082 ± 9,530822 | 253,330301 ± 0,020749 |
+### Misura finale (seed 20261124, 10 repliche)
 
-  RED e AED coincidono con `paper-results/real-life-evaluation/metrics.csv` a tutte
-  le cifre. Il paper non pubblica W1 del cycle time: il riferimento è questo, calcolato
-  dai suoi 10 log con la stessa libreria (bin di un'ora, come SIMOD).
+- Meta 1: due passate complete, stesso SHA-256 di `baseline.json`
+  (`24809a7f…`); con seed diverso il file cambia (`test_same_seed_same_baseline_bit_for_bit`).
+- Meta 2: 9/9 dentro, vedi `b2/paper-comparison.md`.
+- Meta 3: 16 sintetici in `b2/baseline.md`.
 
-### Decisione sul calcolo delle metriche
+### Da sapere per B3 e B5
 
-Formule portate nel nostro codice (Python 3.14, senza scipy), con un test che dà gli
-stessi numeri della libreria su log del repo; i valori della libreria si rigenerano in
-un venv 3.12.
+- **Procure_to_Pay** (tutte e 4 le varianti) ha W1 ~340-360 h e CAR ~250 h contro il
+  proprio log: l'arrivo `expon [1805, 5, 3600]` nel log di riferimento ha intervalli
+  quasi costanti (mediana 1802 s, metà centrale 1789-1822 s), mentre Prosimos 2.1 lo
+  legge come esponenziale di media 1805 tagliato a [5, 3600] (pix_framework 0.15,
+  `expon(loc=min, scale=mean-min)`): arrivi più fitti, code più lunghe. Il JSON arriva
+  al runner identico; lo scarto è della semantica del motore che ha generato il log.
+  Va tenuto fuori dai confronti "DeliR contro verità" di B3/B5 o letto con questa nota.
+- **Loan_Application** ha W1 3-9 h e CAR 1-3 h: arrivi fissi uguali al riferimento,
+  la differenza nasce dopo l'arrivo. Non indagata oltre (B2 non ha soglie sui sintetici).
+- Il KPI "cycle" di DeliR misura dal primo arrivo (abilitazione) all'ultima fine; le
+  distanze del paper dal primo inizio. L'harness verifica che il KPI salvato coincida
+  con il log riletto, nella definizione del KPI.
 
-### Harness
+### Richieste per Sohayb
 
-`uv run python tests/simulation/benchmark/eval_harness.py [scenario ...]` (con lo
-stack acceso e `eval "$(scripts/vpt_stack.sh env)"`): import da `prosimos-import`,
-run da `simulation-model-runs` (coda e worker, runner Prosimos 2.1), log e KPI
-riletti dall'API. Scrive `tests/simulation/benchmark/b2/baseline.json` e
-`paper-comparison.md`. Formule in `log_distance.py`, test in `test_log_distance.py`.
-
-### Misure
-
-1. 2026-11-24, AcademicCredentials, seed 20261124, 10 repliche (4,7 s): RED 77,464 ±
-   0,210 contro 77,211 ± 0,350 (dentro); AED 121,397 ± 23,249 contro 132,824 ± 26,746
-   (dentro); W1 cycle time 174,837 ± 0,421 contro 174,662 ± 0,962 (dentro).
-
-2. 2026-11-24, BPIC 2012 W (19,7 s) e BPIC 2017 W (48,7 s), stesso seed, 10 repliche:
-   tutte dentro. 2012: RED 178,538 ± 0,020 contro 178,545 ± 0,013; AED 221,446 ± 8,148
-   contro 223,843 ± 8,438; W1 175,710 ± 0,036 contro 175,721 ± 0,033. 2017: RED
-   183,545 ± 0,019 contro 183,555 ± 0,018; AED 303,353 ± 9,738 contro 296,035 ± 9,531;
-   W1 253,314 ± 0,033 contro 253,330 ± 0,021.
-3. Passata completa dei 19 scenari: circa 4,5 minuti (sintetici 8-17 s ciascuno).
-   Code review (`code-review`, 4 rilievi corretti) e `simplify` (9 corretti, 6 saltati
-   con motivo nella PR) fatti; ast-grep pulito. In corso: misura finale, due passate
-   con il seed 20261124 nella stessa sessione, per la meta 1.
-4. Nota: il KPI "cycle" di DeliR misura il caso dalla prima abilitazione (arrivo)
-   all'ultima fine; le distanze del paper dal primo inizio. L'harness controlla che il
-   KPI salvato coincida con il log riletto (stessa definizione, scarto < 1 ms).
-
-Meta in [`PLAN.md`](./PLAN.md). Cosa si sa già, per partire subito:
-
-- Si misura sullo stack reale: `scripts/vpt_stack.sh start`, poi
-  `eval "$(scripts/vpt_stack.sh env)"` (vedi "Stack reale" in `WORKFLOW.md`).
-  Il percorso è quello del prodotto: import (`prosimos-import`, PR #170) → database
-  → run dalla coda → runner Prosimos 2.1 → log e KPI letti dal database.
-- Il paper calcola le distanze con `log-distance-measures` 2.2 (PyPI). Richiede
-  Python `>=3.11,<3.13`: il backend è sulla 3.14, quindi o gira in un venv 3.12
-  come il runner, o le formule si portano nel nostro codice con un test che dia
-  gli stessi numeri della libreria. Il codice del paper è Apache 2.0
-  (`github.com/AutomatedProcessImprovement/extraneous-activity-delays`); la
-  licenza della libreria va verificata prima di copiarne codice.
-- Nel codice del paper `num_evaluation_simulations` vale 3 di default; il numero
-  di repliche usato per `paper-results` va confermato (script di valutazione su
-  Zenodo, `extraneous-delays-outputs`).
-- `paper-results/real-life-evaluation/metrics.csv`: colonne `relative_*` (RED) e
-  `absolute_*` (AED), media e `cnf` (intervallo) per run; la riga da riprodurre è
-  `<log>_original`. `metrics-cycle-time.csv` ha i quantili del cycle time.
-  I `metrics.csv` dei sintetici misurano la scoperta dei ritardi (B5), non la
-  fedeltà.
-- Esistono già `tests/simulation/benchmark/benchmark_metrics.py` (W1 e W1
-  relativo) e `run_baseline.py` (gemello ingenuo su BPIC): riusali dove servono.
+- Decidere se l'import (CAL-01 o un punto nuovo) debba segnalare gli arrivi `expon`
+  con media vicina al massimo, che Prosimos 2.1 tronca in modo diverso dai motori
+  precedenti.
 
 ## UX-01 (fatto il 2026-11-24, PR #173)
 
