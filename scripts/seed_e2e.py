@@ -31,8 +31,10 @@ from backend.workspace_database import (
     create_client,
     create_process,
     create_project,
+    get_bpmn_review,
     list_project_processes,
     list_projects,
+    prepare_bpmn_review,
 )
 
 #: Lo spazio di lavoro che il frontend manda quando nessuno configura niente
@@ -43,6 +45,10 @@ TENANT_ID = "local"
 CLIENT_NAME = "Esaote S.p.A."
 PROJECT_NAME = "Riorganizzazione ciclo passivo"
 PROCESS_NAME = "Ciclo passivo"
+#: Un processo il cui piano, approvato, darebbe un disegno in deadlock: una
+#: scelta esclusiva che finisce in un gateway parallelo. Serve a provare che il
+#: gate L3 al salvataggio arriva al consulente come frase leggibile.
+DEADLOCK_PROCESS_NAME = "Approvazione fatture"
 
 
 def _existing_project(client_id: str, name: str) -> dict | None:
@@ -95,6 +101,14 @@ def seed() -> dict[str, str]:
         owner="Amministrazione",
     )
 
+    deadlock_process = _existing_process(project["id"], DEADLOCK_PROCESS_NAME) or create_process(
+        project_id=project["id"],
+        name=DEADLOCK_PROCESS_NAME,
+        stage="AS-IS",
+        owner="Amministrazione",
+    )
+    _seed_deadlocking_review(deadlock_process["bpmn_model_id"])
+
     return {
         "tenant_id": TENANT_ID,
         "client_id": client["id"],
@@ -104,7 +118,72 @@ def seed() -> dict[str, str]:
         "process_id": process["id"],
         "process_name": PROCESS_NAME,
         "bpmn_model_id": process["bpmn_model_id"],
+        "deadlock_process_id": deadlock_process["id"],
+        "deadlock_process_name": DEADLOCK_PROCESS_NAME,
+        "deadlock_bpmn_model_id": deadlock_process["bpmn_model_id"],
     }
+
+
+def _seed_deadlocking_review(bpmn_model_id: str) -> None:
+    """Un piano pendente che supera la prontezza ma non il gate L3.
+
+    Il piano passa da `prepare_bpmn_review` come ogni piano vero; poi il seed
+    ne riscrive il flusso e il giudizio di qualita'. Nessun estrattore gira in
+    e2e (`DELIR_FAKE_LLM`), e un piano estratto non conterrebbe questo errore:
+    qui serve proprio un flusso che l'analisi del piano (`soundness.py`) lascia
+    passare e quella a token del disegno rifiuta. Rilanciare il seed lo riporta
+    pendente e identico.
+    """
+    from backend.bpmn import BPMNSemanticModel
+    from backend.process_understanding import ProcessActor, ProcessStep, ProcessUnderstanding
+    from backend.workspace_storage import WorkspaceBpmnReview, workspace_connection
+
+    if get_bpmn_review(bpmn_model_id) is None:
+        understanding = ProcessUnderstanding(
+            title=DEADLOCK_PROCESS_NAME,
+            actors=[ProcessActor(id="Amministrazione", label="Amministrazione", kind="team")],
+            steps=[ProcessStep(id="Task_Registra", label="Registra fattura", actor_ids=["Amministrazione"])],
+            sequence=["Task_Registra"],
+        )
+        prepare_bpmn_review(
+            bpmn_model_id=bpmn_model_id,
+            process_description="L'amministrazione riceve la fattura, la verifica e la registra.",
+            process_understanding=understanding.model_dump(mode="json"),
+        )
+    flow = BPMNSemanticModel(
+        id="Process_approvazione_fatture",
+        name=DEADLOCK_PROCESS_NAME,
+        flowNodes=[
+            {"id": "Start", "type": "startEvent", "name": "Fattura ricevuta"},
+            {"id": "Soglia", "type": "exclusiveGateway", "name": "Importo sopra soglia?"},
+            {"id": "Direttore", "type": "userTask", "name": "Approvazione del direttore"},
+            {"id": "Diretta", "type": "userTask", "name": "Registrazione diretta"},
+            {"id": "Sync", "type": "parallelGateway", "name": "Entrambe le verifiche concluse"},
+            {"id": "End", "type": "endEvent", "name": "Fattura registrata"},
+        ],
+        sequenceFlows=[
+            {"id": f"Flow_{index}", "sourceRef": source, "targetRef": target}
+            for index, (source, target) in enumerate([
+                ("Start", "Soglia"), ("Soglia", "Direttore"), ("Soglia", "Diretta"),
+                ("Direttore", "Sync"), ("Diretta", "Sync"), ("Sync", "End"),
+            ])
+        ],
+    ).model_dump(mode="json")
+    with workspace_connection() as session:
+        review = session.get(WorkspaceBpmnReview, bpmn_model_id)
+        stored = json.loads(review.bpmn_semantic_model_json)
+        stored.update(flowNodes=flow["flowNodes"], sequenceFlows=flow["sequenceFlows"], lanes=[])
+        stored["sourceProcessUnderstanding"]["quality_report"] = {
+            "schema_version": "process_understanding_quality.v1",
+            "overall_score": 9,
+            "dimension_scores": [],
+            "blocking_issues": [],
+            "warnings": [],
+            "improvement_actions": [],
+            "approval_recommendation": "ready_to_generate",
+        }
+        review.bpmn_semantic_model_json = json.dumps(stored, ensure_ascii=False)
+        review.status = "pending"
 
 
 def main() -> int:
