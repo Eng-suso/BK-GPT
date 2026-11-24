@@ -45,7 +45,7 @@ def _hold_the_queue(monkeypatch) -> None:
     async def idle(*_args, **_kwargs) -> int:
         return 0
 
-    monkeypatch.setattr("backend.api.routes.simulation.drain_simulation_queue", idle)
+    monkeypatch.setattr("backend.api.routes.simulation.fill_simulation_slots", idle)
 
 
 def test_a_retried_unseeded_group_finds_the_group_already_queued(api_client, new_bpmn_model, fake_engine, monkeypatch):

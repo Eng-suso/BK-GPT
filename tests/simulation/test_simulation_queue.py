@@ -16,7 +16,12 @@ from backend.schemas.workspace import BpmnModelResponse
 from backend.settings import settings
 from backend.simulation import queue
 from backend.simulation.models import ProsimosSimulationResult
-from backend.simulation.service import SimulationCapacityError, drain_simulation_queue, prepare_simulation_run
+from backend.simulation.service import (
+    SimulationCapacityError,
+    drain_simulation_queue,
+    fill_simulation_slots,
+    prepare_simulation_run,
+)
 from backend.simulation.storage import complete_simulation_run, get_simulation_run
 from backend.workspace_storage import WorkspaceSimulationRun, workspace_connection
 
@@ -73,9 +78,32 @@ def test_the_drain_runs_the_queue_in_order(model, fake_engine, monkeypatch):
     assert get_simulation_run(runs[0]["id"])["queue"] is None
 
 
+def test_a_group_starts_on_every_free_slot_at_once(model, monkeypatch):
+    """B6: tre ripetizioni con due posti girano due alla volta da subito, mai tre."""
+    from tests.simulation.engine_log import ENGINE_LOG
+
+    monkeypatch.setattr(settings, "simulation_max_concurrent_runs", 2)
+    running, peak = 0, 0
+
+    async def engine(_request):
+        nonlocal running, peak
+        running += 1
+        peak = max(peak, running)
+        await asyncio.sleep(0.3)
+        running -= 1
+        return ProsimosSimulationResult(payload={}, event_log_csv=ENGINE_LOG)
+
+    monkeypatch.setattr("backend.simulation.service.run_prosimos_simulation", engine)
+    runs = [_enqueue(model, seed) for seed in (1, 2, 3)]
+
+    assert asyncio.run(fill_simulation_slots(len(runs))) == 3
+    assert peak == 2
+    assert all(get_simulation_run(run["id"])["status"] == "completed" for run in runs)
+
+
 def test_a_full_queue_is_a_429_with_the_reason(api_client, model, monkeypatch):
     monkeypatch.setattr(settings, "simulation_max_queued_runs", 1)
-    monkeypatch.setattr("backend.api.routes.simulation.drain_simulation_queue", lambda: None)
+    monkeypatch.setattr("backend.api.routes.simulation.fill_simulation_slots", lambda *_: None)
     _enqueue(model, 1)
 
     with pytest.raises(SimulationCapacityError, match="1 simulazioni in attesa"):
@@ -137,7 +165,7 @@ def test_a_run_from_before_the_queue_is_closed_like_before(model):
 
 
 def test_the_api_returns_the_queue_state_of_a_waiting_run(api_client, model, monkeypatch):
-    monkeypatch.setattr("backend.api.routes.simulation.drain_simulation_queue", lambda: None)
+    monkeypatch.setattr("backend.api.routes.simulation.fill_simulation_slots", lambda *_: None)
     created = api_client.post(
         f"/v1/workspace/bpmn-models/{model.id}/simulation-runs",
         json={"total_cases": 5, "seed": 9, "current_bpmn_xml": BPMN},

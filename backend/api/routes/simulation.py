@@ -32,7 +32,7 @@ from backend.simulation.service import (
     claim_proposals_for_model,
     SimulationCapacityError,
     SimulationLogUnavailable,
-    drain_simulation_queue,
+    fill_simulation_slots,
     export_simulation_event_log,
     prepare_simulation_model_run,
     prepare_sensitivity_runs,
@@ -88,10 +88,11 @@ async def create_workspace_simulation_run(
 
     try:
         # Una ripetizione o un gruppo (SIM-04): la risposta e' la prima, il gruppo sta nella richiesta.
-        run, _, _ = prepare_simulation_runs(
+        planned = prepare_simulation_runs(
             bpmn_model=BpmnModelResponse(**model),
             request=request,
-        )[0]
+        )
+        run = planned[0][0]
     except SimulationCapacityError as exc:
         # 429 e non 400: la richiesta e' giusta, e' il momento a essere
         # sbagliato (coda piena). La stessa, fra qualche minuto, funziona.
@@ -101,7 +102,7 @@ async def create_workspace_simulation_run(
 
     # Il run e' in coda (o ce n'era gia' uno identico in volo): chi ha posto lo
     # prende. Il drenaggio e' esclusivo, quindi lanciarlo anche a vuoto e' sicuro.
-    background_tasks.add_task(drain_simulation_queue)
+    background_tasks.add_task(fill_simulation_slots, len(planned))
 
     return SimulationRunResponse(**run)
 
@@ -130,7 +131,7 @@ async def create_workspace_simulation_model_run(
 
     # Il run e' in coda (o ce n'era gia' uno identico in volo): chi ha posto lo
     # prende. Il drenaggio e' esclusivo, quindi lanciarlo anche a vuoto e' sicuro.
-    background_tasks.add_task(drain_simulation_queue)
+    background_tasks.add_task(fill_simulation_slots)
 
     return SimulationRunResponse(**run)
 
@@ -155,7 +156,7 @@ async def create_workspace_simulation_sensitivity(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    background_tasks.add_task(drain_simulation_queue)
+    background_tasks.add_task(fill_simulation_slots, len(planned))
     return [SimulationRunResponse(**run) for run, _, _ in planned]
 
 

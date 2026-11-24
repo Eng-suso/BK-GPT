@@ -588,6 +588,18 @@ async def drain_simulation_queue(worker_id: str | None = None) -> int:
     return done
 
 
+async def fill_simulation_slots(runs: int = 1) -> int:
+    """Dopo una richiesta: un drenaggio per run appena messo in coda, fino ai posti del motore.
+
+    Un gruppo di ripetizioni (SIM-04) o uno studio di sensitivita' parte subito
+    su tutti i posti liberi, invece di aspettare che il giro periodico riempia
+    gli altri (B6). I drenaggi in piu' sono sicuri: la presa e' esclusiva e
+    conta i run in corso, e un drenaggio senza posto o senza run esce subito.
+    """
+    drains = max(1, min(runs, settings.simulation_max_concurrent_runs))
+    return sum(await asyncio.gather(*(drain_simulation_queue() for _ in range(drains))))
+
+
 async def execute_claimed_run(claimed: ClaimedRun) -> dict:
     """Esegue un run preso dalla coda, battendo finche' gira."""
     set_current_tenant_id(claimed.tenant_id)
