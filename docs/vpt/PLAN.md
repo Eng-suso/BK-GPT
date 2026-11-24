@@ -64,6 +64,14 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 | B5 ritardi estranei | `feat/sim-extraneous-delays` | Ric | Sui sintetici con 1, 3, 5 timer, distanza pari o migliore di quella del paper in `paper-results` | harness B2 | B3 | da fare |
 | VPT-07 spike object-centric | `spike/sim-ocel` | Ric | Su ≥ 2 log OCEL pubblici misurata la perdita da appiattimento; decisione scritta | script dello spike | B2 | da fare |
 
+### Conformance delle esecuzioni (emersa dall'audit del 2026-11-23)
+
+| Blocco | Branch | Binario | Meta | Misura | Dipende da | Stato |
+| --- | --- | --- | --- | --- | --- | --- |
+| CONF-01 token replay log ↔ BPMN | `ccr-9b6e10c9-jmjsbm` | Prod | Fitness per log e per variante, casi conformi, elementi eseguiti fuori ordine e rimasti in attesa; log simulato dal modello → fitness 1 | `tests/eventlog/test_conformance.py` (LoanApp: 500/500 conformi; 3 perizie tolte → 3 deviazioni trovate) | — | fatto (backend + API) |
+| CONF-02 vista di conformance | da aprire | Prod | Il consulente vede fitness, casi fuori processo e deviazioni sul BPMN senza leggere JSON; gate UX superato | Playwright + screenshot | CONF-01 | da fare |
+| CONF-03 allineamenti ottimi | da aprire | Ric | Per ogni caso non conforme la sequenza minima di correzioni (A*), confrontata con il replay | test su log con deviazioni note | CONF-01 | da fare |
+
 ### V3 — Incertezza
 
 | Blocco | Branch | Binario | Meta | Misura | Dipende da | Stato |

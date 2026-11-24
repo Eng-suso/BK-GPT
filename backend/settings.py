@@ -221,6 +221,11 @@ class Settings(BaseSettings):
     delir_default_tenant_id: str = "local"
     delir_allowed_tenant_ids: str = ""
     delir_cors_origins: str = "http://127.0.0.1:3030,http://localhost:3030"
+    # Gli host esterni a cui l'app puo' mandare dati, separati da virgola (es.
+    # `api.openai.com,api.smith.langchain.com`). In staging e prod e' la lista
+    # dei fornitori registrati: una destinazione attiva fuori lista blocca
+    # l'avvio. In sviluppo, vuota = tutto permesso. Vedi `backend/llm/egress.py`.
+    delir_egress_allowed_hosts: str = ""
 
     prosimos_base_url: str = "http://127.0.0.1:5000"
     # Token condiviso con il runner (RUNNER_API_TOKEN): vuoto = nessun header,
@@ -265,6 +270,23 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+#: Gli ambienti in cui partire senza autenticazione, e scrivere su disco i testi
+#: dei prompt, non e' un incidente. La lista dice dove e' lecito, non dove e'
+#: vietato: elencare gli ambienti da proteggere lascerebbe passare tutto il
+#: resto, e `DELIR_ENVIRONMENT=produzione` - la parola giusta, in italiano -
+#: sarebbe un deploy aperto per un refuso.
+OPEN_ENVIRONMENTS = frozenset({"dev", "local", "test"})
+
+
+def current_environment() -> str:
+    return (settings.delir_environment or "dev").strip().lower()
+
+
+def environment_is_open() -> bool:
+    """Vero su una macchina di sviluppo; falso in staging, prod e ogni nome sconosciuto."""
+    return current_environment() in OPEN_ENVIRONMENTS
 
 
 def truthy_env(name: str) -> bool:

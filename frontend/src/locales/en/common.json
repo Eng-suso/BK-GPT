@@ -200,6 +200,28 @@
     "model": "Conversation model",
     "refresh": "Refresh"
   },
+  "dataEgress": {
+    "title": "Data sent outside",
+    "description": "Which services receive customer data with this environment's configuration, and what they receive.",
+    "summary_one": "{{count}} external provider receives data.",
+    "summary_other": "{{count}} external providers receive data.",
+    "noneExternal": "No external provider receives data.",
+    "enforced": "Only authorised hosts can receive data: everything else is blocked.",
+    "notEnforced": "Development environment: no host allowlist is enforced.",
+    "external": "Authorised external provider",
+    "internal": "Internal service: data stays on this infrastructure",
+    "blocked": "Not authorised: calls are blocked",
+    "dataLabel": "Data sent",
+    "failed": "The list of recipients could not be read.",
+    "localTracePayload": "Local traces save prompt and response text to disk. This only happens in development.",
+    "category": {
+      "customer_content": "Customer content",
+      "audio": "Audio",
+      "prompt_trace": "Prompts and responses",
+      "search_query": "Search queries",
+      "process_model": "Process models"
+    }
+  },
   "settings": {
     "description": "Interface preferences and service status.",
     "language": {

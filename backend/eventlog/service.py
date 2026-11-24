@@ -14,6 +14,7 @@ from datetime import date
 from backend.eventlog import storage
 from backend.eventlog.analysis import Preview, analyze, preview
 from backend.eventlog.bpmn_match import ModelElement
+from backend.eventlog.conformance import ConformanceModelError, check_conformance
 from backend.eventlog.kpi import summarize
 from backend.eventlog.mapping import apply_mapping as map_table
 from backend.eventlog.periods import cases_started
@@ -21,7 +22,10 @@ from backend.eventlog.readers import EventLogFileError, Table, read_table
 from backend.schemas.eventlog import (
     ActivityMatchReportResponse,
     ApplyEventLogMappingRequest,
+    ConformanceDeviationResponse,
+    ConformanceVariantResponse,
     EventLogAnalysisResponse,
+    EventLogConformanceResponse,
     EventLogPreviewResponse,
     EventLogResponse,
     QualityReportResponse,
@@ -209,6 +213,98 @@ def period_summary(event_log_id: str, *, since: date | None = None, before: date
     period = cases_started(canonical, since=since, before=before)
     cases = len({event.case_id for event in period.events})
     return PeriodSummary(event_log=log, cases=cases, summary=summarize(period) if period.events else None)
+
+
+class ConformanceUnavailable(ValueError):
+    """Mancano il mapping o il modello: la conformance non si puo' calcolare."""
+
+
+#: Le varianti restituite nella risposta: le piu' frequenti. Il calcolo le usa tutte.
+CONFORMANCE_VARIANTS_IN_RESPONSE = 50
+
+
+def conformance(event_log_id: str) -> EventLogConformanceResponse:
+    """I casi reali del log riprodotti sul BPMN corrente del processo.
+
+    Usa il mapping delle colonne e l'abbinamento attivita'-elementi salvati
+    dall'ultimo ``apply_mapping``: e' il consulente che ha deciso quale
+    attivita' del log e' quale elemento del modello, e il replay non lo
+    ridecide.
+
+    Raises:
+        EventLogNotFound: il log non esiste nel tenant.
+        ConformanceUnavailable: log non mappato, processo senza BPMN, o BPMN
+            che non si puo' riprodurre.
+    """
+    log, table = _read(event_log_id, None)
+    analysis = storage.get_analysis(event_log_id)
+    if log.mapping is None or analysis is None:
+        raise ConformanceUnavailable(
+            f"Il log «{log.name}» non è ancora mappato: completa il mapping nel wizard."
+        )
+    process = get_process(log.process_id)
+    model = get_bpmn_model(process["bpmn_model_id"]) if process else None
+    xml = (model or {}).get("xml") or ""
+    if not xml.strip():
+        raise ConformanceUnavailable("Il processo non ha ancora un BPMN da confrontare con il log.")
+
+    canonical, _ = map_table(table, log.mapping, source_name=log.name)
+    matches = {m.activity: m.element_id for m in analysis.activities.matches}
+    try:
+        # Gli element_id dell'abbinamento vengono dal BPMN normalizzato per il
+        # motore (``_model_targets``): si riproduce lo stesso.
+        result = check_conformance(canonical, normalize_bpmn_for_prosimos(xml), matches)
+    except ConformanceModelError as exc:
+        raise ConformanceUnavailable(str(exc)) from exc
+
+    bpmn_version_id = (model or {}).get("version_id")
+    warnings = list(result.warnings)
+    if analysis.activities.bpmn_version_id != bpmn_version_id:
+        warnings.insert(
+            0,
+            "Il BPMN è cambiato dopo l'abbinamento delle attività: rivedi l'abbinamento prima di "
+            "leggere questo risultato.",
+        )
+    names = {m.element_id: m.name for m in analysis.activities.unobserved_elements}
+    names.update({d.element_id: d.name for d in result.deviations})
+    return EventLogConformanceResponse(
+        event_log=log,
+        bpmn_version_id=bpmn_version_id,
+        mapping_bpmn_version_id=analysis.activities.bpmn_version_id,
+        fitness=result.fitness,
+        cases=result.cases,
+        fitting_cases=result.fitting_cases,
+        fitting_share=result.fitting_share,
+        deviations=[
+            ConformanceDeviationResponse(
+                element_id=d.element_id,
+                name=d.name,
+                executed_out_of_order=d.executed_out_of_order,
+                left_waiting=d.left_waiting,
+            )
+            for d in result.deviations
+        ],
+        variants=[
+            ConformanceVariantResponse(
+                activities=list(v.activities),
+                cases=v.cases,
+                fitness=v.fitness,
+                fits=v.fits,
+                out_of_order=list(v.out_of_order),
+                waiting=list(v.waiting),
+                unmodeled=list(v.unmodeled),
+            )
+            for v in result.variants[:CONFORMANCE_VARIANTS_IN_RESPONSE]
+        ],
+        unmodeled_activities=result.unmodeled_activities,
+        unobserved_elements=[
+            {"element_id": element, "name": names.get(element, element)}
+            for element in result.unobserved_elements
+        ],
+        excluded_variants=result.excluded_variants,
+        excluded_cases=result.excluded_cases,
+        warnings=warnings,
+    )
 
 
 def _read(event_log_id: str, delimiter: str | None) -> tuple[EventLogResponse, Table]:

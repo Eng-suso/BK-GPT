@@ -38,6 +38,22 @@ def get_degradation_counters():
     return {"status": "ok" if not counts else "degraded", "counters": counts}
 
 
+@router.get("/observability/egress")
+def get_data_egress():
+    """Dove escono i dati del cliente con la configurazione di adesso.
+
+    Una riga per destinazione - modello, embedding, trascrizione, tracing,
+    ricerca web, servizi self-hosted - con l'host, cosa riceve, se e' attiva e
+    se e' autorizzata. Niente chiavi ne' URL completi: l'host basta a chi deve
+    rispondere a un questionario di sicurezza, e il resto non gli serve.
+    """
+    from backend.llm import egress, local_tracer
+
+    out = egress.inventory()
+    out["localTracePayload"] = local_tracer.writes_payloads()
+    return out
+
+
 @router.get("/observability/queues")
 def get_queue_health():
     """Stato delle code di proiezione (canonical -> Neo4j / Mem0). `stuck` > 0

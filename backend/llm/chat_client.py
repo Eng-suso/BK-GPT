@@ -27,6 +27,7 @@ from typing import Any
 
 from langchain_openai import ChatOpenAI
 
+from backend.llm.egress import Destination, require
 from backend.llm.local_tracer import local_callbacks
 from backend.llm.tasks import LlmTask, profile_for
 from backend.llm_config import MissingProviderKey, timeout_for_input
@@ -84,6 +85,7 @@ def chat_client(
             "OPENAI_API_KEY non configurata: il client della chat non puo' essere costruito."
         )
 
+    require(Destination.LLM_CHAT)
     profile = profile_for(task)
     max_tokens = profile.max_output_tokens or settings.model_max_tokens
     kwargs: dict[str, Any] = {
