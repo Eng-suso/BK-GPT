@@ -16,6 +16,7 @@ import pytest
 
 from backend.simulation.ir.compile import compile_for_prosimos
 from backend.simulation.ir.from_prosimos import ProsimosImportError, import_prosimos
+from tests.simulation.simod_fuzzy import simod_fuzzy
 
 ROOT = Path(__file__).resolve().parents[2]
 INPUTS = ROOT / "datasets" / "extraneous-delays" / "inputs"
@@ -316,7 +317,8 @@ def _fuzzy(name: str, granule: int = 60) -> tuple[dict, str]:
     formato FUZZY che SIMOD scrive e Prosimos 2.1 legge (``parse_fuzzy_calendar``).
 
     ``granule`` deve cadere sugli orari dei calendari, come nei file di SIMOD."""
-    source, bpmn = _copy(*reversed(name.split("/")))
+    folder, scenario = name.split("/")
+    source, bpmn = _copy(scenario, folder)
     source["model_type"] = "FUZZY"
     source["granule_size"] = {"value": granule, "time_unit": "MINUTES"}
     for k, calendar in enumerate(source["resource_calendars"]):
@@ -344,34 +346,14 @@ def _probabilistic(periods: list[dict]) -> list[tuple]:
     )
 
 
-SIMOD_FUZZY = (
-    ROOT
-    / "datasets"
-    / "simod"
-    / "discovered"
-    / "Insurance_Claims_fuzzy"
-    / "Insurance_Claims_fuzzy.json"
-)
-
-
-def _simod_fuzzy_until_midnight() -> tuple[dict, str]:
-    """Lo scenario di SIMOD con una fascia fino a mezzanotte, scritta come la scrive
-    SIMOD (pix_framework): ``endTime`` "00:00:00"."""
-    source, bpmn = _pair(SIMOD_FUZZY)
-    source["resource_calendars"][0]["time_periods"].append(
-        {"from": "MONDAY", "to": "MONDAY", "beginTime": "23:00:00", "endTime": "00:00:00", "probability": 0.4}
-    )
-    return source, bpmn
-
-
 @pytest.mark.parametrize(
     "load",
     [
         # Scoperto da SIMOD 5.2.1 sul log del dataset (vedi ATTRIBUTION.md).
-        lambda: _pair(SIMOD_FUZZY),
+        simod_fuzzy,
         lambda: _fuzzy("real-life/AcademicCredentials", granule=15),
         lambda: _fuzzy("synthetic/Loan_Application_3_timers", granule=1),
-        lambda: _simod_fuzzy_until_midnight(),
+        lambda: simod_fuzzy(until_midnight=True),
     ],
     ids=["simod-discovered", "AcademicCredentials", "Loan_Application_3_timers", "simod-until-midnight"],
 )
@@ -514,19 +496,21 @@ def test_the_ir_refuses_what_prosimos_cannot_run(change, reason) -> None:
         SimulationModel(**data)
 
 
-def test_an_arrival_band_cannot_carry_a_probability() -> None:
-    # Le probabilita' valgono per le persone: sugli arrivi nessuno le applicherebbe.
+@pytest.mark.parametrize("section", ["arrival-band", "duration-window"])
+def test_only_calendars_carry_a_probability(section) -> None:
+    # Le probabilita' valgono per le persone: su arrivi e durate nessuno le applicherebbe.
     from backend.simulation.ir.model import SimulationModel
 
     source, bpmn = _fuzzy("synthetic/Insurance_Claims")
     model = import_prosimos(source, bpmn).model
-    band = {
-        "from_day": "MONDAY", "to_day": "FRIDAY", "begin": "09:00:00", "end": "17:00:00",
-        "mean_seconds": 600, "probability": 0.5,
-    }
-    arrival = {**model.arrival.model_dump(), "bands": [band]}
-    with pytest.raises(ValueError, match="arrivi"):
-        SimulationModel(**{**dict(model), "arrival": arrival})
+    window = {"from_day": "MONDAY", "to_day": "FRIDAY", "begin": "09:00:00", "end": "17:00:00", "probability": 0.5}
+    data = model.model_dump()
+    if section == "arrival-band":
+        data["arrival"]["bands"] = [{**window, "mean_seconds": 600}]
+    else:
+        data["activities"][0]["duration_windows"] = [{**window, "factor": 1.3}]
+    with pytest.raises(ValueError, match="probability"):
+        SimulationModel.model_validate(data)
 
 
 @pytest.mark.parametrize(

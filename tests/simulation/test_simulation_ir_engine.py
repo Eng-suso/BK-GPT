@@ -22,6 +22,10 @@ sys.path.insert(0, str(ROOT / "ops" / "prosimos" / "spike"))
 
 import contract_spike  # noqa: E402
 
+# Il venv del runner installa un pacchetto ``tests`` che nasconde il nostro.
+sys.path.insert(0, str(ROOT / "tests" / "simulation"))
+from simod_fuzzy import simod_fuzzy  # noqa: E402
+
 from backend.simulation.ir import compile_for_prosimos  # noqa: E402
 from backend.simulation.ir.model import (  # noqa: E402
     Activity,
@@ -937,9 +941,7 @@ def test_a_fuzzy_scenario_discovered_by_simod_runs_on_the_engine():
     """CAL-01: lo scenario FUZZY scoperto da SIMOD 5.2.1 sul log del dataset gira."""
     from backend.simulation.ir.from_prosimos import import_prosimos
 
-    folder = ROOT / "datasets" / "simod" / "discovered" / "Insurance_Claims_fuzzy"
-    source = json.loads((folder / "Insurance_Claims_fuzzy.json").read_text(encoding="utf-8"))
-    bpmn = (folder / "Insurance_Claims_fuzzy.bpmn").read_text(encoding="utf-8")
+    source, bpmn = simod_fuzzy()
     model = import_prosimos(source, bpmn).model
 
     rows = _run(model, seed=7, bpmn=bpmn, cases=100)
@@ -957,13 +959,8 @@ def test_prosimos_reads_every_fuzzy_slot_up_to_midnight():
 
     from backend.simulation.ir.from_prosimos import import_prosimos
 
-    folder = ROOT / "datasets" / "simod" / "discovered" / "Insurance_Claims_fuzzy"
-    source = json.loads((folder / "Insurance_Claims_fuzzy.json").read_text(encoding="utf-8"))
-    bpmn = (folder / "Insurance_Claims_fuzzy.bpmn").read_text(encoding="utf-8")
+    source, bpmn = simod_fuzzy(until_midnight=True)
     calendar = source["resource_calendars"][0]
-    calendar["time_periods"].append(
-        {"from": "MONDAY", "to": "MONDAY", "beginTime": "23:00:00", "endTime": "00:00:00", "probability": 0.4}
-    )
 
     compiled = compile_for_prosimos(import_prosimos(source, bpmn).model)
     fuzzy = parse_fuzzy_calendar(compiled)[calendar["id"]]

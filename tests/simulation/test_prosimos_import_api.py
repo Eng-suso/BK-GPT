@@ -196,9 +196,9 @@ def test_the_simod_fuzzy_scenario_runs_on_the_stack_runner(client):
 
     Import dal server, run in coda, runner Prosimos 2.1 vero, esito letto dal database.
     """
-    folder = ROOT / "datasets" / "simod" / "discovered" / "Insurance_Claims_fuzzy"
-    scenario = json.loads((folder / "Insurance_Claims_fuzzy.json").read_text(encoding="utf-8"))
-    bpmn = (folder / "Insurance_Claims_fuzzy.bpmn").read_text(encoding="utf-8")
+    from tests.simulation.simod_fuzzy import simod_fuzzy
+
+    scenario, bpmn = simod_fuzzy()
     bpmn_model_id = _bpmn_model_id(client)
 
     imported = client.post(
