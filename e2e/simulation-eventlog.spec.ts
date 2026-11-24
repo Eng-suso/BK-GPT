@@ -78,6 +78,12 @@ const VALIDATION = {
   basis: "observable",
 };
 
+/** Due simulazioni dello stesso gruppo: il report mostra la media, la seconda è quella scelta. */
+const GROUP_A = { ...run, id: 41, request: { replication_group: "batch-e2e", replication_index: 1 } };
+const GROUP_B = { ...run, request: { replication_group: "batch-e2e", replication_index: 2 } };
+const GROUP_VALIDATION = { ...VALIDATION, replications: 2, simulatedCases: [300, 300], runIds: [41, 42],
+  provenance: { eventLogId: "elog_e2e", runs: [41, 42].map((runId) => ({ runId, seed: runId, engine: "prosimos", engineVersion: "2.1.0", startDate: "2026-01-05T00:00:00Z", warmupCases: 0 })) } };
+
 /** Token replay del server (CONF-01): un caso su tre salta l'approvazione. */
 const CONFORMANCE = {
   event_log: ANALYSIS.event_log, bpmn_version_id: 1, mapping_bpmn_version_id: 1,
@@ -92,7 +98,7 @@ const CONFORMANCE = {
 
 type Fixture = { mappingRequests: Request[] };
 
-async function fixture(page: Page, logs: unknown[]): Promise<Fixture> {
+async function fixture(page: Page, logs: unknown[], options: { runs?: unknown[]; validation?: unknown } = {}): Promise<Fixture> {
   const state: Fixture = { mappingRequests: [] };
   await page.addInitScript(() => { Object.assign(window, { DELIR_API_BASE: "http://127.0.0.1:8000" }); localStorage.setItem("delir-language", "it"); });
   await page.route("http://127.0.0.1:8000/**", async (route) => {
@@ -104,7 +110,7 @@ async function fixture(page: Page, logs: unknown[]): Promise<Fixture> {
       next_step: "Validare il modello sul log", milestones: [], open_issues: [], deliverables: [],
       process_items: [{ id: "eventlog-process", project_id: "eventlog-project", bpmn_model_id: "eventlog-model", name: "Gestione richieste", stage: "AS-IS", status: "Da validare", owner: "Team Operations", readiness: 85 }],
     };
-    else if (path.endsWith("/simulation-runs")) data = [run];
+    else if (path.endsWith("/simulation-runs")) data = options.runs ?? [run];
     else if (path.endsWith("/replay")) data = { run_id: 42, schema_version: 1, replay };
     else if (path.endsWith("/model")) data = { run_id: 42, model: null };
     else if (path.endsWith("/simulation-template")) data = { tasks: [{ element_id: "A", name: "Verifica documentazione", type: "task" }, { element_id: "B", name: "Approva richiesta", type: "task" }], resources: [], gateways: [] };
@@ -114,12 +120,28 @@ async function fixture(page: Page, logs: unknown[]): Promise<Fixture> {
     else if (path === "/v1/workspace/processes/eventlog-process/event-logs") data = logs;
     else if (path === "/v1/workspace/event-logs/elog_e2e/preview") data = { format: "csv", delimiter: ";", columns: COLUMNS, row_count: 9, sample_rows: [["P-1", "Verifica documentazione", "2026-01-05T09:00", "2026-01-05T09:10", "2026-01-05T09:30", "anna"]] };
     else if (path === "/v1/workspace/event-logs/elog_e2e/analysis") data = ANALYSIS;
-    else if (path === "/v1/workspace/event-logs/elog_e2e/validation") data = VALIDATION;
+    else if (path === "/v1/workspace/event-logs/elog_e2e/validation") data = options.validation ?? VALIDATION;
     else if (path === "/v1/workspace/event-logs/elog_e2e/conformance") data = CONFORMANCE;
     else if (path === "/v1/workspace/event-logs/elog_e2e/mapping") { state.mappingRequests.push(request); data = ANALYSIS; }
     await route.fulfill({ json: data });
   });
   return state;
+}
+
+/** Gate UX: la schermata com'è (desktop 1440 × 900), poi il pannello intero per leggerne ogni riga. */
+async function shoot(page: Page, path: string) {
+  const viewport = page.viewportSize()!;
+  const desktop = viewport.width > 800;
+  if (desktop) await page.setViewportSize({ width: 1440, height: 900 });
+  await page.screenshot({ path: `${path}.png` });
+  const body = dock(page).locator(".sim-studio-dock-body");
+  const height = await body.evaluate((element) => element.scrollHeight);
+  // Il pannello si allunga con la finestra: su telefono resta largo come il telefono.
+  await page.setViewportSize({ width: desktop ? 1440 : viewport.width, height: height + (desktop ? 400 : 1200) });
+  await body.evaluate((element) => { (element as HTMLElement).style.maxHeight = "none"; (element as HTMLElement).style.overflow = "visible"; });
+  await body.screenshot({ path: `${path}-panel.png` });
+  await body.evaluate((element) => { (element as HTMLElement).style.maxHeight = ""; (element as HTMLElement).style.overflow = ""; });
+  await page.setViewportSize(viewport);
 }
 
 function dock(page: Page) {
@@ -149,38 +171,50 @@ test("the wizard maps the enablement column of an exported log", async ({ page }
   await expect(dock(page).getByRole("region", { name: "Qualità e KPI" })).toBeVisible();
 });
 
-test("real against simulated: verdict, KPIs by activity and gaps on the process", async ({ page }) => {
+test("real against simulated: verdict, KPIs by activity and gaps on the process", async ({ page }, testInfo) => {
   await fixture(page, [ANALYSIS.event_log]);
   await page.goto(`${studio}/dashboard/42?panel=eventLog`);
   await dock(page).getByRole("button", { name: /^sap-export\.csv/ }).click();
   await dock(page).getByRole("button", { name: /Reale contro simulato$/ }).click();
 
   const step = dock(page).getByRole("region", { name: "Reale contro simulato" });
-  await expect(step.getByLabel("Run simulato")).toHaveValue("42");
-  // Prima il report aggregato del server, poi la diagnostica della replica scelta.
-  const report = step.getByRole("region", { name: "Validazione aggregata" });
-  await expect(report).toContainText("1 repliche confrontate con 3 casi reali");
-  await expect(report.getByRole("row", { name: /Attraversamento P90/ })).toContainText("+10 min");
-  // Cycle medio +5%, P90 +10%: la replica è vicina al log.
-  await expect(step.getByRole("status").filter({ hasText: "Questa replica è vicina al log" })).toContainText("+5%");
-  await expect(step.getByText("Il log ha 3 casi, il run 300", { exact: false })).toBeVisible();
-  const processTable = step.getByRole("table").filter({ has: page.getByRole("row", { name: /Tempo medio di attraversamento/ }) });
-  await expect(processTable.getByRole("row", { name: /Tempo medio di attraversamento/ })).toContainText("+5%");
+  await expect(step.getByLabel("Simulazione da confrontare")).toHaveValue("42");
+  // Prima la risposta: cycle medio +5%, P90 +10%, la simulazione è vicina al log.
+  await expect(step.getByRole("status").filter({ hasText: "Questa simulazione è vicina al log reale" })).toContainText("+5%");
+  // Il report del server dice su cosa si basa, al singolare quando la simulazione è una.
+  const report = step.getByRole("region", { name: "Confronto con il log reale" });
+  await expect(report).toContainText("1 simulazione a confronto con 3 casi reali.");
+  await expect(report).toContainText("Il log ha 3 casi, la simulazione 300 casi.");
+  // Con una sola simulazione non si ripete la stessa tabella due volte.
+  await expect(report.getByRole("table")).toHaveCount(0);
+  const processTable = step.getByRole("table").filter({ has: page.getByRole("row", { name: /Durata media di un caso/ }) });
+  await expect(processTable.getByRole("row", { name: /Durata media di un caso/ })).toContainText("+5%");
+  await expect(processTable.getByRole("row", { name: /9 casi su 10 si chiudono entro/ })).toContainText("+10%");
   await expect(processTable.getByRole("row", { name: /Costo per caso/ })).toContainText("il log non ha costi");
 
-  const activities = step.getByRole("table", { name: /Lavorazione e attesa medie per attività/ });
+  const activities = step.getByRole("table", { name: /Tempo di lavoro e attesa medi per attività/ });
   await expect(activities.getByRole("row")).toHaveCount(3);
   await expect(activities.getByRole("row", { name: /Approva richiesta/ })).toContainText("+67%");
   await expect(activities.getByRole("row", { name: /Verifica documentazione/ })).toContainText("+4%");
-  await expect(step.getByText(/1 attività del log senza elemento del modello/)).toBeVisible();
-  await expect(step.getByText("1 attività del log che il run non ha mai eseguito")).toBeVisible();
+  await expect(step.getByText("1 attività del log non è nel modello: resta fuori dal confronto")).toBeVisible();
+  await expect(step.getByText("1 attività del log non è mai stata eseguita nella simulazione")).toBeVisible();
+
+  // UX-01: nel percorso ordinario nessun termine da statistico; la precisione resta nei dettagli.
+  expect(await step.innerText()).not.toMatch(/IC 95%|P50|P90|2-grammi|warm-up|Errore assoluto medio|repliche|replica\b|\bKPI\b/i);
+  if (process.env.DELIR_UX_SHOTS) await shoot(page, `${process.env.DELIR_UX_SHOTS}/real-vs-simulated-${testInfo.project.name}`);
+  await report.getByText("Dettagli per specialisti").click();
+  const specialist = report.getByRole("table", { name: /intervallo di confidenza al 95%/ });
+  await expect(specialist.getByRole("row", { name: /9 casi su 10 si chiudono entro/ })).toContainText("+10 min");
+  await expect(report).toContainText("2-grammi");
+  await expect(report).toContainText("warm-up 0");
+  if (process.env.DELIR_UX_SHOTS) await shoot(page, `${process.env.DELIR_UX_SHOTS}/real-vs-simulated-details-${testInfo.project.name}`);
 
   const show = step.getByRole("button", { name: "Mostra sul processo" });
   await show.click();
   await expect(show).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator('.djs-element[data-element-id="B"]')).toHaveClass(/sim-fidelity-far/);
   await expect(page.locator('.djs-element[data-element-id="A"]')).toHaveClass(/sim-fidelity-close/);
-  await expect(page.locator(".sim-process-legend")).toContainText("Scarto reale contro simulato");
+  await expect(page.locator(".sim-process-legend")).toContainText("Differenza fra simulato e reale");
   await expect(page.locator(".sim-process-legend")).toContainText("oltre ±25%");
 
   const axe = await new AxeBuilder({ page }).include(".sim-studio-dock").withTags(["wcag2a", "wcag2aa"]).analyze();
@@ -191,6 +225,27 @@ test("real against simulated: verdict, KPIs by activity and gaps on the process"
   await show.click();
   await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
   await expect(page.locator('.djs-element[data-element-id="B"]')).not.toHaveClass(/sim-fidelity-far/);
+});
+
+test("real against simulated with a group of simulations: averages first, plural wording", async ({ page }, testInfo) => {
+  await fixture(page, [ANALYSIS.event_log], { runs: [GROUP_A, GROUP_B], validation: GROUP_VALIDATION });
+  await page.goto(`${studio}/dashboard/42?panel=eventLog`);
+  await dock(page).getByRole("button", { name: /^sap-export\.csv/ }).click();
+  await dock(page).getByRole("button", { name: /Reale contro simulato$/ }).click();
+
+  const step = dock(page).getByRole("region", { name: "Reale contro simulato" });
+  const report = step.getByRole("region", { name: "Confronto con il log reale" });
+  await expect(report).toContainText("2 simulazioni a confronto con 3 casi reali.");
+  await expect(report).toContainText("Il log ha 3 casi, le simulazioni in media 300 casi.");
+  const averages = report.getByRole("table").first();
+  await expect(averages.getByRole("columnheader")).toHaveText(["Indicatore", "Reale", "Simulato (media)", "Differenza"]);
+  await expect(averages.getByRole("row", { name: /9 casi su 10 si chiudono entro/ })).toContainText("+10 min");
+  await expect(step.getByText("Sopra, la media di tutte le simulazioni del gruppo.", { exact: false })).toBeVisible();
+  expect(await step.innerText()).not.toMatch(/IC 95%|P50|P90|2-grammi|warm-up|Errore assoluto medio|repliche|replica\b|\bKPI\b/i);
+
+  const axe = await new AxeBuilder({ page }).include(".sim-studio-dock").withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+  if (process.env.DELIR_UX_SHOTS) await shoot(page, `${process.env.DELIR_UX_SHOTS}/real-vs-simulated-group-${testInfo.project.name}`);
 });
 
 test("process conformance: verdict, skipped steps and overlay on the design", async ({ page }, testInfo) => {
@@ -242,7 +297,7 @@ test("without a mapped log the inspector leads to the import", async ({ page }) 
   await expect(dock(page).getByRole("button", { name: /^sap-export\.csv/ })).toBeVisible();
 });
 
-test("a log with completions only is never compared on processing, and merged activities show once", async ({ page }) => {
+test("a log with completions only is never compared on processing, and merged activities show once", async ({ page }, testInfo) => {
   const completions = {
     ...ANALYSIS,
     summary: {
@@ -259,15 +314,18 @@ test("a log with completions only is never compared on processing, and merged ac
 
   const step = dock(page).getByRole("region", { name: "Reale contro simulato" });
   // Il report aggregato spiega perché non confronta i tempi, senza errori.
-  const report = step.getByRole("region", { name: "Validazione aggregata" });
+  const report = step.getByRole("region", { name: "Confronto con il log reale" });
   await expect(report).toContainText("Il log registra solo i completamenti");
   await expect(report.getByRole("table")).toHaveCount(0);
-  await expect(step.getByText("Calcolo il confronto delle repliche")).toHaveCount(0);
-  const activities = step.getByRole("table", { name: /Lavorazione e attesa medie per attività/ });
+  await expect(step.getByText("Calcolo il confronto con il log")).toHaveCount(0);
+  const activities = step.getByRole("table", { name: /Tempo di lavoro e attesa medi per attività/ });
   await expect(activities.getByRole("row")).toHaveCount(3);
   await expect(activities.getByRole("row", { name: /Verifica documentazione/ })).toContainText("dal log: Verifica documentazione, Verifica integrazioni");
   await expect(activities.getByRole("row", { name: /Approva richiesta/ })).toContainText("il log non registra l'inizio");
   await expect(step.getByRole("button", { name: "Mostra sul processo" })).toHaveCount(0);
+  await expect(step.getByText("Il log ha 3 casi, la simulazione 300 casi", { exact: false })).toBeVisible();
+  expect(await step.innerText()).not.toMatch(/IC 95%|P50|P90|2-grammi|warm-up|Errore assoluto medio|repliche|replica\b|\bKPI\b/i);
+  if (process.env.DELIR_UX_SHOTS) await shoot(page, `${process.env.DELIR_UX_SHOTS}/complete-only-${testInfo.project.name}`);
 
   await page.goto(`${studio}/workspace/42?panel=activity`);
   await page.getByLabel("Attività", { exact: true }).selectOption("B");
