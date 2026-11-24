@@ -6,6 +6,7 @@ esclusivo, batte finche' gira, e un run il cui esecutore muore torna in coda.
 """
 
 import asyncio
+import contextlib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -17,13 +18,9 @@ from backend.settings import settings
 from backend.simulation import queue
 from backend.simulation.models import ProsimosSimulationResult
 from backend.simulation.prosimos_adapter import ProsimosError
-from backend.simulation.service import (
-    SimulationCapacityError,
-    drain_simulation_queue,
-    fill_simulation_slots,
-    prepare_simulation_run,
-)
+from backend.simulation.service import SimulationCapacityError, drain_simulation_queue, prepare_simulation_run
 from backend.simulation.storage import complete_simulation_run, get_simulation_run
+from backend.workers.simulation_worker import serve_simulation_queue, wake_simulation_worker
 from backend.workspace_storage import WorkspaceSimulationRun, workspace_connection
 
 BPMN = (Path(__file__).resolve().parents[2] / "ops" / "prosimos" / "spike" / "p2p_mini.bpmn").read_text(encoding="utf-8")
@@ -79,44 +76,37 @@ def test_the_drain_runs_the_queue_in_order(model, fake_engine, monkeypatch):
     assert get_simulation_run(runs[0]["id"])["queue"] is None
 
 
-def test_a_group_starts_on_every_free_slot_at_once(model, monkeypatch):
-    """B6: tre ripetizioni con due posti girano due alla volta da subito, mai tre."""
-    from tests.simulation.engine_log import ENGINE_LOG
-
+def test_a_run_request_wakes_the_queue_round_at_once(monkeypatch):
+    """B6: il giro riempie i posti liberi subito, non dopo il suo intervallo."""
     monkeypatch.setattr(settings, "simulation_max_concurrent_runs", 2)
-    running, peak = 0, 0
+    started: list[str] = []
 
-    async def engine(_request):
-        nonlocal running, peak
-        running += 1
-        peak = max(peak, running)
-        await asyncio.sleep(0.3)
-        running -= 1
-        return ProsimosSimulationResult(payload={}, event_log_csv=ENGINE_LOG)
+    async def drain(worker_id: str) -> int:
+        started.append(worker_id)
+        return 0
 
-    monkeypatch.setattr("backend.simulation.service.run_prosimos_simulation", engine)
-    runs = [_enqueue(model, seed) for seed in (1, 2, 3)]
+    async def round_trip() -> tuple[int, int]:
+        task = asyncio.create_task(serve_simulation_queue(drain, lambda: "w", every=60))
+        await asyncio.sleep(0.05)
+        first = len(started)
+        wake_simulation_worker()
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        return first, len(started)
 
-    assert asyncio.run(fill_simulation_slots(len(runs))) == 3
-    assert peak == 2
-    assert all(get_simulation_run(run["id"])["status"] == "completed" for run in runs)
+    assert asyncio.run(round_trip()) == (2, 4)
 
 
-def test_a_failing_drain_does_not_stop_the_others(monkeypatch, caplog):
-    calls = 0
-
-    async def drain(_worker_id=None):
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            raise OSError("database giu'")
-        return 2
-
-    monkeypatch.setattr(settings, "simulation_max_concurrent_runs", 3)
-    monkeypatch.setattr("backend.simulation.service.drain_simulation_queue", drain)
-
-    assert asyncio.run(fill_simulation_slots(5)) == 4
-    assert "drenaggio fallito" in caplog.text
+def test_a_run_request_wakes_the_queue_round(api_client, model, monkeypatch):
+    woken: list[bool] = []
+    monkeypatch.setattr("backend.api.routes.simulation.drain_simulation_queue", lambda: None)
+    monkeypatch.setattr("backend.api.routes.simulation.wake_simulation_worker", lambda: woken.append(True))
+    response = api_client.post(f"/v1/workspace/bpmn-models/{model.id}/simulation-runs",
+                               json={"total_cases": 5, "replications": 3, "current_bpmn_xml": BPMN})
+    assert response.status_code == 200, response.text
+    assert woken == [True]
 
 
 def test_every_run_writes_the_time_of_its_phases_even_when_it_fails(model, fake_engine, monkeypatch, caplog):
@@ -143,7 +133,7 @@ def test_every_run_writes_the_time_of_its_phases_even_when_it_fails(model, fake_
 
 def test_a_full_queue_is_a_429_with_the_reason(api_client, model, monkeypatch):
     monkeypatch.setattr(settings, "simulation_max_queued_runs", 1)
-    monkeypatch.setattr("backend.api.routes.simulation.fill_simulation_slots", lambda *_: None)
+    monkeypatch.setattr("backend.api.routes.simulation.drain_simulation_queue", lambda: None)
     _enqueue(model, 1)
 
     with pytest.raises(SimulationCapacityError, match="1 simulazioni in attesa"):
@@ -205,7 +195,7 @@ def test_a_run_from_before_the_queue_is_closed_like_before(model):
 
 
 def test_the_api_returns_the_queue_state_of_a_waiting_run(api_client, model, monkeypatch):
-    monkeypatch.setattr("backend.api.routes.simulation.fill_simulation_slots", lambda *_: None)
+    monkeypatch.setattr("backend.api.routes.simulation.drain_simulation_queue", lambda: None)
     created = api_client.post(
         f"/v1/workspace/bpmn-models/{model.id}/simulation-runs",
         json={"total_cases": 5, "seed": 9, "current_bpmn_xml": BPMN},

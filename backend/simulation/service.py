@@ -588,24 +588,6 @@ async def drain_simulation_queue(worker_id: str | None = None) -> int:
     return done
 
 
-async def fill_simulation_slots(runs: int = 1) -> int:
-    """Dopo una richiesta: un drenaggio per run appena messo in coda, fino ai posti del motore.
-
-    Un gruppo di ripetizioni (SIM-04) o uno studio di sensitivita' parte subito
-    su tutti i posti liberi, invece di aspettare che il giro periodico riempia
-    gli altri (B6). I drenaggi in piu' sono sicuri: la presa e' esclusiva e
-    conta i run in corso, e un drenaggio senza posto o senza run esce subito.
-    """
-    drains = max(1, min(runs, settings.simulation_max_concurrent_runs))
-    # Ogni drenaggio arriva in fondo da solo: l'errore di uno (il database) non
-    # lascia gli altri senza nessuno che li aspetti. Il giro periodico riprova.
-    outcomes = await asyncio.gather(*(drain_simulation_queue() for _ in range(drains)), return_exceptions=True)
-    for outcome in outcomes:
-        if isinstance(outcome, BaseException):
-            logger.error("coda simulazioni: drenaggio fallito", exc_info=outcome)
-    return sum(outcome for outcome in outcomes if isinstance(outcome, int))
-
-
 async def execute_claimed_run(claimed: ClaimedRun) -> dict:
     """Esegue un run preso dalla coda, battendo finche' gira; poi scrive quanto e' durata ogni fase."""
     timer = _PhaseTimer(claimed.run_id, claimed.queued_at)
@@ -641,7 +623,7 @@ async def _execute_claimed_run(claimed: ClaimedRun, timer: _PhaseTimer) -> dict:
         heart.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await heart
-        timer.lap("motore")
+        timer.lap(PHASES[1])
 
     try:
         return await _finish_run(claimed, result, timer)
@@ -678,7 +660,7 @@ async def _finish_run(claimed: ClaimedRun, result, timer: _PhaseTimer) -> dict:
             summary["sla"] = asdict(outcome)
     if summary is not None and claimed.fixed_costs:
         summary = add_fixed_costs(summary, claimed.fixed_costs)
-    timer.lap("analisi")
+    timer.lap(PHASES[2])
     completed = await asyncio.to_thread(
         complete_simulation_run,
         run_id=claimed.run_id,
@@ -688,8 +670,12 @@ async def _finish_run(claimed: ClaimedRun, result, timer: _PhaseTimer) -> dict:
         log_csv=getattr(result, "event_log_csv", None),
         worker_id=claimed.worker_id,
     )
-    timer.lap("salvataggio")
+    timer.lap(PHASES[3])
     return completed
+
+
+#: B6: le fasi di un run, nell'ordine, come le scrive ``_PhaseTimer`` e le legge lo script di carico.
+PHASES = ("in coda", "motore", "analisi", "salvataggio")
 
 
 class _PhaseTimer:
@@ -706,7 +692,7 @@ class _PhaseTimer:
         if queued is not None:
             # L'orario d'ingresso lo scrive chi ha accettato la richiesta: con
             # orologi un po' diversi l'attesa non scende sotto zero.
-            self.phases.append(("in coda", max(0.0, (datetime.now(UTC) - queued).total_seconds())))
+            self.phases.append((PHASES[0], max(0.0, (datetime.now(UTC) - queued).total_seconds())))
         self._last = time.perf_counter()
 
     def lap(self, phase: str) -> None:

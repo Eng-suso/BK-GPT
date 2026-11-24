@@ -32,7 +32,7 @@ from backend.simulation.service import (
     claim_proposals_for_model,
     SimulationCapacityError,
     SimulationLogUnavailable,
-    fill_simulation_slots,
+    drain_simulation_queue,
     export_simulation_event_log,
     prepare_simulation_model_run,
     prepare_sensitivity_runs,
@@ -60,6 +60,7 @@ from backend.simulation.narrative import (
     SimulationNarrativeResponse,
     write,
 )
+from backend.workers.simulation_worker import wake_simulation_worker
 from backend.simulation.whatif import (
     SimulationWhatIfRequest,
     SimulationWhatIfResponse,
@@ -88,11 +89,10 @@ async def create_workspace_simulation_run(
 
     try:
         # Una ripetizione o un gruppo (SIM-04): la risposta e' la prima, il gruppo sta nella richiesta.
-        planned = prepare_simulation_runs(
+        run, _, _ = prepare_simulation_runs(
             bpmn_model=BpmnModelResponse(**model),
             request=request,
-        )
-        run = planned[0][0]
+        )[0]
     except SimulationCapacityError as exc:
         # 429 e non 400: la richiesta e' giusta, e' il momento a essere
         # sbagliato (coda piena). La stessa, fra qualche minuto, funziona.
@@ -100,10 +100,11 @@ async def create_workspace_simulation_run(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # I run sono in coda (o c'erano gia' identici in volo): un drenaggio per run,
-    # fino ai posti liberi del motore. La presa e' esclusiva, quindi un drenaggio
-    # a vuoto esce subito.
-    background_tasks.add_task(fill_simulation_slots, len(planned))
+    # Il run e' in coda (o ce n'era gia' uno identico in volo): chi ha posto lo
+    # prende. Il drenaggio e' esclusivo, quindi lanciarlo anche a vuoto e' sicuro.
+    background_tasks.add_task(drain_simulation_queue)
+    # B6: il giro della coda riempie subito gli altri posti liberi del motore.
+    wake_simulation_worker()
 
     return SimulationRunResponse(**run)
 
@@ -130,9 +131,11 @@ async def create_workspace_simulation_model_run(
         # Comprende la ValidationError di una patch che rompe un riferimento.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # Il run e' in coda (o ce n'era gia' uno identico in volo): un drenaggio lo
-    # prende se c'e' posto. La presa e' esclusiva, quindi a vuoto esce subito.
-    background_tasks.add_task(fill_simulation_slots)
+    # Il run e' in coda (o ce n'era gia' uno identico in volo): chi ha posto lo
+    # prende. Il drenaggio e' esclusivo, quindi lanciarlo anche a vuoto e' sicuro.
+    background_tasks.add_task(drain_simulation_queue)
+    # B6: il giro della coda riempie subito gli altri posti liberi del motore.
+    wake_simulation_worker()
 
     return SimulationRunResponse(**run)
 
@@ -157,7 +160,9 @@ async def create_workspace_simulation_sensitivity(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    background_tasks.add_task(fill_simulation_slots, len(planned))
+    background_tasks.add_task(drain_simulation_queue)
+    # B6: il giro della coda riempie subito gli altri posti liberi del motore.
+    wake_simulation_worker()
     return [SimulationRunResponse(**run) for run, _, _ in planned]
 
 
