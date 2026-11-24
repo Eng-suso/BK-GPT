@@ -21,7 +21,13 @@ loro voci di [`LOG.md`](./LOG.md).
 
 - Branch `spike/sim-simod-discovery`, una sessione dedicata (SIM-36 e B6 in parallelo
   in altre sessioni).
-- Stato: preso il punto, avvio dello stack e installazione di SIMOD.
+- Stato: SIMOD 5.2.1 in `/var/tmp/delir-vpt-stack/simod-venv` (Python 3.12, Java 21,
+  install 4 s). Discovery in corso con `tests/simulation/benchmark/g3/discover.sh`
+  (config del benchmark di SIMOD, `diff` = CRISP come il paper, `fuzz` = FUZZY).
+  Valutazione: `uv run python tests/simulation/benchmark/g3/evaluate.py` (harness B2).
+- Prima misura, gemello ingenuo (train spostato di settimane intere) sul test:
+  RED 24,0 / 9,7 / 11,0 h e W1 26,2 / 28,0 / 30,9 h (AcademicCredentials, BPIC 2012 W,
+  BPIC 2017 W), molto sotto lo scenario SIMOD del paper (RED 77 / 179 / 184 h).
 
 ## CAL-01 (fatto il 2026-11-24, PR #172)
 
