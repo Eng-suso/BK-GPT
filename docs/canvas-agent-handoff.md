@@ -91,19 +91,36 @@ le verifiche sulla CI della PR** dopo ogni modifica. In particolare verificare l
 review, la compatibilita' con gli altri lavori confluiti nel branch e il
 comportamento di canvas vuoti, subprocessi ed eventi.
 
-Priorita' successive:
+Stato del lavoro aperto della PR (aggiornato il 24/11/2026, secondo giro):
 
-1. Eseguire benchmark LLM accoppiati con provider disponibile: stessa
-   richiesta, modello, budget e ordine randomizzato. Registrare token reali
-   input/output/cache/tool, chiamate, retry, latenza e accuratezza per l'intero
-   ciclo di modifica, non solo per la scelta dell'ID.
-2. Misurare L4 su descrizioni e fonti con rubriche di elementi mancanti e claim
-   senza supporto; confrontare XML e rappresentazioni compatte a parita' di
-   input. PET/PMo possono sovrapporsi: deduplicare train/test.
-3. Ampliare L3 con analisi conservativa di concorrenza e deadlock, senza
-   chiamare sound una prova limitata alla raggiungibilita'.
-4. Coprire costrutti XML/namespace non supportati dal DSL e casi concorrenti
-   L5 prima di promuovere qualunque formato di scrittura.
+1. **Benchmark LLM accoppiati sul ciclo di modifica**: harness
+   `scripts/benchmark_canvas_edit_cycle.py` (tool loop con funzioni di
+   produzione e controllo L5). Prima sonda su `gemini-3.5-flash-lite`: 6/6
+   corretti, 1 chiamata per caso, token -80,79% mediano con la mappa. Risultati
+   e limiti in `docs/canvas-llm-benchmarks.md`. **Aperto**: ripetizioni, piu'
+   casi, secondo modello, runtime LangGraph vero con prompt e schema tool di
+   produzione.
+2. **L4**: harness `scripts/benchmark_canvas_source_fidelity.py` con
+   omissione e passo inventato piantati, XML vs DSL v1 vs mappa. Prima sonda su
+   2 casi, nessuna regressione evidente della forma compatta. **Aperto**:
+   dataset con fonti vere (PMo/PET deduplicati) e campione sufficiente.
+3. **L3 concorrenza e deadlock**: fatto. `backend/bpmn/xml_behavior.py`
+   esplora il grafo come gioco dei token limitato e rifiuta, nelle costruzioni
+   complete e nelle approvazioni, deadlock, mancata sincronizzazione e
+   esecuzioni che non terminano. Fuori ambito dichiarato: gateway
+   inclusivi/complessi, uscite condizionali da attivita', interni dei
+   subprocessi, budget di stati superato.
+4. **Costrutti XML/namespace e L5 concorrente**: fatto. Il DSL conserva i
+   prefissi usati nei QName; L5 provato su Postgres per tutte le operazioni
+   locali e per scritture concorrenti. Trovato e corretto un difetto: eliminare
+   un'attivita' collegata a un dato lasciava un'associazione pendente e il
+   salvataggio falliva. **Aperto**: promozione di un formato di scrittura
+   ancora bloccata dai gate L4/L5 su campioni piu' ampi.
+5. **Gate al salvataggio verso il consulente**: fatto. `BpmnSaveRejected`
+   porta una frase per il consulente (nomi dei passaggi, nessun ID o path XSD)
+   e il dettaglio tecnico per l'agente. Spec full-stack
+   `e2e-fullstack/save-gate.spec.ts` sul processo "Approvazione fatture" del
+   seed.
 
 Non attivare il DSL v1/v2 per scritture LLM per inseguire il solo target token:
 la correttezza dei modelli accettati e la fedelta' alle fonti sono gate di
@@ -117,8 +134,13 @@ mergiato con #169) insieme a modifiche parallele su simulazione e MCP. Qui c'e'
 solo il lavoro canvas; il server MCP ha una PR separata. Non includere
 modifiche a simulazione, `pyproject.toml` o `uv.lock`.
 
-Verifica su questa base (24/11/2026): 518 test superati
+Verifica del primo giro (24/11/2026): 518 test superati
 (`tests/bpmn`, `tests/agents/test_canvas_graph.py`,
 `tests/agents/test_context_budget.py`, `tests/evals/l0_deterministic/test_canvas_*`)
 sullo stack di test 55301; Ruff e `git diff --check` verdi. Nessuna migrazione
 Alembic nuova.
+
+Verifica del secondo giro (24/11/2026): 602 test superati sullo stesso
+perimetro piu' i test agent canvas collegati, su uno stack di test proprio
+(porta 55375); suite e2e full-stack 8/8 con la nuova spec; Ruff verde. Nessuna
+migrazione Alembic nuova.
