@@ -81,7 +81,7 @@ const VALIDATION = {
 /** Due simulazioni dello stesso gruppo: il report mostra la media, la seconda è quella scelta. */
 const GROUP_A = { ...run, id: 41, request: { replication_group: "batch-e2e", replication_index: 1 } };
 const GROUP_B = { ...run, request: { replication_group: "batch-e2e", replication_index: 2 } };
-const GROUP_VALIDATION = { ...VALIDATION, replications: 2, simulatedCases: [300, 300], runIds: [41, 42],
+const GROUP_VALIDATION = { ...VALIDATION, replications: 2, simulatedCases: [280, 320], runIds: [41, 42],
   provenance: { eventLogId: "elog_e2e", runs: [41, 42].map((runId) => ({ runId, seed: runId, engine: "prosimos", engineVersion: "2.1.0", startDate: "2026-01-05T00:00:00Z", warmupCases: 0 })) } };
 
 /** Token replay del server (CONF-01): un caso su tre salta l'approvazione. */
@@ -236,7 +236,7 @@ test("real against simulated with a group of simulations: averages first, plural
   const step = dock(page).getByRole("region", { name: "Reale contro simulato" });
   const report = step.getByRole("region", { name: "Confronto con il log reale" });
   await expect(report).toContainText("2 simulazioni a confronto con 3 casi reali.");
-  await expect(report).toContainText("Il log ha 3 casi, le simulazioni in media 300 casi.");
+  await expect(report).toContainText("Il log ha 3 casi, ogni simulazione da 280 a 320 casi.");
   const averages = report.getByRole("table").first();
   await expect(averages.getByRole("columnheader")).toHaveText(["Indicatore", "Reale", "Simulato (media)", "Differenza"]);
   await expect(averages.getByRole("row", { name: /9 casi su 10 si chiudono entro/ })).toContainText("+10 min");

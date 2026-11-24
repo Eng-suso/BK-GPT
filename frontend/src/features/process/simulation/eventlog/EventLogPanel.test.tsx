@@ -330,7 +330,7 @@ describe("EventLogPanel", () => {
       "GET /v1/workspace/processes/acquisti/event-logs": [ANALYSIS.event_log],
       "GET /v1/workspace/event-logs/elog_1/analysis": TIMED_ANALYSIS,
       "GET /v1/workspace/event-logs/elog_1/validation": {
-        referenceCases: 1000, replications: 1, simulatedCases: [1000],
+        referenceCases: 1000, replications: 2, simulatedCases: [1000, 1000],
         firstWaitSimulated: null, quality: { rowsExcluded: 0, eventsWithoutStart: 0 },
         provenance: { eventLogId: "elog_1", runs: [{ runId: 7, seed: 1, engine: "Prosimos", engineVersion: "1", startDate: null, warmupCases: 0 }] },
       },
@@ -341,7 +341,6 @@ describe("EventLogPanel", () => {
     await user.click(await screen.findByRole("button", { name: /^erp\.csv/ }));
     await user.click(await screen.findByRole("button", { name: /Reale contro simulato$/ }));
     expect((await screen.findAllByText("Simulazioni senza data di inizio")).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("row", { name: /Durata media di un caso/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("row", { name: /Durata media di un caso/ })).not.toBeInTheDocument();
   });
 
