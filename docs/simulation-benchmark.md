@@ -82,7 +82,10 @@ Come si legge:
 - **BPIC 2013 incidents**: B copre solo 4 giorni (2-6 maggio 2012), mentre l'1% dei casi
   di A parte fra marzo 2010 e ottobre 2011, una coda dell'estrazione del log. "B = A"
   ripete anche quella coda: è quasi tutto l'errore di AED e CAR (circa due settimane).
-  W1 è alto (16 giorni) perché i casi vecchi di A sono lunghi e in B non ce ne sono.
+  W1 è alto (16 giorni) per un altro motivo: il log finisce il 22 maggio 2012, quindi i
+  casi di B si vedono al massimo per 20 giorni (mediana 95 ore), mentre quelli di A hanno
+  avuto tempo di durare (mediana 275 ore). Un twin che non tiene conto di questo taglio
+  sbaglia allo stesso modo.
 
 ## Dopo la baseline
 
