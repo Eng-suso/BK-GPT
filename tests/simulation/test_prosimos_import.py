@@ -15,7 +15,11 @@ from pathlib import Path
 import pytest
 
 from backend.simulation.ir.compile import compile_for_prosimos
-from backend.simulation.ir.from_prosimos import ProsimosImportError, import_prosimos
+from backend.simulation.ir.from_prosimos import (
+    ProsimosImportError,
+    import_prosimos,
+    prosimos_exponential_mean,
+)
 from tests.simulation.simod_fuzzy import simod_fuzzy
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -632,3 +636,74 @@ def test_one_missing_branch_reads_in_the_singular() -> None:
     result = import_prosimos(source, bpmn)
     note = next(n for n in result.notes if n.topic == "missing_branch")
     assert note.message.startswith("1 percorso ")
+
+
+# --------------------------------------------------------------------------- #
+# IMP-01: arrivi che il motore rende piu' fitti
+# --------------------------------------------------------------------------- #
+
+TRUNCATED_ARRIVALS = {
+    "Procure_to_Pay",
+    "Procure_to_Pay_1_timer",
+    "Procure_to_Pay_3_timers",
+    "Procure_to_Pay_5_timers",
+}
+# Parole che il consulente non deve dover decodificare nel testo dell'avviso.
+JARGON = ("expon", "esponenzial", "distribuzion", "prosimos", "troncat", "scale", "loc=")
+
+
+@pytest.mark.parametrize("path", SCENARIOS, ids=lambda p: p.stem)
+def test_only_procure_to_pay_warns_that_cases_arrive_faster(path: Path) -> None:
+    source, bpmn = _pair(path)
+    result = import_prosimos(source, bpmn)
+    warnings = [note for note in result.notes if note.topic == "arrivals_faster"]
+
+    if path.stem not in TRUNCATED_ARRIVALS:
+        assert warnings == []
+        return
+    assert len(warnings) == 1
+    note = warnings[0]
+    assert note.kind == "warning"
+    # Cosa dice il file, cosa succede davvero, quanto cambia e cosa fare.
+    assert note.message == (
+        "Il file indica in media un nuovo caso ogni 30 minuti, con intervalli fra "
+        "5 secondi e 1 ora. La simulazione scarta gli intervalli più lunghi di 1 ora "
+        "e li sostituisce con altri più brevi: in media arriva un caso ogni 21 minuti, "
+        "circa il 45% di casi in più nello stesso tempo. Per correggere il file: se i "
+        "casi arrivano con regolarità, usa un intervallo fisso di 30 minuti; se variano "
+        "molto, porta il massimo ad almeno 2,5 ore."
+    )
+    assert not [word for word in JARGON if word in note.message.lower()]
+    # Lo scenario resta com'era: l'avviso non tocca gli arrivi che il motore riceve.
+    compiled = compile_for_prosimos(result.model)
+    assert compiled["arrival_time_distribution"] == source["arrival_time_distribution"]
+
+
+def test_the_produced_mean_is_the_one_prosimos_samples() -> None:
+    # Media campionata con pix_framework 0.15 (200.000 valori, runner dello stack):
+    # 1241,75 s per expon [1805, 5, 3600]; 17,00 s per expon [17, 16, 3600].
+    assert prosimos_exponential_mean(1805, 5, 3600) == pytest.approx(1241.75, rel=0.01)
+    assert prosimos_exponential_mean(17, 16, 3600) == pytest.approx(17.0, rel=1e-6)
+
+
+@pytest.mark.parametrize(
+    ("maximum", "warns"),
+    [(3600, True), (5 * 1805, False), (100_000, False)],
+    ids=["max-twice-the-mean", "max-five-times-the-mean", "max-far"],
+)
+def test_the_advice_on_the_maximum_removes_the_warning(maximum, warns) -> None:
+    source, bpmn = _pair(INPUTS / "synthetic" / "Procure_to_Pay.json")
+    source["arrival_time_distribution"]["distribution_params"][2]["value"] = maximum
+    notes = import_prosimos(source, bpmn).notes
+    assert any(note.topic == "arrivals_faster" for note in notes) is warns
+
+
+def test_fixed_arrivals_never_warn() -> None:
+    source, bpmn = _pair(INPUTS / "synthetic" / "Procure_to_Pay.json")
+    source["arrival_time_distribution"] = {
+        "distribution_name": "fix",
+        "distribution_params": [{"value": 1805}],
+    }
+    assert not [
+        n for n in import_prosimos(source, bpmn).notes if n.topic == "arrivals_faster"
+    ]
