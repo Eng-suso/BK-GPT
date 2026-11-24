@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { adherence, deviationRows, offPathVariants } from "./conformanceView";
+import { adherence, deviationLevel, deviationRows, offPathVariants } from "./conformanceView";
 import { CONFORMANCE } from "./conformanceFixture";
 
 describe("conformance view", () => {
@@ -8,6 +8,12 @@ describe("conformance view", () => {
     expect(adherence(0.95)).toBe("close");
     expect(adherence(0.7)).toBe("calibrate");
     expect(adherence(0.2)).toBe("far");
+  });
+
+  it("bands a step by the share of cases leaving it, boundaries included in the lower band", () => {
+    expect(deviationLevel(0.1)).toBe("close");
+    expect(deviationLevel(0.4)).toBe("calibrate");
+    expect(deviationLevel(0.41)).toBe("far");
   });
 
   it("shows only named steps, with the share of cases they touch", () => {

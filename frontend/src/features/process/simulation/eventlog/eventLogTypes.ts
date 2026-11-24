@@ -190,6 +190,7 @@ export const conformanceSchema = z.object({
     name: z.string(),
     executed_out_of_order: z.number(),
     left_waiting: z.number(),
+    cases_affected: z.number(),
   })),
   variants: z.array(z.object({
     activities: z.array(z.string()),
@@ -204,6 +205,6 @@ export const conformanceSchema = z.object({
   unobserved_elements: z.array(z.object({ element_id: z.string(), name: z.string() })),
   excluded_variants: z.number(),
   excluded_cases: z.number(),
-  warnings: z.array(z.string()),
+  warnings: z.array(z.object({ code: z.string(), params: z.record(z.string(), z.union([z.string(), z.number()])) })),
 });
 export type Conformance = z.infer<typeof conformanceSchema>;

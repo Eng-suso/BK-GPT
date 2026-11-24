@@ -13,9 +13,9 @@ export const CONFORMANCE: Conformance = {
   fitting_cases: 7,
   fitting_share: 0.7,
   deviations: [
-    { element_id: "T2", name: "Approvazione CFO", executed_out_of_order: 0, left_waiting: 3 },
-    { element_id: "T3", name: "Emissione ordine", executed_out_of_order: 3, left_waiting: 0 },
-    { element_id: "Gateway_1", name: "Gateway_1", executed_out_of_order: 0, left_waiting: 3 },
+    { element_id: "T2", name: "Approvazione CFO", executed_out_of_order: 0, left_waiting: 3, cases_affected: 3 },
+    { element_id: "T3", name: "Emissione ordine", executed_out_of_order: 3, left_waiting: 0, cases_affected: 3 },
+    { element_id: "Gateway_1", name: "Gateway_1", executed_out_of_order: 0, left_waiting: 3, cases_affected: 3 },
   ],
   variants: [
     { activities: ["Richiesta", "Approvazione CFO", "Emissione ordine"], cases: 7, fitness: 1, fits: true, out_of_order: [], waiting: [], unmodeled: [] },

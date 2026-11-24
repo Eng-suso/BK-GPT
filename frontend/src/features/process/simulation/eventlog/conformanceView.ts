@@ -12,6 +12,13 @@ export function adherence(share: number): Adherence {
   return "far";
 }
 
+/** La fascia di un passo dalla quota di casi che ne escono: fino al 10%, fino al 40%, oltre. */
+export function deviationLevel(share: number): Adherence {
+  if (share <= 0.1) return "close";
+  if (share <= 0.4) return "calibrate";
+  return "far";
+}
+
 export type DeviationRow = {
   elementId: string;
   name: string;
@@ -36,7 +43,7 @@ export function deviationRows(result: Conformance): DeviationRow[] {
       name: item.name,
       outOfOrder: item.executed_out_of_order,
       skipped: item.left_waiting,
-      share: result.cases ? Math.max(item.executed_out_of_order, item.left_waiting) / result.cases : 0,
+      share: result.cases ? item.cases_affected / result.cases : 0,
     }));
 }
 
