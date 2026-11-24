@@ -97,9 +97,11 @@
 
 /* UX-01: i dettagli statistici restano un livello sotto, aperti su richiesta. */
 .sim-validation-details { display: grid; gap: 8px; margin-top: 4px; }
-.sim-validation-details > summary { cursor: pointer; font-size: var(--font-size-100); font-weight: 500; min-height: 32px; display: flex; align-items: center; }
+.sim-validation-details > summary { cursor: pointer; font-size: var(--font-size-100); font-weight: 500; padding-block: 6px; }
 .sim-validation-details > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-/* Su telefono il confronto si legge subito: il pannello viene prima del disegno. */
+/* Su telefono l'event log e il confronto si leggono subito: il pannello viene prima del
+   disegno, e la pagina non salta sul disegno quando un passo cambia altezza. */
 @media (max-width: 800px) {
-  .sim-studio-body.has-dock:has(.sim-real-vs-simulated) .sim-studio-dock { order: -1; }
+  .sim-studio-body.has-dock:has(.sim-eventlog) { overflow-anchor: none; }
+  .sim-studio-body.has-dock:has(.sim-eventlog) .sim-studio-dock { order: -1; }
 }
