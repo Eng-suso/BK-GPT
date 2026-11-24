@@ -13,10 +13,10 @@ repliche e lo stesso log di test. Mette accanto:
 - **scenario del paper**: lo scenario SIMOD del paper (``datasets/extraneous-delays``)
   sullo stesso percorso, preso da ``b2/baseline.json`` (stesso harness e seed), e la
   riga ``<log>_original`` pubblicata dal paper per RED, AED e W1;
-- **gemello ingenuo** "B sara' come A": il log di train cosi' com'e', spostato di un
-  numero intero di settimane perche' il primo caso parta nella settimana del primo
-  caso di test (ore e giorni della settimana restano quelli veri). Non simula: e'
-  deterministico, quindi il suo intervallo e' zero.
+- **gemello ingenuo** "B sara' come A": quello di SIM-36 (``run_baseline.NaiveTwin``)
+  con A = train e B = test: i casi del train, estratti con reinserimento quanti quelli
+  del test, spostati di settimane intere (mediana su mediana). Stesse 10 repliche e
+  stesso seed, quindi ha il suo intervallo.
 
 Scrive ``results.json`` e ``results.md`` in questa cartella.
 """
@@ -26,18 +26,19 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import random
 import statistics
 import sys
 from collections import Counter
-from dataclasses import replace
-from datetime import timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 if __package__ in (None, ""):  # lanciato come script
     sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from tests.simulation.benchmark import eval_harness as harness
-from tests.simulation.benchmark.log_distance import Event, distances, read_csv_log
+from tests.simulation.benchmark.log_distance import METRICS, distances, read_csv_log
+from tests.simulation.benchmark.run_baseline import NaiveTwin
 
 HERE = Path(__file__).resolve().parent
 DISCOVERED = HERE / "discovered"
@@ -45,20 +46,15 @@ B2_BASELINE = harness.DEFAULT_OUT / "baseline.json"
 # Le metriche della tabella di G3: le tre del paper e l'arrivo dei casi.
 COMPARED = ("relative_event", "absolute_event", "cycle_time_w1", "case_arrival")
 LABELS = {"relative_event": "RED", "absolute_event": "AED", "cycle_time_w1": "W1 cycle time", "case_arrival": "CAR"}
-WEEK = timedelta(weeks=1)
 
 
-def naive_twin(train: list[Event], test: list[Event]) -> list[Event]:
-    """Il log di train spostato di settimane intere verso il periodo di test."""
-    shift = round((min(e.start for e in test) - min(e.start for e in train)) / WEEK) * WEEK
-    return [replace(e, start=e.start + shift, end=e.end + shift) for e in train]
-
-
-def naive_metrics(log: str) -> dict:
+def naive_metrics(log: str, *, seed: int, replicas: int) -> dict:
+    """Il gemello "B = A" di SIM-36 con A = train e B = test, stesse repliche e seed."""
     folder = harness.INPUTS / "real-life"
     test = read_csv_log(folder / f"{log}_test.csv.gz")
-    measured = distances(test, naive_twin(read_csv_log(folder / f"{log}_train.csv.gz"), test))
-    return {metric: {"mean": value, "ci95": 0.0} for metric, value in measured.items()}
+    twin = NaiveTwin.of(read_csv_log(folder / f"{log}_train.csv.gz"), test, ZoneInfo("UTC"))
+    measured = [distances(test, twin.replica(random.Random(seed + r))) for r in range(replicas)]
+    return {metric: harness.summarize([m[metric] for m in measured]) for metric in METRICS}
 
 
 def discovered_scenarios() -> list[tuple[str, str, Path]]:
@@ -113,7 +109,7 @@ def evaluate_all(*, seed: int, replicas: int) -> dict:
         "paper_published": {
             log: {m: {"mean": v[0], "ci95": v[1]} for m, v in metrics.items()} for log, metrics in published.items()
         },
-        "naive_twin": {log: naive_metrics(log) for log in harness.REAL_LIFE},
+        "naive_twin": {log: naive_metrics(log, seed=seed, replicas=replicas) for log in harness.REAL_LIFE},
     }
 
 

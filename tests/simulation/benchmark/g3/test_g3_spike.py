@@ -4,27 +4,18 @@ from __future__ import annotations
 
 import json
 import shutil
-from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from tests.simulation.benchmark.g3 import evaluate, fix_dead_loops
-from tests.simulation.benchmark.log_distance import Event
 
 
-def _event(case: str, start: datetime) -> Event:
-    return Event(case, "A", start, start + timedelta(hours=1))
+def test_the_naive_twin_is_seeded_and_has_an_interval():
+    first = evaluate.naive_metrics("AcademicCredentials", seed=20261124, replicas=3)
+    again = evaluate.naive_metrics("AcademicCredentials", seed=20261124, replicas=3)
 
-
-def test_the_naive_twin_moves_by_whole_weeks_and_keeps_the_weekday():
-    train = [_event("1", datetime(2026, 1, 5, 9, tzinfo=UTC)), _event("2", datetime(2026, 1, 6, 14, tzinfo=UTC))]
-    test = [_event("9", datetime(2026, 3, 4, 11, tzinfo=UTC))]  # 8 settimane e 2 giorni dopo
-
-    twin = evaluate.naive_twin(train, test)
-
-    assert [e.start - t.start for e, t in zip(twin, train, strict=True)] == [timedelta(weeks=8)] * 2
-    assert [e.start.weekday() for e in twin] == [e.start.weekday() for e in train]
-    assert [e.end - e.start for e in twin] == [timedelta(hours=1)] * 2
+    assert first == again
+    assert all(first[m]["ci95"] > 0 for m in ("cycle_time_w1", "relative_event", "case_arrival"))
 
 
 def test_the_dead_loop_of_academic_credentials_is_reopened_at_the_train_frequency(tmp_path):
