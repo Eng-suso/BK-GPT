@@ -945,3 +945,29 @@ def test_a_fuzzy_scenario_discovered_by_simod_runs_on_the_engine():
     rows = _run(model, seed=7, bpmn=bpmn, cases=100)
 
     assert len({row["case_id"] for row in rows}) == 100
+
+
+def test_prosimos_reads_every_fuzzy_slot_up_to_midnight():
+    """CAL-01: una fascia fino a mezzanotte arriva al motore con la sua probabilita'.
+
+    SIMOD la scrive con ``endTime`` "00:00:00"; Prosimos legge "23:59:59" come la
+    fascia prima e perderebbe l'ultima ora.
+    """
+    from prosimos.simulation_properties_parser import parse_fuzzy_calendar
+
+    from backend.simulation.ir.from_prosimos import import_prosimos
+
+    folder = ROOT / "datasets" / "simod" / "discovered" / "Insurance_Claims_fuzzy"
+    source = json.loads((folder / "Insurance_Claims_fuzzy.json").read_text(encoding="utf-8"))
+    bpmn = (folder / "Insurance_Claims_fuzzy.bpmn").read_text(encoding="utf-8")
+    calendar = source["resource_calendars"][0]
+    calendar["time_periods"].append(
+        {"from": "MONDAY", "to": "MONDAY", "beginTime": "23:00:00", "endTime": "00:00:00", "probability": 0.4}
+    )
+
+    compiled = compile_for_prosimos(import_prosimos(source, bpmn).model)
+    fuzzy = parse_fuzzy_calendar(compiled)[calendar["id"]]
+
+    monday = fuzzy.availability_calendar.probability_intervals[0]
+    assert monday[22] == 0.0
+    assert monday[23] == 0.4
