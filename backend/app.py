@@ -48,6 +48,28 @@ def _allowed_tenants() -> list[str]:
     return [item.strip() for item in settings.delir_allowed_tenant_ids.split(",") if item.strip()]
 
 
+AUTH_PROVIDERS = ("token", "supabase")
+
+
+def _identity_provider_problems() -> list[str]:
+    """Con `DELIR_AUTH_PROVIDER=supabase`: da dove si verificano i token."""
+    from urllib.parse import urlparse
+
+    from backend.llm.egress import is_internal_host
+
+    url = settings.supabase_url.strip()
+    if not url:
+        return ["DELIR_AUTH_PROVIDER=supabase senza SUPABASE_URL: nessun token sarebbe verificabile."]
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return ["SUPABASE_URL non e' un URL http(s) valido."]
+    # In chiaro solo verso un host interno (CLI locale, rete docker): le chiavi
+    # pubbliche lette da internet senza TLS si potrebbero sostituire in transito.
+    if parsed.scheme != "https" and not is_internal_host(parsed.hostname):
+        return ["SUPABASE_URL deve usare https verso un host esterno."]
+    return []
+
+
 def auth_configuration_problems() -> list[str]:
     """Cosa, nella configurazione d'accesso, renderebbe indifendibile questo processo.
 
@@ -63,9 +85,18 @@ def auth_configuration_problems() -> list[str]:
     """
     environment = current_environment()
     api_token = (settings.delir_api_token or "").strip()
+    provider = settings.delir_auth_provider.strip().lower()
+
+    if settings.delir_auth_enabled and provider not in AUTH_PROVIDERS:
+        return [f"DELIR_AUTH_PROVIDER deve essere uno fra {', '.join(AUTH_PROVIDERS)}."]
+    uses_shared_token = provider == "token"
 
     if environment in OPEN_ENVIRONMENTS:
-        if settings.delir_auth_enabled and not api_token:
+        if not settings.delir_auth_enabled:
+            return []
+        if not uses_shared_token:
+            return _identity_provider_problems()
+        if not api_token:
             return [
                 "DELIR_AUTH_ENABLED acceso senza DELIR_API_TOKEN: ogni richiesta "
                 "riceverebbe 503, che sembra un guasto e invece e' configurazione."
@@ -86,7 +117,9 @@ def auth_configuration_problems() -> list[str]:
     problems: list[str] = []
     admin_token = (settings.delir_admin_token or "").strip()
 
-    if not api_token:
+    if not uses_shared_token:
+        problems.extend(_identity_provider_problems())
+    elif not api_token:
         problems.append("DELIR_API_TOKEN mancante: ogni richiesta riceverebbe 503.")
     elif len(api_token) < MIN_TOKEN_LENGTH:
         problems.append(
