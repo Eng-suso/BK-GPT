@@ -2,6 +2,7 @@
 
     scripts/vpt_stack.sh start && eval "$(scripts/vpt_stack.sh env)"
     tests/simulation/benchmark/g3/discover.sh all        # SIMOD, scenari in discovered/
+    uv run python tests/simulation/benchmark/g3/fix_dead_loops.py AcademicCredentials_diff   # diagnosi
     uv run python tests/simulation/benchmark/g3/evaluate.py [--seed N] [--replicas 10]
 
 Per ogni log reale e ogni scenario in ``discovered/<log>_<variante>/`` fa il
@@ -130,6 +131,7 @@ def _verdict(ours: dict, reference: dict) -> str:
 VARIANT_LABELS = {
     "diff": "SIMOD 5.2.1, calendari fissi",
     "fuzz": "SIMOD 5.2.1, calendari FUZZY",
+    "extr": "SIMOD 5.2.1, fissi + ritardi estranei",
     "diff-loopfix": "diagnosi: fissi, ciclo riaperto",
     "fuzz-loopfix": "diagnosi: FUZZY, ciclo riaperto",
 }
