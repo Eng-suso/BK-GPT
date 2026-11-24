@@ -92,3 +92,31 @@ Modello:
   aperti con token rimanenti.
 - Gate UX: non applicabile, nessuna schermata cambiata.
 - Prossimo passo: CONF-02 (vista per il consulente) oppure B1, come da piano.
+
+## 2026-11-24 — CONF-02 vista di conformance e SEC-ADMIN — fatto
+
+- Branch: `ccr-9b6e10c9-jmjsbm`.
+- CONF-02: nuovo passo «Aderenza al processo» nel wizard degli event log, fra
+  «Risorse» e «Reale contro simulato». Verdetto in parole («2 casi su 3 seguono il
+  disegno»), passi saltati o fatti senza i precedenti, percorsi reali fuori dal
+  disegno, attività del log senza passo, overlay sul BPMN con legenda propria
+  (fino al 10% / 10–40% / oltre il 40% dei casi). Fitness e metodo solo nei
+  dettagli per specialisti.
+- Contratto: `cases_affected` per elemento (casi distinti), avvisi come codici con
+  parametri, 409 con codice stabile (`not_mapped`, `no_model`,
+  `model_not_replayable`) dal gestore comune degli errori.
+- SEC-ADMIN (dall'audit): con auth accesa e senza `DELIR_ADMIN_TOKEN`, ogni client
+  era amministratore. Ora fuori dallo sviluppo le operazioni amministrative
+  rispondono 403; all'avvio un warning lo dice. **Attenzione al deploy**: in
+  staging e prod va impostato `DELIR_ADMIN_TOKEN` per poter cancellare.
+- Misura: vitest 828+ verdi, e2e `simulation-eventlog` 12/12 (chromium e
+  mobile-chrome, axe WCAG 2 A/AA pulito), pytest eventlog e server verdi.
+- Gate UX: screenshot desktop e mobile aperti e letti; corretta la legenda del
+  disegno, che parlava ancora di scarto dei tempi.
+- Review: `code-review` (10 rilievi, tutti corretti), `simplify` (4 revisori;
+  saltato solo l'helper della lingua, schema già diffuso in ~10 file),
+  `security-review` (nessuna vulnerabilità; il cambio di `security.py` restringe
+  soltanto i permessi).
+- Skill: code-review, simplify, security-review; per l'UI ui-visual-validator
+  (screenshot letti) e accessibility (axe).
+- Prossimo passo: B1 (import Prosimos tollerante), poi UX-01.

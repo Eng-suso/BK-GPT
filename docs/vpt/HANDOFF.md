@@ -1,6 +1,6 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-23, fine della sessione che ha preparato dataset e workflow.
+Aggiornato: 2026-11-24, dopo CONF-01, CONF-02 (conformance log ↔ BPMN) e SEC-ADMIN.
 
 ## Punto attivo
 
@@ -10,8 +10,8 @@ prendere **UX-01** (leggibilità di "Reale contro simulato"), emerso dal gate UX
 
 ## Ultima misura
 
-D0 dataset: `scripts/fetch_datasets.py verify` → 3/3 dataset nel repo presenti;
-`fetch` di BPIC 2012, BPIC 2013, BPIC 2020 → MD5 coincidente.
+CONF-02: e2e `simulation-eventlog` 12/12 su chromium e mobile-chrome, axe pulito;
+screenshot in `docs/vpt/ux/conformance/`. CONF-01: LoanApp 500/500 casi conformi.
 
 ## Come riprendere B1
 
@@ -42,6 +42,8 @@ attività) e test con copy e mock vecchi.
 
 ## Decisioni aperte per Sohayb
 
+- Impostare `DELIR_ADMIN_TOKEN` in staging e prod: senza, le cancellazioni ora
+  rispondono 403 (SEC-ADMIN).
 - Copiare comunque nel repo pubblico BPIC 2012/2013/2020 e Prosimos?
 - Confermare le mete marcate *proposta* in `PLAN.md` (B2: scarto ≤ 10% dal paper;
   B3: gateway ±0,05, durate ±10%).

@@ -36,6 +36,7 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 | B0 parità del motore | `fix/sim-engine-parity` | Prod | Nessun run `completed` senza KPI; runner con token, limiti, scadenza | test del runner e della coda in CI | — | fatto (2026-11-23) |
 | D0 dataset nel repo | `claude/funny-babbage-cw4b84` | Prod | Tutti i dataset nel manifest; ogni dataset scaricabile verifica l'MD5 | `uv run python scripts/fetch_datasets.py verify` e `fetch --all` | — | fatto (2026-11-23) |
 | B1 import Prosimos tollerante | `feat/sim-prosimos-import` | Prod | 19/19 scenari di `datasets/extraneous-delays/inputs` importati lato server senza modifiche, metadati SIMOD compresi; gate UX sull'import | test che importa ogni `*.json` dei 19 scenari | — | da fare |
+| SEC-ADMIN admin implicito | `ccr-9b6e10c9-jmjsbm` | Prod | Fuori da dev/local/test, senza `DELIR_ADMIN_TOKEN` nessun client è amministratore e le cancellazioni rispondono 403 | `tests/server/test_app.py` | — | fatto (2026-11-24) |
 | Track B isolamento tenant | vedi `docs/deployment-and-tenancy.md` | Prod | Test cross-tenant su API, worker, memoria e checkpoint verdi | suite cross-tenant | blocker VM e dominio (Sohayb) | bloccato |
 
 ### UX — Leggibilità (regola: mangiare la complessità)
@@ -68,7 +69,7 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 | Blocco | Branch | Binario | Meta | Misura | Dipende da | Stato |
 | --- | --- | --- | --- | --- | --- | --- |
 | CONF-01 token replay log ↔ BPMN | `ccr-9b6e10c9-jmjsbm` | Prod | Fitness per log e per variante, casi conformi, elementi eseguiti fuori ordine e rimasti in attesa; log simulato dal modello → fitness 1 | `tests/eventlog/test_conformance.py` (LoanApp: 500/500 conformi; 3 perizie tolte → 3 deviazioni trovate) | — | fatto (backend + API) |
-| CONF-02 vista di conformance | da aprire | Prod | Il consulente vede fitness, casi fuori processo e deviazioni sul BPMN senza leggere JSON; gate UX superato | Playwright + screenshot | CONF-01 | da fare |
+| CONF-02 vista di conformance | `ccr-9b6e10c9-jmjsbm` | Prod | Il consulente vede fitness, casi fuori processo e deviazioni sul BPMN senza leggere JSON; gate UX superato | `e2e/simulation-eventlog.spec.ts` (desktop e mobile, axe) + screenshot in `docs/vpt/ux/conformance/` | CONF-01 | fatto (2026-11-24) |
 | CONF-03 allineamenti ottimi | da aprire | Ric | Per ogni caso non conforme la sequenza minima di correzioni (A*), confrontata con il replay | test su log con deviazioni note | CONF-01 | da fare |
 
 ### V3 — Incertezza
