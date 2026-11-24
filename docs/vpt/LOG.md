@@ -64,6 +64,35 @@ Modello:
 
 ---
 
+## 2026-11-24 — decisioni di Sohayb su benchmark, B3, import e infrastruttura — fatto
+
+- Branch / PR: `docs/vpt-decisions-2026-11-24`. Solo piano e documenti.
+- Misure che hanno portato alle decisioni (strumenti di SIM-36, seed 20261124):
+  - **Taglio A/B su BPIC 2012.** Metà dei casi, metà del tempo e metà del tempo senza
+    l'1% di code danno W1 16,3, 16,5 e 17,6 h. Il criterio conta poco.
+  - **Taglio A/B su BPIC 2013 incidents.** Con ogni taglio il 100% dei casi di B è
+    troncato dalla fine del log; con la metà del tempo A ha 7 casi. Il log è una foto
+    degli incidenti aperti a maggio 2012, non un flusso.
+  - **"B = A" sui 3 log train/test del paper** contro il modello SIMOD simulato da B2:
+    "B = A" vince 14 confronti su 15 con intervalli separati (pari su CAR di
+    AcademicCredentials). W1 vale 28,8 contro 174,8 h, 28,1 contro 175,7 h e 30,6
+    contro 253,3 h.
+- Decisioni (Sohayb, 2026-11-24):
+  1. Il benchmark A→B principale sono i 3 log train/test; nuovo punto SIM-36b. BPIC
+     2012 resta. BPIC 2013 incidents si marca come non adatto al confronto A→B.
+  2. La meta di B3 sui sintetici è confermata (gateway ±0,05, durate ±10%). Sui reali
+     "batte B = A" diventa: sui 3 log train/test, su W1, RED e AED, con intervalli al
+     95% separati. NGD resta fuori dal criterio perché "B = A" ripete tracce reali e
+     parte avvantaggiato sui percorsi.
+  3. L'import avvisa sugli arrivi `expon` con media vicina al massimo; nuovo punto IMP-01.
+  4. `DELIR_ADMIN_TOKEN` in staging e prod e la VM per l'isolamento fra clienti li
+     sblocca Sohayb.
+- Mete abbassate: nessuna. La meta di B3 sui reali è più precisa e più dura (tutti e 3
+  i log, tre metriche).
+- Prossimo passo: SIM-36b in una sessione nuova, poi G3 e B3; IMP-01 in parallelo.
+
+---
+
 ## 2026-11-24 — SIM-36 baseline pubblica "B = A" — fatto
 
 - Branch / PR: `feat/sim-benchmark-baseline`, #178.
