@@ -78,3 +78,10 @@ Meta in [`PLAN.md`](./PLAN.md). Cosa si sa già, per partire subito:
   fedeltà.
 - Esistono già `tests/simulation/benchmark/benchmark_metrics.py` (W1 e W1
   relativo) e `run_baseline.py` (gemello ingenuo su BPIC): riusali dove servono.
+
+## UX-01 (in corso dal 2026-11-24)
+
+- Branch `fix/ux-real-vs-simulated`, una sessione dedicata.
+- Lavoro su parole, etichette, ordine e plurali della vista "Reale contro simulato"
+  (`frontend/src/features/process/simulation/eventlog/`), chiavi i18n di quella vista.
+- Prima: `docs/vpt/ux/complete-only-log/`. Dopo: `docs/vpt/ux/ux-01/`.

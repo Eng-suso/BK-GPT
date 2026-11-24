@@ -45,7 +45,7 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 
 | Blocco | Branch | Binario | Meta | Misura | Dipende da | Stato |
 | --- | --- | --- | --- | --- | --- | --- |
-| UX-01 reale contro simulato leggibile | `fix/ux-real-vs-simulated` | Prod | Nel percorso ordinario nessun termine tecnico (IC 95%, P50/P90, 2-grammi, warm-up, errore assoluto medio, "repliche" al plurale con 1): ognuno diventa una frase o va nei dettagli per specialisti; plurali corretti; su mobile il pannello si legge senza scorrere oltre il canvas; gate UX superato | screenshot in `docs/vpt/ux/complete-only-log/` come "prima", nuovi screenshot desktop e mobile, prova del consulente | — | da fare |
+| UX-01 reale contro simulato leggibile | `fix/ux-real-vs-simulated` | Prod | Nel percorso ordinario nessun termine tecnico (IC 95%, P50/P90, 2-grammi, warm-up, errore assoluto medio, "repliche" al plurale con 1): ognuno diventa una frase o va nei dettagli per specialisti; plurali corretti; su mobile il pannello si legge senza scorrere oltre il canvas; gate UX superato | screenshot in `docs/vpt/ux/complete-only-log/` come "prima", nuovi screenshot desktop e mobile, prova del consulente | — | in corso (dal 2026-11-24) |
 
 ### V1 — Misura
 
