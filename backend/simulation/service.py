@@ -700,10 +700,9 @@ class _PhaseTimer:
     fallito scrive le fasi a cui e' arrivato.
     """
 
-    def __init__(self, run_id: int, queued_at: str | None) -> None:
+    def __init__(self, run_id: int, queued: datetime | None) -> None:
         self.run_id = run_id
         self.phases: list[tuple[str, float]] = []
-        queued = _parse_instant(queued_at)
         if queued is not None:
             # L'orario d'ingresso lo scrive chi ha accettato la richiesta: con
             # orologi un po' diversi l'attesa non scende sotto zero.
@@ -718,15 +717,6 @@ class _PhaseTimer:
     def report(self) -> None:
         logger.info("simulazione %s: %s", self.run_id, ", ".join(f"{name} {seconds:.3f} s" for name, seconds in self.phases))
 
-
-def _parse_instant(value: str | None) -> datetime | None:
-    try:
-        parsed = datetime.fromisoformat(value) if value else None
-    except ValueError:
-        return None
-    if parsed is None:
-        return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 async def _keep_beating(claimed: ClaimedRun) -> None:
