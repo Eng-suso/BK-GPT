@@ -112,7 +112,7 @@ export function RealVsSimulatedStep({ eventLogId, summary, realCases, onDecorati
       {(!eventLogId || completeOnly) && <p className="sim-eventlog-hint">
         {t("simulation.eventLog.compare.cases", { real: casesLabel(realCases), simulated: casesLabel(run.summary?.casesCompleted ?? 0) })}
       </p>}
-      {groupMembers(run, runs).length > 1 && <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.intro")}</p>}
+      {eventLogId && !completeOnly && groupMembers(run, runs).length > 1 && <p className="sim-eventlog-hint">{t("simulation.eventLog.compare.intro")}</p>}
 
       <h3 className="sim-eventlog-title">{t("simulation.eventLog.compare.process")}</h3>
       {selectedValidation.isLoading && <p role="status">{t("simulation.eventLog.compare.validation.loading")}</p>}
