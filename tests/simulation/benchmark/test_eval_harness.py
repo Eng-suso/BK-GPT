@@ -73,3 +73,9 @@ def test_same_seed_same_baseline_bit_for_bit(tmp_path):
     first = (tmp_path / "a" / "baseline.json").read_bytes()
     assert first == (tmp_path / "b" / "baseline.json").read_bytes()
     assert first != (tmp_path / "c" / "baseline.json").read_bytes()
+
+
+def test_an_external_scenario_keeps_the_reference_log(tmp_path):
+    scenario = harness.Scenario("BPIC_2012_W", "real-life", source=tmp_path)
+    assert scenario.model == tmp_path / "BPIC_2012_W"
+    assert scenario.reference == harness.Scenario("BPIC_2012_W", "real-life").reference

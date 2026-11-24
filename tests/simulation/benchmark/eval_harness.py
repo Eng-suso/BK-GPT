@@ -71,10 +71,13 @@ _RUN_TIMEOUT_SECONDS = 1800.0
 class Scenario:
     name: str
     kind: str  # "real-life" o "synthetic"
+    # Cartella con ``<name>.json`` e ``<name>.bpmn`` di uno scenario esterno (G3:
+    # scoperto da SIMOD); senza, quello del dataset. Il log di riferimento non cambia.
+    source: Path | None = None
 
     @property
     def model(self) -> Path:
-        return INPUTS / self.kind / self.name
+        return (self.source or INPUTS / self.kind) / self.name
 
     @property
     def reference(self) -> Path:
