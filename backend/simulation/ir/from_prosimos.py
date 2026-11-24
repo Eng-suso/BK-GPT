@@ -308,7 +308,7 @@ def _activities(
                     "info",
                     "instant_activity",
                     f"«{name}»: {instant} {'risorsa' if instant == 1 else 'risorse'} su {len(assignments)} "
-                    "la svolgono in 0 secondi (attività istantanea nei dati).",
+                    f"{'la svolge' if instant == 1 else 'la svolgono'} in 0 secondi (attività istantanea nei dati).",
                     task_id,
                 )
             )
@@ -642,7 +642,7 @@ def _to_one(
         ImportNote(
             "approximated",
             "rounded_probabilities",
-            f"Probabilita' arrotondate (somma {total:.4f}): riportate a 1 in proporzione.",
+            f"Probabilità arrotondate (somma {total:.4f}): riportate a 1 in proporzione.",
             element_id,
         )
     )
