@@ -150,3 +150,45 @@ def test_wilson_interval_is_honest_on_small_samples():
     assert wilson_interval(0, 0) is None
     low, high = wilson_interval(3, 3)
     assert high == 1.0 and low < 0.5
+
+
+def test_runtime_benchmark_refuses_development_database(monkeypatch):
+    from scripts import benchmark_canvas_runtime as runtime
+
+    monkeypatch.setenv("WORKSPACE_DATABASE_URL", "postgresql+psycopg://u:p@127.0.0.1:55300/workspace")
+    with pytest.raises(SystemExit):
+        runtime._assert_test_database()
+    monkeypatch.setenv("WORKSPACE_DATABASE_URL", "postgresql+psycopg://u:p@127.0.0.1:55375/workspace")
+    runtime._assert_test_database()
+
+
+def test_runtime_reduction_is_paired_and_skips_failed_runs():
+    from scripts.benchmark_canvas_runtime import summarize
+
+    def row(fixture, representation, tokens, **extra):
+        return {"fixture": fixture, "operation": "update_element", "repeat": 0,
+                "representation": representation, "calls": 1, "usage_reported_calls": 1,
+                "input_tokens": tokens, "output_tokens": 0, "correct": True,
+                "integrity_violations": 0, "latency_ms": 1.0, "retries": 0, **extra}
+
+    report = summarize([
+        row("a", "xml", 1000), row("a", "map", 600),
+        row("b", "xml", 2000), row("b", "map", 1000),
+        row("c", "xml", 3000), row("c", "map", 0, error_type="RateLimitError"),
+    ])
+    assert report["paired_cases"] == 2
+    assert report["paired_token_reduction_median"] == pytest.approx(0.45)
+    assert report["map"]["errors"] == 1
+
+
+def test_prompt_budget_separates_fixed_prompt_from_canvas():
+    from scripts.benchmark_canvas_prompt_budget import report
+
+    result = report()
+    fixed = ("procedural_memory", "subgraph_contract", "tool_schemas", "conversation")
+    for xml_row, map_row in zip(result["rows"][0::2], result["rows"][1::2], strict=True):
+        assert xml_row["fixture"] == map_row["fixture"]
+        # Only the scope prompt carries the canvas: everything else is identical.
+        assert all(xml_row[key] == map_row[key] for key in fixed)
+        assert map_row["scope_prompt"] < xml_row["scope_prompt"]
+    assert 0 < result["summary"]["first_call_reduction_median"] < 1
