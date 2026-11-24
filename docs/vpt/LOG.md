@@ -18,6 +18,39 @@ Modello:
 
 ---
 
+## 2026-11-24 — Master Plan V2 diventa un programma di ricerca — fatto
+
+- Branch / PR: `docs/vpt-research-program`. Solo piano e documenti; Master Plan V2
+  aggiornato nel Claude Docs (otto suggerimenti accettati da Sohayb, più North Star,
+  protocollo, Simulation Engine Interface e ordine di esecuzione).
+- Fatti verificati:
+  - DeliR ha una propria IR (`backend/simulation/ir/`) compilata per Prosimos, ma nessun
+    motore di esecuzione proprio.
+  - All'import oggi c'è solo l'allineamento fra IR e BPMN (`ir/bpmn_check.py`), nessuna
+    validazione formale.
+  - Prosimos 2.1.0 è su PyPI dal 2026-09-21, senza licenza nei metadati, ed è la versione
+    del runner.
+  - AT-KDE ha una versione estesa su Process Science 3:9 (2026),
+    doi:10.1007/s44311-026-00041-z.
+- Decisioni (Sohayb):
+  1. SIMOD resta un benchmark.
+  2. Obiettivo: un motore proprietario di discovery e simulazione, validato,
+     utilizzabile commercialmente e indipendente. Valore originale su quattro livelli:
+     Automatic Model Selection, Causal Simulation, Adaptive Calibration, Uncertainty
+     Quantification.
+  3. North Star su cinque dimensioni: predictive accuracy, formal correctness,
+     counterfactual reliability, computational efficiency, technological independence.
+  4. Prima LIC-01, PROTO-01, VAL-01, ENG-01 e G3b; nessun candidato implementato prima.
+  5. Nessun log escluso: BPIC 2013 resta, con le metriche non identificabili dichiarate
+     NOT VALIDATED. Holdout indipendenti, validazione controfattuale, benchmark
+     computazionale.
+  6. Ogni componente ha criteri quantitativi, test e go/no-go scritti prima.
+- Mete: quelle dei punti nuovi sono *proposta*, da confermare. Nessuna meta esistente
+  abbassata; B3 ora dipende da G3b e da B3.1-B3.3.
+- Prossimo passo: LIC-01, PROTO-01, VAL-01, ENG-01 in sessioni parallele.
+
+---
+
 ## 2026-11-24 — IMP-01 avviso sugli arrivi troncati — fatto
 
 - Branch / PR: `feat/sim-import-expon-warning`, #185.
