@@ -91,7 +91,7 @@ Stato: `da fare` · `in corso` · `bloccato` · `fatto`.
 
 | Blocco | Branch | Binario | Meta | Misura | Dipende da | Stato |
 | --- | --- | --- | --- | --- | --- | --- |
-| B6 throughput (G2) | `spike/sim-throughput` | Prod | Misurati i run al minuto; what-if < 60 s (10 repliche × 1.000 casi) | script di carico | B0 | in corso |
+| B6 throughput (G2) | `spike/sim-throughput` | Prod | Misurati i run al minuto; what-if < 60 s (10 repliche × 1.000 casi) | script di carico | B0 | fatto |
 | B7 ottimizzazione (SIM-26) | `feat/sim-optimization` | Prod | Frontiera di Pareto; raccomandazione finale sempre ri-simulata con IC | test + harness | B6, V3 | da fare |
 | VPT-09 attività svolte da agenti AI | `feat/sim-agent-tasks` | Prod | What-if "automatizziamo con un agente" con IC che include l'incertezza sull'agente | test | VPT-01 | da fare |
 

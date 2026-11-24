@@ -18,6 +18,52 @@ Modello:
 
 ---
 
+## 2026-11-24 — B6 throughput del simulatore (G2) — fatto
+
+- Branch / PR: `spike/sim-throughput`.
+- Meta: run al minuto misurati sul percorso del prodotto (API, coda, worker, runner
+  Prosimos 2.1); what-if 10 ripetizioni × 1.000 casi in meno di 60 s dalla richiesta al
+  risultato salvato e leggibile → raggiunta. Misura finale (comando:
+  `uv run python tests/simulation/benchmark/throughput.py --check`, 4 CPU, 3 giri):
+
+  | Worker del runner | What-if (s) | Run/min |
+  | --- | --- | --- |
+  | 1 | 22,9-26,1 | 23-26 |
+  | 2 | 14,3-14,5 | 41-42 |
+  | 4 | 11,3-11,5 | 52-53 |
+
+- Iterazioni: 1) script di carico e riga delle fasi nel worker; prima misura sul codice
+  di `main`: 21,5-23,6 / 14,9-18,8 / 11,5-16,3 s, meta gia' raggiunta; impronte salvate;
+  2) profilo: motore = Prosimos, analisi 0,2 s, salvataggio 0,1 s, export del log 0,3 s
+  a run; con piu' worker i posti oltre il primo aspettavano il giro periodico (10 s);
+  3) la richiesta di un gruppo avviava piu' drenaggi → 10,1-11,1 s con 4 worker;
+  4) `simplify` ha portato la correzione alla radice: la richiesta sveglia il giro
+  della coda; 5) l'harness B2 ha mostrato una corsa reale (run "completed" prima del
+  suo log, 404): completamento atomico con KPI e log; 6) misura finale e harness B2.
+- Risultati invariati: impronte di KPI e log identiche in ogni giro e al riferimento
+  (`b6/fingerprints.json`); harness B2 rilanciato: `baseline.json` identico bit per bit
+  (`24809a7f…`), 9/9 dentro. Suite `tests/simulation` sullo stack: 703 passati.
+- Code review: `code-review` 8 rilievi, tutti corretti (drenaggi falliti non attesi,
+  attesa in coda di un run rimesso in coda, regex delle fasi, riga anche per i run
+  falliti, run rieseguito, orologi diversi, commenti, file di log non chiusi);
+  `backend/CODE_QUALITY.md`: un parser di orari duplicato, rimosso (si usa quello della
+  coda); 4 regole ast-grep: 0 rilievi; ruff e mypy puliti. `simplify` con 4 revisori:
+  corretti il pool di drenaggi nella richiesta (sostituito dal risveglio del giro), il
+  riuso di `ProductPath` e del seed di B2, i nomi delle fasi in un posto solo, polling
+  a 0,5 s, campo `sum` inutile. Non applicati, con motivo: timer passato come argomento
+  invece di una contextvar (stato nascosto peggiore), colonna `queued_at` per i run
+  rimessi in coda (migrazione per un caso raro), ritocchi di forma dello script
+  (intestazioni, URL, ExitStack). Nessuna modifica ad autenticazione o isolamento:
+  niente `security-review`.
+- Skill: `code-review`, `simplify` (nessuna di frontend: lavoro di backend). Nessun
+  gate UX: il punto non cambia cio' che il cliente vede.
+- Decisioni: scenario fisso Loan_Application tradotto nei campi del pannello, perche'
+  le ripetizioni esistono solo su `simulation-runs`.
+- Prossimo passo: B7 (ottimizzazione) puo' partire quando V3 e' chiuso; G3 e B3 come
+  da piano.
+
+---
+
 ## 2026-11-24 — B2 harness di valutazione — fatto
 
 - Branch / PR: `feat/sim-eval-harness`.

@@ -6,11 +6,11 @@
   "cpus": 4,
   "results": [
     {
-      "accepted_s": 0.12089557100000548,
-      "completed_s": 18.322817048999923,
-      "kpi_read_s": 18.404109595000023,
-      "total_s": 21.178239470999983,
-      "runs_per_minute": 28.330966831383623,
+      "accepted_s": 0.13797997100027715,
+      "completed_s": 19.855458725000062,
+      "kpi_read_s": 19.966315542000302,
+      "total_s": 22.88393848700025,
+      "runs_per_minute": 26.2192629271768,
       "fingerprints": {
         "1": {
           "seed": 20261124,
@@ -65,35 +65,31 @@
       },
       "phases": {
         "in coda": {
-          "mean": 8.3431,
-          "max": 16.58,
-          "sum": 83.431
+          "mean": 8.7224,
+          "max": 17.184
         },
         "motore": {
-          "mean": 1.5349,
-          "max": 1.638,
-          "sum": 15.349
+          "mean": 1.6309999999999998,
+          "max": 1.971
         },
         "analisi": {
-          "mean": 0.1621,
-          "max": 0.415,
-          "sum": 1.621
+          "mean": 0.1724,
+          "max": 0.45
         },
         "salvataggio": {
-          "mean": 0.11099999999999999,
-          "max": 0.423,
-          "sum": 1.1099999999999999
+          "mean": 0.0826,
+          "max": 0.1
         }
       },
       "workers": 1,
       "round": 1
     },
     {
-      "accepted_s": 0.10344594900004722,
-      "completed_s": 17.880766267000013,
-      "kpi_read_s": 17.96814094800004,
-      "total_s": 21.10713750100001,
-      "runs_per_minute": 28.426403152562646,
+      "accepted_s": 0.10627870099961001,
+      "completed_s": 21.91520359099968,
+      "kpi_read_s": 22.06046315599997,
+      "total_s": 26.10346377099995,
+      "runs_per_minute": 22.985455312125257,
       "fingerprints": {
         "1": {
           "seed": 20261124,
@@ -148,201 +144,189 @@
       },
       "phases": {
         "in coda": {
-          "mean": 7.9938,
-          "max": 15.747,
-          "sum": 79.938
+          "mean": 9.4348,
+          "max": 19.017
         },
         "motore": {
-          "mean": 1.5082,
-          "max": 1.655,
-          "sum": 15.082
-        },
-        "analisi": {
-          "mean": 0.16899999999999998,
-          "max": 0.469,
-          "sum": 1.69
-        },
-        "salvataggio": {
-          "mean": 0.0688,
-          "max": 0.115,
-          "sum": 0.6880000000000001
-        }
-      },
-      "workers": 1,
-      "round": 2
-    },
-    {
-      "accepted_s": 0.14217439899994133,
-      "completed_s": 18.138255022999942,
-      "kpi_read_s": 18.248854815999948,
-      "total_s": 21.35802391699997,
-      "runs_per_minute": 28.09248656765613,
-      "fingerprints": {
-        "1": {
-          "seed": 20261124,
-          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
-          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
-        },
-        "2": {
-          "seed": 20261125,
-          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
-          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
-        },
-        "3": {
-          "seed": 20261126,
-          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
-          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
-        },
-        "4": {
-          "seed": 20261127,
-          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
-          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
-        },
-        "5": {
-          "seed": 20261128,
-          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
-          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
-        },
-        "6": {
-          "seed": 20261129,
-          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
-          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
-        },
-        "7": {
-          "seed": 20261130,
-          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
-          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
-        },
-        "8": {
-          "seed": 20261131,
-          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
-          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
-        },
-        "9": {
-          "seed": 20261132,
-          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
-          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
-        },
-        "10": {
-          "seed": 20261133,
-          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
-          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
-        }
-      },
-      "phases": {
-        "in coda": {
-          "mean": 7.9009,
-          "max": 15.978,
-          "sum": 79.009
-        },
-        "motore": {
-          "mean": 1.525,
-          "max": 1.653,
-          "sum": 15.25
-        },
-        "analisi": {
-          "mean": 0.1649,
-          "max": 0.415,
-          "sum": 1.649
-        },
-        "salvataggio": {
-          "mean": 0.0809,
-          "max": 0.111,
-          "sum": 0.809
-        }
-      },
-      "workers": 1,
-      "round": 3
-    },
-    {
-      "accepted_s": 0.12175073000003067,
-      "completed_s": 10.081727195999974,
-      "kpi_read_s": 10.167802931000097,
-      "total_s": 12.760194720000072,
-      "runs_per_minute": 47.02122602091425,
-      "fingerprints": {
-        "1": {
-          "seed": 20261124,
-          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
-          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
-        },
-        "2": {
-          "seed": 20261125,
-          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
-          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
-        },
-        "3": {
-          "seed": 20261126,
-          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
-          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
-        },
-        "4": {
-          "seed": 20261127,
-          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
-          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
-        },
-        "5": {
-          "seed": 20261128,
-          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
-          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
-        },
-        "6": {
-          "seed": 20261129,
-          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
-          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
-        },
-        "7": {
-          "seed": 20261130,
-          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
-          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
-        },
-        "8": {
-          "seed": 20261131,
-          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
-          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
-        },
-        "9": {
-          "seed": 20261132,
-          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
-          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
-        },
-        "10": {
-          "seed": 20261133,
-          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
-          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
-        }
-      },
-      "phases": {
-        "in coda": {
-          "mean": 3.9292000000000002,
-          "max": 7.679,
-          "sum": 39.292
-        },
-        "motore": {
-          "mean": 1.5542,
-          "max": 1.885,
-          "sum": 15.542
+          "mean": 1.8445,
+          "max": 2.198
         },
         "analisi": {
           "mean": 0.21400000000000002,
-          "max": 0.439,
-          "sum": 2.14
+          "max": 0.648
         },
         "salvataggio": {
-          "mean": 0.15889999999999999,
-          "max": 0.449,
-          "sum": 1.589
+          "mean": 0.0769,
+          "max": 0.116
+        }
+      },
+      "workers": 1,
+      "round": 2
+    },
+    {
+      "accepted_s": 0.15191027099990606,
+      "completed_s": 20.799410688999615,
+      "kpi_read_s": 20.94426171899977,
+      "total_s": 24.860306559000037,
+      "runs_per_minute": 24.134859261531727,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 9.126999999999999,
+          "max": 18.31
+        },
+        "motore": {
+          "mean": 1.7672,
+          "max": 1.963
+        },
+        "analisi": {
+          "mean": 0.19290000000000002,
+          "max": 0.534
+        },
+        "salvataggio": {
+          "mean": 0.0742,
+          "max": 0.083
+        }
+      },
+      "workers": 1,
+      "round": 3
+    },
+    {
+      "accepted_s": 0.13425743800007695,
+      "completed_s": 10.598564624000119,
+      "kpi_read_s": 10.713522989000012,
+      "total_s": 14.289539000000332,
+      "runs_per_minute": 41.988758349726055,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 4.020899999999999,
+          "max": 8.083
+        },
+        "motore": {
+          "mean": 1.6443,
+          "max": 1.896
+        },
+        "analisi": {
+          "mean": 0.1777,
+          "max": 0.441
+        },
+        "salvataggio": {
+          "mean": 0.11040000000000001,
+          "max": 0.238
         }
       },
       "workers": 2,
       "round": 1
     },
     {
-      "accepted_s": 0.10066168900016237,
-      "completed_s": 9.901124827000103,
-      "kpi_read_s": 10.01728550200005,
-      "total_s": 12.768106296000042,
-      "runs_per_minute": 46.99208998502514,
+      "accepted_s": 0.1103263899999547,
+      "completed_s": 10.865301818999797,
+      "kpi_read_s": 10.980003086999659,
+      "total_s": 14.533277734999956,
+      "runs_per_minute": 41.28456160684539,
       "fingerprints": {
         "1": {
           "seed": 20261124,
@@ -397,35 +381,31 @@
       },
       "phases": {
         "in coda": {
-          "mean": 3.8106999999999998,
-          "max": 7.609,
-          "sum": 38.107
+          "mean": 4.3532,
+          "max": 8.71
         },
         "motore": {
-          "mean": 1.5175,
-          "max": 1.664,
-          "sum": 15.175
+          "mean": 1.7605,
+          "max": 1.966
         },
         "analisi": {
-          "mean": 0.2222,
-          "max": 0.453,
-          "sum": 2.222
+          "mean": 0.2022,
+          "max": 0.57
         },
         "salvataggio": {
-          "mean": 0.1688,
-          "max": 0.507,
-          "sum": 1.688
+          "mean": 0.0863,
+          "max": 0.213
         }
       },
       "workers": 2,
       "round": 2
     },
     {
-      "accepted_s": 0.1046537619999981,
-      "completed_s": 10.391183258999945,
-      "kpi_read_s": 10.489634757999966,
-      "total_s": 13.477663021999888,
-      "runs_per_minute": 44.51810369650931,
+      "accepted_s": 0.11697001499987891,
+      "completed_s": 10.664594910999767,
+      "kpi_read_s": 10.794316807000087,
+      "total_s": 14.481584676999773,
+      "runs_per_minute": 41.43192981862985,
       "fingerprints": {
         "1": {
           "seed": 20261124,
@@ -480,35 +460,31 @@
       },
       "phases": {
         "in coda": {
-          "mean": 4.1767,
-          "max": 8.155,
-          "sum": 41.767
+          "mean": 4.1671,
+          "max": 8.216
         },
         "motore": {
-          "mean": 1.6449000000000003,
-          "max": 1.862,
-          "sum": 16.449
+          "mean": 1.7201999999999997,
+          "max": 1.894
         },
         "analisi": {
-          "mean": 0.1923,
-          "max": 0.477,
-          "sum": 1.923
+          "mean": 0.1995,
+          "max": 0.305
         },
         "salvataggio": {
-          "mean": 0.175,
-          "max": 0.54,
-          "sum": 1.75
+          "mean": 0.1311,
+          "max": 0.266
         }
       },
       "workers": 2,
       "round": 3
     },
     {
-      "accepted_s": 0.14945179699998334,
-      "completed_s": 7.6083794189999026,
-      "kpi_read_s": 7.705784681000068,
-      "total_s": 10.443691175999902,
-      "runs_per_minute": 57.45095195641446,
+      "accepted_s": 0.13690491900024426,
+      "completed_s": 8.009240472000329,
+      "kpi_read_s": 8.110582243999943,
+      "total_s": 11.495748926000033,
+      "runs_per_minute": 52.193206711654504,
       "fingerprints": {
         "1": {
           "seed": 20261124,
@@ -563,35 +539,31 @@
       },
       "phases": {
         "in coda": {
-          "mean": 2.2436,
-          "max": 5.163,
-          "sum": 22.436
+          "mean": 2.3272,
+          "max": 5.733
         },
         "motore": {
-          "mean": 1.7728000000000002,
-          "max": 2.171,
-          "sum": 17.728
+          "mean": 1.9457999999999998,
+          "max": 2.606
         },
         "analisi": {
-          "mean": 0.32999999999999996,
-          "max": 0.641,
-          "sum": 3.3
+          "mean": 0.3688,
+          "max": 0.739
         },
         "salvataggio": {
-          "mean": 0.2847,
-          "max": 0.786,
-          "sum": 2.847
+          "mean": 0.1484,
+          "max": 0.298
         }
       },
       "workers": 4,
       "round": 1
     },
     {
-      "accepted_s": 0.10041118399999505,
-      "completed_s": 6.966066921999982,
-      "kpi_read_s": 7.06123529599995,
-      "total_s": 10.384080828999913,
-      "runs_per_minute": 57.78075208393633,
+      "accepted_s": 0.10490549899986945,
+      "completed_s": 8.008498624999902,
+      "kpi_read_s": 8.121023695000076,
+      "total_s": 11.494583064999915,
+      "runs_per_minute": 52.19850051168467,
       "fingerprints": {
         "1": {
           "seed": 20261124,
@@ -646,35 +618,31 @@
       },
       "phases": {
         "in coda": {
-          "mean": 2.1241,
-          "max": 5.072,
-          "sum": 21.241
+          "mean": 2.1297,
+          "max": 5.344
         },
         "motore": {
-          "mean": 1.7628,
-          "max": 2.039,
-          "sum": 17.628
+          "mean": 1.9195999999999998,
+          "max": 2.399
         },
         "analisi": {
-          "mean": 0.2758,
-          "max": 0.578,
-          "sum": 2.758
+          "mean": 0.3327,
+          "max": 0.647
         },
         "salvataggio": {
-          "mean": 0.266,
-          "max": 0.602,
-          "sum": 2.66
+          "mean": 0.1951,
+          "max": 0.378
         }
       },
       "workers": 4,
       "round": 2
     },
     {
-      "accepted_s": 0.10985793300005753,
-      "completed_s": 7.24005033200001,
-      "kpi_read_s": 7.326966820000052,
-      "total_s": 10.705990674000077,
-      "runs_per_minute": 56.04338900248847,
+      "accepted_s": 0.11786937300030331,
+      "completed_s": 7.943216785999994,
+      "kpi_read_s": 8.056647742000223,
+      "total_s": 11.304624272000183,
+      "runs_per_minute": 53.0756251214919,
       "fingerprints": {
         "1": {
           "seed": 20261124,
@@ -729,24 +697,20 @@
       },
       "phases": {
         "in coda": {
-          "mean": 1.9855,
-          "max": 4.928,
-          "sum": 19.855
+          "mean": 2.1836,
+          "max": 5.557
         },
         "motore": {
-          "mean": 1.8089000000000002,
-          "max": 2.289,
-          "sum": 18.089000000000002
+          "mean": 1.8157,
+          "max": 2.53
         },
         "analisi": {
-          "mean": 0.2232,
-          "max": 0.371,
-          "sum": 2.232
+          "mean": 0.5305,
+          "max": 0.828
         },
         "salvataggio": {
-          "mean": 0.2435,
-          "max": 0.534,
-          "sum": 2.435
+          "mean": 0.2029,
+          "max": 0.433
         }
       },
       "workers": 4,
