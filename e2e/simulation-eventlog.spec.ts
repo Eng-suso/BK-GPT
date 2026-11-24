@@ -82,7 +82,7 @@ const VALIDATION = {
 const CONFORMANCE = {
   event_log: ANALYSIS.event_log, bpmn_version_id: 1, mapping_bpmn_version_id: 1,
   fitness: 0.94, cases: 3, fitting_cases: 2, fitting_share: 2 / 3,
-  deviations: [{ element_id: "B", name: "Approva richiesta", executed_out_of_order: 0, left_waiting: 1 }],
+  deviations: [{ element_id: "B", name: "Approva richiesta", executed_out_of_order: 0, left_waiting: 1, cases_affected: 1 }],
   variants: [
     { activities: ["Verifica documentazione", "Approva richiesta", "Archivia"], cases: 2, fitness: 1, fits: false, out_of_order: [], waiting: [], unmodeled: ["Archivia"] },
     { activities: ["Verifica documentazione", "Archivia"], cases: 1, fitness: 0.8, fits: false, out_of_order: [], waiting: ["B"], unmodeled: ["Archivia"] },
@@ -209,6 +209,7 @@ test("process conformance: verdict, skipped steps and overlay on the design", as
   await step.getByRole("button", { name: "Mostra sul disegno" }).click();
   await expect(page.locator('.djs-element[data-element-id="B"].sim-fidelity-calibrate')).toHaveCount(1);
   await expect(page.locator(".sim-process-legend")).toContainText("Casi che escono dal disegno");
+  await expect(step.getByRole("button", { name: "Avanti" })).toBeVisible();
 
   const results = await new AxeBuilder({ page }).include(".sim-studio-dock").withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(results.violations).toEqual([]);
