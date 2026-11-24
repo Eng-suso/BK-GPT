@@ -105,7 +105,8 @@ def test_dev_staging_and_prod_sim_have_disjoint_resources(
     assert staging["services"]["app"]["environment"]["WORKERS_IN_PROCESS"] == "false"
     assert staging["services"]["app"]["environment"]["LANGSMITH_TRACING"] == "false"
     assert staging["services"]["app"]["environment"]["LANGSMITH_API_KEY"] == ""
-    assert staging["services"]["app"]["environment"]["DELIR_ADMIN_TOKEN"] == ""
+    # L'overlay non svuota piu' la chiave admin: l'app la richiede per partire.
+    assert staging["services"]["app"]["environment"]["DELIR_ADMIN_TOKEN"]
     assert staging["services"]["prosimos"]["environment"]["GUNICORN_WORKERS"] == "1"
     staging["volumes"]["delir_pgdata"]["name"] = "delir_pgdata"
     with pytest.raises(ValueError, match="volumi"):
@@ -243,3 +244,90 @@ def test_prod_sim_promotes_staging_images_without_rebuilding():
     assert "--no-build" in commands[2]
     assert "--force-recreate" in commands[2]
     assert "--build" not in commands[2]
+
+
+def test_generated_stacks_carry_a_distinct_admin_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """L'app non parte fuori da dev senza una chiave admin diversa dal token API."""
+    monkeypatch.setattr(local_release, "OPS", tmp_path)
+    staging = local_release.read_env(local_release.generate("staging"))
+    prod_sim = local_release.read_env(local_release.generate("prod-sim"))
+
+    for values in (staging, prod_sim):
+        assert len(values["DELIR_ADMIN_TOKEN"]) >= 32
+        assert values["DELIR_ADMIN_TOKEN"] != values["DELIR_API_TOKEN"]
+    assert staging["DELIR_ADMIN_TOKEN"] != prod_sim["DELIR_ADMIN_TOKEN"]
+
+
+def test_validation_rejects_an_admin_token_missing_or_equal_to_the_api_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(local_release, "OPS", tmp_path)
+    staging = local_release.generate("staging")
+    values = local_release.read_env(staging)
+    original = staging.read_text(encoding="utf-8")
+
+    staging.write_text(
+        original.replace(
+            f"DELIR_ADMIN_TOKEN={values['DELIR_ADMIN_TOKEN']}",
+            f"DELIR_ADMIN_TOKEN={values['DELIR_API_TOKEN']}",
+        ),
+        encoding="utf-8",
+    )
+    errors = local_release.validate("staging", dev_path=tmp_path / "missing-dev")
+    assert "campo non valido: TENANT_ORIGIN" in errors
+    assert all(values["DELIR_API_TOKEN"] not in error for error in errors)
+
+    staging.write_text(
+        original.replace(f"DELIR_ADMIN_TOKEN={values['DELIR_ADMIN_TOKEN']}\n", ""),
+        encoding="utf-8",
+    )
+    errors = local_release.validate("staging", dev_path=tmp_path / "missing-dev")
+    assert "variabile mancante: DELIR_ADMIN_TOKEN" in errors
+
+
+def test_init_adds_the_admin_token_to_an_existing_file_without_touching_the_rest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Un file generato prima della chiave admin si aggiorna, non si rigenera.
+
+    Rigenerarlo cambierebbe le password dei database, gia' scritte nei volumi.
+    """
+    monkeypatch.setattr(local_release, "OPS", tmp_path)
+    staging = local_release.generate("staging")
+    before = local_release.read_env(staging)
+    staging.write_text(
+        staging.read_text(encoding="utf-8").replace(
+            f"DELIR_ADMIN_TOKEN={before['DELIR_ADMIN_TOKEN']}\n", ""
+        ),
+        encoding="utf-8",
+    )
+
+    assert local_release.add_missing_secrets("staging") == ["DELIR_ADMIN_TOKEN"]
+    after = local_release.read_env(staging)
+    assert after["DELIR_ADMIN_TOKEN"] not in {"", before["DELIR_ADMIN_TOKEN"]}
+    assert {k: v for k, v in after.items() if k != "DELIR_ADMIN_TOKEN"} == {
+        k: v for k, v in before.items() if k != "DELIR_ADMIN_TOKEN"
+    }
+    assert local_release.validate("staging", dev_path=tmp_path / "missing-dev") == []
+    # Idempotente: un secondo giro non cambia niente.
+    assert local_release.add_missing_secrets("staging") == []
+    assert local_release.read_env(staging) == after
+
+
+def test_init_never_regenerates_a_database_password(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(local_release, "OPS", tmp_path)
+    staging = local_release.generate("staging")
+    values = local_release.read_env(staging)
+    staging.write_text(
+        staging.read_text(encoding="utf-8").replace(
+            f"NEO4J_PASSWORD={values['NEO4J_PASSWORD']}\n", ""
+        ),
+        encoding="utf-8",
+    )
+
+    assert local_release.add_missing_secrets("staging") == []
+    assert "NEO4J_PASSWORD" not in local_release.read_env(staging)
