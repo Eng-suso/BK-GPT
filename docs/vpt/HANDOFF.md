@@ -117,7 +117,13 @@ uv run python tests/simulation/benchmark/eval_harness.py Pharmacy --out /tmp/b2 
 ## SIM-36 (in corso dal 2026-11-24)
 
 Branch `feat/sim-benchmark-baseline`, una sessione. Baseline "B = A" su BPIC 2012 e
-BPIC 2013 incidents con le metriche di B2 (`log_distance.py`). Stato: appena partito.
+BPIC 2013 incidents con le metriche di B2 (`log_distance.py`).
+
+- Misura committata (seed 20261124, 10 repliche) in `tests/simulation/benchmark/sim36/`:
+  BPIC 2012 W1 16,9 ± 1,5 h, AED 60,3 ± 3,3 h; BPIC 2013 W1 384 ± 8 h, AED 334 ± 16 h.
+  Bit per bit uguale su due passate. Metodo e lettura in `docs/simulation-benchmark.md`.
+- Fatto: `code-review` (rilievi corretti), ast-grep 0. In corso: `simplify`. Resta: PR,
+  CI, merge, chiusura.
 
 ## UX-01 (fatto il 2026-11-24, PR #173)
 
