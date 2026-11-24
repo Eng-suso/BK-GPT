@@ -1,14 +1,34 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-24, dopo la chiusura in parallelo di SIM-36 (baseline "B = A", PR
-#178), B6 (throughput, PR #179) e G3 (spike SIMOD). Ricomposto da chi ha chiuso l'ultimo
-dei tre (G3).
+Aggiornato: 2026-11-24, dopo la chiusura di SIM-36b (PR #184) e IMP-01 (PR #185).
+Ricomposto da chi ha chiuso l'ultimo dei due (IMP-01).
 
 ## Punti attivi
 
-Nessuno. SIM-36, G3 e B6 sono chiusi. Prossimi secondo [`PLAN.md`](./PLAN.md):
-**SIM-36b** ("B = A" sui 3 log train/test) e **IMP-01** (avviso sugli arrivi troncati),
-poi **B3**, che parte dalla decisione G3 (sezione sotto).
+Nessuno. SIM-36, G3, B6, SIM-36b e IMP-01 sono chiusi. Prossimo secondo
+[`PLAN.md`](./PLAN.md): **B3**, che parte dalla decisione G3 e si misura contro
+"B = A" di SIM-36b (sezioni sotto).
+
+## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
+
+Baseline "B = A" sui 3 log reali train/test del paper (A = train, B = test): il banco
+A → B che G3 e B3 devono battere. Per rifarla (≈11 s, senza rete):
+
+```bash
+uv run python tests/simulation/benchmark/run_baseline.py AcademicCredentials BPIC_2012_W BPIC_2017_W
+```
+
+- Misura (seed 20261124 × 10, ore): W1 28,8 ± 3,6 / 28,1 ± 2,0 / 30,6 ± 1,5; RED 25,9 /
+  10,1 / 11,4; AED 62,3 / 29,7 / 42,8. Contro lo scenario SIMOD del paper simulato da B2
+  "B = A" vince 17 confronti su 18 con intervalli separati (pari su CAR di
+  AcademicCredentials). Bit per bit su due passate; misure SIM-36 dei BPIC identiche.
+- `sim36/baseline.md` contiene la tabella "B = A" contro SIMOD per log e metrica; il
+  confronto si fa solo con lo stesso seed e repliche di `b2/baseline.json` (`--b2`).
+- BPIC 2013 incidents: `unsuitable_for_a_to_b` in `benchmark_datasets.py`, nel JSON e
+  nella tabella. Resta misurato, nessuna meta lo usa.
+- **Per G3:** `g3/evaluate.py::naive_metrics` rifà lo stesso gemello; dopo il merge di
+  `main` può usare `run_baseline.measure(log, ...)["metrics"]`. `within_intervals` in
+  `eval_harness.py` è identica a quella di G3 (stesso hunk): il merge non confligge.
 
 ## IMP-01 (fatto il 2026-11-24, `feat/sim-import-expon-warning`)
 

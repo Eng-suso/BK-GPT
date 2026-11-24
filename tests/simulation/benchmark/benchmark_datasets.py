@@ -51,13 +51,23 @@ class Dataset:
     key: str
     manifest_id: str
     mapping: ColumnMapping
+    # Perche' il log non serve a giudicare una previsione A -> B; None se serve.
+    unsuitable_for_a_to_b: str | None = None
 
 
 DATASETS: dict[str, Dataset] = {
     d.key: d
     for d in (
         Dataset("bpic2012", "bpic2012", _TRANSITIONS),
-        Dataset("bpic2013_incidents", "bpic2013-incidents", _STATUS_CHANGES),
+        Dataset(
+            "bpic2013_incidents",
+            "bpic2013-incidents",
+            _STATUS_CHANGES,
+            unsuitable_for_a_to_b=(
+                "foto degli incidenti aperti a maggio 2012, non un flusso: con ogni taglio il 100% dei casi "
+                "di B e' troncato dalla fine del log (decisione di Sohayb, 2026-11-24)"
+            ),
+        ),
     )
 }
 
@@ -66,14 +76,14 @@ class DatasetUnavailable(RuntimeError):
     """4TU non risponde, o il file non e' quello dichiarato nel manifest."""
 
 
-def manifest_entry(dataset: Dataset) -> dict:
-    return fetch_datasets.load_manifest()[dataset.manifest_id]
+def manifest_entry(manifest_id: str) -> dict:
+    return fetch_datasets.load_manifest()[manifest_id]
 
 
 def fetch(dataset: Dataset) -> Path:
     """Il file del dataset nella cache di ``fetch_datasets``, scaricato e verificato se manca."""
     try:
-        entry = manifest_entry(dataset)
+        entry = manifest_entry(dataset.manifest_id)
         return fetch_datasets.fetch(entry) / entry["file"]
     except (fetch_datasets.DatasetError, OSError) as exc:
         raise DatasetUnavailable(f"{dataset.key}: {exc}") from exc

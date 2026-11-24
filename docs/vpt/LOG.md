@@ -55,7 +55,47 @@ Modello:
 - Skill: `ui-visual-validator`, `code-review`, `simplify`.
 - Decisioni: soglia 10% fra media scritta e prodotta; correzione proposta "massimo ≥ 5
   volte la media" (scarto 3%).
-- Prossimo passo: SIM-36b (in corso in parallelo), poi B3.
+- Prossimo passo: B3 (SIM-36b è chiuso).
+
+---
+
+## 2026-11-24 — SIM-36b baseline "B = A" sui log train/test — fatto
+
+- Branch / PR: `feat/sim-benchmark-train-test`.
+- Meta: "B = A" (impara dal train, prevede il test) misurata sui 3 log reali del paper con
+  metriche, repliche e formato di B2, salvata con il comando per rifarla; BPIC 2013
+  incidents marcato come non adatto al confronto A→B → raggiunta. Comando:
+  `run_baseline.py AcademicCredentials BPIC_2012_W BPIC_2017_W` (seed 20261124, 10 repliche, ore):
+
+  | Log | W1 | NGD | RED | AED | CED | CAR |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | AcademicCredentials | 28,827 ± 3,601 | 0,179 ± 0,006 | 25,856 ± 2,223 | 62,309 ± 6,194 | 1,391 ± 0,116 | 95,460 ± 17,106 |
+  | BPIC_2012_W | 28,061 ± 2,000 | 0,083 ± 0,005 | 10,140 ± 2,565 | 29,710 ± 4,414 | 0,800 ± 0,155 | 38,215 ± 4,309 |
+  | BPIC_2017_W | 30,602 ± 1,481 | 0,079 ± 0,001 | 11,359 ± 1,570 | 42,785 ± 4,042 | 0,660 ± 0,011 | 35,916 ± 3,821 |
+
+  Contro lo scenario SIMOD del paper di B2: "B = A" migliore in 17 confronti su 18, pari
+  su CAR di AcademicCredentials. Stessi file bit per bit su due passate; i JSON SIM-36 di
+  BPIC 2012 e 2013 rilanciati con metriche identiche (aggiunti solo `split` e la marcatura).
+- Iterazioni: 1) estensione di `run_baseline.py` (A = train, B = test, fuso UTC perché i
+  CSV non ne hanno) → numeri uguali a quelli della decisione del 2026-11-24; 2) la
+  marcatura di BPIC 2013 non compariva con il JSON vecchio: rilancio dei BPIC.
+- Code review: `code-review` 7 rilievi, tutti corretti (log mancante in B2 → nota invece
+  di KeyError; file di B2 scelto dal chiamante, `--b2`; un log con seed diverso non
+  cancella il confronto degli altri; nota di BPIC 2013 solo se il log è nella cartella;
+  `compare_with_paper` usa la regola comune; docstring; etichette pubbliche
+  `METRIC_LABELS`). `backend/CODE_QUALITY.md`: nessun rilievo (script di benchmark, nessun
+  errore inghiottito: log indisponibile o confronto non fatto sono scritti). ast-grep
+  (4 regole): 0. ruff e mypy puliti. `simplify` con 4 revisori: una fonte per log
+  (`SOURCES`) invece dei rami `if key in REAL_LIFE`, `ROOT` e `manifest_entry(id)`
+  riusati, un solo `cell()` per media ± intervallo, etichetta del benchmark nella fonte.
+  Non applicati, con motivo: `within_intervals` resta identica a G3 (stesso hunk, merge
+  pulito); costanti dei percorsi train/test comuni con G3 (da fare quando G3 è su main);
+  rilettura dei CSV nei test (≈20 KB, trascurabile).
+- Skill: `code-review`, `simplify`. Nessuna di frontend: punto di ricerca senza UI,
+  niente gate UX.
+- Decisioni: nessuna meta cambiata.
+- Prossimo passo: G3 e B3 misurano il twin contro questa baseline; G3 può usare
+  `run_baseline.measure` invece della sua copia del gemello.
 
 ---
 
