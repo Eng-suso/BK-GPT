@@ -292,6 +292,11 @@ METRIC_LABELS = {
 }
 
 
+def cell(summary: dict) -> str:
+    """Media ± semiampiezza dell'intervallo al 95%."""
+    return f"{summary['mean']:.3f} ± {summary['ci95']:.3f}"
+
+
 def baseline_table(results: list[dict]) -> str:
     """Le sei metriche di ogni scenario, media ± intervallo: il riferimento di B3 e B5."""
     lines = [
@@ -299,7 +304,7 @@ def baseline_table(results: list[dict]) -> str:
         "| --- |" + " --- |" * len(METRICS),
     ]
     for r in results:
-        cells = " | ".join(f"{r['metrics'][m]['mean']:.3f} ± {r['metrics'][m]['ci95']:.3f}" for m in METRICS)
+        cells = " | ".join(cell(r["metrics"][m]) for m in METRICS)
         lines.append(f"| {r['scenario']} | {cells} |")
     return "\n".join(lines) + "\n"
 
