@@ -19,14 +19,23 @@ test API 4/4, unit 4/4; gate UX in `docs/vpt/ux/b1b-server-import/`.
 CONF-02: e2e `simulation-eventlog` 12/12 su chromium e mobile-chrome, axe pulito;
 screenshot in `docs/vpt/ux/conformance/`. CONF-01: LoanApp 500/500 casi conformi.
 
-## Come riprendere CAL-01
+## CAL-01 (fatto il 2026-11-24)
 
-1. Leggi [`WORKFLOW.md`](./WORKFLOW.md) e la voce più recente di [`LOG.md`](./LOG.md).
-2. Scarica Prosimos 2.1 (`uv run python scripts/fetch_datasets.py fetch prosimos`) e
-   leggi come rappresenta ed esegue i calendari FUZZY.
-3. Serve uno scenario SIMOD con calendari FUZZY scoperto sul dataset: il test di
-   import e round trip va scritto per primo e deve fallire.
-4. Estendi IR, `from_prosimos.py` e `compile_for_prosimos`; poi run sul runner.
+Gli scenari SIMOD con calendari FUZZY si importano, si ricompilano identici e girano
+sul runner Prosimos 2.1 dello stack. Misura finale e iterazioni nella voce di `LOG.md`.
+Da sapere per chi tocca i calendari:
+
+- Nell'IR la probabilità sta solo su `CalendarPeriod`; fasce degli arrivi e delle
+  durate derivano da `WeekPeriod` e non la accettano.
+- Prosimos considera libera una risorsa se lo dice la disponibilità **o** il carico
+  (`FuzzyModel.is_available`): un carico a 1 annulla la disponibilità.
+- Il motore fuzzy riporta ogni orario all'inizio della sua fascia: l'IR rifiuta orari
+  fuori dal granulo. SIMOD scrive la fine a mezzanotte come `00:00:00`; l'IR la tiene
+  come `23:59:59.999999` e la riscrive `00:00:00`.
+- Una fascia senza probabilità Prosimos la leggerebbe 0: l'import la rifiuta.
+- Il test sul runner HTTP gira solo con `DELIR_TEST_PROSIMOS_URL=$PROSIMOS_BASE_URL`.
+- Per rilanciare SIMOD: venv Python 3.12, `pip install` del repo SIMOD dalla cache
+  (`scripts/fetch_datasets.py fetch simod`), serve Java.
 
 ## CI
 

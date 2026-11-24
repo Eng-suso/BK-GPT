@@ -52,7 +52,11 @@ from backend.simulation.models import BpmnGateway, BpmnTask
 if TYPE_CHECKING:
     # Solo per i tipi: lo schema HTTP importa il modello dell'IR (richiesta v2),
     # e un import a runtime qui chiuderebbe il cerchio.
-    from backend.schemas.simulation import CreateSimulationRunRequest, SimCalendarConfig, SimTaskConfig
+    from backend.schemas.simulation import (
+        CreateSimulationRunRequest,
+        SimCalendarConfig,
+        SimTaskConfig,
+    )
 
 _FlowRule = TypeVar("_FlowRule", Skip, Rework)
 

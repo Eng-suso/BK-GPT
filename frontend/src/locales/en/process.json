@@ -253,6 +253,8 @@
           "missing_branch_other": "{{count}} decisions with paths without a probability: no case takes them.",
           "rounded_probabilities_one": "1 group of probabilities rounded and brought back to 100%.",
           "rounded_probabilities_other": "{{count}} groups of probabilities rounded and brought back to 100%.",
+          "probabilistic_calendars_one": "People are not always free during their working hours: the simulation uses, slot by slot, the probability of finding them available learned from the data.",
+          "probabilistic_calendars_other": "People are not always free during their working hours: the simulation uses, slot by slot, the probability of finding them available learned from the data.",
           "other_one": "1 other note.",
           "other_other": "{{count}} other notes."
         }

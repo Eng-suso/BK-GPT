@@ -1,0 +1,30 @@
+version: 5.2
+common:
+  train_log_path: ../../event-logs/Insurance_Claims_train.csv
+  process_model_path: ../../../extraneous-delays/inputs/synthetic/Insurance_Claims.bpmn
+  log_ids:
+    case: "case_id"
+    activity: "activity"
+    resource: "resource"
+    start_time: "start_time"
+    end_time: "end_time"
+  discover_data_attributes: false
+preprocessing:
+  enable_time_concurrency_threshold: 0.75
+control_flow:
+  optimization_metric: two_gram_distance
+  num_iterations: 1
+  num_evaluations_per_iteration: 1
+  gateway_probabilities: discovery
+resource_model:
+  optimization_metric: circadian_emd
+  num_iterations: 3
+  num_evaluations_per_iteration: 1
+  discover_prioritization_rules: false
+  discover_batching_rules: false
+  resource_profiles:
+    discovery_type: differentiated_fuzzy
+    granularity: 60
+    fuzzy_angle:
+      - 0.1
+      - 0.9

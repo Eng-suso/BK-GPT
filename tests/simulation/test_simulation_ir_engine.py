@@ -22,6 +22,10 @@ sys.path.insert(0, str(ROOT / "ops" / "prosimos" / "spike"))
 
 import contract_spike  # noqa: E402
 
+# Il venv del runner installa un pacchetto ``tests`` che nasconde il nostro.
+sys.path.insert(0, str(ROOT / "tests" / "simulation"))
+from simod_fuzzy import simod_fuzzy  # noqa: E402
+
 from backend.simulation.ir import compile_for_prosimos  # noqa: E402
 from backend.simulation.ir.model import (  # noqa: E402
     Activity,
@@ -884,14 +888,83 @@ def test_sensitivity_variants_move_the_cycle_time_on_the_engine():
     bpmn = contract_spike.BPMN_PATH.read_text(encoding="utf-8")
 
     def cycle(request) -> float:
-        rows = _run(_model(), seed=11, payload=build_prosimos_scenario(bpmn_xml=bpmn, request=request).payload)
-        cases: dict[str, list[float]] = {}
-        for row in rows:
-            span = cases.setdefault(row["case_id"], [row["start"], row["end"]])
-            span[0], span[1] = min(span[0], row["start"]), max(span[1], row["end"])
-        return sum(end - start for start, end in cases.values()) / len(cases)
+        return _mean_cycle(_run(_model(), seed=11, payload=build_prosimos_scenario(bpmn_xml=bpmn, request=request).payload))
 
     approve = SensitivityFactor(kind="duration", element_id="T_approve", label="Approva")
     arrivals = SensitivityFactor(kind="arrival")
     assert cycle(perturb(base, approve, "high", 0.2)) > cycle(perturb(base, approve, "low", 0.2))
     assert cycle(perturb(base, arrivals, "low", 0.2)) > cycle(perturb(base, arrivals, "high", 0.2))
+
+
+def _mean_cycle(rows: list[dict]) -> float:
+    """Tempo di ciclo medio: dal primo inizio all'ultima fine di ogni caso."""
+    cases: dict[str, list[float]] = {}
+    for row in rows:
+        span = cases.setdefault(row["case_id"], [row["start"], row["end"]])
+        span[0], span[1] = min(span[0], row["start"]), max(span[1], row["end"])
+    return sum(end - start for start, end in cases.values()) / len(cases)
+
+
+def _fuzzy_insurance_claims(availability: float) -> tuple[dict, str]:
+    """CAL-01: Insurance Claims con calendari FUZZY, risorse disponibili con ``availability``."""
+    inputs = ROOT / "datasets" / "extraneous-delays" / "inputs" / "synthetic"
+    source = json.loads((inputs / "Insurance_Claims.json").read_text(encoding="utf-8"))
+    source["model_type"] = "FUZZY"
+    source["granule_size"] = {"value": 60, "time_unit": "MINUTES"}
+    for calendar in source["resource_calendars"]:
+        for period in calendar["time_periods"]:
+            period["probability"] = availability
+        # Prosimos considera libera la risorsa se lo dice la disponibilita' *o* il carico
+        # (``FuzzyModel.is_available``): con il carico a 1 sarebbe sempre libera.
+        calendar["workload_ratio"] = [
+            {**period, "probability": availability} for period in calendar["time_periods"]
+        ]
+    return source, (inputs / "Insurance_Claims.bpmn").read_text(encoding="utf-8")
+
+
+def test_an_imported_fuzzy_scenario_runs_and_its_availability_matters():
+    from backend.simulation.ir.from_prosimos import import_prosimos
+
+    def mean_cycle(availability: float) -> float:
+        source, bpmn = _fuzzy_insurance_claims(availability)
+        model = import_prosimos(source, bpmn).model
+        rows = _run(model, seed=3, bpmn=bpmn, cases=120)
+        assert len({row["case_id"] for row in rows}) == 120
+        return _mean_cycle(rows)
+
+    # Risorse disponibili un'ora su cinque: i casi aspettano di piu'.
+    # Misurato: ~193.000 s contro ~1.800 s con seed 3.
+    assert mean_cycle(0.2) > 2 * mean_cycle(0.95)
+
+
+def test_a_fuzzy_scenario_discovered_by_simod_runs_on_the_engine():
+    """CAL-01: lo scenario FUZZY scoperto da SIMOD 5.2.1 sul log del dataset gira."""
+    from backend.simulation.ir.from_prosimos import import_prosimos
+
+    source, bpmn = simod_fuzzy()
+    model = import_prosimos(source, bpmn).model
+
+    rows = _run(model, seed=7, bpmn=bpmn, cases=100)
+
+    assert len({row["case_id"] for row in rows}) == 100
+
+
+def test_prosimos_reads_every_fuzzy_slot_up_to_midnight():
+    """CAL-01: una fascia fino a mezzanotte arriva al motore con la sua probabilita'.
+
+    SIMOD la scrive con ``endTime`` "00:00:00"; Prosimos legge "23:59:59" come la
+    fascia prima e perderebbe l'ultima ora.
+    """
+    from prosimos.simulation_properties_parser import parse_fuzzy_calendar
+
+    from backend.simulation.ir.from_prosimos import import_prosimos
+
+    source, bpmn = simod_fuzzy(until_midnight=True)
+    calendar = source["resource_calendars"][0]
+
+    compiled = compile_for_prosimos(import_prosimos(source, bpmn).model)
+    fuzzy = parse_fuzzy_calendar(compiled)[calendar["id"]]
+
+    monday = fuzzy.availability_calendar.probability_intervals[0]
+    assert monday[22] == 0.0
+    assert monday[23] == 0.4

@@ -9,7 +9,10 @@ readiness li conta come assunzioni e non come dati.
 
 from __future__ import annotations
 
-from backend.schemas.simulation import CreateSimulationRunRequest, ScenarioTemplateResource
+from backend.schemas.simulation import (
+    CreateSimulationRunRequest,
+    ScenarioTemplateResource,
+)
 from backend.simulation.ir.from_request import (
     DEFAULT_POOL_ID,
     DEFAULT_RESOURCE_ID,

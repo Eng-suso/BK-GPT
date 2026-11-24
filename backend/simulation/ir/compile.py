@@ -22,13 +22,15 @@ from backend.simulation.ir.model import (
     Exponential,
     Fixed,
     Gamma,
+    MIDNIGHT,
     LogNormal,
     Normal,
     Resource,
     SimulationModel,
     Uniform,
+    WeekPeriod,
+    is_end_of_day,
 )
-
 
 # Un'attesa non impostata: il caso prosegue subito, come prima di SIM-11d.
 _NO_WAIT = {"distribution_name": "fix", "distribution_params": [{"value": 0}]}
@@ -37,6 +39,7 @@ _NO_WAIT = {"distribution_name": "fix", "distribution_params": [{"value": 0}]}
 def compile_for_prosimos(model: SimulationModel) -> dict:
     """Lo scenario Prosimos che esegue ``model``."""
     model = expand_shifts(model)
+    fuzzy = model.availability == "probabilistic"
     calendars = {calendar.id: calendar for calendar in model.calendars}
     assigned: dict[str, list[str]] = {}
     for activity in model.activities:
@@ -88,10 +91,19 @@ def compile_for_prosimos(model: SimulationModel) -> dict:
             }
             for activity in model.activities
         ],
-        "resource_calendars": [_calendar(calendar) for calendar in _used_resource_calendars(model, calendars)],
+        "resource_calendars": [
+            _calendar(calendar, fuzzy=fuzzy)
+            for calendar in _used_resource_calendars(model, calendars)
+        ],
         "batch_processing": [],
         "case_attributes": [_case_attribute(attribute) for attribute in model.case_attributes],
     }
+
+    if fuzzy:
+        # CAL-01: il motore fuzzy di Prosimos legge le probabilita' per fascia e
+        # divide la giornata in 1440 // granulo fasce: vuole minuti interi.
+        payload["model_type"] = "FUZZY"
+        payload["granule_size"] = {"value": model.granule_minutes, "time_unit": "MINUTES"}
 
     bands = model.arrival_bands()
     if bands:
@@ -230,20 +242,34 @@ def _used_resource_calendars(model: SimulationModel, calendars: dict[str, Calend
     return [calendars[calendar_id] for calendar_id in used]
 
 
-def _calendar(calendar: Calendar) -> dict:
-    return {
+def _calendar(calendar: Calendar, *, fuzzy: bool = False) -> dict:
+    payload = {
         "id": calendar.id,
         "name": calendar.name,
-        "time_periods": [_period(period) for period in calendar.periods],
+        "time_periods": [_slot(period) if fuzzy else _period(period) for period in calendar.periods],
     }
+    if fuzzy:
+        # Prosimos legge entrambe le sezioni di un calendario FUZZY.
+        payload["workload_ratio"] = [_slot(period) for period in calendar.workload]
+    return payload
 
 
-def _period(period: CalendarPeriod) -> dict:
+def _period(period: WeekPeriod) -> dict:
     return {
         "from": period.from_day,
         "to": period.to_day,
         "beginTime": period.begin,
         "endTime": period.end,
+    }
+
+
+def _slot(period: CalendarPeriod) -> dict:
+    """Una fascia di un calendario FUZZY, come la scrive SIMOD."""
+    return {
+        **_period(period),
+        # Il motore fuzzy legge 23:59:59 come la fascia prima e perderebbe l'ultima.
+        "endTime": MIDNIGHT if is_end_of_day(period.end) else period.end,
+        "probability": period.probability,
     }
 
 
