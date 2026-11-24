@@ -41,10 +41,49 @@ Chi arriva legge `HANDOFF.md` per primo: in un minuto deve sapere da dove ripart
    - il branch di lavoro resta allineato a `main`;
    - `PLAN.md` passa a `fatto`, `HANDOFF.md` riscritto per il prossimo, voce in cima a `LOG.md`;
    - poi la sessione si chiude e il prossimo prende il punto successivo.
+   - **Una sessione, un punto.** A punto chiuso l'agente scrive a Sohayb un
+     riassunto di 3-4 righe (cosa è cambiato, misura finale, PR, prossimo punto) e
+     si ferma: non prende un altro punto. Il punto successivo parte in una sessione
+     nuova, che riprende da `HANDOFF.md` con il contesto pulito.
 7. **Bloccato?** Scrivi in `HANDOFF.md` e `LOG.md` cosa blocca e chi lo sblocca,
    metti il punto `bloccato` e passa a un altro.
 
 Commit a nome di Sohayb Raqaq, senza trailer di coautore.
+
+## Più agenti in parallelo
+
+Si può lavorare su più punti insieme, uno per sessione, se non toccano gli stessi file.
+
+- In `PLAN.md` ognuno modifica solo la riga del proprio punto.
+- In `HANDOFF.md` ognuno tiene una sezione `## <punto>` sua: non riscrive il file
+  intero e non tocca le sezioni degli altri. Chi chiude l'ultimo punto aperto
+  ricompone il file.
+- In `LOG.md` ognuno aggiunge solo la propria voce in cima.
+- Prima della PR e prima del merge si mergia `origin/main` nel proprio branch e si
+  risolvono i conflitti tenendo il lavoro degli altri.
+
+## Stack reale: database e Prosimos, niente mock
+
+Il simulatore si verifica sulla stessa pipeline del prodotto: Postgres con le
+migrazioni di produzione e il runner Prosimos 2.1. Nelle sessioni cloud (senza
+Docker) e su Linux:
+
+```bash
+scripts/vpt_stack.sh start           # Postgres 16 + migrazioni, runner su 127.0.0.1:5000
+eval "$(scripts/vpt_stack.sh env)"   # URL dei database e del runner nella shell
+uv run pytest tests/simulation       # la suite intera, con il database vero
+scripts/vpt_stack.sh status          # cosa gira
+scripts/vpt_stack.sh stop
+```
+
+- La prima volta installa `postgresql-16-pgvector` e crea il venv del runner
+  (Python 3.12, Prosimos 2.1): circa un minuto. Dopo, l'avvio prende pochi secondi.
+- Lo stato vive in `/var/tmp/delir-vpt-stack` (`VPT_STACK_DIR` per cambiarlo); le
+  password sono quelle di test della CI e lo stack ascolta solo su `127.0.0.1`.
+- I test che usano Prosimos direttamente girano nel venv del runner:
+  `/var/tmp/delir-vpt-stack/runner-venv/bin/python -m pytest --noconftest tests/simulation/test_simulation_ir_engine.py`.
+- Una misura del simulatore (B2 e successivi) si fa su questo stack, non su un
+  motore finto.
 
 ## Skill e code review
 
