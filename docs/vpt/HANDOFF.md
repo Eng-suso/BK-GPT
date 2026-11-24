@@ -1,14 +1,13 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-24, dopo la chiusura in parallelo di B2 (harness di valutazione),
-CAL-01 (calendari FUZZY di SIMOD, PR #172) e UX-01 ("Reale contro simulato"
-leggibile, PR #173). Ricomposto da chi ha chiuso l'ultimo dei tre (B2).
+Aggiornato: 2026-11-24, dopo la chiusura in parallelo di SIM-36 (baseline "B = A", PR
+#178), B6 (throughput, PR #179) e G3 (spike SIMOD). Ricomposto da chi ha chiuso l'ultimo
+dei tre (G3).
 
 ## Punti attivi
 
-Nessuno. Prossimi secondo l'ordine di [`PLAN.md`](./PLAN.md): **SIM-36** (baseline
-pubblica su BPIC 2012/2013) e **G3** (spike SIMOD), in parallelo; poi **B3**. Tutti si
-misurano con l'harness di B2 (sezione sotto).
+Nessuno. SIM-36, G3 e B6 sono chiusi: prossimo secondo [`PLAN.md`](./PLAN.md) è **B3**
+(discovery dei parametri), che parte dalla decisione G3 (sezione sotto).
 
 ## B6 (fatto il 2026-11-24, `spike/sim-throughput`)
 
@@ -45,38 +44,37 @@ uv run python tests/simulation/benchmark/throughput.py --check   # 1, 2, 4 worke
 
 ## Ultima misura
 
-B2, seed 20261124, 10 repliche sullo stack reale: `baseline.json` identico bit per bit
-su due passate; 9/9 metriche dentro contro il paper sui 3 log reali; baseline dei 16
-sintetici in `tests/simulation/benchmark/b2/baseline.md`. CAL-01 e UX-01: misure nelle
-loro voci di [`LOG.md`](./LOG.md).
+G3, seed 20261124, 10 repliche sullo stack reale: SIMOD 5.2.1 a calendari fissi batte lo
+scenario del paper su 4/4 metriche su BPIC 2012 W e 2017 W; il "B = A" di SIM-36 resta
+migliore di ogni scenario SIMOD, salvo BPIC 2017 W con ritardi estranei su RED e W1.
+B6: what-if 10 × 1.000 casi in 11-26 s. SIM-36: baseline in `tests/simulation/benchmark/sim36/`.
 
-## G3 spike SIMOD (in corso dal 2026-11-24)
+## G3 spike SIMOD (fatto il 2026-11-24)
 
-- Branch `spike/sim-simod-discovery`, una sessione dedicata (SIM-36 e B6 in parallelo
-  in altre sessioni).
-- Stato: SIMOD 5.2.1 in `/var/tmp/delir-vpt-stack/simod-venv` (Python 3.12, Java 21,
-  install 4 s). Discovery in corso con `tests/simulation/benchmark/g3/discover.sh`
-  (config del benchmark di SIMOD, `diff` = CRISP come il paper, `fuzz` = FUZZY).
-  Valutazione: `uv run python tests/simulation/benchmark/g3/evaluate.py` (harness B2).
-- Prima misura, gemello ingenuo (train spostato di settimane intere) sul test:
-  RED 24,0 / 9,7 / 11,0 h e W1 26,2 / 28,0 / 30,9 h (AcademicCredentials, BPIC 2012 W,
-  BPIC 2017 W), molto sotto lo scenario SIMOD del paper (RED 77 / 179 / 184 h).
-- AcademicCredentials CRISP scoperto in 126 s. Nell'harness RED 6649 ± 2136 h, W1 295 h,
-  contro 77 e 175 h del paper: un gateway di ciclo dopo "Avanzar recepcion documentos" ha
-  uscita 0 e ritorno 1,0 (nel train l'attività compare in 2 casi su 398), quindi un caso
-  ripete fino al tetto di Prosimos (~1000 volte). SIMOD lo conferma nella sua valutazione
-  (RED ~6240 h): l'import di DeliR è fedele, ma non segnala il ciclo senza uscita.
-- Misura del 2026-11-24 ~17:00 (seed 20261124, 10 repliche), senza BPIC 2017 W:
-  BPIC 2012 W CRISP batte lo scenario del paper su RED, AED, W1 e CAR (178,0 / 172,6 /
-  175,3 / 41,5 h contro 178,5 / 221,4 / 175,7 / 85,8). AcademicCredentials con il ciclo
-  riaperto (`fix_dead_loops.py`, diagnosi) torna pari al paper su RED, peggio su AED e CAR.
-  Il gemello ingenuo batte tutti gli scenari SIMOD su RED, AED e W1.
-- Arrivi: tutti lognorm o gamma con media lontana dal massimo, nessun `expon`: la nota di
-  B2 su Procure_to_Pay non tocca questi confronti.
-- Scoperti: `diff` e `fuzz` dei 3 log, `extr` (ritardi estranei, eclipse-aware) di BPIC 2012 W.
-  `extr` su AcademicCredentials crolla dentro SIMOD (timestamp nel 2262 per il ciclo senza
-  uscita, traccia in `g3/failures/`).
-- In corso (background): BPIC 2017 W `extr`, poi `evaluate.py` su tutto (~15 min).
+Decisione e numeri nella voce G3 di [`LOG.md`](./LOG.md); tabelle complete in
+`tests/simulation/benchmark/g3/results.md`. In breve: **SIMOD sì come motore di discovery,
+a condizioni** (servizio in background, variante fissi + ritardi estranei, controllo dei
+cicli senza uscita, "validato" solo se batte "B = A").
+
+```bash
+scripts/vpt_stack.sh start && eval "$(scripts/vpt_stack.sh env)"
+tests/simulation/benchmark/g3/discover.sh all     # SIMOD 5.2.1, venv in /var/tmp/delir-vpt-stack/simod-venv, serve Java
+uv run python tests/simulation/benchmark/g3/evaluate.py          # ~20 min, 10 scenari × 10 repliche
+uv run python tests/simulation/benchmark/g3/evaluate.py --report-only   # solo results.md
+```
+
+Da sapere per B3 (e B5):
+
+- **Asticella:** il "B = A" di SIM-36 con A = train e B = test (`run_baseline.NaiveTwin`).
+  Vince su quasi tutto; SIMOD lo batte solo su BPIC 2017 W con i ritardi estranei (RED 8,1
+  contro 11,4, W1 17,9 contro 30,6). AED e CAR restano dell'ingenuo ovunque.
+- **Punto di partenza:** `g3/discovered/<log>_extr` (BPIC 2012 W e 2017 W); per
+  AcademicCredentials SIMOD lascia un ciclo senza uscita e `extr` crolla.
+- **Harness:** `Scenario(name, "real-life", source=cartella)` valuta uno scenario esterno
+  con lo stesso log di test; `within_intervals` è la regola "pari" condivisa con B2.
+- La discovery non è riproducibile (nessun seed in SIMOD): gli scenari usati sono nel repo.
+- **Proposto, non fatto:** un punto Prod perché l'import rifiuti (o segnali) un gateway che
+  torna indietro con probabilità 1 e uscita 0.
 
 ## CAL-01 (fatto il 2026-11-24, PR #172)
 
@@ -122,6 +120,10 @@ test `event type selection…` cliccava. Il test ora tocca l'arco visibile.
 - Confermare la meta marcata *proposta* di B3 in `PLAN.md` (gateway ±0,05, durate
   ±10%).
 - Arrivi `expon` di Procure_to_Pay: vedi "Richieste per Sohayb" nella sezione B2.
+- G3: aprire un punto Prod perché l'import rifiuti o segnali un gateway che torna indietro
+  con probabilità 1 e uscita 0 (SIMOD lo produce su AcademicCredentials e oggi passa).
+- G3: confermare le condizioni per SIMOD come motore di discovery (voce G3 di `LOG.md`),
+  prima che B3 ci costruisca sopra.
 
 ## B2 (fatto il 2026-11-24, PR #174)
 
