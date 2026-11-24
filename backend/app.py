@@ -24,26 +24,18 @@ from backend.api.routes.simulation_scenarios import router as simulation_scenari
 from backend.api.routes.eventlog import router as eventlog_router
 from backend.api.routes.shared import router as shared_router
 from backend.api.routes.workspace import router as workspace_router
+from backend.llm.egress import assert_egress_is_defensible
 from backend.security import (
     assert_allowed_tenant,
     normalize_tenant_id,
     reset_current_tenant_id,
     set_current_tenant_id,
 )
-from backend.settings import settings
+from backend.settings import OPEN_ENVIRONMENTS, current_environment, settings
 
 from fastapi.staticfiles import StaticFiles
 
 logger = logging.getLogger(__name__)
-
-
-#: Gli ambienti in cui partire senza autenticazione non e' una scelta, e' un
-#: incidente: la porta resta aperta e nessuno se ne accorge finche' non entra
-#: qualcuno. La lista dice dove partire scoperti e' lecito, non dove e' vietato:
-#: elencare gli ambienti da proteggere lascerebbe passare tutto il resto, e
-#: `DELIR_ENVIRONMENT=produzione` - la parola giusta, in italiano - sarebbe un
-#: deploy aperto per un refuso.
-OPEN_ENVIRONMENTS = {"dev", "local", "test"}
 
 
 def assert_environment_is_defensible() -> Literal["open", "guarded"]:
@@ -65,7 +57,7 @@ def assert_environment_is_defensible() -> Literal["open", "guarded"]:
         RuntimeError: Quando l'ambiente e' dichiarato vero e l'autenticazione e'
             spenta, o e' accesa e manca il token.
     """
-    environment = (settings.delir_environment or "dev").strip().lower()
+    environment = current_environment()
 
     if not settings.delir_auth_enabled and environment not in OPEN_ENVIRONMENTS:
         permessi = ", ".join(sorted(OPEN_ENVIRONMENTS))
@@ -121,6 +113,7 @@ def size_request_threadpool() -> int:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     assert_environment_is_defensible()
+    assert_egress_is_defensible()
     size_request_threadpool()
 
     from backend.local_store import ensure_schema

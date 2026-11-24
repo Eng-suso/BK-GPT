@@ -14,11 +14,13 @@ from backend.simulation.horizon import horizon_end, within_horizon
 from backend.simulation.log_processor import after_warmup, parse_prosimos_log
 from backend.simulation.storage import get_simulation_log_csv, get_simulation_run
 from backend.eventlog.service import (
+    ConformanceUnavailable,
     EventLogNotFound,
     EventLogTooLarge,
     TemplateNotFound,
     apply_mapping,
     clean_filename,
+    conformance,
     preview_event_log,
     upload_event_log,
 )
@@ -26,6 +28,7 @@ from backend.schemas.eventlog import (
     ApplyEventLogMappingRequest,
     Delimiter,
     EventLogAnalysisResponse,
+    EventLogConformanceResponse,
     EventLogPreviewResponse,
     EventLogResponse,
     EventLogTemplateResponse,
@@ -193,6 +196,21 @@ def get_event_log_analysis(event_log_id: str) -> EventLogAnalysisResponse:
     if storage.get_event_log(event_log_id) is None:
         raise HTTPException(status_code=404, detail=_LOG_NOT_FOUND)
     raise HTTPException(status_code=409, detail="Il log non è ancora stato mappato.")
+
+
+@router.get("/event-logs/{event_log_id}/conformance")
+def get_event_log_conformance(event_log_id: str) -> EventLogConformanceResponse:
+    """I casi reali riprodotti sul BPMN: quanti lo seguono e dove ne escono."""
+    try:
+        return conformance(event_log_id)
+    except EventLogNotFound as exc:
+        raise HTTPException(status_code=404, detail=_LOG_NOT_FOUND) from exc
+    except EventLogFileError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except MappingError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ConformanceUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.delete("/event-logs/{event_log_id}", status_code=204)

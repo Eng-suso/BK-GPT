@@ -97,6 +97,11 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:?serve OPENAI_API_KEY}
       LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      # I fornitori esterni registrati (docs/compliance/fornitori-e-invii-dati.md).
+      # Una destinazione attiva fuori lista blocca l'avvio: accendere LangSmith o
+      # Tavily, o spostare un compito su un altro LLM, vuol dire anche aggiungere
+      # qui il suo host, dopo averlo registrato.
+      DELIR_EGRESS_ALLOWED_HOSTS: ${DELIR_EGRESS_ALLOWED_HOSTS:-api.openai.com}
       # Davanti c'e' cloudflared sulla stessa rete docker: l'IP del client
       # vero arriva negli header inoltrati.
       FORWARDED_ALLOW_IPS: "*"
