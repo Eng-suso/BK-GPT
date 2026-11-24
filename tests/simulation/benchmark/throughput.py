@@ -13,6 +13,9 @@ richiesta all'ultimo risultato riletto dall'API (KPI e log degli eventi).
 
 Lo scenario e' ``Loan_Application`` dei sintetici del paper (17 attivita', 11
 gateway, sei ruoli con calendari): ``datasets/extraneous-delays/inputs/synthetic``.
+Si traduce a mano nei campi del pannello (``whatif_request``) e non passa da
+``prosimos-import``: le ripetizioni esistono solo sul percorso del pannello
+(``simulation-runs``), e niente riporta il modello importato a quella richiesta.
 
 Le fasi vengono dalla riga che il worker scrive per ogni run (``_PhaseTimer``):
 in coda, motore, analisi del log, salvataggio. Le impronte (SHA-256 dei KPI e
@@ -43,6 +46,12 @@ from pathlib import Path
 
 import httpx
 
+if __package__ in (None, ""):  # lanciato come script
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from backend.simulation.service import PHASES
+from tests.simulation.benchmark.eval_harness import DEFAULT_SEED, ProductPath
+
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 SCENARIO = ROOT / "datasets" / "extraneous-delays" / "inputs" / "synthetic" / "Loan_Application"
@@ -50,14 +59,15 @@ RUNNER_DIR = ROOT / "ops" / "prosimos" / "runner"
 STACK = Path(os.environ.get("VPT_STACK_DIR", "/var/tmp/delir-vpt-stack"))
 DEFAULT_OUT = HERE / "b6"
 
-SEED = 20261124
+SEED = DEFAULT_SEED  # lo stesso seed dell'harness B2
 REPLICAS = 10
 CASES = 1000
 START = "2026-01-05T08:00:00+00:00"
 # La meta di B6: il what-if intero sotto il minuto.
 TARGET_SECONDS = 60.0
 _TIMEOUT_SECONDS = 900.0
-_POLL_SECONDS = 0.2
+# Abbastanza fitto per misurare, non tanto da contendere l'API che sta eseguendo i run.
+_POLL_SECONDS = 0.5
 # Solo la riga di ``_PhaseTimer``: "simulazione 7: in coda 1.000 s, motore 2.000 s, ...".
 _PHASE_LINE = re.compile(r"simulazione (\d+): ((?:[a-z ]+ \d+\.\d{3} s, )*[a-z ]+ \d+\.\d{3} s)$")
 # Costo orario per ruolo: il JSON del paper li ha a zero, il what-if di un cliente no.
@@ -198,20 +208,6 @@ def product_stack(workers: int, work: Path):
             _stop(runner)
 
 
-def _ok(response: httpx.Response) -> httpx.Response:
-    if response.status_code != 200:
-        raise RuntimeError(f"{response.request.method} {response.request.url.path}: {response.status_code} {response.text[:500]}")
-    return response
-
-
-def _new_process(client: httpx.Client, label: str) -> str:
-    client_id = _ok(client.post("/v1/workspace/clients", json={"name": f"B6 {label}"})).json()["id"]
-    project_id = _ok(client.post("/v1/workspace/projects", json={"client_id": client_id, "name": f"B6 {label}"})).json()["id"]
-    return _ok(client.post(f"/v1/workspace/projects/{project_id}/processes", json={"name": f"B6 Loan application {label}"})).json()[
-        "bpmn_model_id"
-    ]
-
-
 def _digest(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -219,14 +215,15 @@ def _digest(value: str) -> str:
 def whatif(base_url: str, body: dict, label: str) -> dict:
     """Un what-if dalla richiesta all'ultimo risultato riletto; tempi e impronte."""
     with httpx.Client(base_url=base_url, timeout=120) as client:
-        bpmn_model_id = _new_process(client, label)
+        path = ProductPath(client)
+        bpmn_model_id = path.new_process(f"B6 {label}")
         url = f"/v1/workspace/bpmn-models/{bpmn_model_id}/simulation-runs"
         started = time.perf_counter()
-        _ok(client.post(url, json=body))
+        path._checked(client.post(url, json=body))
         accepted = time.perf_counter() - started
         deadline = time.monotonic() + _TIMEOUT_SECONDS
         while True:
-            runs = _ok(client.get(url)).json()
+            runs = path._ok(client.get(url))
             failed = [r for r in runs if r["status"] == "failed"]
             if failed:
                 raise RuntimeError(f"run {failed[0]['id']} fallito: {failed[0].get('error')}")
@@ -238,9 +235,9 @@ def whatif(base_url: str, body: dict, label: str) -> dict:
         completed = time.perf_counter() - started
         runs.sort(key=lambda r: r["request"]["replication_index"])
         # Prima i KPI, come li legge il pannello; poi i log, come li scarica il consulente.
-        kpis = [_ok(client.get(f"/v1/workspace/simulation-runs/{run['id']}")).json().get("summary") for run in runs]
+        kpis = [path._ok(client.get(f"/v1/workspace/simulation-runs/{run['id']}")).get("summary") for run in runs]
         kpi_read = time.perf_counter() - started
-        logs = [_ok(client.get(f"/v1/workspace/simulation-runs/{run['id']}/event-log", params={"format": "csv"})).text
+        logs = [path._checked(client.get(f"/v1/workspace/simulation-runs/{run['id']}/event-log", params={"format": "csv"})).text
                 for run in runs]
         total = time.perf_counter() - started
         fingerprints = {}
@@ -278,7 +275,7 @@ def phases(api_log: Path, run_ids: list[int]) -> dict[str, dict[str, float]]:
             seen.setdefault(name, []).append(seconds)
     if wanted - last.keys() or any(len(values) != len(wanted) for values in seen.values()):
         raise RuntimeError(f"fasi mancanti nel log dell'API ({api_log}) per i run {sorted(wanted - last.keys())}")
-    return {name: {"mean": statistics.fmean(v), "max": max(v), "sum": sum(v)} for name, v in seen.items()}
+    return {name: {"mean": statistics.fmean(v), "max": max(v)} for name, v in seen.items()}
 
 
 def measure(worker_counts: list[int], rounds: int) -> list[dict]:
@@ -298,9 +295,6 @@ def measure(worker_counts: list[int], rounds: int) -> list[dict]:
     return results
 
 
-_PHASES = ("in coda", "motore", "analisi", "salvataggio")
-
-
 def table(results: list[dict]) -> str:
     lines = [
         f"What-if: {REPLICAS} ripetizioni x {CASES} casi, scenario Loan_Application, seed {SEED}. "
@@ -308,11 +302,11 @@ def table(results: list[dict]) -> str:
         "Tempi dall'invio della richiesta; le fasi sono la media per run.",
         "",
         "| Worker | Giro | Totale (s) | Run/min | Accettato (s) | Tutti completati (s) | KPI letti (s) | "
-        + " | ".join(f"{p} (s)" for p in _PHASES) + " | Meta |",
-        "| --- | --- | --- | --- | --- | --- | --- |" + " --- |" * len(_PHASES) + " --- |",
+        + " | ".join(f"{p} (s)" for p in PHASES) + " | Meta |",
+        "| --- | --- | --- | --- | --- | --- | --- |" + " --- |" * len(PHASES) + " --- |",
     ]
     for r in results:
-        cells = " | ".join(f"{r['phases'][p]['mean']:.2f}" if p in r["phases"] else "-" for p in _PHASES)
+        cells = " | ".join(f"{r['phases'][p]['mean']:.2f}" if p in r["phases"] else "-" for p in PHASES)
         lines.append(
             f"| {r['workers']} | {r['round']} | {r['total_s']:.1f} | {r['runs_per_minute']:.1f} | {r['accepted_s']:.2f} "
             f"| {r['completed_s']:.1f} | {r['kpi_read_s']:.1f} | {cells} "
