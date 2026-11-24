@@ -75,6 +75,18 @@ def assert_environment_is_defensible() -> Literal["open", "guarded"]:
             "riceverebbe 503, che sembra un guasto e invece e' configurazione."
         )
 
+    if (
+        settings.delir_auth_enabled
+        and environment not in OPEN_ENVIRONMENTS
+        and not (settings.delir_admin_token or "").strip()
+    ):
+        logger.warning(
+            "DELIR_ADMIN_TOKEN non configurato (DELIR_ENVIRONMENT=%s): le operazioni "
+            "amministrative (cancellazioni di clienti, progetti, processi, workspace) "
+            "rispondono 403 finche' non lo si imposta.",
+            environment,
+        )
+
     if not settings.delir_auth_enabled:
         logger.warning(
             "Autenticazione spenta (DELIR_ENVIRONMENT=%s): CORS aperto a tutti e "
