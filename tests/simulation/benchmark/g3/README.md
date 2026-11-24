@@ -51,3 +51,11 @@ ritardi estranei (eclipse-aware). `fuzz` ed `extr` riusano il BPMN di `diff`, co
 - Serve **Java** (Split Miner e il layout del BPMN sono jar): OpenJDK 21.
 - Macchina: 4 vCPU, 15 GB. I wall-clock di `diff` sono stati misurati con 3 discovery in
   parallelo; il tempo di SIMOD per fase (`simod_runtimes.json`) è quello da confrontare.
+
+## Licenze
+
+Gli scenari in `discovered/` sono prodotti da SIMOD (Apache 2.0) sui log di
+`datasets/extraneous-delays/inputs/real-life` (CC BY 4.0, Chapela-Campa e Dumas, Zenodo
+[10.5281/zenodo.10435849](https://doi.org/10.5281/zenodo.10435849); vedi
+`datasets/extraneous-delays/ATTRIBUTION.md`). Le configurazioni vengono dal benchmark di
+SIMOD (`datasets/simod`, Apache 2.0).
