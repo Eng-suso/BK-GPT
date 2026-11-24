@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SCENARIO, scenarioToInput, type ScenarioDraft } from "./simulationScenario";
 import { exportScenarioJson, importScenarioJson } from "./scenarioJson";
 import { flowMappingKey } from "./prosimosJson";
-import { prosimosReferenceFields } from "./prosimosReferences";
+import { mergeGatewayIds, prosimosReferenceFields } from "./prosimosReferences";
 import { applyNumericJsonMapping, numericJsonFields } from "./scenarioJsonMapping";
 import type { ScenarioTemplate } from "./simulationTypes";
 import golden from "../../../../../tests/fixtures/simulation/builder_scenarios_golden.json";
@@ -135,6 +135,22 @@ describe("scenario JSON", () => {
     ]);
     expect(importScenarioJson(JSON.stringify(source), "model-1", template, imported)).toEqual(imported);
     expect(() => importScenarioJson(JSON.stringify({ ...source, event_distribution: [{ event_id: "unknown", distribution_name: "fix", distribution_params: [{ value: 1 }] }] }), "model-1", template, draft)).toThrow("non presente");
+  });
+
+  it("never asks to map a point where paths merge back: it has no choice to set (IMP-01)", () => {
+    const xml = `<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"><process id="P">
+      <exclusiveGateway id="G_merge" /><exclusiveGateway id="G_split" /><task id="A" /><task id="B" />
+      <sequenceFlow id="f1" sourceRef="A" targetRef="G_merge" /><sequenceFlow id="f2" sourceRef="G_merge" targetRef="G_split" />
+      <sequenceFlow id="f3" sourceRef="G_split" targetRef="A" /><sequenceFlow id="f4" sourceRef="G_split" targetRef="B" /></process></definitions>`;
+    const merges = mergeGatewayIds(xml);
+    expect([...merges]).toEqual(["G_merge"]);
+    const template: ScenarioTemplate = { resources: [], tasks: [], gateways: [], waits: [] } as unknown as ScenarioTemplate;
+    const source = { gateway_branching_probabilities: [
+      { gateway_id: "G_merge", probabilities: [{ path_id: "f2", value: "1" }] },
+      { gateway_id: "G_old", probabilities: [{ path_id: "f9", value: "1" }] },
+    ] };
+    expect(prosimosReferenceFields(source, template, {}, merges).map((field) => field.source)).toEqual(["G_old"]);
+    expect(mergeGatewayIds(null).size).toBe(0);
   });
 
   it("requires explicit mappings for stale timer, decision and branch IDs", () => {

@@ -13,8 +13,34 @@ function id(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+/**
+ * Le porte del BPMN con un solo ramo in uscita: punti in cui i percorsi si ricongiungono.
+ * Non hanno una scelta da impostare, quindi non sono fra le decisioni del template; il
+ * server le riconosce da solo ("merge_gateway"), il consulente non deve associarle.
+ */
+export function mergeGatewayIds(xml: string | null | undefined): ReadonlySet<string> {
+  if (!xml) return new Set();
+  const document = new DOMParser().parseFromString(xml, "application/xml");
+  const outgoing = new Map<string, number>();
+  for (const flow of Array.from(document.getElementsByTagNameNS("*", "sequenceFlow"))) {
+    const source = flow.getAttribute("sourceRef");
+    if (source) outgoing.set(source, (outgoing.get(source) ?? 0) + 1);
+  }
+  const merges = new Set<string>();
+  for (const element of Array.from(document.getElementsByTagNameNS("*", "*"))) {
+    const elementId = element.getAttribute("id");
+    if (elementId && element.localName.endsWith("Gateway") && (outgoing.get(elementId) ?? 0) <= 1) merges.add(elementId);
+  }
+  return merges;
+}
+
 /** Only missing BPMN references need explicit re-binding; exact IDs stay untouched. */
-export function prosimosReferenceFields(source: Source, template: ScenarioTemplate, mapping: ProsimosIdMapping): ProsimosReferenceField[] {
+export function prosimosReferenceFields(
+  source: Source,
+  template: ScenarioTemplate,
+  mapping: ProsimosIdMapping,
+  merges: ReadonlySet<string> = new Set(),
+): ProsimosReferenceField[] {
   const fields: ProsimosReferenceField[] = [];
   const tasks = new Set(template.tasks.map((item) => item.element_id));
   const gateways = new Map(template.gateways.map((item) => [item.element_id, item]));
@@ -28,7 +54,7 @@ export function prosimosReferenceFields(source: Source, template: ScenarioTempla
   }
   for (const row of records(source.gateway_branching_probabilities)) {
     const sourceId = id(row.gateway_id);
-    if (!sourceId) continue;
+    if (!sourceId || merges.has(sourceId)) continue;
     if (!gateways.has(sourceId)) fields.push({ kind: "gateways", source: sourceId, key: sourceId, options: gatewayOptions });
     const target = gateways.get(mapping.gateways?.[sourceId] || sourceId);
     if (!target) continue;
