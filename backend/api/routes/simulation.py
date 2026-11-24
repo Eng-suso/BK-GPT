@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
@@ -15,6 +16,9 @@ from backend.schemas.simulation import (
     SimulationRunResponse,
 )
 from backend.schemas.simulation_model import (
+    ProsimosImportNote,
+    ProsimosImportRequest,
+    ProsimosImportResponse,
     CreateSimulationModelRunRequest,
     SimulationModelRequest,
     SimulationModelResponse,
@@ -23,6 +27,7 @@ from backend.schemas.simulation_model import (
 from backend.schemas.workspace import BpmnModelResponse
 from backend.security import require_principal
 from backend.simulation.advisor import ExperimentReport, suggest_experiments
+from backend.simulation.ir.from_prosimos import ProsimosImportError, import_prosimos
 from backend.simulation.service import (
     claim_proposals_for_model,
     SimulationCapacityError,
@@ -43,7 +48,10 @@ from backend.simulation.storage import (
     list_simulation_runs,
 )
 from backend.workspace_database import get_bpmn_model
-from backend.schemas.simulation import BpmnCompatibilityRequest, BpmnCompatibilityResponse
+from backend.schemas.simulation import (
+    BpmnCompatibilityRequest,
+    BpmnCompatibilityResponse,
+)
 from backend.simulation.compatibility import compatibility_report_for_model
 from backend.simulation.narrative import (
     NarrativeRejected,
@@ -139,7 +147,9 @@ async def create_workspace_simulation_sensitivity(
         raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
 
     try:
-        planned = prepare_sensitivity_runs(bpmn_model=BpmnModelResponse(**model), request=request)
+        planned = prepare_sensitivity_runs(
+            bpmn_model=BpmnModelResponse(**model), request=request
+        )
     except SimulationCapacityError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ValueError as exc:
@@ -221,6 +231,39 @@ def get_workspace_simulation_model(
     return SimulationModelResponse(bpmn_model_id=bpmn_model_id, model=baseline)
 
 
+@router.post("/bpmn-models/{bpmn_model_id}/prosimos-import")
+def import_workspace_prosimos_scenario(
+    bpmn_model_id: str,
+    request: ProsimosImportRequest,
+) -> ProsimosImportResponse:
+    """B1b: lo scenario Prosimos o SIMOD nell'IR, con le note per il consulente.
+
+    Non salva nulla: il modello torna alla UI, che lo mostra e lo fa simulare con
+    ``simulation-model-runs``. Uno scenario che non si importa senza perdere
+    qualcosa e' un 400 con il motivo.
+    """
+    model = get_bpmn_model(bpmn_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
+    bpmn_xml = (
+        request.current_bpmn_xml or BpmnModelResponse(**model).xml or ""
+    ).strip()
+    if not bpmn_xml:
+        raise HTTPException(
+            status_code=400, detail="Il processo non ha ancora un BPMN da simulare."
+        )
+    try:
+        result = import_prosimos(request.scenario, bpmn_xml)
+    except ProsimosImportError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return ProsimosImportResponse(
+        bpmn_model_id=bpmn_model_id,
+        model=result.model,
+        notes=[ProsimosImportNote(**asdict(note)) for note in result.notes],
+        simod=result.simod,
+    )
+
+
 @router.post("/bpmn-models/{bpmn_model_id}/simulation-template")
 def get_workspace_scenario_template(
     bpmn_model_id: str,
@@ -279,7 +322,9 @@ def get_workspace_simulation_experiments(run_id: int) -> ExperimentReport:
     run = get_simulation_run(run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Simulazione non trovata.")
-    return suggest_experiments(run.get("summary"), run.get("scenario"), run.get("request"))
+    return suggest_experiments(
+        run.get("summary"), run.get("scenario"), run.get("request")
+    )
 
 
 @router.get("/simulation-runs/{run_id}/model")
@@ -325,12 +370,16 @@ def export_workspace_simulation_event_log(
     if export.scenario:
         headers["X-Simulation-Scenario-Id"] = str(export.scenario["id"])
         headers["X-Simulation-Scenario-Revision"] = str(export.scenario["revision"])
-        headers["X-Simulation-Baseline-Revision"] = str(export.scenario["baseline_revision"])
+        headers["X-Simulation-Baseline-Revision"] = str(
+            export.scenario["baseline_revision"]
+        )
     if export.seed is not None:
         headers["X-Simulation-Seed"] = str(export.seed)
     if export.engine_version:
         headers["X-Simulation-Engine-Version"] = str(export.engine_version)
-    return Response(content=export.file.content, media_type=export.file.media_type, headers=headers)
+    return Response(
+        content=export.file.content, media_type=export.file.media_type, headers=headers
+    )
 
 
 @router.post("/bpmn-models/{bpmn_model_id}/simulation-compatibility")

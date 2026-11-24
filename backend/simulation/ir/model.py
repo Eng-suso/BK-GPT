@@ -78,8 +78,11 @@ class _Bounded(_Strict):
 
 
 class Fixed(_Strict):
+    """Una durata costante. Zero e' un'attivita' istantanea: SIMOD la scopre nei log
+    reali (passaggi automatici) e Prosimos la esegue, quindi non si riscrive."""
+
     kind: Literal["fixed"] = "fixed"
-    value: float = Field(gt=0)
+    value: float = Field(ge=0)
 
 
 class Exponential(_Bounded):
@@ -134,7 +137,8 @@ Distribution = Annotated[
 # --------------------------------------------------------------------------- #
 
 Weekday = Literal["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]
-_TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{1,3})?$")
+# Fino ai microsecondi: SIMOD scrive la fine giornata come 23:59:59.999000.
+_TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{1,6})?$")
 
 
 class CalendarPeriod(_Strict):
@@ -516,6 +520,9 @@ class Arrival(_Strict):
 
     @model_validator(mode="after")
     def _bands_apart(self):
+        if isinstance(self.interarrival, Fixed) and self.interarrival.value == 0:
+            # Un'attivita' puo' essere istantanea; gli arrivi no: infiniti casi nello stesso istante.
+            raise ValueError("gli arrivi non possono essere a intervallo zero")
         if self.band_attribute and not self.bands:
             raise ValueError("la fascia di arrivo come attributo richiede delle fasce degli arrivi")
         _check_apart(self.bands, "due fasce degli arrivi si sovrappongono")
