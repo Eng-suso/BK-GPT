@@ -12,47 +12,71 @@ B reale, mai contro A. La prima previsione è il **gemello ingenuo**, "B sarà c
 | `bpic2012` | BPI Challenge 2012, richieste di prestito (DOI `10.4121/uuid:3926db30-f712-4394-aebc-75976070e91f`) | 4TU General Terms of Use |
 | `bpic2013_incidents` | BPI Challenge 2013, incidenti Volvo IT (DOI `10.4121/uuid:500573e6-accc-4b0c-9576-aa5468b10cee`) | 4TU General Terms of Use |
 
-Il BPIC 2020 è CC BY-NC: escluso. I file si scaricano una volta in
-`~/.cache/delir-benchmark` (o `DELIR_BENCHMARK_CACHE`) e si accettano solo con l'MD5
-che 4TU dichiara nei metadati del file. Nessun mirror.
+Il BPIC 2020 è CC BY-NC: escluso. I log si scaricano con `scripts/fetch_datasets.py`
+nella sua cache (`~/.cache/delir-datasets`, o `DELIR_DATASETS_CACHE`) e si accettano
+solo con l'MD5 di `datasets/manifest.json`. Non entrano nel repo: la licenza 4TU non
+ne permette la ripubblicazione. Nel repo stanno solo le metriche.
+
+Lettura: BPIC 2012 ha una riga per transizione (start/complete); BPIC 2013 ha cambi di
+stato istantanei, e il sottostato (`In Progress`, `Closed`…) fa parte dell'attività
+(`Accepted · In Progress`). Un evento senza inizio è istantaneo.
 
 ## Metriche
 
-| Metrica | Cosa misura | Tipo |
-|---|---|---|
-| `cycle_time_distribution` | Wasserstein-1 fra le distribuzioni del cycle time, diviso per la media reale | Fedeltà |
-| `waiting_time_distribution` | Lo stesso sull'attesa di ogni esecuzione | Fedeltà |
-| `throughput_error` | Errore relativo sui casi completati al giorno | Fedeltà |
-| `path_frequency_distance` | Variazione totale fra le frequenze delle varianti (0–1) | Fedeltà |
-| `resource_workload_error` | Variazione totale fra le quote di lavoro per risorsa (0–1) | Fedeltà |
-| `sla_prediction_error_pp` | Scarto, in punti percentuali, della quota di casi entro l'obiettivo (80° percentile del cycle di A) | Previsione |
-| `calibration_seconds` | Dal log importato al twin pronto | Efficienza |
-| `simulation_seconds` | Durata dei run del motore | Efficienza |
-| `human_configuration_minutes` | Minuti di lavoro del consulente: si cronometra, resta `null` finché nessuno lo fa | Semplicità |
+Le stesse dell'harness di B2 (`tests/simulation/benchmark/log_distance.py`, port di
+`log-distance-measures` 2.2), così questa baseline si confronta con quella di B2, con il
+paper e con ogni twin futuro. Tempi in ore.
 
-Senza calendari di disponibilità l'utilizzo vero delle risorse non si misura: il
-benchmark confronta come si divide il lavoro, non quanto è carica ogni persona.
+| Metrica | Cosa misura |
+|---|---|
+| W1 cycle time | Wasserstein-1 fra le durate dei casi |
+| NGD | Distanza fra le frequenze dei 3-grammi di attività, da 0 a 1 |
+| RED | Inizi e fini rispetto all'inizio del proprio caso |
+| AED | Inizi e fini nel tempo assoluto |
+| CED | Ora del giorno di inizi e fini, giorno della settimana per giorno |
+| CAR | Arrivo dei casi nel tempo assoluto |
+
+## Il gemello ingenuo
+
+Il log si divide a metà dei casi per inizio: A sono i primi, B gli altri. "B = A" è A
+spostato in avanti a settimane intere, fino all'inizio di B: ripete gli arrivi, i
+percorsi, le durate e il calendario di A. Ogni replica estrae con reinserimento tanti
+casi di A quanti ne ha B, con seed `20261124 + replica`; 10 repliche e intervallo t al
+95%, come B2.
 
 ## Come si lancia
 
 ```
-uv run python tests/simulation/benchmark/run_baseline.py            # tutti i log
-uv run python tests/simulation/benchmark/run_baseline.py bpic2012   # uno solo
+uv run python scripts/fetch_datasets.py fetch bpic2012 bpic2013-incidents
+uv run python tests/simulation/benchmark/run_baseline.py bpic2012
+uv run python tests/simulation/benchmark/run_baseline.py bpic2013_incidents
 ```
 
-Il runner scrive `tests/simulation/benchmark/baseline.json`. Un log che 4TU non dà
-(manutenzione `503 StorageMaintenance`, rete chiusa) finisce nel file con il motivo e
-l'uscita è 1: la baseline non si inventa.
+Ogni comando scrive `tests/simulation/benchmark/sim36/<log>.json` (identico bit per bit
+con lo stesso seed) e ricompone `sim36/baseline.md` da tutti i log della cartella. Un
+log che 4TU non dà (manutenzione `503 StorageMaintenance`, rete chiusa) finisce nel
+file con il motivo e l'uscita è 1: la baseline non si inventa. I test
+(`test_run_baseline.py`, `test_benchmark_datasets.py`) non usano la rete.
 
-Il codice vive in `tests/simulation/benchmark/`: `benchmark_metrics.py` (metriche su
-due `EventLog` canonici), `benchmark_datasets.py` (download verificato e lettura XES),
-`run_baseline.py` (runner). I test non usano la rete.
+## Baseline (2026-11-24, seed 20261124, 10 repliche)
 
-## Stato
+| Log | Casi A / B | W1 cycle time | NGD | RED | AED | CED | CAR |
+|---|---|---|---|---|---|---|---|
+| BPIC 2012 | 6.543 / 6.544 | 16,931 ± 1,518 | 0,055 ± 0,002 | 16,554 ± 1,567 | 60,634 ± 3,280 | 0,346 ± 0,018 | 49,004 ± 2,659 |
+| BPIC 2013 incidents | 3.776 / 3.778 | 383,995 ± 7,811 | 0,329 ± 0,004 | 176,788 ± 3,981 | 17.945,221 ± 17,250 | 1,759 ± 0,081 | 17.955,365 ± 7,275 |
 
-- Metriche, download verificato e runner: pronti, testati su log costruiti a mano.
-- Baseline misurata: **non ancora**. Nella sessione cloud del 17 ottobre `data.4tu.nl`
-  era fuori dalla policy di rete (proxy 403). Da verificare al primo accesso: la forma
-  dell'API dei file di 4TU (`/v2/articles/<uuid>/files`, campi `name`, `download_url`,
-  `computed_md5`/`supplied_md5`) e i nomi dei file.
-- Dopo la baseline: SIM-19, calibrare un twin vero su A e misurarlo su B con queste metriche.
+Come si legge:
+
+- **BPIC 2012**: A (ottobre-metà dicembre 2011) e B (metà dicembre 2011-febbraio 2012)
+  hanno lo stesso processo (NGD 0,055); "B = A" sbaglia la durata dei casi di circa
+  17 ore e gli arrivi di circa due giorni (CAR 49 ore).
+- **BPIC 2013 incidents**: B copre solo 4 giorni (2-6 maggio 2012), mentre l'1% dei casi
+  di A parte fra marzo 2010 e ottobre 2011, una coda dell'estrazione del log. "B = A"
+  ripete anche quella coda, quindi AED e CAR valgono circa due anni. Il numero è vero
+  per il gemello ingenuo, e un twin che stima il ritmo degli arrivi dal periodo recente
+  lo batte facilmente. Per giudicare un twin su questo log contano W1, NGD, RED e CED.
+
+## Dopo la baseline
+
+SIM-19 e B3: calibrare un twin vero su A e misurarlo su B con questo comando e queste
+metriche; il twin deve battere "B = A" con intervalli che non si sovrappongono.
