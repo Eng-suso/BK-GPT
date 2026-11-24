@@ -253,6 +253,8 @@
           "missing_branch_other": "{{count}} decisioni con percorsi senza probabilità: nessun caso li prende.",
           "rounded_probabilities_one": "1 gruppo di probabilità arrotondato e riportato a 100%.",
           "rounded_probabilities_other": "{{count}} gruppi di probabilità arrotondati e riportati a 100%.",
+          "probabilistic_calendars_one": "Le persone non sono sempre libere nei loro orari: la simulazione usa, fascia per fascia, la probabilità di trovarle disponibili ricavata dai dati.",
+          "probabilistic_calendars_other": "Le persone non sono sempre libere nei loro orari: la simulazione usa, fascia per fascia, la probabilità di trovarle disponibili ricavata dai dati.",
           "other_one": "1 altra nota.",
           "other_other": "{{count}} altre note."
         }

@@ -167,8 +167,8 @@ def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
             ImportNote(
                 "info",
                 "probabilistic_calendars",
-                f"Disponibilità delle risorse probabilistica: {len(calendars)} "
-                f"{'calendario' if len(calendars) == 1 else 'calendari'} scoperti da SIMOD, "
+                f"Probabilità di trovare libere le risorse stimata dai dati per "
+                f"{len(calendars)} {'calendario' if len(calendars) == 1 else 'calendari'}, "
                 f"a fasce di {granule:g} minuti.",
             )
         )
