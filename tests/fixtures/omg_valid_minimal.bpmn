@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  id="Definitions_Valid" targetNamespace="urn:delir:test:valid">
+  <bpmn:process id="Process_Valid" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Request received" />
+    <bpmn:task id="Review" name="Review request" />
+    <bpmn:endEvent id="End" name="Request reviewed" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Review" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Review" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

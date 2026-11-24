@@ -10,6 +10,7 @@ all'approvazione successiva.
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 
 import pytest
 
@@ -182,6 +183,52 @@ def test_approval_marks_the_version_it_generated_from(review_model):
 
     # Approvare non duplica la versione: cambia il suo stato.
     assert [item["version"] for item in wd.list_bpmn_review_versions(review_model)] == [1]
+
+
+def test_approval_rejects_nonconformant_xml_without_approving_or_saving(review_model, monkeypatch):
+    wd.prepare_bpmn_review(
+        bpmn_model_id=review_model,
+        process_description="Sales riceve l'ordine, Finance verifica il credito.",
+        process_understanding=_understanding(),
+    )
+    from backend.workspace_database import reviews
+
+    invalid = (
+        '<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">'
+        '<process id="P"><startEvent id="S"/><endEvent id="E"/>'
+        '<sequenceFlow id="F" sourceRef="S" targetRef="E"/></process></definitions>'
+    )
+    monkeypatch.setattr(reviews, "optimize_bpmn_layout", lambda *_args, **_kwargs: (invalid, {}))
+
+    with pytest.raises(ValueError, match="targetNamespace"):
+        wd.approve_bpmn_review(review_model, override=True)
+
+    assert wd.get_bpmn_model(review_model)["xml"] is None
+    assert wd.list_bpmn_versions(review_model) == []
+    assert wd.get_bpmn_review(review_model)["status"] != "approved"
+
+
+def test_approval_rejects_orphaned_canvas_xml_without_approving_or_saving(review_model, monkeypatch):
+    wd.prepare_bpmn_review(
+        bpmn_model_id=review_model,
+        process_description="Sales riceve l'ordine, Finance verifica il credito.",
+        process_understanding=_understanding(),
+    )
+    from backend.workspace_database import reviews
+
+    valid_xml = (Path(__file__).resolve().parents[1] / "fixtures/omg_valid_minimal.bpmn").read_text(
+        encoding="utf-8",
+    )
+    orphan = valid_xml.replace('<bpmn:endEvent id="End"',
+                               '<bpmn:task id="Orphan" name="Unconnected" />\n    '
+                               '<bpmn:endEvent id="End"')
+    monkeypatch.setattr(reviews, "optimize_bpmn_layout", lambda *_args, **_kwargs: (orphan, {}))
+
+    with pytest.raises(ValueError, match="BPMN L3.*Orphan"):
+        wd.approve_bpmn_review(review_model, override=True)
+    assert wd.get_bpmn_model(review_model)["xml"] is None
+    assert wd.list_bpmn_versions(review_model) == []
+    assert wd.get_bpmn_review(review_model)["status"] != "approved"
 
 
 def test_revising_an_approved_review_reopens_it(review_model):
