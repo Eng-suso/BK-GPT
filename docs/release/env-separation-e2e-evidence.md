@@ -75,3 +75,18 @@ L'elenco dei container è identico prima e dopo la prova. I volumi
 3. Le funzioni AI su STAGING e PROD-SIM non sono state provate:
    `OPENAI_API_KEY` è il placeholder. Serve una chiave dedicata per ambiente,
    con tetto di spesa.
+
+## Aggiornamento 2026-11-24 — fail closed all'avvio
+
+Branch `feat/auth-fail-closed`. Prima di questo branch, fuori da dev l'app
+partiva anche senza `DELIR_ADMIN_TOKEN`, con un token API debole, senza
+allowlist dei tenant o con CORS `*`: c'era solo un warning. Ora non parte.
+
+| Verifica | Esito |
+| --- | --- |
+| `local_release.py init` sui file esistenti | aggiunta solo `DELIR_ADMIN_TOKEN` a entrambi; validazione pulita |
+| Build di STAGING dal branch, `up --wait` | tutti i servizi `healthy` |
+| Sonde su STAGING | API/DB 18/18, browser 10/10 |
+| `DELETE` admin: senza chiave / con il token API come chiave / con la chiave giusta | 403 / 403 / 200 |
+| Container app con `DELIR_ADMIN_TOKEN` vuoto | non parte: `Configurazione d'accesso non difendibile`, exit 3, nessun valore nei log |
+| Promozione su PROD-SIM (`docker tag` + `up --no-build`) | stessa immagine app `sha256:54745d2ad07f…` in entrambi; sonde 18/18 e 10/10 |
