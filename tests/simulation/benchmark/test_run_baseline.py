@@ -4,15 +4,17 @@ import gzip
 import json
 import random
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from tests.simulation.benchmark import run_baseline
 from tests.simulation.benchmark.benchmark_datasets import DatasetUnavailable
-from tests.simulation.benchmark.log_distance import METRICS, Event, distances
+from tests.simulation.benchmark.log_distance import METRICS, Event, cases, distances
 from tests.simulation.benchmark.run_baseline import naive_replica, run, split_in_half
 
 MONDAY_9 = datetime(2026, 1, 5, 9, tzinfo=UTC)
+AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 
 
 def _case(case_id: str, start: datetime, hours: float) -> list[Event]:
@@ -37,10 +39,10 @@ def test_one_case_cannot_be_split():
 
 def test_the_naive_twin_keeps_the_calendar_of_a():
     period_a = _case("a", MONDAY_9, 2)
-    # B parte 10 giorni e 5 ore dopo: A si sposta di settimane intere, non di 10 giorni e 5 ore.
-    period_b = _case("b1", MONDAY_9 + timedelta(days=10, hours=5), 2) + _case("b2", MONDAY_9 + timedelta(days=11), 2)
+    # La mediana di B e' 10 giorni e 5 ore dopo A: A si sposta di una settimana intera.
+    period_b = _case("b1", MONDAY_9 + timedelta(days=9), 2) + _case("b2", MONDAY_9 + timedelta(days=10, hours=5), 2)
 
-    replica = naive_replica(period_a, period_b, random.Random(1))
+    replica = naive_replica(period_a, period_b, random.Random(1), UTC)
 
     assert {e.case_id for e in replica} == {"a#0", "a#1"}
     first = min(e.start for e in replica)
@@ -48,13 +50,38 @@ def test_the_naive_twin_keeps_the_calendar_of_a():
     assert (first.weekday(), first.hour) == (MONDAY_9.weekday(), MONDAY_9.hour)
 
 
+def test_an_old_isolated_case_does_not_move_the_twin():
+    # Un caso di A due anni prima degli altri: lo spostamento segue la mediana, non lui.
+    period_a = _case("old", MONDAY_9 - timedelta(weeks=104), 1) + _case("a1", MONDAY_9, 1) + _case("a2", MONDAY_9 + timedelta(days=1), 1)
+    period_b = [e for i in range(3) for e in _case(f"b{i}", MONDAY_9 + timedelta(weeks=4, days=i), 1)]
+
+    replica = naive_replica(period_a, period_b, random.Random(3), UTC)
+
+    # Mediana di A: a1 (MONDAY_9); di B: 4 settimane e un giorno dopo. Il caso vecchio non conta.
+    original = {case: min(e.start for e in group) for case, group in cases(period_a).items()}
+    shifts = {start - original[case.split("#")[0]] for case, start in ((e.case_id, e.start) for e in replica if e.activity == "Ricevi")}
+    assert shifts == {timedelta(weeks=4)}
+
+
+def test_the_local_hour_survives_daylight_saving():
+    # A in ottobre (ora legale), B a dicembre: le 9 di Amsterdam restano le 9, non le 8.
+    nine_in_october = datetime(2011, 10, 3, 9, tzinfo=AMSTERDAM)
+    period_a = _case("a", nine_in_october, 1)
+    period_b = _case("b", datetime(2011, 12, 12, 9, tzinfo=AMSTERDAM), 1)
+
+    replica = naive_replica(period_a, period_b, random.Random(1), AMSTERDAM)
+
+    start = min(e.start for e in replica).astimezone(AMSTERDAM)
+    assert (start.date().isoformat(), start.hour) == ("2011-12-12", 9)
+
+
 def test_b_equal_to_a_scores_zero_and_slower_b_scores_what_b2_measures():
     period_a = _case("a", MONDAY_9, 2)
     same = _case("b", MONDAY_9 + timedelta(weeks=3), 2)
     slower = _case("b", MONDAY_9 + timedelta(weeks=3), 4)
 
-    assert distances(same, naive_replica(period_a, same, random.Random(1))) == dict.fromkeys(METRICS, 0.0)
-    measured = distances(slower, naive_replica(period_a, slower, random.Random(1)))
+    assert distances(same, naive_replica(period_a, same, random.Random(1), UTC)) == dict.fromkeys(METRICS, 0.0)
+    measured = distances(slower, naive_replica(period_a, slower, random.Random(1), UTC))
     # Le stesse distanze di B2, in ore: il caso di B dura 2 ore di piu'.
     assert measured["cycle_time_w1"] == pytest.approx(2.0)
     assert measured["ngram"] == 0.0
@@ -93,6 +120,7 @@ def test_each_log_is_saved_with_b2_metrics_and_intervals(tmp_path, logs):
     report = json.loads((out / "bpic2012.json").read_text())
     assert report["status"] == "measured"
     assert report["distances"].startswith("come B2")
+    assert report["rows_excluded"] == {}
     assert report["cases"] == {"A": 6, "B": 6}
     assert report["seeds"] == [run_baseline.DEFAULT_SEED + r for r in range(3)]
     assert set(report["metrics"]) == set(METRICS)
@@ -125,6 +153,30 @@ def test_a_missing_log_says_why_and_keeps_the_other(tmp_path, logs):
     assert "bpic2013_incidents: non misurato" in table and "503" in table
 
 
-def test_replicas_without_an_interval_are_refused():
+def test_4tu_down_does_not_erase_a_saved_measure(tmp_path, logs):
+    out = tmp_path / "sim36"
+    run(["bpic2012"], out, replicas=3)
+    saved = (out / "bpic2012.json").read_bytes()
+    logs.add("bpic2012")
+
+    assert run(["bpic2012"], out, replicas=3) == 1
+
+    assert (out / "bpic2012.json").read_bytes() == saved
+    assert "| bpic2012 |" in (out / "baseline.md").read_text()
+
+
+def test_other_json_files_in_the_folder_are_ignored(tmp_path, logs):
+    out = tmp_path / "b2"
+    out.mkdir()
+    (out / "baseline.json").write_text('{"harness": "B2"}')
+
+    assert run(["bpic2012"], out, replicas=3) == 0
+    assert "| bpic2012 |" in (out / "baseline.md").read_text()
+
+
+def test_replicas_without_an_interval_are_refused(tmp_path, logs):
+    with pytest.raises(ValueError, match="repliche"):
+        run(["bpic2012"], tmp_path / "sim36", replicas=1)
+    assert not (tmp_path / "sim36").exists()
     with pytest.raises(SystemExit):
         run_baseline.main(["--replicas", "1"])
