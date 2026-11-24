@@ -35,7 +35,6 @@ import xml.etree.ElementTree as ET
 
 from defusedxml.ElementTree import fromstring as safe_fromstring
 
-from backend.simulation.timers import timer_split_id
 from backend.simulation.ir.model import (
     Activity,
     Assignment,
@@ -49,6 +48,7 @@ from backend.simulation.ir.model import (
     SimulationModel,
     Uniform,
 )
+from backend.simulation.timers import timer_split_id
 
 _BPMN = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 

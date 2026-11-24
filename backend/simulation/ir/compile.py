@@ -27,8 +27,8 @@ from backend.simulation.ir.model import (
     Resource,
     SimulationModel,
     Uniform,
+    is_end_of_day,
 )
-
 
 # Un'attesa non impostata: il caso prosegue subito, come prima di SIM-11d.
 _NO_WAIT = {"distribution_name": "fix", "distribution_params": [{"value": 0}]}
@@ -244,20 +244,22 @@ def _calendar(calendar: Calendar, *, fuzzy: bool = False) -> dict:
     payload = {
         "id": calendar.id,
         "name": calendar.name,
-        "time_periods": [_period(period) for period in calendar.periods],
+        "time_periods": [_period(period, fuzzy=fuzzy) for period in calendar.periods],
     }
     if fuzzy:
         # Prosimos legge entrambe le sezioni di un calendario FUZZY.
-        payload["workload_ratio"] = [_period(period) for period in calendar.workload]
+        payload["workload_ratio"] = [_period(period, fuzzy=True) for period in calendar.workload]
     return payload
 
 
-def _period(period: CalendarPeriod) -> dict:
+def _period(period: CalendarPeriod, *, fuzzy: bool = False) -> dict:
     payload: dict = {
         "from": period.from_day,
         "to": period.to_day,
         "beginTime": period.begin,
-        "endTime": period.end,
+        # Il motore fuzzy legge 23:59:59 come la fascia prima e perderebbe l'ultima:
+        # la fine giornata si scrive "00:00:00", come la scrive SIMOD.
+        "endTime": "00:00:00" if fuzzy and is_end_of_day(period.end) else period.end,
     }
     if period.probability is not None:
         payload["probability"] = float(period.probability)

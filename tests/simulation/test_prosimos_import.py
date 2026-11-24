@@ -322,6 +322,8 @@ def _fuzzy(name: str, granule: int = 60) -> tuple[dict, str]:
     for k, calendar in enumerate(source["resource_calendars"]):
         for j, period in enumerate(calendar["time_periods"]):
             period["probability"] = round(0.5 + 0.1 * ((k + j) % 5), 6)
+            if period["endTime"].startswith("23:59:59"):
+                period["endTime"] = "00:00:00"  # la mezzanotte, come la scrive SIMOD
         calendar["workload_ratio"] = [
             {**period, "probability": round(0.9 - 0.1 * ((k + j) % 3), 6)}
             for j, period in enumerate(calendar["time_periods"])

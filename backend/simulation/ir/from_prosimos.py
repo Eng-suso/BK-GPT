@@ -19,6 +19,7 @@ from defusedxml import ElementTree
 from pydantic import ValidationError
 
 from backend.simulation.ir.model import (
+    END_OF_DAY,
     Activity,
     Arrival,
     Assignment,
@@ -487,7 +488,7 @@ def _calendar(entry: Any, index: int, *, fuzzy: bool = False) -> Calendar:
 
 
 def _probability(entry: dict, path: str) -> float:
-    # Prosimos non ha un valore di default: una fascia senza probabilita' ferma il motore.
+    # Prosimos leggerebbe 0, cioe' "mai disponibile": meglio dirlo che indovinare.
     if entry.get("probability") is None:
         raise ProsimosImportError(
             f"{path}: fascia senza probabilità di disponibilità."
@@ -511,11 +512,19 @@ def _period(entry: Any, path: str, *, probabilistic: bool = False) -> CalendarPe
             from_day=entry.get("from"),
             to_day=entry.get("to"),
             begin=entry.get("beginTime"),
-            end=entry.get("endTime"),
+            end=_fuzzy_end(entry.get("endTime")) if probabilistic else entry.get("endTime"),
             probability=_probability(entry, path) if probabilistic else None,
         )
     except ValidationError as exc:
         raise ProsimosImportError(f"{path}: {_explain(exc)}") from exc
+
+
+def _fuzzy_end(value: Any) -> Any:
+    # SIMOD scrive la fascia che arriva a mezzanotte con endTime "00:00:00"
+    # (pix_framework, ``_interval_index_to_time``): nell'IR e' la fine giornata.
+    if isinstance(value, str) and value[:8] == "00:00:00":
+        return END_OF_DAY
+    return value
 
 
 _GRANULE_UNITS = {"SECONDS": 1 / 60, "MINUTES": 1.0, "HOURS": 60.0}
