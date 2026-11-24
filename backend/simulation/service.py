@@ -8,8 +8,10 @@ import logging
 import os
 import secrets
 import socket
+import time
 import uuid
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from typing import Literal
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -589,6 +591,7 @@ async def drain_simulation_queue(worker_id: str | None = None) -> int:
 async def execute_claimed_run(claimed: ClaimedRun) -> dict:
     """Esegue un run preso dalla coda, battendo finche' gira."""
     set_current_tenant_id(claimed.tenant_id)
+    timer = _PhaseTimer(claimed.run_id, claimed.queued_at)
     heart = asyncio.create_task(_keep_beating(claimed))
     try:
         result = with_output_files(
@@ -613,9 +616,10 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
         heart.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await heart
+    timer.lap("motore")
 
     try:
-        return await _finish_run(claimed, result)
+        return await _finish_run(claimed, result, timer)
     except Exception as exc:  # noqa: BLE001 - un errore dopo il motore non lascia il run "pending"
         logger.exception("simulazione %s: analisi del risultato fallita", claimed.run_id)
         return await asyncio.to_thread(
@@ -625,7 +629,7 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
         )
 
 
-async def _finish_run(claimed: ClaimedRun, result) -> dict:
+async def _finish_run(claimed: ClaimedRun, result, timer: _PhaseTimer) -> dict:
     """KPI, replay, SLA e costi dal log del motore, poi il run completato."""
     if not getattr(result, "event_log_csv", None):
         raise ValueError("il motore non ha restituito il log degli eventi")
@@ -649,7 +653,8 @@ async def _finish_run(claimed: ClaimedRun, result) -> dict:
             summary["sla"] = asdict(outcome)
     if summary is not None and claimed.fixed_costs:
         summary = add_fixed_costs(summary, claimed.fixed_costs)
-    return await asyncio.to_thread(
+    timer.lap("analisi")
+    completed = await asyncio.to_thread(
         complete_simulation_run,
         run_id=claimed.run_id,
         result=result,
@@ -658,6 +663,43 @@ async def _finish_run(claimed: ClaimedRun, result) -> dict:
         log_csv=getattr(result, "event_log_csv", None),
         worker_id=claimed.worker_id,
     )
+    timer.lap("salvataggio")
+    timer.report()
+    return completed
+
+
+class _PhaseTimer:
+    """B6: quanto tempo prende ogni fase di un run, in una riga di log per run.
+
+    ``in coda`` va dall'ingresso in coda alla presa; poi motore (andata e
+    ritorno dal runner), analisi del log e salvataggio nel database.
+    """
+
+    def __init__(self, run_id: int, queued_at: str | None) -> None:
+        self.run_id = run_id
+        self.phases: list[tuple[str, float]] = []
+        queued = _parse_instant(queued_at)
+        if queued is not None:
+            self.phases.append(("in coda", (datetime.now(UTC) - queued).total_seconds()))
+        self._last = time.perf_counter()
+
+    def lap(self, phase: str) -> None:
+        now = time.perf_counter()
+        self.phases.append((phase, now - self._last))
+        self._last = now
+
+    def report(self) -> None:
+        logger.info("simulazione %s: %s", self.run_id, ", ".join(f"{name} {seconds:.3f} s" for name, seconds in self.phases))
+
+
+def _parse_instant(value: str | None) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(value) if value else None
+    except ValueError:
+        return None
+    if parsed is None:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 async def _keep_beating(claimed: ClaimedRun) -> None:
