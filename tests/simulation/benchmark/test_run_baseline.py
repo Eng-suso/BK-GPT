@@ -10,7 +10,7 @@ import pytest
 
 from tests.simulation.benchmark import run_baseline
 from tests.simulation.benchmark.benchmark_datasets import DatasetUnavailable
-from tests.simulation.benchmark.log_distance import METRICS, Event, cases, distances
+from tests.simulation.benchmark.log_distance import METRICS, Event, cases, distances, read_csv_log
 from tests.simulation.benchmark.run_baseline import NaiveTwin, run, split_in_half
 
 MONDAY_9 = datetime(2026, 1, 5, 9, tzinfo=UTC)
@@ -194,3 +194,72 @@ def test_replicas_without_an_interval_are_refused(tmp_path, logs):
     assert not (tmp_path / "sim36").exists()
     with pytest.raises(SystemExit):
         run_baseline.main(["--replicas", "1"])
+
+
+# SIM-36b: i 3 log train/test del paper, A = train e B = test.
+
+
+def test_a_train_test_log_learns_from_train_and_predicts_test(tmp_path):
+    out = tmp_path / "sim36"
+
+    assert run(["AcademicCredentials"], out, replicas=2) == 0
+
+    report = json.loads((out / "AcademicCredentials.json").read_text())
+    folder = run_baseline.TRAIN_TEST_DIR
+    assert report["benchmark"].startswith("SIM-36b")
+    assert report["license"] == "CC-BY-4.0" and report["source"].startswith("https://doi.org/")
+    assert report["logs"]["A"].endswith("AcademicCredentials_train.csv.gz")
+    assert report["cases"] == {
+        "A": len(cases(read_csv_log(folder / "AcademicCredentials_train.csv.gz"))),
+        "B": len(cases(read_csv_log(folder / "AcademicCredentials_test.csv.gz"))),
+    }
+    assert set(report["metrics"]) == set(METRICS)
+    table = (out / "baseline.md").read_text()
+    # B2 ha 10 repliche: con 2 il confronto con lo scenario SIMOD non si fa, e lo dice.
+    assert "Confronto con B2 non fatto" in table
+
+
+def test_a_train_test_log_same_seed_same_file_bit_for_bit(tmp_path):
+    run(["AcademicCredentials"], tmp_path / "one", replicas=2)
+    run(["AcademicCredentials"], tmp_path / "two", replicas=2)
+
+    assert (tmp_path / "one" / "AcademicCredentials.json").read_bytes() == (tmp_path / "two" / "AcademicCredentials.json").read_bytes()
+
+
+def test_bpic2013_is_marked_unsuitable_for_a_to_b(tmp_path, logs):
+    out = tmp_path / "sim36"
+
+    run(["bpic2012", "bpic2013_incidents"], out, replicas=2)
+
+    assert "unsuitable_for_a_to_b" not in json.loads((out / "bpic2012.json").read_text())
+    assert "troncato" in json.loads((out / "bpic2013_incidents.json").read_text())["unsuitable_for_a_to_b"]
+    assert "bpic2013_incidents: non adatto al confronto A → B" in (out / "baseline.md").read_text()
+
+
+@pytest.mark.parametrize(
+    ("naive", "model", "expected"),
+    [
+        ({"mean": 10.0, "ci95": 1.0}, {"mean": 20.0, "ci95": 1.0}, "B = A"),
+        ({"mean": 20.0, "ci95": 1.0}, {"mean": 10.0, "ci95": 1.0}, "SIMOD"),
+        ({"mean": 10.0, "ci95": 6.0}, {"mean": 20.0, "ci95": 5.0}, "pari"),
+    ],
+)
+def test_the_better_predictor_needs_separate_intervals(naive, model, expected):
+    assert run_baseline.verdict(naive, model) == expected
+
+
+def _report(seed: int = 1, replicas: int = 2) -> dict:
+    return {
+        "scenario": "BPIC_2012_W", "seed": seed, "replicas": replicas,
+        "metrics": dict.fromkeys(METRICS, {"mean": 1.0, "ci95": 0.1}),
+    }
+
+
+def test_the_comparison_with_b2_needs_the_same_seed_and_replicas():
+    b2 = {"seed": 1, "replicas": 2, "scenarios": [{"scenario": "BPIC_2012_W", "metrics": dict.fromkeys(METRICS, {"mean": 5.0, "ci95": 0.1})}]}
+
+    compared = run_baseline.simod_comparison([_report()], b2)
+    assert len([line for line in compared if line.startswith("| BPIC_2012_W |")]) == len(METRICS)
+    assert all(line.endswith("| B = A |") for line in compared[2:])
+    assert "non fatto" in run_baseline.simod_comparison([_report(seed=2)], b2)[0]
+    assert "non disponibile" in run_baseline.simod_comparison([_report()], None)[0]
