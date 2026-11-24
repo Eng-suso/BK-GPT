@@ -635,7 +635,7 @@ def check_conformance(
                     left_waiting=waiting_cases[element],
                     cases_affected=affected_cases[element],
                 )
-                for element in set(out_of_order_cases) | set(waiting_cases)
+                for element in affected_cases
             ),
             key=lambda d: (-d.cases_affected, d.name),
         )

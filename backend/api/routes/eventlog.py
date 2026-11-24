@@ -2,10 +2,8 @@
 
 from dataclasses import replace
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 
-from backend.api.errors import api_error_response
 from backend.eventlog import storage
 from backend.eventlog.mapping import MappingError, apply_mapping as read_mapped_events
 from backend.eventlog.model import EventLog
@@ -16,7 +14,6 @@ from backend.simulation.horizon import horizon_end, within_horizon
 from backend.simulation.log_processor import after_warmup, parse_prosimos_log
 from backend.simulation.storage import get_simulation_log_csv, get_simulation_run
 from backend.eventlog.service import (
-    ConformanceUnavailable,
     EventLogNotFound,
     EventLogTooLarge,
     TemplateNotFound,
@@ -200,9 +197,13 @@ def get_event_log_analysis(event_log_id: str) -> EventLogAnalysisResponse:
     raise HTTPException(status_code=409, detail="Il log non è ancora stato mappato.")
 
 
-@router.get("/event-logs/{event_log_id}/conformance", response_model=EventLogConformanceResponse)
-def get_event_log_conformance(event_log_id: str, request: Request) -> EventLogConformanceResponse | JSONResponse:
-    """I casi reali riprodotti sul BPMN: quanti lo seguono e dove ne escono."""
+@router.get("/event-logs/{event_log_id}/conformance")
+def get_event_log_conformance(event_log_id: str) -> EventLogConformanceResponse:
+    """I casi reali riprodotti sul BPMN: quanti lo seguono e dove ne escono.
+
+    ``ConformanceUnavailable`` diventa un 409 con codice stabile nel gestore
+    comune (``backend/api/errors.py``).
+    """
     try:
         return conformance(event_log_id)
     except EventLogNotFound as exc:
@@ -211,9 +212,6 @@ def get_event_log_conformance(event_log_id: str, request: Request) -> EventLogCo
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except MappingError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except ConformanceUnavailable as exc:
-        # Codice stabile nella busta d'errore: il client lo traduce (not_mapped, no_model, ...).
-        return api_error_response(request, status_code=409, code=exc.code, message=str(exc))
 
 
 @router.delete("/event-logs/{event_log_id}", status_code=204)

@@ -245,7 +245,10 @@ def conformance(event_log_id: str) -> EventLogConformanceResponse:
         ConformanceUnavailable: log non mappato, processo senza BPMN, o BPMN
             che non si puo' riprodurre.
     """
-    log, table = _read(event_log_id, None)
+    # I controlli economici prima di leggere e analizzare il file.
+    log = storage.get_event_log(event_log_id)
+    if log is None:
+        raise EventLogNotFound(event_log_id)
     analysis = storage.get_analysis(event_log_id)
     if log.mapping is None or analysis is None:
         raise ConformanceUnavailable(
@@ -257,6 +260,9 @@ def conformance(event_log_id: str) -> EventLogConformanceResponse:
     if not xml.strip():
         raise ConformanceUnavailable("no_model", "Il processo non ha ancora un BPMN da confrontare con il log.")
 
+    log, table = _read(event_log_id, None)
+
+    assert log.mapping is not None  # controllato sopra, sulla stessa riga
     canonical, _ = map_table(table, log.mapping, source_name=log.name)
     matches = {m.activity: m.element_id for m in analysis.activities.matches}
     try:
