@@ -3,7 +3,7 @@
  "data": null,
  "error": {
   "code": "process_cannot_finish",
-  "message": "I casi che arrivano a «Avanzar recepcion documentos» non escono più da quel tratto: dopo quell'attività il processo li rimanda indietro ogni volta, perché la strada per proseguire ha probabilità 0. La simulazione ripeterebbe quel tratto all'infinito e i risultati non avrebbero senso.\nCosa fare: dai a quella strada una probabilità maggiore di zero (per esempio la quota di casi che nei dati va avanti dopo quell'attività) oppure rifai la scoperta del modello dal log, poi importa di nuovo lo scenario.",
+  "message": "I casi che arrivano a «Avanzar recepcion documentos» non escono più da quel tratto: dopo quell'attività il processo li rimanda indietro ogni volta, perché la strada per proseguire ha probabilità 0. La simulazione ripeterebbe quel tratto all'infinito e i risultati non avrebbero senso.\nCosa fare: dai a quella strada una probabilità maggiore di zero (per esempio la quota di casi che nei dati va avanti dopo quell'attività) oppure ricalcola il modello dai dati storici del processo, poi importa di nuovo lo scenario.",
   "detail": "livelock: gateway node_59fc62b1-3b4e-4c11-ba7b-1cab3392cdaa, rami a probabilità 0 che porterebbero alla fine: node_819a9e46-05cd-4100-a710-e69a25c5f5f6",
   "request_id": "val-01",
   "origin": "server",

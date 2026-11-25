@@ -3,7 +3,7 @@
  "data": null,
  "error": {
   "code": "process_cannot_finish",
-  "message": "I casi che arrivano a «Controlla documenti» non escono più da quel tratto: alla decisione «Documenti completi?» il processo li rimanda indietro ogni volta, perché la strada per proseguire verso «Archivia pratica» ha probabilità 0. La simulazione ripeterebbe quel tratto all'infinito e i risultati non avrebbero senso.\nCosa fare: dai a quella strada una probabilità maggiore di zero (per esempio la quota di casi che nei dati va avanti dopo quell'attività) oppure rifai la scoperta del modello dal log, poi importa di nuovo lo scenario.",
+  "message": "I casi che arrivano a «Controlla documenti» non escono più da quel tratto: alla decisione «Documenti completi?» il processo li rimanda indietro ogni volta, perché la strada per proseguire verso «Archivia pratica» ha probabilità 0. La simulazione ripeterebbe quel tratto all'infinito e i risultati non avrebbero senso.\nCosa fare: dai a quella strada una probabilità maggiore di zero (per esempio la quota di casi che nei dati va avanti dopo quell'attività) oppure ricalcola il modello dai dati storici del processo, poi importa di nuovo lo scenario.",
   "detail": "livelock: gateway G_complete, rami a probabilità 0 che porterebbero alla fine: F_done",
   "request_id": "val-01",
   "origin": "server",
