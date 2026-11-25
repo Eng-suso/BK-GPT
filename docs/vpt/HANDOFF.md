@@ -83,8 +83,13 @@ verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Aut
   girano nei venv di ricerca), `configs/` (SIMOD di G3 senza test), `test_g3b.py` (12).
 - Ambienti: `tests/simulation/benchmark/g3b/setup_envs.sh` → `/var/tmp/delir-g3b/envs`.
   Lavoro e scenari scoperti in `/var/tmp/delir-g3b/work` (cache della discovery).
-- Prova su Loan_Application validazione: naive, ProSiT (con e senza regole) e
-  AgentSimulator misurati; SIMOD in corso.
+- Prova su Loan_Application validazione: tutte le 9 configurazioni girano; SIMOD 137 s
+  (+99 s per i ritardi), ~1 GB; rilancio identico al bit nelle metriche. AT-KDE non si
+  applica con meno di 14 giorni di arrivi nell'input (sintetici brevi): `not_applicable`,
+  conta come sconfitta.
+- **Misura completa lanciata** il 2026-11-25 alle ~18:10 UTC in due processi:
+  log `/var/tmp/delir-g3b/logs/real.log` (5 log reali/parziali) e `synthetic.log` (20).
+  Se la sessione si interrompe basta rilanciare `run.py`: salta ciò che è misurato.
 
 ```bash
 tests/simulation/benchmark/g3b/setup_envs.sh
