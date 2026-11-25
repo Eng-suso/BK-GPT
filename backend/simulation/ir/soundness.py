@@ -283,14 +283,14 @@ class _Checker:
             target = list(after)
             self._put(target, [flow])
             weight = weights.get(flow)
-            yield _Step(node, tuple(target), weight, weight is None or weight > 0, via=flow)
+            yield _Step(node, tuple(target), weight, _may_take(weight), via=flow)
 
     def _inclusive(self, node: str, after: list[int], outgoing: list[str]) -> Iterator[_Step]:
         # Prosimos non documenta come combina i rami di un'inclusiva: ogni
         # combinazione non vuota dei rami possibili e' possibile.
         self.known_probabilities = False
         weights = self._weights(node, outgoing)
-        possible = [flow for flow in outgoing if weights.get(flow) is None or weights[flow] > 0]
+        possible = [flow for flow in outgoing if _may_take(weights.get(flow))]
         if len(possible) > _MAX_INCLUSIVE_BRANCHES:
             possible = possible[:_MAX_INCLUSIVE_BRANCHES]
         for size in range(1, len(possible) + 1):
@@ -332,9 +332,9 @@ class _Checker:
             )
         initial: list[Marking] = []
         for start in starts:
-            marking = [0] * len(self.flows)
-            self._put(marking, self.graph.outgoing.get(start, []))
-            initial.append(tuple(marking))
+            seed = [0] * len(self.flows)
+            self._put(seed, self.graph.outgoing.get(start, []))
+            initial.append(tuple(seed))
 
         steps: dict[Marking, list[_Step]] = {}
         reachable: set[Marking] = set()  # per rami possibili, dagli stati iniziali
@@ -531,6 +531,11 @@ class _Checker:
         return SoundnessProblem(
             "unbounded", message, action, tuple(flows), f"più di {MAX_TOKENS_PER_FLOW} gettoni su {', '.join(flows)}"
         )
+
+
+def _may_take(weight: float | None) -> bool:
+    """Un ramo si puo' prendere se la sua probabilita' e' sconosciuta o positiva."""
+    return weight is None or weight > 0
 
 
 # --------------------------------------------------------------------------- #
