@@ -1,0 +1,124 @@
+{
+  "protocol": "PROTO-02, docs/vpt/PROTOCOL.md §10",
+  "frozen_on": "2026-11-25",
+  "rule": "Questi log non si leggono per sviluppare, scegliere modelli, iperparametri o componenti. Si aprono una volta, in protocol.final_evaluation(), a selezione congelata.",
+  "holdouts": [
+    {
+      "id": "callcenter",
+      "title": "CallCenter (contatti di un call center, una settimana del 2008)",
+      "category": "osservabilita completa",
+      "dataset": "bps-quality-framework",
+      "closes_dataset": false,
+      "organization": "call center (origine non documentata nel pacchetto BPS Quality Framework)",
+      "sector": "assistenza clienti",
+      "independent_because": "nessun log di sviluppo o holdout e' un call center; nessuna copia nelle altre voci del radar (RAD-01, per impronta, nome e contenuto). Il resto del pacchetto resta di sviluppo",
+      "split": "train / test pubblicati dal pacchetto (una settimana ciascuno)",
+      "names": [
+        "CallCenter"
+      ],
+      "license": "Apache-2.0",
+      "source": "https://zenodo.org/records/12126071",
+      "files": [
+        {
+          "path": "CallCenter_train.csv.gz",
+          "sha256": "bc4d019ee36f5d550634c0f2d3fc79bf6f6be53b274d56377a2a853c0f300863",
+          "bytes": 5117126
+        },
+        {
+          "path": "CallCenter_test.csv.gz",
+          "sha256": "45bdc09c1b70826c9b135fd255d1611adec98320bfd7b591bf6a3b395a6bb448",
+          "bytes": 5192862
+        },
+        {
+          "path": "real-life/CallCenter_SIMOD.bpmn",
+          "sha256": "9ee925f8c39c6ad5d41e3721faff2884c45ded8be88fc868d012b485ee3e6be7",
+          "bytes": 73817
+        },
+        {
+          "path": "real-life/CallCenter_SIMOD_parameters.json",
+          "sha256": "55f0b80969f348deace613294d3dfbe6ed39039f355765990e69e32e81e3ea3f",
+          "bytes": 11918670
+        },
+        {
+          "path": "real-life/CallCenter_SIMOD.csv",
+          "sha256": "7ce55fdc664c61d8f0ba737128b0069feba2d6fde542dfdcf5d645972663d0e2",
+          "bytes": 3631
+        },
+        {
+          "path": "real-life/CallCenter_ServiceMiner.csv",
+          "sha256": "dfff9dc75c2b9913887d1459c7bb3ab7a6159cd499d35856ea176b2bda459948",
+          "bytes": 3145
+        }
+      ]
+    },
+    {
+      "id": "road_traffic_fines",
+      "title": "Road Traffic Fine Management (multe stradali, 2000-2013)",
+      "category": "osservabilita parziale",
+      "dataset": "road-traffic-fines",
+      "organization": "polizia locale italiana",
+      "sector": "pubblica amministrazione",
+      "independent_because": "nessun log di sviluppo o holdout viene da questa organizzazione o da una polizia; l'altro log della PA nel radar (BPIC 2018) e' un'agenzia tedesca e resta di sviluppo",
+      "split": "meta' dei casi per inizio",
+      "names": [
+        "Road_Traffic_Fine_Management_Process",
+        "Trafic"
+      ],
+      "license": "4TU General Terms of Use",
+      "source": "https://doi.org/10.4121/uuid:270fd440-1057-4fb9-89a9-b699b47990f5",
+      "files": [
+        {
+          "path": "Road_Traffic_Fine_Management_Process.xes.gz",
+          "sha256": "dc9e0e65c964c8ce2a720687ecf17d8204a5cced5db2267c717ed39ada665da8",
+          "bytes": 3454978
+        }
+      ]
+    },
+    {
+      "id": "road_traffic_fines_das",
+      "title": "Road Traffic Fines, estratto CSV del pacchetto DAS-RP",
+      "category": "osservabilita parziale",
+      "dataset": "das-rp",
+      "closes_dataset": false,
+      "organization": "polizia locale italiana (stessi casi del log 4TU, RAD-01)",
+      "sector": "pubblica amministrazione",
+      "independent_because": "e' una copia dell'holdout road_traffic_fines: chiusa con lui",
+      "split": "come road_traffic_fines",
+      "names": [
+        "Trafic"
+      ],
+      "license": "nessuna licenza rilevata da GitHub: da verificare; supplemento CC BY 4.0 su Zenodo 13341463",
+      "source": "https://github.com/orlenyslp/DAS-RP",
+      "files": [
+        {
+          "path": "assets/Trafic/Trafic.zip",
+          "sha256": "4c83a50a8d76f0e1f6dc0321c44a09550c8b8046a3fa941330edebc9289054b1",
+          "bytes": 1090978
+        }
+      ]
+    }
+  ],
+  "containers": [
+    {
+      "dataset": "bps-quality-framework",
+      "file": "original-event-logs.zip",
+      "why": "contiene i file di CallCenter (log, simulati, modelli o misure)"
+    },
+    {
+      "dataset": "bps-quality-framework",
+      "file": "simulated-logs.zip",
+      "why": "contiene i file di CallCenter (log, simulati, modelli o misure)"
+    },
+    {
+      "dataset": "bps-quality-framework",
+      "file": "BPS-models.zip",
+      "why": "contiene i file di CallCenter (log, simulati, modelli o misure)"
+    },
+    {
+      "dataset": "bps-quality-framework",
+      "file": "measures.zip",
+      "why": "contiene i file di CallCenter (log, simulati, modelli o misure)"
+    }
+  ],
+  "independent_of": "primo set, lucchetto 1cfaa147a37187c1a319968f200c99d1cc5918ac0795c8a95e8ee70286c35cdb"
+}
