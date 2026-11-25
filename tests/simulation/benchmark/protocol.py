@@ -36,6 +36,7 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
+from scripts import fetch_datasets
 from tests.simulation.benchmark.log_distance import Event, cases
 
 BENCHMARK = Path(__file__).resolve().parent
@@ -43,8 +44,9 @@ ROOT = BENCHMARK.parents[2]
 LOCK_PATH = BENCHMARK / "protocol" / "holdout.lock.json"
 PROTOCOL_DOC = ROOT / "docs" / "vpt" / "PROTOCOL.md"
 
-# Estensioni con cui un log (o una sua copia convertita) puo' comparire su disco.
-LOG_SUFFIXES = (".xes", ".xes.gz", ".csv", ".csv.gz", ".zip", ".parquet", ".json", ".json.gz", ".bpmn", ".xml", ".pkl")
+# Estensioni con cui un log (o una sua copia convertita) puo' comparire su disco. Non
+# ci sono .json e .xml: con nomi generici come "production" bloccherebbero configurazioni.
+LOG_SUFFIXES = (".xes", ".xes.gz", ".csv", ".csv.gz", ".zip", ".parquet", ".bpmn", ".pkl")
 
 
 class HoldoutAccessError(PermissionError):
@@ -55,7 +57,10 @@ class HoldoutAccessError(PermissionError):
 
 
 def lock_digest(path: Path = LOCK_PATH) -> str:
-    """SHA-256 del lucchetto: cambia se cambia anche un solo log holdout o una regola."""
+    """SHA-256 del lucchetto: cambia se cambia anche un solo log holdout o una regola.
+
+    Il file e' LF anche su Windows (``.gitattributes``): l'impronta non dipende dal checkout.
+    """
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
@@ -68,6 +73,7 @@ def load_lock(path: Path = LOCK_PATH) -> dict:
 class BlockedNames:
     names: frozenset[str]  # nomi di file esatti (minuscolo)
     stems: frozenset[str]  # nomi senza estensione: bloccati con ogni estensione da log
+    folders: frozenset[str]  # cartelle chiuse per intero: i dataset holdout e le loro radici
 
 
 def _stem(name: str) -> str:
@@ -79,74 +85,118 @@ def blocked_names(path: Path = LOCK_PATH) -> BlockedNames:
     lock = load_lock(path)
     names: set[str] = set()
     stems: set[str] = set()
+    folders: set[str] = set()
     for holdout in lock["holdouts"]:
+        folders.add(holdout["dataset"].lower())
         for item in holdout["files"]:
-            name = Path(item["path"]).name
-            names.add(name.lower())
-            stems.add(_stem(name).lower())
+            relative = Path(item["path"])
+            names.add(relative.name.lower())
+            stems.add(_stem(relative.name).lower())
+            if len(relative.parts) > 1:  # la radice dell'archivio estratto (es. il pacchetto Camargo)
+                folders.add(relative.parts[0].lower())
         stems.update(stem.lower() for stem in holdout["names"])
     for container in lock["containers"]:
         names.add(container["file"].lower())
-    return BlockedNames(frozenset(names), frozenset(stems))
+    return BlockedNames(frozenset(names), frozenset(stems), frozenset(folders))
+
+
+def _derived(stem: str, blocked: frozenset[str]) -> bool:
+    """``production_1``, ``confidential_2000_modif``: un file ricavato da un log holdout."""
+    return any(stem == s or stem.startswith((f"{s}_", f"{s}-")) for s in blocked)
 
 
 def is_holdout(path: str | bytes | os.PathLike) -> bool:
-    """Il file porta il nome di un log holdout (o di un archivio che li contiene)."""
-    name = os.path.basename(os.fsdecode(path)).lower()
+    """Il file e' un log holdout, ne deriva, o sta in un dataset holdout (archivio compreso)."""
+    text = os.fsdecode(path)
+    name = os.path.basename(text).lower()
     blocked = blocked_names()
     if name in blocked.names:
         return True
-    return _stem(name) in blocked.stems and name.endswith(LOG_SUFFIXES)
+    parts = {part.lower() for part in Path(text).parts[:-1]}
+    if parts & blocked.folders:
+        return True
+    return name.endswith(LOG_SUFFIXES) and _derived(_stem(name), blocked.stems)
 
 
 # --------------------------------------------------------------------------- guardia
 
-_lock = threading.Lock()
-_state = {"installed": False, "phase": "closed"}
-# "closed" e "selection": holdout chiusi. "final": aperti per la valutazione finale.
-# "integrity": solo ``verify_frozen`` li legge, per calcolarne l'impronta.
+_install_lock = threading.Lock()
+_installed = False
+# La fase vale per il thread che la apre: "closed" (default) e "selection" tengono chiusi
+# gli holdout; "final" li apre per la valutazione finale; "integrity" solo per l'impronta.
+# Un thread nuovo parte chiuso: aprire gli holdout in un thread non li apre negli altri.
+_local = threading.local()
 _OPEN_PHASES = {"final", "integrity"}
+_ACCMODE = getattr(os, "O_ACCMODE", os.O_RDONLY | os.O_WRONLY | os.O_RDWR)  # Windows non lo definisce
+_frozen_files: set[tuple[int, int]] = set()  # (device, inode) dei file holdout nella cache
 
 
 def _reads(mode: str | None, flags: int) -> bool:
     """L'apertura permette di leggere: ``open`` passa il modo, ``os.open`` solo i flag."""
     if mode is not None:
         return "r" in mode or "+" in mode
-    return flags & os.O_ACCMODE in (os.O_RDONLY, os.O_RDWR)
+    return flags & _ACCMODE in (os.O_RDONLY, os.O_RDWR)
+
+
+def _same_file_as_a_holdout(target: str | bytes | os.PathLike) -> bool:
+    """Un collegamento (anche fisico) con un nome innocuo a un file holdout della cache."""
+    if os.path.islink(target) and is_holdout(os.path.realpath(target)):
+        return True
+    if not _frozen_files:
+        return False
+    try:
+        stat = os.stat(target)
+    except OSError:
+        return False
+    return (stat.st_dev, stat.st_ino) in _frozen_files
 
 
 def _audit(event: str, args: tuple) -> None:
-    if event != "open" or _state["phase"] in _OPEN_PHASES:
+    if event != "open" or getattr(_local, "phase", "closed") in _OPEN_PHASES:
         return
     target, mode, flags = args
     if isinstance(target, int) or target is None or not _reads(mode, flags):  # descrittore, o sola scrittura
         return
-    if is_holdout(target) or (os.path.islink(target) and is_holdout(os.path.realpath(target))):
+    if is_holdout(target) or _same_file_as_a_holdout(target):
         raise HoldoutAccessError(
             f"{os.fsdecode(target)} e' un log holdout di PROTO-01: si apre solo in "
             "protocol.final_evaluation(), dopo che la selezione e' chiusa (docs/vpt/PROTOCOL.md)"
         )
 
 
+def _cached_holdout_files() -> set[tuple[int, int]]:
+    root = fetch_datasets.cache_dir()
+    found = set()
+    for holdout in load_lock()["holdouts"]:
+        for item in holdout["files"]:
+            try:
+                stat = (root / holdout["dataset"] / item["path"]).stat()
+            except OSError:
+                continue
+            found.add((stat.st_dev, stat.st_ino))
+    return found
+
+
 def install() -> None:
     """Attiva la guardia per tutto il processo (un audit hook non si toglie: e' voluto)."""
-    with _lock:
-        if not _state["installed"]:
+    global _installed
+    with _install_lock:
+        if not _installed:
             blocked_names()  # il lucchetto si legge prima di attivare la guardia
+            _frozen_files.update(_cached_holdout_files())
             sys.addaudithook(_audit)
-            _state["installed"] = True
+            _installed = True
 
 
 @contextmanager
 def _phase(name: str) -> Iterator[None]:
     install()
-    with _lock:
-        previous, _state["phase"] = _state["phase"], name
+    previous = getattr(_local, "phase", "closed")
+    _local.phase = name
     try:
         yield
     finally:
-        with _lock:
-            _state["phase"] = previous
+        _local.phase = previous
 
 
 @contextmanager
@@ -154,6 +204,8 @@ def selection_phase() -> Iterator[None]:
     """Sviluppo, scelta di modelli, iperparametri e componenti: gli holdout sono chiusi.
 
     Ogni punto d'ingresso di G3b, B3.x e SEL-01 che sceglie qualcosa gira qui dentro.
+    La guardia non passa ai sottoprocessi (SIMOD, runner): a loro si danno solo percorsi
+    di log di sviluppo, e il test sui nomi controlla che il codice non ne citi altri.
     """
     with _phase("selection"):
         yield
@@ -161,7 +213,7 @@ def selection_phase() -> Iterator[None]:
 
 @contextmanager
 def final_evaluation(digest: str) -> Iterator[None]:
-    """Apre gli holdout. ``digest`` deve essere l'impronta del lucchetto scritta in PROTOCOL.md.
+    """Apre gli holdout nel thread corrente. ``digest`` e' l'impronta scritta in PROTOCOL.md.
 
     Si usa una volta, a selezione chiusa e congelata, e l'apertura si scrive in LOG.md.
     """
@@ -225,7 +277,6 @@ def development_logs() -> tuple[DevelopmentLog, ...]:
         DevelopmentLog(f"{process}{variant}", SYNTHETIC, f"datasets/extraneous-delays/inputs/synthetic/{process}{variant}.csv.gz", "meta' dei casi per inizio")
         for process in SYNTHETIC_PROCESSES
         for variant in SYNTHETIC_VARIANTS
-        if (ROOT / f"datasets/extraneous-delays/inputs/synthetic/{process}{variant}.csv.gz").exists()
     )
     return real + public + synthetic
 
