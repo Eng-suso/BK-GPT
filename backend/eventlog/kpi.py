@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Literal
 
 from backend.eventlog.model import CanonicalEvent, EventLog
-from backend.simulation.log_processor import LogEvent, summarize_log_events
+from backend.simulation.engine import LogEvent, get_engine
 
 Timing = Literal["start_and_end", "complete_only", "mixed"]
 
@@ -62,7 +62,7 @@ def summarize(log: EventLog, name_to_element_id: dict[str, str] | None = None) -
     """I KPI del log, con ``timing`` e ``source`` per dire su cosa si basano."""
     if not log.events:
         raise ValueError("Il log non contiene eventi validi: niente da misurare.")
-    summary = summarize_log_events(to_log_events(log), name_to_element_id=name_to_element_id or {})
+    summary = get_engine().summarize_events(to_log_events(log), name_to_element_id=name_to_element_id or {})
     summary["cost"] = _cost(log.events, len({e.case_id for e in log.events}))
     summary["byResource"] = []
     summary.pop("prosimosCrossCheck", None)
