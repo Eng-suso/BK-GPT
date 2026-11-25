@@ -1,0 +1,29 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "Insurance_Claims_5_timers",
+  "category": "sintetico con verita nota",
+  "phase": "validation",
+  "config": "agentsim",
+  "label": "AgentSimulator (scelta automatica)",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 400,
+    "target": 100
+  },
+  "identifiability": {
+    "cycle_time_w1": "identificabile",
+    "ngram": "identificabile",
+    "relative_event": "identificabile",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "identificabile",
+    "true_parameters": "identificabile",
+    "counterfactual": "identificabile"
+  },
+  "status": "not_applicable",
+  "reason": "agentsim_run.py: uscita 1; /var/tmp/delir-g3b/work/Insurance_Claims_5_timers/validation/runs/agentsim/agentsim | mkdir: cannot create directory ‘/var/tmp/delir-g3b/work/Insurance_Claims_5_timers/validation/runs/agentsim/agentsim’: File exists | transition_probabilities: {0: {'Check if customer has all required information': {1: {'Register Claim': 0.14285714285714285}, 30: {'Register Claim': 0.07142857142857142}, 41: {'Register Claim': 0.07142857142857142}, 31: {'Register Claim': 0.07142857142857142}, 53: {'Register Claim': 0.14285714285714285}, 70: {'Register Claim': 0.07142857142857142}, 77: {'Register Claim': 0.07142857142857142}, 35: {'Register Claim': 0.07142857142857142}, 73: {'Register Claim': 0.07142857142857142}, 79: {'Register Claim': 0.07142857142857142}, 0: {'Register Claim': 0.07142857142857142}, 10: {'Register Claim': 0.07142857142857142}}, 'Register Claim': {111: {'Determine likelihood of the claim': 0.08333333333333333}, 83: {'Determine likelihood of the claim': 0.16666666666666666}, 121: {'Determine likelihood of the claim': 0.08333333333333333}, 98: {'Determine likelihood of the claim': 0.08333333333333333}, 16: {'Determine likelihood of the claim': 0.08333333333333333}, 8: {'Determine likelihood of the claim': 0.08333333333333333}, 58: {'Determine likelihood of the claim': 0.08333333333333333}, 115: {'Determine likelihood of the claim': 0.08333333333333333}, 107: {'Determine likelihood of the claim': 0.08333333333333333}, 7: {'Determine likelihood of the claim': 0.08333333333333333}, 76: {'Determine likelihood of the claim': 0.08333333333333333}}}, 1: {'Register Claim': {2: {'Determine likelihood of the claim': 0.08333333333333333}, 20: {'Determine likelihood of the claim': 0.08333333333333333}, 90: {'Determine likelihood of the claim': 0.08333333333333333}, 32: {'Determine likelihood of the claim': 0.08333333333333333}, 114: {'Determine likelihood of the claim': 0.08333333333333333}, 7: {'Determine likelihood of the claim': 0.08333333333333333}, 2"
+}
