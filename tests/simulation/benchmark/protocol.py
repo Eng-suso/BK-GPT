@@ -30,12 +30,12 @@ import os
 import sys
 import threading
 from collections import Counter
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
-from typing import Literal
+from typing import BinaryIO, Literal
 
 from scripts import fetch_datasets
 from tests.simulation.benchmark.eval_harness import INPUTS, REAL_LIFE
@@ -228,6 +228,19 @@ def final_evaluation(digest: str) -> Iterator[None]:
         raise HoldoutAccessError("impronta del lucchetto diversa: gli holdout restano chiusi")
     with _phase("final"):
         yield
+
+
+def fingerprint(open_binary: Callable[[], BinaryIO]) -> str:
+    """SHA-256 di un file che potrebbe essere un holdout, letto solo per l'impronta (RAD-01).
+
+    Serve a dire se una copia trovata altrove coincide con il lucchetto senza leggerne gli
+    eventi: restituisce solo l'impronta, mai il contenuto.
+    """
+    digest = hashlib.sha256()
+    with _phase("integrity"), open_binary() as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def verify_frozen(cache_root: Path) -> list[str]:
