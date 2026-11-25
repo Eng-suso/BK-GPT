@@ -569,7 +569,7 @@ class _Checker:
                 "probabilità 0. La simulazione ripeterebbe quel tratto all'infinito e i risultati non avrebbero senso."
             )
             action = (
-                "Dai a quella strada una probabilità maggiore di zero (per esempio la quota di casi che nei dati "
+                "Dai a quella strada una probabilità maggiore di zero (per esempio la quota di casi che nella realtà "
                 "va avanti dopo quell'attività) oppure ricalcola il modello dai dati storici del processo, poi "
                 "importa di nuovo lo scenario."
             )
