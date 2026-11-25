@@ -205,14 +205,14 @@ test `event type selection…` cliccava. Il test ora tocca l'arco visibile.
 - Copiare comunque nel repo pubblico BPIC 2012/2013/2020 e Prosimos?
 - Confermare le mete marcate *proposta* dei punti P0, B3.1-B3.4, SEL-01, ENG-02, PERF-01
   e CF-01 in `PLAN.md`.
-- Prosimos 2.1.0 non dichiara una licenza: chiedere ai titolari un chiarimento scritto
-  sull'uso commerciale (LIC-01 prepara la richiesta).
 
 Decise da Sohayb il 2026-11-24 (motivi in `LOG.md`):
 
 - SIMOD resta un benchmark; la sostituzione dipende da G3b. Il motore di esecuzione non è
   dato per scontato (ENG-01, ENG-02). Ogni componente entra solo con evidenza sperimentale.
 - Validazione formale all'import (VAL-01), che copre anche i cicli senza uscita di G3.
+- Prosimos (2026-11-25): resta il motore per l'MVP e i test del prodotto con le aziende;
+  dopo l'MVP si sostituisce (ENG-02). Nessun contatto con i titolari del codice.
 - Nessun log escluso dal benchmark: le metriche non identificabili si dichiarano NOT
   VALIDATED (PROTO-01). Questo supera "BPIC 2013 non adatto" della decisione precedente.
 
