@@ -14,8 +14,9 @@ quelle di PROTOCOL.md §7:
   della base. Contro "B = A" questa regola non si applica: "B = A" non ha discovery e
   ogni modello costerebbe infinite volte di piu' (lettura da confermare con Sohayb);
 - il modello supera VAL-01;
-- un risultato mancante, fallito o fuori budget del candidato conta come sconfitta;
-  della base, rende il confronto "incompleto" (niente GO).
+- fallito, fuori budget o non applicabile conta come sconfitta su tutte le metriche, per
+  il candidato come per la base; un candidato mancante perde; una base mai lanciata rende
+  il confronto "incompleto" (niente GO).
 """
 
 from __future__ import annotations
@@ -71,11 +72,17 @@ def load_results() -> dict[tuple[str, str, str], dict]:
 
 
 def compare(candidate: dict | None, base: dict | None, metric: str) -> str:
-    """vince, perde, pari; ``incompleto`` se manca la base. Il candidato che non c'e' perde."""
-    if base is None or base.get("status") != "measured":
+    """vince, perde, pari; ``incompleto`` se la base non e' stata lanciata.
+
+    Fallito, fuori budget o non applicabile e' una sconfitta su tutte le metriche (§6), per
+    il candidato come per la base; due sconfitte sono pari. Un candidato mancante perde.
+    """
+    if base is None:
         return "incompleto"
-    if candidate is None or candidate.get("status") != "measured":
-        return "perde"
+    base_ok = base.get("status") == "measured"
+    candidate_ok = candidate is not None and candidate.get("status") == "measured"
+    if not (base_ok and candidate_ok):
+        return "pari" if base_ok == candidate_ok else ("perde" if base_ok else "vince")
     c, b = candidate["metrics"][metric], base["metrics"][metric]
     if c["mean"] + c["ci95"] < b["mean"] - b["ci95"]:
         return "vince"

@@ -41,6 +41,12 @@ def test_a_missing_candidate_loses_and_a_missing_base_is_incomplete() -> None:
     assert report.compare(measured, None, "ngram") == "incompleto"
 
 
+def test_a_failed_base_loses_and_two_failures_tie() -> None:
+    failed = _result({}, status="failed")
+    assert report.compare(_result({}), failed, "ngram") == "vince"
+    assert report.compare(_result({}, status="not_applicable"), failed, "ngram") == "pari"
+
+
 CARD = report.Card("prova", "cand", ("naive", "base"), "ngram", "per costruzione")
 
 
