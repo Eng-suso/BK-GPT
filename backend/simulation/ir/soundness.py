@@ -40,9 +40,9 @@ puo' prendere ogni ramo: la verifica la tratta cosi' e non calcola le attese.
 from __future__ import annotations
 
 from collections import defaultdict, deque
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from itertools import combinations
+from itertools import combinations, product
 from typing import Literal
 
 from defusedxml import ElementTree
@@ -65,7 +65,6 @@ ACTIVITY_TAGS = frozenset(
         "subProcess",
     }
 )
-_PASS_TAGS = ACTIVITY_TAGS | {"intermediateCatchEvent", "intermediateThrowEvent"}
 _CHOICE_TAGS = frozenset({"exclusiveGateway", "eventBasedGateway"})
 _INCLUSIVE_TAGS = frozenset({"inclusiveGateway", "complexGateway"})
 
@@ -73,8 +72,10 @@ _INCLUSIVE_TAGS = frozenset({"inclusiveGateway", "complexGateway"})
 # e' lavoro che si moltiplica; troppi stati non si verificano in un import.
 MAX_TOKENS_PER_FLOW = 8
 MAX_STATES = 50_000
-# Rami di un'unica decisione inclusiva oltre i quali non si elencano le combinazioni.
+# Rami di un'unica decisione inclusiva, ed esiti combinati di un passo, oltre i
+# quali non si elencano le combinazioni: la verifica si ferma e lo dice.
 _MAX_INCLUSIVE_BRANCHES = 10
+_MAX_COMBINATIONS = 4096
 
 Marking = tuple[int, ...]
 
@@ -118,20 +119,63 @@ class _Graph:
 
 
 @dataclass(frozen=True, slots=True)
-class _Step:
-    """Uno scatto dallo stato corrente: l'elemento, lo stato dopo, la probabilita'."""
+class _Outcome:
+    """Un esito possibile di un elemento che scatta: i flussi su cui mette un gettone."""
 
-    node: str
-    target: Marking
+    add: tuple[str, ...]
     probability: float | None  # None: possibile, probabilita' sconosciuta
-    possible: bool
+    possible: bool = True
     via: str | None = None  # il ramo di una decisione
+    terminate: bool = False
 
 
-def check_soundness(model: SimulationModel, bpmn_xml: str) -> SoundnessReport:
-    """La verifica di VAL-01 del modello ``model`` sul BPMN che il motore eseguira'."""
+@dataclass(frozen=True, slots=True)
+class _Step:
+    """Un passo: gli elementi scattati insieme, lo stato dopo, la probabilita'."""
+
+    fired: tuple[str, ...]
+    target: Marking
+    probability: float | None
+    possible: bool
+    # Le decisioni che in questo passo prendono un ramo a probabilita' 0, con il ramo.
+    zero: tuple[tuple[str, str], ...] = ()
+
+
+class UnsoundProcessError(ValueError):
+    """Con le sue probabilita' qualche caso del modello non finirebbe: non si simula."""
+
+    def __init__(self, problems: tuple[SoundnessProblem, ...]) -> None:
+        self.problems = problems
+        # Un paragrafo per cosa non torna, uno per cosa fare: la UI li tiene separati.
+        super().__init__(
+            "\n\n".join(f"{p.message}\nCosa fare: {p.action[:1].lower()}{p.action[1:]}" for p in problems)
+        )
+
+    @property
+    def detail(self) -> str:
+        """Per specialisti: la regola violata e gli id del BPMN."""
+        return "; ".join(p.detail for p in self.problems)
+
+
+def require_sound(model: SimulationModel, bpmn_xml: str) -> SoundnessReport:
+    """Il rapporto di ``check_soundness``; solleva ``UnsoundProcessError`` se qualche caso non finirebbe."""
+    report = check_soundness(model, bpmn_xml)
+    if report.problems:
+        raise UnsoundProcessError(report.problems)
+    return report
+
+
+class _TooLarge(Exception):
+    """Lo spazio degli stati supera i limiti di un import: la verifica si ferma."""
+
+
+def check_soundness(model: SimulationModel, bpmn_xml: str, *, expected: bool = False) -> SoundnessReport:
+    """La verifica di VAL-01 del modello ``model`` sul BPMN che il motore eseguira'.
+
+    Con ``expected`` calcola anche le esecuzioni attese di ogni attivita' per caso.
+    """
     graph = _read(bpmn_xml)
-    return _Checker(graph, {gateway.element_id: gateway for gateway in model.gateways}).run()
+    return _Checker(graph, {gateway.element_id: gateway for gateway in model.gateways}).run(expected=expected)
 
 
 # --------------------------------------------------------------------------- #
@@ -180,7 +224,7 @@ class _Checker:
         self.gateways = gateways
         self.flows = sorted(graph.flow_ends)
         self.index = {flow: i for i, flow in enumerate(self.flows)}
-        # Ordine fisso degli elementi: il primo abilitato scatta.
+        # A ogni passo scattano tutti gli elementi abilitati (passo massimo).
         self.nodes = sorted(node for node in graph.tags if graph.incoming.get(node))
         self.known_probabilities = True
         self._upstream: dict[str, set[int]] = {}
@@ -239,70 +283,77 @@ class _Checker:
         return flows
 
     def _steps(self, marking: Marking) -> list[_Step]:
+        """Il passo massimo da ``marking``: un passo per ogni combinazione di esiti."""
+        after = list(marking)
+        fired: list[str] = []
+        options: list[list[_Outcome]] = []
+        size = 1
         for node in self.nodes:
             taken = self._enabled(node, marking)
             if taken is None:
                 continue
-            after = list(marking)
-            for i in (self._inputs(node) if taken == -1 else [taken]):
-                if after[i]:
-                    after[i] -= 1
-            return list(self._fire(node, after))
-        return []
+            for i in self._inputs(node) if taken == -1 else [taken]:
+                after[i] -= 1
+            outcomes = self._outcomes(node)
+            fired.append(node)
+            options.append(outcomes)
+            size *= len(outcomes)
+            if size > _MAX_COMBINATIONS:
+                raise _TooLarge
+        if not fired:
+            return []
+        steps = []
+        for combo in product(*options):
+            target = list(after)
+            probability: float | None = 1.0
+            for outcome in combo:
+                self._put(target, outcome.add)
+                probability = None if probability is None or outcome.probability is None else probability * outcome.probability
+            if any(outcome.terminate for outcome in combo):
+                target = [0] * len(target)
+            zero = tuple((node, o.via or "") for node, o in zip(fired, combo, strict=True) if not o.possible)
+            steps.append(_Step(tuple(fired), tuple(target), probability, not zero, zero))
+        return steps
 
-    def _fire(self, node: str, after: list[int]) -> Iterator[_Step]:
+    def _outcomes(self, node: str) -> list[_Outcome]:
         tag = self.graph.tags[node]
         outgoing = self.graph.outgoing.get(node, [])
         if tag == "endEvent":
-            yield _Step(node, tuple(0 for _ in after) if node in self.graph.terminate else tuple(after), 1.0, True)
-            return
+            return [_Outcome((), 1.0, terminate=node in self.graph.terminate)]
         if tag in _CHOICE_TAGS and len(outgoing) > 1:
-            yield from self._choice(node, after, outgoing)
-            return
+            weights = self._weights(node, outgoing)
+            return [
+                _Outcome((flow,), weights[flow], _may_take(weights[flow]), via=flow) for flow in outgoing
+            ]
         if tag in _INCLUSIVE_TAGS and len(outgoing) > 1:
-            yield from self._inclusive(node, after, outgoing)
-            return
+            return self._inclusive(node, outgoing)
         boundaries = self.graph.boundary.get(node, [])
-        normal = list(after)
-        self._put(normal, outgoing)
         if not boundaries:
-            yield _Step(node, tuple(normal), 1.0, True)
-            return
+            return [_Outcome(tuple(outgoing), 1.0)]
         # Un evento di bordo e' un'altra fine possibile dell'attivita': senza
         # probabilita' nell'IR, ogni esito e' possibile.
         self.known_probabilities = False
-        yield _Step(node, tuple(normal), None, True)
+        outcomes = [_Outcome(tuple(outgoing), None)]
         for boundary, interrupting in boundaries:
-            alternative = list(after if interrupting else normal)
-            self._put(alternative, self.graph.outgoing.get(boundary, []))
-            yield _Step(node, tuple(alternative), None, True, via=boundary)
+            extra = tuple(self.graph.outgoing.get(boundary, []))
+            outcomes.append(_Outcome(extra if interrupting else (*outgoing, *extra), None, via=boundary))
+        return outcomes
 
-    def _choice(self, node: str, after: list[int], outgoing: list[str]) -> Iterator[_Step]:
-        weights = self._weights(node, outgoing)
-        for flow in outgoing:
-            target = list(after)
-            self._put(target, [flow])
-            weight = weights.get(flow)
-            yield _Step(node, tuple(target), weight, _may_take(weight), via=flow)
-
-    def _inclusive(self, node: str, after: list[int], outgoing: list[str]) -> Iterator[_Step]:
+    def _inclusive(self, node: str, outgoing: list[str]) -> list[_Outcome]:
         # Prosimos non documenta come combina i rami di un'inclusiva: ogni
         # combinazione non vuota dei rami possibili e' possibile.
         self.known_probabilities = False
         weights = self._weights(node, outgoing)
-        possible = [flow for flow in outgoing if _may_take(weights.get(flow))]
+        possible = [flow for flow in outgoing if _may_take(weights[flow])]
         if len(possible) > _MAX_INCLUSIVE_BRANCHES:
-            possible = possible[:_MAX_INCLUSIVE_BRANCHES]
-        for size in range(1, len(possible) + 1):
-            for chosen in combinations(possible, size):
-                target = list(after)
-                self._put(target, chosen)
-                yield _Step(node, tuple(target), None, True, via=",".join(chosen))
-        for flow in outgoing:
-            if flow not in possible:
-                target = list(after)
-                self._put(target, [flow])
-                yield _Step(node, tuple(target), 0.0, False, via=flow)
+            raise _TooLarge
+        outcomes = [
+            _Outcome(chosen, None, via=",".join(chosen))
+            for size in range(1, len(possible) + 1)
+            for chosen in combinations(possible, size)
+        ]
+        outcomes += [_Outcome((flow,), 0.0, False, via=flow) for flow in outgoing if flow not in possible]
+        return outcomes
 
     def _weights(self, node: str, outgoing: list[str]) -> dict[str, float | None]:
         gateway = self.gateways.get(node)
@@ -316,7 +367,7 @@ class _Checker:
 
     # ---- esplorazione e analisi ------------------------------------------ #
 
-    def run(self) -> SoundnessReport:
+    def run(self, *, expected: bool = False) -> SoundnessReport:
         starts = sorted(node for node, tag in self.graph.tags.items() if tag == "startEvent")
         if not starts:
             return SoundnessReport(
@@ -340,43 +391,51 @@ class _Checker:
         reachable: set[Marking] = set()  # per rami possibili, dagli stati iniziali
         queue: deque[tuple[Marking, bool]] = deque((m, True) for m in initial)
         overflow: set[Marking] = set()
-        while queue:
-            marking, possible = queue.popleft()
-            if possible:
-                if marking in reachable:
+        complete = True
+        try:
+            while queue:
+                marking, possible = queue.popleft()
+                if possible:
+                    if marking in reachable:
+                        continue
+                elif marking in steps:
                     continue
-                reachable.add(marking)
-            elif marking in steps:
-                continue
-            if max(marking, default=0) > MAX_TOKENS_PER_FLOW:
-                overflow.add(marking)
-                steps[marking] = []
-                continue
-            if len(steps) >= MAX_STATES:
-                return SoundnessReport(problems=(), states=len(steps), complete=False)
-            if marking not in steps:
-                steps[marking] = self._steps(marking)
-            for step in steps[marking]:
-                queue.append((step.target, possible and step.possible))
+                if marking not in steps:
+                    if len(steps) >= MAX_STATES:
+                        raise _TooLarge
+                    if max(marking, default=0) > MAX_TOKENS_PER_FLOW:
+                        overflow.add(marking)
+                        steps[marking] = []
+                    else:
+                        steps[marking] = self._steps(marking)
+                if possible:
+                    reachable.add(marking)
+                for step in steps[marking]:
+                    queue.append((step.target, possible and step.possible))
+        except _TooLarge:
+            complete = False
 
         problems: list[SoundnessProblem] = []
         exploded = sorted(overflow & reachable)
         if exploded:
             problems.append(self._unbounded(exploded[0]))
-        finishing = self._finishing(steps, {m for m in steps if not any(m)})
-        stuck = [m for m in sorted(reachable) if m not in finishing and m not in overflow]
-        deadlocks = [m for m in stuck if not steps[m]]
+        # Uno stato con lavoro aperto e nessun passo e' un blocco anche se la
+        # verifica si e' fermata prima della fine.
+        deadlocks = sorted(m for m in reachable if any(m) and not steps[m] and m not in overflow)
         if deadlocks:
             problems.append(self._deadlock(deadlocks))
+        if not complete:
+            return SoundnessReport(problems=tuple(problems), states=len(steps), complete=False)
+        finishing = self._finishing(steps, {m for m in steps if not any(m)})
         # Chi finisce comunque in un blocco o nel lavoro che si moltiplica e' gia' detto sopra.
         doomed = self._finishing(steps, set(deadlocks) | overflow)
-        trapped = {m for m in stuck if steps[m] and m not in doomed}
+        trapped = {m for m in reachable if m not in finishing and m not in doomed}
         if trapped:
             problems.append(self._livelock(trapped, steps, finishing))
-        expected = None
-        if not problems and self.known_probabilities and len(initial) == 1:
-            expected = self._expected(initial[0], steps, reachable)
-        return SoundnessReport(problems=tuple(problems), states=len(steps), expected_executions=expected)
+        executions = None
+        if expected and not problems and self.known_probabilities and len(initial) == 1:
+            executions = self._expected(initial[0], steps, reachable)
+        return SoundnessReport(problems=tuple(problems), states=len(steps), expected_executions=executions)
 
     def _finishing(self, steps: dict[Marking, list[_Step]], goals: set[Marking]) -> set[Marking]:
         """Gli stati da cui uno dei ``goals`` si raggiunge per rami possibili."""
@@ -404,9 +463,10 @@ class _Checker:
         )
         executions: dict[str, float] = defaultdict(float)
         for marking, times in visits.items():
-            out = steps[marking]
-            if out and self.graph.tags[out[0].node] in ACTIVITY_TAGS:
-                executions[out[0].node] += times
+            # Ogni passo da uno stato fa scattare gli stessi elementi: cambia solo il ramo preso.
+            for node in steps[marking][0].fired if steps[marking] else ():
+                if self.graph.tags[node] in ACTIVITY_TAGS:
+                    executions[node] += times
         return dict(sorted(executions.items()))
 
     # ---- messaggi --------------------------------------------------------- #
@@ -484,9 +544,12 @@ class _Checker:
         exits: dict[str, set[str]] = defaultdict(set)
         for marking in trapped:
             for step in steps[marking]:
-                if not step.possible and step.via and step.target in finishing:
-                    exits[step.node].add(step.via)
-        loop = sorted({step.node for m in trapped for step in steps[m] if self.graph.tags.get(step.node) in ACTIVITY_TAGS})
+                if step.target in finishing:
+                    for gateway, branch in step.zero:
+                        exits[gateway].add(branch)
+        loop = sorted(
+            {node for m in trapped for step in steps[m] for node in step.fired if self.graph.tags.get(node) in ACTIVITY_TAGS}
+        )
         names = [self.graph.names[node] for node in loop if self.graph.names.get(node)]
         activities = ", ".join(f"«{name}»" for name in names[:3]) + (" e altre" if len(names) > 3 else "")
         if exits:
@@ -507,8 +570,8 @@ class _Checker:
             )
             action = (
                 "Dai a quella strada una probabilità maggiore di zero (per esempio la quota di casi che nei dati "
-                "va avanti dopo quell'attività) oppure rifai la scoperta del modello dal log, poi importa di nuovo "
-                "lo scenario."
+                "va avanti dopo quell'attività) oppure ricalcola il modello dai dati storici del processo, poi "
+                "importa di nuovo lo scenario."
             )
             detail = "livelock: " + "; ".join(
                 f"gateway {g}, rami a probabilità 0 che porterebbero alla fine: {', '.join(sorted(flows))}"

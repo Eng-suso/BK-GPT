@@ -16,7 +16,8 @@ from pathlib import Path
 
 import pytest
 
-from backend.simulation.ir.from_prosimos import UnsoundProcessError, import_prosimos
+from backend.simulation.ir.from_prosimos import import_prosimos
+from backend.simulation.ir.soundness import UnsoundProcessError
 from backend.simulation.ir.model import (
     Activity,
     Arrival,
@@ -33,6 +34,7 @@ from backend.simulation.ir.model import (
     Rule,
     SimulationModel,
 )
+from backend.simulation.ir import soundness
 from backend.simulation.ir.soundness import MAX_TOKENS_PER_FLOW, check_soundness
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -72,7 +74,7 @@ def test_every_dataset_scenario_can_always_finish(path: Path) -> None:
     bpmn = path.with_suffix(".bpmn").read_text(encoding="utf-8")
     model = import_prosimos(scenario, bpmn).model
 
-    report = check_soundness(model, bpmn)
+    report = check_soundness(model, bpmn, expected=True)
 
     assert report.ok and report.complete
     assert report.expected_executions, "con probabilita' note le ripetizioni attese si calcolano"
@@ -85,7 +87,7 @@ def test_the_valid_g3_simod_scenarios_pass(name: str) -> None:
 
     result = import_prosimos(scenario, bpmn)
 
-    report = check_soundness(result.model, bpmn)
+    report = check_soundness(result.model, bpmn, expected=True)
     assert report.ok and report.complete
     assert report.expected_executions is not None
     assert all(math.isfinite(value) for value in report.expected_executions.values())
@@ -121,7 +123,7 @@ def test_the_loop_reopened_at_the_train_frequency_repeats_a_finite_number_of_tim
     scenario, bpmn = _g3("AcademicCredentials_diff-loopfix")
     model = import_prosimos(scenario, bpmn).model
 
-    report = check_soundness(model, bpmn)
+    report = check_soundness(model, bpmn, expected=True)
 
     assert report.ok
     assert report.expected_executions is not None
@@ -188,7 +190,7 @@ LOOP_BPMN = _bpmn(LOOP_NODES, LOOP_FLOWS, names={"A": "Verifica documenti"})
 
 
 def test_a_loop_with_an_exit_repeats_the_geometric_number_of_times() -> None:
-    report = check_soundness(_model(["A"], (_choice("G", f_back=0.75, f_exit=0.25),)), LOOP_BPMN)
+    report = check_soundness(_model(["A"], (_choice("G", f_back=0.75, f_exit=0.25),)), LOOP_BPMN, expected=True)
 
     assert report.ok
     assert report.expected_executions == {"A": pytest.approx(4.0)}
@@ -236,7 +238,7 @@ def test_a_parallel_split_and_join_is_sound() -> None:
     flows = [("f1", "S", "P"), ("fa", "P", "A"), ("fb", "P", "B"), ("f2", "A", "J"), ("f3", "B", "J"),
              ("f4", "J", "E")]
 
-    report = check_soundness(_model(["A", "B"]), _bpmn(nodes, flows))
+    report = check_soundness(_model(["A", "B"]), _bpmn(nodes, flows), expected=True)
 
     assert report.ok
     assert report.expected_executions == {"A": pytest.approx(1.0), "B": pytest.approx(1.0)}
@@ -320,3 +322,57 @@ def test_a_named_decision_is_called_by_its_name() -> None:
 
     (problem,) = report.problems
     assert "alla decisione «Documenti completi?» il processo li rimanda indietro" in problem.message
+
+
+# --------------------------------------------------------------------------- #
+# Regressioni della code review
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("side", ["aside", "zside"])
+def test_the_verdict_does_not_depend_on_how_elements_are_named(side: str) -> None:
+    # Ciclo di rilavorazione con un ramo parallelo che chiude da solo: ogni caso finisce.
+    nodes = {"S": "startEvent", "m": "exclusiveGateway", "p": "parallelGateway", "b": "task",
+             "x": "exclusiveGateway", side: "task", "E": "endEvent", "E2": "endEvent"}
+    flows = [("f1", "S", "m"), ("f2", "m", "p"), ("fb", "p", "b"), ("fs", "p", side), ("f3", "b", "x"),
+             ("f_back", "x", "m"), ("f_end", "x", "E"), ("f4", side, "E2")]
+
+    report = check_soundness(_model(["b", side], (_choice("x", f_back=0.5, f_end=0.5),)), _bpmn(nodes, flows))
+
+    assert report.ok, report.problems
+
+
+def test_nine_parallel_branches_merging_at_an_exclusive_join_finish() -> None:
+    nodes = {"S": "startEvent", "P": "parallelGateway", "M": "exclusiveGateway", "A": "task", "E": "endEvent"}
+    nodes |= {f"T{i}": "task" for i in range(9)}
+    flows = [("f0", "S", "P"), ("fm", "M", "A"), ("fe", "A", "E")]
+    flows += [(f"p{i}", "P", f"T{i}") for i in range(9)] + [(f"q{i}", f"T{i}", "M") for i in range(9)]
+
+    report = check_soundness(_model(["A", *(f"T{i}" for i in range(9))]), _bpmn(nodes, flows))
+
+    assert report.ok, report.problems
+
+
+def test_an_inclusive_decision_with_too_many_branches_is_not_verified_rather_than_refused() -> None:
+    nodes = {"S": "startEvent", "O": "inclusiveGateway", "J": "inclusiveGateway", "E": "endEvent"}
+    nodes |= {f"T{i}": "task" for i in range(11)}
+    flows = [("f0", "S", "O"), ("fj", "J", "E")]
+    flows += [(f"o{i}", "O", f"T{i}") for i in range(11)] + [(f"j{i}", f"T{i}", "J") for i in range(11)]
+
+    report = check_soundness(_model([f"T{i}" for i in range(11)]), _bpmn(nodes, flows))
+
+    assert report.ok
+    assert not report.complete
+
+
+def test_a_deadlock_found_before_the_state_limit_is_still_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    nodes = {"S": "startEvent", "X": "exclusiveGateway", "A": "task", "B": "task", "J": "parallelGateway",
+             "C": "task", "E": "endEvent"}
+    flows = [("f1", "S", "X"), ("fa", "X", "A"), ("fb", "X", "B"), ("f2", "A", "J"), ("f3", "B", "J"),
+             ("f4", "J", "C"), ("f5", "C", "E")]
+    monkeypatch.setattr(soundness, "MAX_STATES", 4)
+
+    report = check_soundness(_model(["A", "B", "C"], (_choice("X", fa=0.5, fb=0.5),)), _bpmn(nodes, flows))
+
+    assert not report.complete
+    assert [problem.kind for problem in report.problems] == ["deadlock"]
