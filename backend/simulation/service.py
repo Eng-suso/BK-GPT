@@ -24,13 +24,13 @@ from backend.schemas.simulation_model import CreateSimulationModelRunRequest
 from backend.security import set_current_tenant_id
 from backend.schemas.simulation import (
     ActivityClaimsResponse,
+    BpmnCompatibilityResponse,
     ClaimProposalResponse,
     ScenarioProvenanceResponse,
     ScenarioTemplateResponse,
     SimulationClaimsResponse,
 )
 from backend.simulation.provenance import build_scenario_provenance
-from backend.schemas.simulation import BpmnCompatibilityResponse
 from backend.simulation.engine import EngineError, EngineRunRequest, EngineRunResult, get_engine
 from backend.simulation.models import ProsimosScenario
 from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, claim_next_run
