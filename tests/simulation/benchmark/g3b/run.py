@@ -230,6 +230,7 @@ def _failed(step: str, run: Measured, log_path: Path) -> RuntimeError:
 class OutOfBudget(Exception):
     def __init__(self, step: str, run: Measured):
         super().__init__(f"{step}: {run.over_budget}")
+        self.step = step
         self.run = run
 
 
@@ -247,11 +248,21 @@ def _checked(step: str, run: Measured, log_path: Path) -> Measured:
 def _cached(prepared: Prepared, name: str, build) -> dict:
     folder = prepared.work / name
     meta = folder / "meta.json"
+    over = folder / "out_of_budget.json"
     if meta.is_file():
         return json.loads(meta.read_text(encoding="utf-8"))
+    if over.is_file():  # una discovery fuori budget non si rifa' per ogni configurazione che la usa
+        saved = json.loads(over.read_text(encoding="utf-8"))
+        raise OutOfBudget(saved["step"], Measured(saved["seconds"], saved["peak_mb"], -9, saved["reason"]))
     shutil.rmtree(folder, ignore_errors=True)
     folder.mkdir(parents=True)
-    result = build(folder)
+    try:
+        result = build(folder)
+    except OutOfBudget as exc:
+        shutil.rmtree(folder / "out", ignore_errors=True)
+        over.write_text(json.dumps({"step": exc.step, "seconds": exc.run.seconds, "peak_mb": exc.run.peak_mb,
+                                    "reason": exc.run.over_budget}), encoding="utf-8")
+        raise
     meta.write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
 
