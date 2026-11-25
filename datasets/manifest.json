@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "updated": "2026-11-23",
-  "notes": "Catalogo dei dataset di DeliR. 'vendored' = nel repo, sotto 'path'. 'fetch' = si scarica con scripts/fetch_datasets.py nella cache locale, verificato con MD5 o commit. 'academic' = licenza non commerciale: si usa per ricerca e pubblicazioni, mai per numeri in materiali commerciali; si scarica con --allow-noncommercial.",
+  "updated": "2026-11-25",
+  "notes": "Catalogo dei dataset di DeliR. 'vendored' = nel repo, sotto 'path'. 'fetch' = si scarica con scripts/fetch_datasets.py nella cache locale, verificato con MD5 o commit. 'academic' = licenza non commerciale: si usa per ricerca e pubblicazioni, mai per numeri in materiali commerciali; si scarica con --allow-noncommercial. 'collection': 'radar' = Research Radar del VPT (docs/vpt/RESEARCH_RADAR.md), collezione separata: non è sviluppo né holdout finché PROTOCOL.md non la dichiara; si scarica con --collection radar.",
   "datasets": [
     {
       "id": "extraneous-delays-inputs",
@@ -215,6 +215,740 @@
       "use": [
         "PROTO-01 log holdout (osservabilità parziale): si apre solo per la valutazione finale"
       ]
+    },
+    {
+      "id": "bps-quality-framework",
+      "title": "A Framework for Measuring the Quality of BPS Models (Chapela-Campa, Benchekroun, Baron, Dumas, Krasnoff): log originali, modelli BPS, log simulati e misure",
+      "mode": "fetch",
+      "license": "Apache-2.0",
+      "kind": "dataset",
+      "source": "https://zenodo.org/records/12126071",
+      "files": [
+        {
+          "file": "README.md",
+          "url": "https://zenodo.org/api/records/12126071/files/README.md/content",
+          "md5": "cfe5baba286b6bcf725beef43593f04c",
+          "bytes": 2331
+        },
+        {
+          "file": "original-event-logs.zip",
+          "url": "https://zenodo.org/api/records/12126071/files/original-event-logs.zip/content",
+          "md5": "d13d1c1b63965fa84c98627cc2d546ca",
+          "bytes": 12528154
+        },
+        {
+          "file": "BPS-models.zip",
+          "url": "https://zenodo.org/api/records/12126071/files/BPS-models.zip/content",
+          "md5": "b9076dbcafb2cce12262d9c210d3bb10",
+          "bytes": 491023
+        },
+        {
+          "file": "simulated-logs.zip",
+          "url": "https://zenodo.org/api/records/12126071/files/simulated-logs.zip/content",
+          "md5": "c7c0aa505841ac25981e93aad7dc06c2",
+          "bytes": 198870658
+        },
+        {
+          "file": "measures.zip",
+          "url": "https://zenodo.org/api/records/12126071/files/measures.zip/content",
+          "md5": "e12fa0be69c829b82d0603549833312b",
+          "bytes": 40576
+        },
+        {
+          "file": "ComputeLogDistance.py",
+          "url": "https://zenodo.org/api/records/12126071/files/ComputeLogDistance.py/content",
+          "md5": "f7014278d2a6b30b71f2f295f1a0220c",
+          "bytes": 43070
+        }
+      ],
+      "extract": true,
+      "use": [
+        "RAD-01 fedeltà multidimensionale: confronto delle metriche di B2 con il framework pubblicato",
+        "G3b riferimento esterno per le distanze",
+        "prima dell'uso: deduplica contro i log di sviluppo e holdout (RAD-01)"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "simbank",
+      "title": "SimBank: simulatore di un processo di credito per valutare interventi (prescriptive process monitoring), con confondenti",
+      "mode": "fetch",
+      "license": "CC-BY-4.0 (release Zenodo 15574272)",
+      "kind": "code+dataset",
+      "source": "https://github.com/JakobDeMoorKULstudent/SimBank",
+      "git": "https://github.com/JakobDeMoorKULstudent/SimBank",
+      "git_commit": "fd8358bb8e6af8e7d9c33c89d5bcc8d9ba7fa4d6",
+      "use": [
+        "CF-01 interventi con verità nota e confondenti",
+        "B7 valutazione delle politiche di intervento",
+        "GT-01 generatore indipendente di riferimento"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "procause",
+      "title": "ProCause: outcome controfattuali, stimatori causali e valutazione di politiche (esperimenti SimBank, BPIC 2012, BPIC 2017)",
+      "mode": "fetch",
+      "license": "MIT",
+      "kind": "code+dataset",
+      "source": "https://github.com/JakobDeMoorKULstudent/ProCause",
+      "git": "https://github.com/JakobDeMoorKULstudent/ProCause",
+      "git_commit": "120dde629290ee93dd980da3dc90b5f90db6b756",
+      "use": [
+        "CF-01 metriche controfattuali: copertura, ampiezza, errore puntuale, direzione dell'effetto",
+        "B7"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "bpic2019",
+      "title": "BPI Challenge 2019: procure-to-pay di una multinazionale (circa 251.734 righe d'ordine, 1,6 milioni di eventi)",
+      "mode": "fetch",
+      "license": "CC-BY-4.0",
+      "kind": "dataset",
+      "source": "https://doi.org/10.4121/uuid:d06aff4b-79f0-45e6-8ec8-e19730c248f1",
+      "url": "https://data.4tu.nl/file/35ed7122-966a-484e-a0e1-749b64e3366d/864493d1-3a58-47f6-ad6f-27f95f995828",
+      "file": "BPI_Challenge_2019.xes",
+      "md5": "4eb909242351193a61e1c15b9c3cc814",
+      "bytes": 728558522,
+      "extract": false,
+      "use": [
+        "PERF-01 scalabilità su un log reale grande",
+        "RAD-02 generalizzazione cross-industry (procurement, ICP)",
+        "dimostrazione di prodotto: un log di questa complessità letto da un consulente"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "bpic2018",
+      "title": "BPI Challenge 2018: domande di contributi agricoli UE, tre anni",
+      "mode": "fetch",
+      "license": "CC0-1.0",
+      "kind": "dataset",
+      "source": "https://doi.org/10.4121/uuid:3301445f-95e8-4ff0-98a4-901f1f204972",
+      "url": "https://data.4tu.nl/file/443451fd-d38a-4464-88b4-0fc641552632/cd4fd2b8-6c95-47ae-aad9-dc1a085db364",
+      "file": "BPI Challenge 2018.xes.gz",
+      "md5": "66e54ddaa6b50d81a0166766d6f7a5d4",
+      "bytes": 158270992,
+      "extract": false,
+      "use": [
+        "B8 e VPT-10: cambi di regime annuali",
+        "PERF-01",
+        "RAD-02"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "bpic2017-full",
+      "title": "BPI Challenge 2017 completo (richieste di prestito, stessa banca di BPIC 2012)",
+      "mode": "fetch",
+      "license": "4TU General Terms of Use",
+      "kind": "dataset",
+      "source": "https://doi.org/10.4121/uuid:5f3067df-f10b-45da-b98b-86ae4c7a310b",
+      "url": "https://data.4tu.nl/file/34c3f44b-3101-4ea9-8281-e38905c68b8d/f3aec4f7-d52c-4217-82f4-57d719a8298c",
+      "file": "BPI Challenge 2017.xes.gz",
+      "md5": "10b37a2f78e870d78406198403ff13d2",
+      "bytes": 29658747,
+      "extract": false,
+      "use": [
+        "CF-01 con ProCause (esperimenti su BPIC 2017)",
+        "VPT-07: confronto con BPIC17 OCEL",
+        "stessa organizzazione di BPIC 2012/2017 W: non è un processo indipendente"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "sepsis-cases",
+      "title": "Sepsis Cases: percorsi dei pazienti con sepsi in un ospedale olandese",
+      "mode": "fetch",
+      "license": "4TU General Terms of Use",
+      "kind": "dataset",
+      "source": "https://doi.org/10.4121/uuid:915d2bfb-7e84-49ad-a286-dc35f063a460",
+      "files": [
+        {
+          "file": "Sepsis Cases - Event Log.xes.gz",
+          "url": "https://data.4tu.nl/file/33632f3c-5c48-40cf-8d8f-2db57f5a6ce7/643dccf2-985a-459e-835c-a82bce1c0339",
+          "md5": "b5671166ac71eb20680d3c74616c43d2",
+          "bytes": 202508
+        },
+        {
+          "file": "readme.txt",
+          "url": "https://data.4tu.nl/file/33632f3c-5c48-40cf-8d8f-2db57f5a6ce7/c3729698-8f67-4c12-8fda-20983a0c2a65",
+          "md5": "d990049d11124aeb5d68f2db6a2981d4",
+          "bytes": 2059
+        }
+      ],
+      "use": [
+        "RAD-02 variabilità e osservabilità parziale (sanità)",
+        "PROTO-02: verificare che l'ospedale sia diverso da quello di BPIC 2011 (holdout)"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "hospital-billing",
+      "title": "Hospital Billing: fatturazione dei servizi in un ospedale olandese (ERP)",
+      "mode": "fetch",
+      "license": "4TU General Terms of Use",
+      "kind": "dataset",
+      "source": "https://doi.org/10.4121/uuid:76c46b83-c930-4798-a1c9-4be94dfeb741",
+      "files": [
+        {
+          "file": "Hospital Billing - Event Log.xes.gz",
+          "url": "https://data.4tu.nl/file/6af6d5f0-f44c-49be-aac8-8eaa5fe4f6fd/28b83e72-375e-4da4-8459-a8506e898edf",
+          "md5": "2784619352be170e01c0a65594539972",
+          "bytes": 6615825
+        },
+        {
+          "file": "readme.txt",
+          "url": "https://data.4tu.nl/file/6af6d5f0-f44c-49be-aac8-8eaa5fe4f6fd/038fef3f-5854-4e6f-82a1-0d32a2c7f163",
+          "md5": "aae51d2117de9020a7c7076aff5f93d3",
+          "bytes": 3030
+        }
+      ],
+      "use": [
+        "RAD-02 processi amministrativi",
+        "PROTO-02: verificare l'indipendenza da BPIC 2011 (holdout)"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "road-traffic-fines",
+      "title": "Road Traffic Fine Management: multe stradali di una polizia locale italiana, oltre 10 anni",
+      "mode": "fetch",
+      "license": "4TU General Terms of Use",
+      "kind": "dataset",
+      "source": "https://doi.org/10.4121/uuid:270fd440-1057-4fb9-89a9-b699b47990f5",
+      "url": "https://data.4tu.nl/file/806acd1a-2bf2-4e39-be21-69b8cad10909/b234b06c-4d4f-4055-9f14-6218e3906d82",
+      "file": "Road_Traffic_Fine_Management_Process.xes.gz",
+      "md5": "dc4cae9a592938af92932ca6c043baeb",
+      "bytes": 3454978,
+      "extract": false,
+      "use": [
+        "B3.1 arrivi non stazionari su orizzonte lungo",
+        "B3.2 attese con timer esterni (scadenze di legge)",
+        "B8"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "helpdesk",
+      "title": "Helpdesk: ticket di assistenza di un'azienda italiana di software (copia CSV del repository ProcessSequencePrediction)",
+      "mode": "fetch",
+      "license": "nessuna licenza nel repository: solo ricerca, non ridistribuire",
+      "kind": "dataset",
+      "source": "https://github.com/verenich/ProcessSequencePrediction",
+      "git": "https://github.com/verenich/ProcessSequencePrediction",
+      "git_commit": "9f51f9a30574a71465bb394a7ed82eee0338d10d",
+      "use": [
+        "RAD-02 customer service",
+        "B3.1 e B3.2 su un processo breve",
+        "l'originale (Mendeley Data, Polato) non è raggiungibile dalla sessione cloud"
+      ],
+      "collection": "radar",
+      "files_md5": {
+        "data/helpdesk.csv": "a2d82bdbf71573189d20db09f3b1805c"
+      }
+    },
+    {
+      "id": "ocel-container-logistics",
+      "title": "Container Logistics, OCEL 2.0 (ocel-standard.org)",
+      "mode": "fetch",
+      "license": "CC-BY-4.0",
+      "kind": "dataset",
+      "source": "https://zenodo.org/records/8428084",
+      "files": [
+        {
+          "file": "ContainerLogistics.json",
+          "url": "https://zenodo.org/api/records/8428084/files/ContainerLogistics.json/content",
+          "md5": "ff1338ebaab7410577a182667f30eaa1",
+          "bytes": 10208746
+        }
+      ],
+      "use": [
+        "VPT-07 perdita da appiattimento",
+        "OC-01 simulazione object-centric (SimOC)"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "ocel-order-management",
+      "title": "Order Management, OCEL 2.0 (ocel-standard.org)",
+      "mode": "fetch",
+      "license": "CC-BY-4.0",
+      "kind": "dataset",
+      "source": "https://zenodo.org/records/8428112",
+      "files": [
+        {
+          "file": "order-management.json",
+          "url": "https://zenodo.org/api/records/8428112/files/order-management.json/content",
+          "md5": "0fbb063db34575c8b5b63a7c2ad5424f",
+          "bytes": 12616758
+        }
+      ],
+      "use": [
+        "VPT-07",
+        "OC-01"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "ocel-procure-to-pay",
+      "title": "Procure-to-Pay, OCEL 2.0 (ocel-standard.org)",
+      "mode": "fetch",
+      "license": "CC-BY-4.0",
+      "kind": "dataset",
+      "source": "https://zenodo.org/records/24331871",
+      "files": [
+        {
+          "file": "procure_to_pay.json",
+          "url": "https://zenodo.org/api/records/24331871/files/procure_to_pay.json/content",
+          "md5": "960884ca60a335e8f34792995e66ba4d",
+          "bytes": 27857740
+        }
+      ],
+      "use": [
+        "VPT-07",
+        "OC-01",
+        "confronto con BPIC 2019 (stesso dominio, altra fonte)"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "ocel-steel-logistics",
+      "title": "Steel Logistics OCEL: logistica reale anonimizzata di un'acciaieria",
+      "mode": "fetch",
+      "license": "CC-BY-4.0",
+      "kind": "dataset",
+      "source": "https://zenodo.org/records/24495159",
+      "files": [
+        {
+          "file": "steel_logistics_anonymised.json.zip",
+          "url": "https://zenodo.org/api/records/24495159/files/steel_logistics_anonymised.json.zip/content",
+          "md5": "aa6f71b69b33d45f135c3aa97c3bbed4",
+          "bytes": 39837437
+        },
+        {
+          "file": "description_anonymised.pdf",
+          "url": "https://zenodo.org/api/records/24495159/files/description_anonymised.pdf/content",
+          "md5": "0e6f762765c92c35d74376d035042986",
+          "bytes": 1241943
+        }
+      ],
+      "extract": true,
+      "use": [
+        "VPT-07 su un log object-centric reale",
+        "OC-01"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "ocel-state-aware",
+      "title": "State-Aware Object-Centric Process Mining: inventory management e manufacturing-maintenance, OCEL 2.0 sintetici",
+      "mode": "fetch",
+      "license": "CC-BY-4.0",
+      "kind": "dataset",
+      "source": "https://zenodo.org/records/22140119",
+      "files": [
+        {
+          "file": "inventory-management.ocel.json",
+          "url": "https://zenodo.org/api/records/22140119/files/inventory-management.ocel.json/content",
+          "md5": "5c88c033b16539735eb1b786351852cc",
+          "bytes": 59889295
+        },
+        {
+          "file": "manufacturing-maintenance.ocel.json",
+          "url": "https://zenodo.org/api/records/22140119/files/manufacturing-maintenance.ocel.json/content",
+          "md5": "5291c2b17d07947553c2e480a9e6686a",
+          "bytes": 57198742
+        }
+      ],
+      "use": [
+        "VPT-07 stato degli oggetti (scorte, macchine)",
+        "OC-01"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "ocel-standard-collection",
+      "title": "Collezione di OCEL 2.0 (running example, P2P, O2C, transfer order, recruiting, GitHub, Windows)",
+      "mode": "fetch",
+      "license": "CC-BY-4.0",
+      "kind": "dataset",
+      "source": "https://zenodo.org/records/18333927",
+      "files": [
+        {
+          "file": "1_running-example.zip",
+          "url": "https://zenodo.org/api/records/18333927/files/1_running-example.zip/content",
+          "md5": "c7325165771840445de3cf76513fd8c8",
+          "bytes": 1029393
+        },
+        {
+          "file": "2_p2p.zip",
+          "url": "https://zenodo.org/api/records/18333927/files/2_p2p.zip/content",
+          "md5": "b9c7eadc8e18fef0b62cf70700b60a0c",
+          "bytes": 2279341
+        },
+        {
+          "file": "3_o2c.zip",
+          "url": "https://zenodo.org/api/records/18333927/files/3_o2c.zip/content",
+          "md5": "6958b5ea69ec135edda317e17eebe91d",
+          "bytes": 3030302
+        },
+        {
+          "file": "4_transfer_order.zip",
+          "url": "https://zenodo.org/api/records/18333927/files/4_transfer_order.zip/content",
+          "md5": "ac0bd04d815638f1a8e35840ff3e3606",
+          "bytes": 168472
+        },
+        {
+          "file": "5_recruiting.zip",
+          "url": "https://zenodo.org/api/records/18333927/files/5_recruiting.zip/content",
+          "md5": "88ed1c80d5ccd1b7bd5ec165cee3c514",
+          "bytes": 161201
+        },
+        {
+          "file": "6_github_pm4py.zip",
+          "url": "https://zenodo.org/api/records/18333927/files/6_github_pm4py.zip/content",
+          "md5": "ec7feafd7cf57ded1328048833c67833",
+          "bytes": 32004
+        },
+        {
+          "file": "7_windows_events.zip",
+          "url": "https://zenodo.org/api/records/18333927/files/7_windows_events.zip/content",
+          "md5": "1e434a0b53ed75b1f6fdf822560b3d89",
+          "bytes": 1309438
+        }
+      ],
+      "extract": true,
+      "use": [
+        "VPT-07",
+        "OC-01"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "ocel-lrms-simulated",
+      "title": "OCEL 2.0 simulati: Order-to-Cash, Procure-to-Pay, Hiring, Hospital",
+      "mode": "fetch",
+      "license": "CC-BY-4.0",
+      "kind": "dataset",
+      "source": "https://zenodo.org/records/21977764",
+      "files": [
+        {
+          "file": "lrms_01_o2c.json",
+          "url": "https://zenodo.org/api/records/21977764/files/lrms_01_o2c.json/content",
+          "md5": "f8d24580bc3fcfa5dc780a4ea5a3264c",
+          "bytes": 14369657
+        },
+        {
+          "file": "lrms_02_p2p.json",
+          "url": "https://zenodo.org/api/records/21977764/files/lrms_02_p2p.json/content",
+          "md5": "b1ace7f9e729543149208a7588dc5a99",
+          "bytes": 6560362
+        },
+        {
+          "file": "lrms_03_hiring.json",
+          "url": "https://zenodo.org/api/records/21977764/files/lrms_03_hiring.json/content",
+          "md5": "2dd3c5b362316a21dbb82be723b4f21a",
+          "bytes": 7544249
+        },
+        {
+          "file": "lrms_04_hospital.json",
+          "url": "https://zenodo.org/api/records/21977764/files/lrms_04_hospital.json/content",
+          "md5": "54a77817e82088c895ebc8db01ff6536",
+          "bytes": 4817267
+        }
+      ],
+      "use": [
+        "VPT-07",
+        "OC-01 verità del simulatore"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "bpic-ocel2",
+      "title": "BPI Challenge in OCEL 2.0: BPIC 2014, 2016, 2017, 2019 (esclusi i BPIC 2015)",
+      "mode": "fetch",
+      "license": "CC-BY-4.0",
+      "kind": "dataset",
+      "source": "https://zenodo.org/records/22663565",
+      "files": [
+        {
+          "file": "BPIC14_ocel2.zip",
+          "url": "https://zenodo.org/api/records/22663565/files/BPIC14_ocel2.zip/content",
+          "md5": "ec593684d6f5e4253bdd4fa10b6a598e",
+          "bytes": 41109179
+        },
+        {
+          "file": "BPIC16_ocel2.zip",
+          "url": "https://zenodo.org/api/records/22663565/files/BPIC16_ocel2.zip/content",
+          "md5": "5986d98d777567897a708efb7162d48f",
+          "bytes": 396057238
+        },
+        {
+          "file": "BPIC17_ocel2.zip",
+          "url": "https://zenodo.org/api/records/22663565/files/BPIC17_ocel2.zip/content",
+          "md5": "9760e44458a1bbed6c6ac73a4f720806",
+          "bytes": 65053480
+        },
+        {
+          "file": "BPIC19_ocel2.zip",
+          "url": "https://zenodo.org/api/records/22663565/files/BPIC19_ocel2.zip/content",
+          "md5": "06d7911d54db9a9f1ca33ad991488676",
+          "bytes": 87645028
+        }
+      ],
+      "extract": true,
+      "use": [
+        "VPT-07 stesso log in forma piatta e object-centric",
+        "i BPIC 2015 del pacchetto non si scaricano: Municipality 1 è un holdout e gli altri comuni sono lo stesso processo",
+        "estratto occupa ~18 GB (BPIC 2016 soprattutto): si scarica per id quando serve"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "existential-drifts",
+      "title": "Existential-Only Process Concept Drifts: log sintetici con cambiamenti strutturali noti",
+      "mode": "fetch",
+      "license": "CC-BY-4.0",
+      "kind": "dataset",
+      "source": "https://zenodo.org/records/22736541",
+      "files": [
+        {
+          "file": "existence_only.tar",
+          "url": "https://zenodo.org/api/records/22736541/files/existence_only.tar/content",
+          "md5": "989e5dbbf85baac5144b2d81a56831dc",
+          "bytes": 278267904
+        }
+      ],
+      "use": [
+        "B8 drift con verità nota",
+        "VPT-10"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "cdrift-set",
+      "title": "Concept drift: set di valutazione cdrift (CV4CDD, Zenodo 12073054)",
+      "mode": "fetch",
+      "license": "MIT (record Zenodo)",
+      "kind": "dataset",
+      "source": "https://zenodo.org/records/12073054",
+      "files": [
+        {
+          "file": "cdrift_set.zip",
+          "url": "https://zenodo.org/api/records/12073054/files/cdrift_set.zip/content",
+          "md5": "2c78754e93128580ae5a96278b0903cc",
+          "bytes": 58928596
+        }
+      ],
+      "extract": true,
+      "use": [
+        "B8 benchmark del rilevamento (falsi positivi, mancati, ritardo)",
+        "DRIFT-01"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "cdlg-drift-val",
+      "title": "Log con drift generati da CDLG, set di validazione (CV4CDD)",
+      "mode": "fetch",
+      "license": "MIT (record Zenodo)",
+      "kind": "dataset",
+      "source": "https://zenodo.org/records/12073054",
+      "files": [
+        {
+          "file": "cdlg_set_val.zip",
+          "url": "https://zenodo.org/api/records/12073054/files/cdlg_set_val.zip/content",
+          "md5": "fcca079759c0628a611b0a99cfd86b9f",
+          "bytes": 616017496
+        }
+      ],
+      "extract": true,
+      "use": [
+        "B8 drift improvvisi, graduali, ricorrenti con verità nota",
+        "sostituisce il generatore CDLG, il cui GitLab non è raggiungibile dalla sessione cloud"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "at-kde",
+      "title": "AT-KDE: arrivi su tre scale (trend, giorno della settimana, intragiornaliero), 20 processi e baseline",
+      "mode": "fetch",
+      "license": "Apache-2.0",
+      "kind": "code",
+      "source": "https://github.com/konradoezdemir/AT-KDE",
+      "git": "https://github.com/konradoezdemir/AT-KDE",
+      "git_commit": "a6191ef91077447a06f1292bddce10d604339a6b",
+      "use": [
+        "G3b",
+        "B3.1 arrivi non stazionari"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "kronos-waiting-time",
+      "title": "Kronos: attese scomposte in batching, congestione, priorità, indisponibilità, esterne",
+      "mode": "fetch",
+      "license": "nessuna licenza rilevata da GitHub: da verificare (LIC-01)",
+      "kind": "code",
+      "source": "https://github.com/AutomatedProcessImprovement/waiting-time-analysis",
+      "git": "https://github.com/AutomatedProcessImprovement/waiting-time-analysis",
+      "git_commit": "bf7996d3502cba6d87dfdf76d51de14b623577e0",
+      "use": [
+        "B3.2 attribuzione delle attese",
+        "GT-01 confronto sulla causa vera"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "agentsimulator",
+      "title": "AgentSimulator: risorse come agenti, dati originali e simulati di nove processi",
+      "mode": "fetch",
+      "license": "MIT",
+      "kind": "code",
+      "source": "https://github.com/lukaskirchdorfer/AgentSimulator",
+      "git": "https://github.com/lukaskirchdorfer/AgentSimulator",
+      "git_commit": "665a6926878859072769aa25c12fe9d6056ad510",
+      "use": [
+        "G3b",
+        "B3.4 risorse"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "prosit",
+      "title": "ProSiT: parametri da alberi di decisione, contesto, multitasking, Hoeffding Adaptive Trees",
+      "mode": "fetch",
+      "license": "MIT",
+      "kind": "code",
+      "source": "https://github.com/franvinci/prosit",
+      "git": "https://github.com/franvinci/prosit",
+      "git_commit": "76d5567d1dc67c7248dee9fc3cc1929421b4814d",
+      "use": [
+        "G3b",
+        "B3.4",
+        "B8 ricalibrazione incrementale"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "das-rp",
+      "title": "Data-Aware Simulation: pacchetto di riproducibilità (dataset, modelli, codice, risultati)",
+      "mode": "fetch",
+      "license": "nessuna licenza rilevata da GitHub: da verificare; supplemento CC BY 4.0 su Zenodo 13341463",
+      "kind": "code",
+      "source": "https://github.com/orlenyslp/DAS-RP",
+      "git": "https://github.com/orlenyslp/DAS-RP",
+      "git_commit": "1eb3a3546683185c09d98b93d689928820f889b4",
+      "use": [
+        "B3.3 gateway che dipendono dal caso",
+        "B3.4"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "powl",
+      "title": "POWL Miner: discovery parzialmente ordinata, soundness per costruzione, export BPMN",
+      "mode": "fetch",
+      "license": "AGPL-3.0",
+      "kind": "code",
+      "source": "https://github.com/fit-process-mining/POWL",
+      "git": "https://github.com/fit-process-mining/POWL",
+      "git_commit": "fe13863ccea95bcecbdb07139e061de0a3f50d58",
+      "use": [
+        "B3.3 control flow sound",
+        "VAL-01"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "cdrift-evaluation",
+      "title": "Framework di valutazione del rilevamento di drift del control flow",
+      "mode": "fetch",
+      "license": "nessuna licenza rilevata da GitHub: da verificare",
+      "kind": "code",
+      "source": "https://github.com/cpitsch/cdrift-evaluation",
+      "git": "https://github.com/cpitsch/cdrift-evaluation",
+      "git_commit": "1ca37fa79eaf50c2f25ef7857ccf27065d15d57e",
+      "use": [
+        "B8",
+        "DRIFT-01"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "simoc",
+      "title": "SimOC: simulazione agent-based di processi scoperti da OCEL 2.0",
+      "mode": "fetch",
+      "license": "nessuna licenza rilevata da GitHub: da verificare",
+      "kind": "code",
+      "source": "https://github.com/azizketata/SimOC",
+      "git": "https://github.com/azizketata/SimOC",
+      "git_commit": "7b0ec215b2eb4df3cb908eeda1396da3c08aa618",
+      "use": [
+        "VPT-07",
+        "OC-01"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "declare-log-generator",
+      "title": "Generatore di log conformi a modelli Declare",
+      "mode": "fetch",
+      "license": "GPL-3.0",
+      "kind": "code",
+      "source": "https://github.com/processmining/synthetic-log-generator",
+      "git": "https://github.com/processmining/synthetic-log-generator",
+      "git_commit": "040f1a89b3fa423b4dea60a99a8ff7c931e186ab",
+      "use": [
+        "CONF-03",
+        "GT-01 processi flessibili"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "simpy",
+      "title": "SimPy: discrete-event simulation",
+      "mode": "fetch",
+      "license": "MIT",
+      "kind": "code",
+      "source": "https://gitlab.com/team-simpy/simpy",
+      "git": "https://gitlab.com/team-simpy/simpy",
+      "git_commit": "f43816490c6f76f336ad6e457d3cab9f386894af",
+      "use": [
+        "ENG-02 base di un motore proprio",
+        "ANA-01"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "salabim",
+      "title": "salabim: discrete-event simulation a oggetti",
+      "mode": "fetch",
+      "license": "MIT (nel file LICENSE; GitHub non la riconosce)",
+      "kind": "code",
+      "source": "https://github.com/salabim/salabim",
+      "git": "https://github.com/salabim/salabim",
+      "git_commit": "99bc8b2213d66a7287f04952cabc1fb9aa6c369d",
+      "use": [
+        "ENG-02"
+      ],
+      "collection": "radar"
+    },
+    {
+      "id": "queuesim",
+      "title": "QueueSim: reti di code e confronto con le formule analitiche",
+      "mode": "fetch",
+      "license": "Apache-2.0",
+      "kind": "code",
+      "source": "https://github.com/A-Herzog/QueueSim",
+      "git": "https://github.com/A-Herzog/QueueSim",
+      "git_commit": "a0577e45de82cb55d172812c92681faf25079c39",
+      "use": [
+        "ANA-01 verità matematica (M/M/1, M/M/c)"
+      ],
+      "collection": "radar"
     }
   ]
 }

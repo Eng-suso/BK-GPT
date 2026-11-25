@@ -1,16 +1,38 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-24, dopo la chiusura di SIM-36b (PR #184) e IMP-01 (PR #185).
-Ricomposto da chi ha chiuso l'ultimo dei due (IMP-01).
+Aggiornato: 2026-11-25, dopo RAD-00 (Research Radar nel manifest e nel piano).
 
 ## Punti attivi
 
-Nessuno. SIM-36, G3, B6, SIM-36b e IMP-01 sono chiusi. Il 2026-11-24 Sohayb ha
-trasformato il Master Plan V2 in un programma di ricerca (sezione "P0" di
-[`PLAN.md`](./PLAN.md)): prossimi, in parallelo, **LIC-01** (audit delle licenze),
-**PROTO-01** (protocollo sperimentale), **VAL-01** (validazione formale all'import) ed
-**ENG-01** (Simulation Engine Interface); poi **G3b**. B3 parte solo dopo G3b. Nessun
-candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
+Nessuno in corso. Prossimi, in parallelo: il P0 (**LIC-01**, **ENG-01**, poi **G3b**) e,
+dal radar, **RAD-01** (inventario e deduplica) e **ANA-01** (verità analitica del motore),
+che non toccano gli holdout. **PROTO-02** prima di usare in un esperimento un log del radar.
+
+## Research Radar (RAD-00 fatto il 2026-11-25)
+
+Decisione di Sohayb: servono più dati; tutti i dataset si usano per la ricerca. Dettagli e
+regole in [`RESEARCH_RADAR.md`](./RESEARCH_RADAR.md), punti nella sezione R di [`PLAN.md`](./PLAN.md).
+
+```bash
+uv run python scripts/fetch_datasets.py fetch --collection radar   # 33 voci, ~24 GB estratti, MD5 o commit
+uv run python scripts/fetch_datasets.py list                       # colonna "radar"
+uv run pytest --noconftest -q tests/simulation/test_dataset_manifest.py
+```
+
+- 21 dataset (BPIC 2017 completo, 2018, 2019; Sepsis; Hospital Billing; Road Traffic Fines;
+  Helpdesk; 9 pacchetti OCEL 2.0; drift con verità nota; SimBank, ProCause; BPS Quality
+  Framework) e 12 repository (AT-KDE, Kronos, AgentSimulator, ProSiT, DAS, POWL,
+  cdrift-evaluation, SimOC, generatore Declare, SimPy, salabim, QueueSim).
+- **Collezione separata:** non è sviluppo né holdout. Gli holdout di PROTO-01 restano chiusi.
+  Esclusi i BPIC 2015 del pacchetto OCEL. Prima di usare un log: RAD-01 (deduplica per hash e
+  nome; ProCause contiene BPIC 2012/2017, alcuni pacchetti possono contenere i log di Camargo)
+  e PROTO-02 (dichiarazione in `PROTOCOL.md`, secondo holdout congelato).
+- **Da verificare in RAD-01/PROTO-02:** che Sepsis e Hospital Billing non vengano dallo stesso
+  ospedale di BPIC 2011 (holdout).
+- **Non acquisiti:** CDLG e SSD (`gitlab.uni-mannheim.de` rifiutato dal proxy: serve l'host
+  nell'ambiente o il download dal computer di Sohayb), Helpdesk originale (Mendeley), ProcessLog.
+- **Difetto preesistente trovato in review, fuori dal radar:** `backend/security.py:111` e
+  `backend/llm/egress.py:250` non normalizzano `delir_auth_provider` (vedi `LOG.md`).
 
 ## PROTO-01 (fatto il 2026-11-25, PR #190)
 
