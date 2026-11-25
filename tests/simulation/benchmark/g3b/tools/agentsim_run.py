@@ -89,10 +89,14 @@ def main() -> int:
     train = read_input(args.input)
     validation = validation_part(train)
     target = placeholder_target(train, args.cases, pandas.Timestamp(args.start).tz_convert("UTC"))
-    train, parameters = discover_simulation_parameters(
-        train, target, validation, str(work), args.cases, validation["case_id"].nunique(),
-        determine_automatically=True, central_orchestration=False, discover_extr_delays=False,
-    )
+    try:
+        train, parameters = discover_simulation_parameters(
+            train, target, validation, str(work), args.cases, validation["case_id"].nunique(),
+            determine_automatically=True, central_orchestration=False, discover_extr_delays=False,
+        )
+    except ValueError as exc:
+        # Es. un input che dura meno di un giorno: la media degli arrivi per giorno e' NaN.
+        raise SystemExit(f"AgentSimulator non applicabile: la discovery si ferma ({type(exc).__name__}: {exc})") from exc
     discovery = round(time.perf_counter() - began, 3)
     arrivals = list(parameters["case_arrival_times"])
 
