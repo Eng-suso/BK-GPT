@@ -27,7 +27,7 @@ from backend.schemas.simulation_model import (
 from backend.schemas.workspace import BpmnModelResponse
 from backend.security import require_principal
 from backend.simulation.advisor import ExperimentReport, suggest_experiments
-from backend.simulation.ir.from_prosimos import ProsimosImportError, import_prosimos
+from backend.simulation.ir.from_prosimos import ProsimosImportError, UnsoundProcessError, import_prosimos
 from backend.simulation.service import (
     claim_proposals_for_model,
     SimulationCapacityError,
@@ -261,6 +261,8 @@ def import_workspace_prosimos_scenario(
         )
     try:
         result = import_prosimos(request.scenario, bpmn_xml)
+    except UnsoundProcessError:
+        raise  # VAL-01: 400 con codice stabile, nel gestore comune (backend/api/errors.py)
     except ProsimosImportError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return ProsimosImportResponse(

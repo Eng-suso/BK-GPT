@@ -252,3 +252,23 @@ def test_the_simod_fuzzy_scenario_runs_on_the_stack_runner(client):
         c["id"] for c in scenario["resource_calendars"]
     }
     assert finished["summary"]["casesCompleted"] == 100
+
+
+def test_a_process_that_cannot_finish_is_a_400_with_a_stable_code(client):
+    """VAL-01: lo scenario SIMOD di AcademicCredentials (ciclo a uscita 0, G3)."""
+    bpmn_model_id = _bpmn_model_id(client)
+    folder = ROOT / "tests" / "simulation" / "benchmark" / "g3" / "discovered" / "AcademicCredentials_diff"
+    scenario = json.loads((folder / "AcademicCredentials.json").read_text(encoding="utf-8"))
+    bpmn = (folder / "AcademicCredentials.bpmn").read_text(encoding="utf-8")
+
+    response = client.post(
+        f"/v1/workspace/bpmn-models/{bpmn_model_id}/prosimos-import",
+        json={"scenario": scenario, "current_bpmn_xml": bpmn},
+    )
+
+    assert response.status_code == 400, response.text
+    error = response.json()["error"]
+    assert error["code"] == "process_cannot_finish"
+    assert "«Avanzar recepcion documentos»" in error["message"]
+    assert "node_" not in error["message"]
+    assert "node_59fc62b1-3b4e-4c11-ba7b-1cab3392cdaa" in error["detail"]
