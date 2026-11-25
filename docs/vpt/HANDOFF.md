@@ -12,22 +12,34 @@ trasformato il Master Plan V2 in un programma di ricerca (sezione "P0" di
 **ENG-01** (Simulation Engine Interface); poi **G3b**. B3 parte solo dopo G3b. Nessun
 candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
 
-## PROTO-01 (in corso dal 2026-11-25, `docs/vpt-protocol`)
+## PROTO-01 (consegnato il 2026-11-25, `docs/vpt-protocol`; attende la conferma delle mete *proposta*)
 
-Protocollo sperimentale per G3b in `docs/vpt/PROTOCOL.md` (da scrivere: ultimo passo).
+Il protocollo di G3b è in [`PROTOCOL.md`](./PROTOCOL.md); in codice
+`tests/simulation/benchmark/protocol.py`, test in `test_protocol.py` (124).
 
-- **Holdout congelati** prima di ogni misura (commit `476e705`):
-  `tests/simulation/benchmark/protocol/holdout.lock.json`, SHA-256 del lucchetto
-  `1cfaa147…`. 6 log: Production, ConsultaDataMining, PurchasingExample, confidential_2000
-  (pacchetto Camargo 2022, CC BY 4.0), BPIC 2015 Municipality 1, BPIC 2011 Hospital (4TU).
-  Solo hash nel repo.
-- **Guardia:** `protocol.py` (audit hook), `test_protocol.py` 115/116 verdi; manca solo
-  l'impronta scritta in PROTOCOL.md.
-- **Identificabilità** dei 25 log di sviluppo: `protocol_properties.py` →
-  `protocol/identifiability.md`. Iterazione 1: la regola "95% delle attività finali"
-  segnava per costruzione ~5% di casi tagliati anche nei log completi → ora conta
-  l'eccesso sui casi maturi di A. BPIC 2013: 37% tagliati, arrivi ×204 → W1, NGD, RED,
-  CAR NOT VALIDATED; AED e CED validi.
+```bash
+uv run python scripts/fetch_datasets.py fetch bpic2012 bpic2013-incidents
+uv run python tests/simulation/benchmark/protocol_properties.py     # identificabilità dei 25 log di sviluppo
+uv run pytest --noconftest -q tests/simulation/benchmark/test_protocol.py
+```
+
+- **Holdout congelati prima di ogni misura** (commit `476e705`): 6 log, lucchetto
+  `protocol/holdout.lock.json`, impronta `1cfaa147…` scritta in PROTOCOL.md. Production,
+  ConsultaDataMining, PurchasingExample, confidential_2000 (pacchetto Camargo 2022) e BPIC
+  2015 Municipality 1, BPIC 2011 Hospital (4TU). Nel repo solo gli hash.
+- **Guardia:** audit hook in `selection_phase()`, attivo per tutti i test del benchmark
+  (`conftest.py`): chiude per nome, file derivati, cartelle dei dataset holdout (715/715 file
+  del pacchetto Camargo), collegamenti; fase per thread. Il test sui nomi copre il codice
+  di `tests/simulation`, `backend/simulation`, `backend/eventlog`, `scripts`. Si apre solo
+  con `final_evaluation(<impronta>)`, una volta, alla fine di G3b.
+- **Identificabilità** (`protocol/identifiability.md`): i 3 log del paper e i 20 sintetici
+  validano tutte le metriche osservabili; BPIC 2012 no su W1, NGD, RED (6% tagliati) e durate
+  (inizio sul 43%); BPIC 2013 no su W1, NGD, RED, CAR e durate, sì su AED, CED e risorse.
+- **Per G3b:** punti d'ingresso in `selection_phase()`, log da `development_logs()`, scelta
+  sulla validazione (`train_validation`, ultimo 20% del train), schede di go/no-go (§7) in
+  `LOG.md` prima della misura, budget del §6.
+- **Da confermare (Sohayb):** soglie del §4 (5% tagliati, 95% coperture, arrivi ×2, 30 casi),
+  budget del §6, go/no-go del §7.
 
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
