@@ -29,7 +29,7 @@ from backend.schemas.simulation import (
     ScenarioProvenanceResponse,
     ScenarioTemplateResponse,
 )
-from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+from backend.simulation.engine import get_engine
 from backend.simulation.ir.model import Confidence, Provenance, SourceRef
 from backend.simulation.scenario_builder import describe_scenario_template
 from backend.workspace_database import get_bpmn_review
@@ -45,7 +45,7 @@ def build_scenario_provenance(
     if not bpmn_xml:
         raise ValueError("Salva o genera un BPMN prima di configurare la simulazione.")
 
-    template = describe_scenario_template(normalize_bpmn_for_prosimos(bpmn_xml))
+    template = describe_scenario_template(get_engine().prepare_bpmn(bpmn_xml))
     review = get_bpmn_review(bpmn_model_id, include_approved=True)
     return map_scenario_provenance(template, review)
 

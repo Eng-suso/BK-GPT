@@ -29,6 +29,7 @@ from backend.security import require_principal
 from backend.simulation.advisor import ExperimentReport, suggest_experiments
 from backend.simulation.ir.from_prosimos import ProsimosImportError, import_prosimos
 from backend.simulation.service import (
+    compatibility_report_for_model,
     claim_proposals_for_model,
     SimulationCapacityError,
     SimulationLogUnavailable,
@@ -52,7 +53,6 @@ from backend.schemas.simulation import (
     BpmnCompatibilityRequest,
     BpmnCompatibilityResponse,
 )
-from backend.simulation.compatibility import compatibility_report_for_model
 from backend.simulation.narrative import (
     NarrativeRejected,
     NarrativeUnavailable,
