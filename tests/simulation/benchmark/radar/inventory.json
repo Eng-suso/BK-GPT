@@ -391,7 +391,7 @@
     "synthetic",
     "generated"
    ],
-   "other_files": 78,
+   "other_files": 82,
    "downloaded": true
   }
  },
@@ -1564,13 +1564,24 @@
   {
    "dataset": "radar:bps-quality-framework",
    "path": "[nome di un holdout: callcenter]",
+   "bytes": 491023,
+   "sha256": "ec2a1c121b1432f66e5ce62bbdffc86d6a7818d4ec004e515b5f68b48219e97c",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "[nome di un holdout: callcenter]",
    "bytes": 5192862,
    "sha256": "45bdc09c1b70826c9b135fd255d1611adec98320bfd7b591bf6a3b395a6bb448",
    "holdout": "holdout:callcenter (impronta e nome)",
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:bps-quality-framework",
@@ -1581,51 +1592,40 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:bps-quality-framework",
-   "path": "[nome di un holdout: holdout]",
-   "bytes": 491023,
-   "sha256": "ec2a1c121b1432f66e5ce62bbdffc86d6a7818d4ec004e515b5f68b48219e97c",
-   "holdout": "holdout:holdout (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "[nome di un holdout: holdout]",
+   "path": "[nome di un holdout: callcenter]",
    "bytes": 40576,
    "sha256": "1bb958c78ba2285d1eda37796cf7cbd14b91ad20ce286223001be31fa83f202c",
-   "holdout": "holdout:holdout (nome)",
+   "holdout": "holdout:callcenter (nome)",
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:bps-quality-framework",
-   "path": "[nome di un holdout: holdout]",
+   "path": "[nome di un holdout: callcenter]",
    "bytes": 12528154,
    "sha256": "485a1c2ed5a0ea18a925f800434aa4112e24ef1a6ad6a88a6fda03e9923ad8a8",
-   "holdout": "holdout:holdout (nome)",
+   "holdout": "holdout:callcenter (nome)",
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:bps-quality-framework",
-   "path": "[nome di un holdout: holdout]",
+   "path": "[nome di un holdout: callcenter]",
    "bytes": 198870658,
    "sha256": "03ba731d0c9bb43113ec5640e97ca83017b734d8a94c8e14e1ee70d75895cfa9",
-   "holdout": "holdout:holdout (nome)",
+   "holdout": "holdout:callcenter (nome)",
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:bps-quality-framework",
@@ -3525,226 +3525,6 @@
   },
   {
    "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]",
-   "bytes": 6692765,
-   "sha256": "f2a997f4342e9a1aa60e150f3cde6a803ae3ac7dd5b81d94eef73d8599d729ea",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]",
-   "bytes": 6700723,
-   "sha256": "98724565dd50880cf8e69ba00bcdace782476170fd70840808c85e5e902a9282",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]",
-   "bytes": 6699438,
-   "sha256": "c197d3813f14dd2efb5587277748a4574fb874fcd3cfc2b0b851df95a8947445",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]",
-   "bytes": 6704065,
-   "sha256": "825e15afbd239cadd66ec3d995eca35ff9d65f7bc4d5ac6de32984b89b2063c2",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]",
-   "bytes": 6695848,
-   "sha256": "0b98c47500e2c6714a5c14b5b5d8f23b3e6a9ddd21666c13034a52539ba2134b",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]",
-   "bytes": 6709993,
-   "sha256": "7a2c47ef7126840c3d7ffe2f9afbc4f2c1c6e81d187f4ef42ffa28b5a3b4ae43",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]",
-   "bytes": 6700293,
-   "sha256": "9271eb701628c2c9a76456f7af93289bc38575da6393464e10c83a876b284b8b",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]",
-   "bytes": 6698920,
-   "sha256": "0eaf3033e8e9226a179b30f01dc707c62c44f5a9ad3c1fd34850d04aafd44563",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]",
-   "bytes": 6703763,
-   "sha256": "d378929e6e73aaec5f99fc526a642b581c6118b47df37ba29c80402e5079c977",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]",
-   "bytes": 6718111,
-   "sha256": "c350a83f1c8a071a3e4cef2ab4db333290c1c0a5af035cb2bcf4109c7e6e5fe2",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]",
-   "bytes": 6926935,
-   "sha256": "4bcbb7823486ca18a755f40167cadf356aaab5ebee0a9ab173ee2b0a626cb15b",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]",
-   "bytes": 6926519,
-   "sha256": "79d32b93cb0624216f48eddd233984e93a9ae5f7f786fd73e27e007010b96bdb",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]",
-   "bytes": 6936615,
-   "sha256": "e0f9f0e44d499371ed8a2e66b30f2dc80d686703a17781b1892bb8151698797d",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]",
-   "bytes": 6934605,
-   "sha256": "362e5736f714bd7a19873ce8849e8cba13d56d468f27abe3ffdc90b488bee235",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]",
-   "bytes": 6936180,
-   "sha256": "b21747b8c79824b571495e1a58c69e8797529990a150c49b2ef055df966217bb",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]",
-   "bytes": 6939676,
-   "sha256": "fab2604dac2591dd6c3679c82729e9d98ffd075610be6cfc8961b762d26b398d",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]",
-   "bytes": 6928180,
-   "sha256": "5c6a4d6ac1ee43621931a2d69c5259d247223e5429fb7d2bb03581bd2050b273",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]",
-   "bytes": 6932943,
-   "sha256": "0438b28cab08072ac6bf91566e41b87a3f5a80504aac067ff3aeece48c1be9fa",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]",
-   "bytes": 6932435,
-   "sha256": "f89f26d9ab39acbd07e725dca13eb39e685fe738954c323eb64e06acf81cf4ca",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
-   "path": "real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]",
-   "bytes": 6950713,
-   "sha256": "8ef1c93d65caf7eb99137d6d24e31bbd14ea80328f853b2b4d88f6f4f4648b85",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:bps-quality-framework",
    "path": "real-life/[nome di un holdout: callcenter]",
    "bytes": 73817,
    "sha256": "9ee925f8c39c6ad5d41e3721faff2884c45ded8be88fc868d012b485ee3e6be7",
@@ -3752,7 +3532,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:bps-quality-framework",
@@ -3763,7 +3543,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:bps-quality-framework",
@@ -3774,7 +3554,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:bps-quality-framework",
@@ -3785,7 +3565,227 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6692765,
+   "sha256": "f2a997f4342e9a1aa60e150f3cde6a803ae3ac7dd5b81d94eef73d8599d729ea",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6700723,
+   "sha256": "98724565dd50880cf8e69ba00bcdace782476170fd70840808c85e5e902a9282",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6699438,
+   "sha256": "c197d3813f14dd2efb5587277748a4574fb874fcd3cfc2b0b851df95a8947445",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6704065,
+   "sha256": "825e15afbd239cadd66ec3d995eca35ff9d65f7bc4d5ac6de32984b89b2063c2",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6695848,
+   "sha256": "0b98c47500e2c6714a5c14b5b5d8f23b3e6a9ddd21666c13034a52539ba2134b",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6709993,
+   "sha256": "7a2c47ef7126840c3d7ffe2f9afbc4f2c1c6e81d187f4ef42ffa28b5a3b4ae43",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6700293,
+   "sha256": "9271eb701628c2c9a76456f7af93289bc38575da6393464e10c83a876b284b8b",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6698920,
+   "sha256": "0eaf3033e8e9226a179b30f01dc707c62c44f5a9ad3c1fd34850d04aafd44563",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6703763,
+   "sha256": "d378929e6e73aaec5f99fc526a642b581c6118b47df37ba29c80402e5079c977",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6718111,
+   "sha256": "c350a83f1c8a071a3e4cef2ab4db333290c1c0a5af035cb2bcf4109c7e6e5fe2",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6926935,
+   "sha256": "4bcbb7823486ca18a755f40167cadf356aaab5ebee0a9ab173ee2b0a626cb15b",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6926519,
+   "sha256": "79d32b93cb0624216f48eddd233984e93a9ae5f7f786fd73e27e007010b96bdb",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6936615,
+   "sha256": "e0f9f0e44d499371ed8a2e66b30f2dc80d686703a17781b1892bb8151698797d",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6934605,
+   "sha256": "362e5736f714bd7a19873ce8849e8cba13d56d468f27abe3ffdc90b488bee235",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6936180,
+   "sha256": "b21747b8c79824b571495e1a58c69e8797529990a150c49b2ef055df966217bb",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6939676,
+   "sha256": "fab2604dac2591dd6c3679c82729e9d98ffd075610be6cfc8961b762d26b398d",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6928180,
+   "sha256": "5c6a4d6ac1ee43621931a2d69c5259d247223e5429fb7d2bb03581bd2050b273",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6932943,
+   "sha256": "0438b28cab08072ac6bf91566e41b87a3f5a80504aac067ff3aeece48c1be9fa",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6932435,
+   "sha256": "f89f26d9ab39acbd07e725dca13eb39e685fe738954c323eb64e06acf81cf4ca",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
+  },
+  {
+   "dataset": "radar:bps-quality-framework",
+   "path": "real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]",
+   "bytes": 6950713,
+   "sha256": "8ef1c93d65caf7eb99137d6d24e31bbd14ea80328f853b2b4d88f6f4f4648b85",
+   "holdout": "holdout:callcenter (nome)",
+   "development": [],
+   "radar": [],
+   "log": null,
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:bps-quality-framework",
@@ -71250,7 +71250,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:das-rp",
@@ -71261,7 +71261,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:das-rp",
@@ -71272,7 +71272,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:das-rp",
@@ -72917,7 +72917,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:kronos-waiting-time",
@@ -72928,7 +72928,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:kronos-waiting-time",
@@ -72939,7 +72939,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:kronos-waiting-time",
@@ -72950,7 +72950,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:kronos-waiting-time",
@@ -72961,7 +72961,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:kronos-waiting-time",
@@ -72972,7 +72972,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:kronos-waiting-time",
@@ -74827,7 +74827,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:kronos-waiting-time",
@@ -75430,7 +75430,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:kronos-waiting-time",
@@ -76367,50 +76367,6 @@
    "note": null
   },
   {
-   "dataset": "radar:queuesim",
-   "path": "[nome di un holdout: callcenter]",
-   "bytes": 85301,
-   "sha256": "36916bd051649c22a251dc8a4e2b955063dfc5d714bcbe9313560af7eaed7a0e",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:queuesim",
-   "path": "[nome di un holdout: callcenter]",
-   "bytes": 3009,
-   "sha256": "44fd4465268b70e1db7b192b4f3581dc75a90c871a24e1c26c6967e4f2f6abfd",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:queuesim",
-   "path": "[nome di un holdout: callcenter]",
-   "bytes": 312463,
-   "sha256": "3baa7660d9a869e4e6b24d8f4260c219b830362ae5c22a9a68e9f81615a3b308",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
-   "dataset": "radar:queuesim",
-   "path": "[nome di un holdout: callcenter]",
-   "bytes": 6970,
-   "sha256": "662cafd8f86d166465a36402501ee2a1724825eed855779749b641c02605e916",
-   "holdout": "holdout:callcenter (nome)",
-   "development": [],
-   "radar": [],
-   "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
-  },
-  {
    "dataset": "radar:road-traffic-fines",
    "path": "[nome di un holdout: road_traffic_fines]",
    "bytes": 3454978,
@@ -76419,7 +76375,7 @@
    "development": [],
    "radar": [],
    "log": null,
-   "note": "non aperto: porta il nome di un log holdout di PROTO-01"
+   "note": "non aperto: porta il nome di un holdout (o del suo archivio)"
   },
   {
    "dataset": "radar:sepsis-cases",

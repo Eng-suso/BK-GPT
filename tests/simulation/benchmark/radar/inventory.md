@@ -11,54 +11,50 @@ contenuto compresso), nome e contenuto (attivita' e id dei casi; soglie in testa
 
 ## Holdout (PROTO-01 e secondo set di PROTO-02)
 
-| Voce | File (nome redatto) | Coincidenza | Nota |
-| --- | --- | --- | --- |
-| `bps-quality-framework` | `[nome di un holdout: callcenter]` | holdout:callcenter (impronta e nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `[nome di un holdout: callcenter]` | holdout:callcenter (impronta e nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `[nome di un holdout: holdout]` | holdout:holdout (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `[nome di un holdout: holdout]` | holdout:holdout (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `[nome di un holdout: holdout]` | holdout:holdout (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `[nome di un holdout: holdout]` | holdout:holdout (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_SIMOD/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/CallCenter_ServiceMiner/[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]` | holdout:callcenter (impronta e nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]` | holdout:callcenter (impronta e nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]` | holdout:callcenter (impronta e nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]` | holdout:callcenter (impronta e nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `das-rp` | `assets/Trafic/[nome di un holdout: road_traffic_fines_das]` | holdout:road_traffic_fines_das (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `das-rp` | `assets/Trafic/[nome di un holdout: road_traffic_fines_das]` | holdout:road_traffic_fines_das (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `das-rp` | `assets/Trafic/[nome di un holdout: road_traffic_fines_das]` | holdout:road_traffic_fines_das (impronta e nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `kronos-waiting-time` | `tests/assets/[nome di un holdout: production]` | holdout:production (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `kronos-waiting-time` | `tests/assets/[nome di un holdout: production]` | holdout:production (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `kronos-waiting-time` | `tests/assets/[nome di un holdout: purchasing_example]` | holdout:purchasing_example (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `kronos-waiting-time` | `tests/assets/[nome di un holdout: purchasing_example]` | holdout:purchasing_example (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `kronos-waiting-time` | `tests/assets/[nome di un holdout: purchasing_example]` | holdout:purchasing_example (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `kronos-waiting-time` | `tests/assets/[nome di un holdout: purchasing_example]` | holdout:purchasing_example (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `kronos-waiting-time` | `tests/assets/icpm/handoff-logs/waiting-time-ICPM-input.zip![nome di un holdout: production]` | holdout:production (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `kronos-waiting-time` | `tests/assets/icpm/handoff-logs/waiting-time-ICPM-output.zip![nome di un holdout: production]` | holdout:production (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `queuesim` | `[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `queuesim` | `[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `queuesim` | `[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `queuesim` | `[nome di un holdout: callcenter]` | holdout:callcenter (nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
-| `road-traffic-fines` | `[nome di un holdout: road_traffic_fines]` | holdout:road_traffic_fines (impronta e nome) | non aperto: porta il nome di un log holdout di PROTO-01 |
+| Voce | File (nome redatto) | Byte | SHA-256 | Coincidenza | Nota |
+| --- | --- | --- | --- | --- | --- |
+| `bps-quality-framework` | `[nome di un holdout: callcenter]` | 491.023 | `ec2a1c121b14` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `[nome di un holdout: callcenter]` | 5.192.862 | `45bdc09c1b70` | holdout:callcenter (impronta e nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `[nome di un holdout: callcenter]` | 5.117.126 | `bc4d019ee36f` | holdout:callcenter (impronta e nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `[nome di un holdout: callcenter]` | 40.576 | `1bb958c78ba2` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `[nome di un holdout: callcenter]` | 12.528.154 | `485a1c2ed5a0` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `[nome di un holdout: callcenter]` | 198.870.658 | `03ba731d0c9b` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]` | 73.817 | `9ee925f8c39c` | holdout:callcenter (impronta e nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]` | 3.631 | `7ce55fdc664c` | holdout:callcenter (impronta e nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]` | 11.918.670 | `55f0b80969f3` | holdout:callcenter (impronta e nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]` | 3.145 | `dfff9dc75c2b` | holdout:callcenter (impronta e nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.692.765 | `f2a997f4342e` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.700.723 | `98724565dd50` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.699.438 | `c197d3813f14` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.704.065 | `825e15afbd23` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.695.848 | `0b98c47500e2` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.709.993 | `7a2c47ef7126` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.700.293 | `9271eb701628` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.698.920 | `0eaf3033e8e9` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.703.763 | `d378929e6e73` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.718.111 | `c350a83f1c8a` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.926.935 | `4bcbb7823486` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.926.519 | `79d32b93cb06` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.936.615 | `e0f9f0e44d49` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.934.605 | `362e5736f714` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.936.180 | `b21747b8c798` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.939.676 | `fab2604dac25` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.928.180 | `5c6a4d6ac1ee` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.932.943 | `0438b28cab08` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.932.435 | `f89f26d9ab39` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `bps-quality-framework` | `real-life/[nome di un holdout: callcenter]/[nome di un holdout: callcenter]` | 6.950.713 | `8ef1c93d65ca` | holdout:callcenter (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `das-rp` | `assets/Trafic/[nome di un holdout: road_traffic_fines_das]` | 26.798 | `d5908c02a21a` | holdout:road_traffic_fines_das (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `das-rp` | `assets/Trafic/[nome di un holdout: road_traffic_fines_das]` | 33.737 | `6e4a25b1a779` | holdout:road_traffic_fines_das (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `das-rp` | `assets/Trafic/[nome di un holdout: road_traffic_fines_das]` | 1.090.978 | `4c83a50a8d76` | holdout:road_traffic_fines_das (impronta e nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `kronos-waiting-time` | `tests/assets/[nome di un holdout: production]` | 917.870 | `5eb11fc3a24a` | holdout:production (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `kronos-waiting-time` | `tests/assets/[nome di un holdout: production]` | 8.756 | `fbfacde88167` | holdout:production (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `kronos-waiting-time` | `tests/assets/[nome di un holdout: purchasing_example]` | 2.386.649 | `78d853aaa57a` | holdout:purchasing_example (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `kronos-waiting-time` | `tests/assets/[nome di un holdout: purchasing_example]` | 2.912 | `f242829a0ee6` | holdout:purchasing_example (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `kronos-waiting-time` | `tests/assets/[nome di un holdout: purchasing_example]` | 2.386.914 | `375073c469ed` | holdout:purchasing_example (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `kronos-waiting-time` | `tests/assets/[nome di un holdout: purchasing_example]` | 274.857 | `34f1cbe35816` | holdout:purchasing_example (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `kronos-waiting-time` | `tests/assets/icpm/handoff-logs/waiting-time-ICPM-input.zip![nome di un holdout: production]` | 323.938 | `0b25641477de` | holdout:production (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `kronos-waiting-time` | `tests/assets/icpm/handoff-logs/waiting-time-ICPM-output.zip![nome di un holdout: production]` | 54.041 | `5f8355a620ec` | holdout:production (nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
+| `road-traffic-fines` | `[nome di un holdout: road_traffic_fines]` | 3.454.978 | `dc9e0e65c964` | holdout:road_traffic_fines (impronta e nome) | non aperto: porta il nome di un holdout (o del suo archivio) |
 
 ## Per voce
 
@@ -96,7 +92,7 @@ contenuto compresso), nome e contenuto (attivita' e id dei casi; soglie in testa
 | `declare-log-generator` | codice | nessuno | 0 | 512 | 0 | 0 |
 | `simpy` | codice | nessuno | 0 | 104 | 0 | 0 |
 | `salabim` | codice | nessuno | 0 | 159 | 0 | 0 |
-| `queuesim` | codice | nessuno | 0 | 78 | 4 | 0 |
+| `queuesim` | codice | nessuno | 0 | 82 | 0 | 0 |
 
 ## Log
 
