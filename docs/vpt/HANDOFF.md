@@ -76,10 +76,21 @@ verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Aut
 
 ## G3b (in corso)
 
-- Schede §7 in `LOG.md` (voce G3b in cima). Nessuna misura ancora.
-- Ambienti di ricerca: `/var/tmp/delir-g3b/envs/{simod,prosit,agentsim,atkde}`, creati da
-  `tests/simulation/benchmark/g3b/setup_envs.sh` (codice esterno da `fetch_datasets.py fetch
-  at-kde prosit agentsimulator simod`). Mai importati dal prodotto.
+- Schede §7 in `LOG.md` (voce G3b in cima), scritte prima di ogni misura.
+- Codice: `tests/simulation/benchmark/g3b/` — `run.py` (driver, dentro `selection_phase()`,
+  risultati in `results/<log>/<fase>/<config>.json`, riprende da dove si è fermato),
+  `report.py` (tabelle e verdetti in `results.md`, `verdicts.json`), `tools/` (script che
+  girano nei venv di ricerca), `configs/` (SIMOD di G3 senza test), `test_g3b.py` (12).
+- Ambienti: `tests/simulation/benchmark/g3b/setup_envs.sh` → `/var/tmp/delir-g3b/envs`.
+  Lavoro e scenari scoperti in `/var/tmp/delir-g3b/work` (cache della discovery).
+- Prova su Loan_Application validazione: naive, ProSiT (con e senza regole) e
+  AgentSimulator misurati; SIMOD in corso.
+
+```bash
+tests/simulation/benchmark/g3b/setup_envs.sh
+uv run python tests/simulation/benchmark/g3b/run.py            # tutti i log, tutte le configurazioni
+uv run python tests/simulation/benchmark/g3b/report.py
+```
 
 ## Ultima misura
 
