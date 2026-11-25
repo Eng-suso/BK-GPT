@@ -18,16 +18,14 @@ Modello:
 
 ---
 
-## 2026-11-25 — nessun contatto con i titolari del codice — fatto
+## 2026-11-25 — Prosimos per l'MVP, nessun contatto con i titolari — fatto
 
-- Branch / PR: `docs/vpt-no-contact`. Solo piano e documenti; Master Plan V2 corretto
-  nel Claude Docs.
-- Decisione (Sohayb): DeliR non scrive a nessuno per chiedere autorizzazioni. Si toglie
-  la richiesta ai titolari di Prosimos da LIC-01.
-- Conseguenza: Prosimos 2.1.0 non dichiara una licenza, quindi nel prodotto commerciale
-  va sostituito. ENG-02 non è più "se necessario": serve prima della vendita, come motore
-  nativo sull'IR o motore con licenza permissiva, dietro ENG-01. Per la ricerca e per
-  le misure del benchmark Prosimos resta in uso.
+- Branch / PR: `docs/vpt-no-contact`, #188. Solo piano e documenti; Master Plan V2
+  corretto nel Claude Docs.
+- Decisione (Sohayb, dopo aver parlato con chi di dovere): Prosimos resta il motore per
+  l'MVP e per i test del prodotto con le aziende; dopo l'MVP si sostituisce con un motore
+  nativo sull'IR o con licenza permissiva (ENG-02, dietro ENG-01). Nessun contatto con i
+  titolari del codice: la richiesta esce da LIC-01.
 - Mete: nessuna abbassata.
 
 ---
