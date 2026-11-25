@@ -35,6 +35,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
+from typing import Literal
 
 from scripts import fetch_datasets
 from tests.simulation.benchmark.log_distance import Event, cases
@@ -247,9 +248,10 @@ def verify_frozen(cache_root: Path) -> list[str]:
 
 # --------------------------------------------------------------------------- log di sviluppo
 
-COMPLETE = "osservabilita completa"
-PARTIAL = "osservabilita parziale"
-SYNTHETIC = "sintetico con verita nota"
+Category = Literal["osservabilita completa", "osservabilita parziale", "sintetico con verita nota"]
+COMPLETE: Category = "osservabilita completa"
+PARTIAL: Category = "osservabilita parziale"
+SYNTHETIC: Category = "sintetico con verita nota"
 
 SYNTHETIC_PROCESSES = ("Insurance_Claims", "Loan_Application", "Pharmacy", "Procure_to_Pay")
 SYNTHETIC_VARIANTS = ("", "_1_timer", "_3_timers", "_5_timers", "_5_timers_after")
@@ -258,7 +260,7 @@ SYNTHETIC_VARIANTS = ("", "_1_timer", "_3_timers", "_5_timers", "_5_timers_after
 @dataclass(frozen=True, slots=True)
 class DevelopmentLog:
     key: str
-    category: str
+    category: Category
     source: str  # da dove si legge
     split: str  # come si divide in train e test
 
@@ -301,7 +303,6 @@ def split_by_start(events: Sequence[Event], fraction_last: float) -> tuple[list[
 
 
 VALIDATION_FRACTION = 0.2
-TEST_FRACTION = 0.5  # per i log senza test pubblicato: B = meta' dei casi per inizio, come SIM-36
 
 
 def train_validation(train: Sequence[Event]) -> tuple[list[Event], list[Event]]:
@@ -318,8 +319,25 @@ MIN_START_COVERAGE = 0.95
 MIN_RESOURCE_COVERAGE = 0.95
 END_COVERAGE = 0.95
 MAX_ARRIVAL_RATIO = 2.0  # B con arrivi piu' di 2 volte (o meno della meta') di A: non e' lo stesso flusso
-NOT_VALIDATED = "NOT VALIDATED"
-IDENTIFIABLE = "identificabile"
+Verdict = Literal["identificabile", "NOT VALIDATED"]
+NOT_VALIDATED: Verdict = "NOT VALIDATED"
+IDENTIFIABLE: Verdict = "identificabile"
+
+
+@dataclass(frozen=True, slots=True)
+class LogProperties:
+    """Proprieta' metodologiche di un log diviso in A (train) e B (test)."""
+
+    cases_train: int
+    cases_fit: int
+    cases_validation: int
+    cases_test: int
+    events: int
+    start_coverage: float
+    resource_coverage: float
+    censored_right_test: float
+    censored_left_test: float
+    arrival_rate_ratio: float | None
 
 
 def _boundary_activities(sequences: list[list[str]], position: int) -> set[str]:
@@ -340,7 +358,9 @@ def _traces(events: Sequence[Event]) -> list[list[str]]:
     return [[e.activity for e in sorted(group, key=lambda e: (e.start, e.end))] for group in cases(list(events)).values()]
 
 
-def properties(train: Sequence[Event], test: Sequence[Event], *, has_start: Sequence[bool], has_resource: Sequence[bool]) -> dict:
+def properties(
+    train: Sequence[Event], test: Sequence[Event], *, has_start: Sequence[bool], has_resource: Sequence[bool]
+) -> LogProperties:
     """Proprieta' metodologiche del log, calcolate dai dati e non da un modello.
 
     - casi tagliati a destra in B: la quota di casi di B la cui ultima attivita' non e'
@@ -371,36 +391,39 @@ def properties(train: Sequence[Event], test: Sequence[Event], *, has_start: Sequ
         return len(first) / span if span > 0 else math.nan
 
     rate_a, rate_b = rate(train), rate(test)
-    return {
-        "cases_train": len(cases(list(train))),
-        "cases_test": n_test,
-        "events": len(train) + len(test),
-        "start_coverage": round(sum(has_start) / len(has_start), 4) if has_start else 0.0,
-        "resource_coverage": round(sum(has_resource) / len(has_resource), 4) if has_resource else 0.0,
-        "censored_right_test": excess(sum(t[-1] not in ends for t in test_traces), early_traces, ends, -1),
-        "censored_left_test": excess(sum(t[0] not in starts for t in test_traces), late_traces, starts, 0),
-        "arrival_rate_ratio": round(rate_b / rate_a, 3) if rate_a and not math.isnan(rate_a) and not math.isnan(rate_b) else None,
-    }
+    fit, validation = train_validation(train)
+    return LogProperties(
+        cases_train=len(cases(list(train))),
+        cases_fit=len({e.case_id for e in fit}),
+        cases_validation=len({e.case_id for e in validation}),
+        cases_test=n_test,
+        events=len(train) + len(test),
+        start_coverage=round(sum(has_start) / len(has_start), 4) if has_start else 0.0,
+        resource_coverage=round(sum(has_resource) / len(has_resource), 4) if has_resource else 0.0,
+        censored_right_test=excess(sum(t[-1] not in ends for t in test_traces), early_traces, ends, -1),
+        censored_left_test=excess(sum(t[0] not in starts for t in test_traces), late_traces, starts, 0),
+        arrival_rate_ratio=round(rate_b / rate_a, 3) if not (math.isnan(rate_a) or math.isnan(rate_b)) else None,
+    )
 
 
-def identifiability(props: dict, *, synthetic: bool) -> dict[str, tuple[str, str]]:
+def identifiability(props: LogProperties, *, synthetic: bool) -> dict[str, tuple[Verdict, str]]:
     """Per metrica: (identificabile | NOT VALIDATED, motivo). Regole di PROTOCOL.md §4, uguali per ogni log."""
-    verdicts: dict[str, tuple[str, str]] = {}
-    small = props["cases_train"] < MIN_CASES or props["cases_test"] < MIN_CASES
-    right = props["censored_right_test"] > MAX_CENSORED
-    left = props["censored_left_test"] > MAX_CENSORED
+    verdicts: dict[str, tuple[Verdict, str]] = {}
+    small = props.cases_train < MIN_CASES or props.cases_test < MIN_CASES
+    right = props.censored_right_test > MAX_CENSORED
+    left = props.censored_left_test > MAX_CENSORED
 
     def rule(metric: str, failed: list[tuple[bool, str]]) -> None:
         reasons = [why for hit, why in failed if hit]
         verdicts[metric] = (NOT_VALIDATED, "; ".join(reasons)) if reasons else (IDENTIFIABLE, "")
 
     few = (small, f"meno di {MIN_CASES} casi in train o test")
-    cut_right = (right, f"{props['censored_right_test']:.0%} dei casi di test tagliati dalla fine del log")
-    cut_left = (left, f"{props['censored_left_test']:.0%} dei casi di test iniziati prima del log")
-    no_start = (props["start_coverage"] < MIN_START_COVERAGE, f"inizio delle attivita' su {props['start_coverage']:.0%} degli eventi")
-    no_resource = (props["resource_coverage"] < MIN_RESOURCE_COVERAGE, f"risorsa su {props['resource_coverage']:.0%} degli eventi")
+    cut_right = (right, f"{props.censored_right_test:.0%} dei casi di test tagliati dalla fine del log")
+    cut_left = (left, f"{props.censored_left_test:.0%} dei casi di test iniziati prima del log")
+    no_start = (props.start_coverage < MIN_START_COVERAGE, f"inizio delle attivita' su {props.start_coverage:.0%} degli eventi")
+    no_resource = (props.resource_coverage < MIN_RESOURCE_COVERAGE, f"risorsa su {props.resource_coverage:.0%} degli eventi")
     no_truth = (not synthetic, "serve la verita' del processo: c'e' solo nei sintetici")
-    ratio = props["arrival_rate_ratio"]
+    ratio = props.arrival_rate_ratio
     unstable = (
         ratio is None or not 1 / MAX_ARRIVAL_RATIO <= ratio <= MAX_ARRIVAL_RATIO,
         f"arrivi di test {ratio}× quelli di train: non sono lo stesso flusso" if ratio else "ritmo degli arrivi non misurabile",
