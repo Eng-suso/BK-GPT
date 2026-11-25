@@ -18,6 +18,25 @@ Modello:
 
 ---
 
+## 2026-11-25 — Code review di RAD-00: login Supabase e host di Mannheim — fatto
+
+- Branch / PR: `claude/delir-dataset-research-1a7xd5`.
+- `DELIR_AUTH_PROVIDER`: normalizzato una volta in `Settings` (validatore); tolte le
+  normalizzazioni sparse in `app.py` e `identity.py`, così avvio, `/v1/auth/config`, verifica
+  delle richieste (`security.py:111`) ed egress (`egress.py:250`) leggono lo stesso valore.
+  Test: `test_the_provider_is_read_in_one_form_everywhere` (`Supabase`, ` supabase `,
+  `SUPABASE`); `test_supabase_auth.py` + `test_startup_guard.py` 60 passati su Postgres locale
+  (`scripts/vpt_stack.sh`). `security-review`: nessuna vulnerabilità, il cambio chiude un ramo
+  in cui un deploy Supabase avrebbe accettato il token condiviso.
+- `gitlab.uni-mannheim.de` aggiunto all'ambiente BK-GPT: raggiungibile, ma risponde 404 a ogni
+  richiesta, anche alla home. CDLG e SSD restano da scaricare dal computer di Sohayb.
+- Branch aperti rispetto a `main`: `feat/sim-engine-interface` (ENG-01, in corso, non toccato);
+  `feat/canvas-agent-architecture` (26), `feat/mcp-server` (3), `claude/charming-hawking-0bmoev`
+  (3, media), `fix/sim-zero-fixed-durations` (1, del 23/11) fuori dal VPT: segnalati a Sohayb,
+  non fusi senza la sua decisione.
+- Skill: code-review, simplify, security-review.
+- Prossimo passo: i due prompt in `HANDOFF.md` (G3b; RAD-01 → PROTO-02).
+
 ## 2026-11-25 — RAD-00 Research Radar nel manifest e nel piano — fatto
 
 - Branch / PR: `claude/delir-dataset-research-1a7xd5`.
