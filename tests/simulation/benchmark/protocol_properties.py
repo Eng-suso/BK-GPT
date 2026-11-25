@@ -94,7 +94,7 @@ def table(rows: list[dict]) -> str:
     reasons: dict[str, list[str]] = {}
     for row in rows:
         if row.get("status") == "unavailable":
-            lines.append(f"| {row['log']} | {row['category']} | non disponibile: {row['reason']} |" + " |" * (4 + len(METRICS)))
+            lines.append(f"| {row['log']} | {row['category']} | non disponibile: {row['reason']} |" + " |" * (3 + len(METRICS)))
             continue
         p = row["properties"]
         cells = []

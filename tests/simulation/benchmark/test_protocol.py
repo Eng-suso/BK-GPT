@@ -314,3 +314,82 @@ def test_a_test_period_with_a_different_arrival_flow_does_not_validate_arrivals(
     burst = [Event(e.case_id, e.activity, e.start, e.start + timedelta(minutes=10)) for e in burst]
     verdict, why = protocol.identifiability(_props(train, burst), synthetic=False)["case_arrival"]
     assert verdict == protocol.NOT_VALIDATED and "non sono lo stesso flusso" in why
+
+
+# --------------------------------------------------------------------------- casi trovati in review
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "camargo-2022-reproducibility/reproducibility_package_caise_22/experiment_1/data/generated_logs/MP/SIMOD/Production_1.csv",
+        "reproducibility_package_caise_22/experiment_2/scenario_2/models/CFM/modified/bpmn_models/confidential_2000_modif.bpmn",
+        "camargo-2022-reproducibility/qualsiasi_nome.txt",
+        "bpic2015-municipality1/BPIC15_1.xes.part",
+    ],
+)
+def test_files_derived_from_holdouts_or_inside_their_datasets_are_closed(tmp_path: Path, relative: str):
+    """Log simulati da modelli addestrati sugli holdout, il modello vero modificato, tutto il pacchetto."""
+    planted = tmp_path / relative
+    planted.parent.mkdir(parents=True)
+    planted.write_bytes(b"x")
+    with protocol.selection_phase(), pytest.raises(protocol.HoldoutAccessError):
+        planted.read_bytes()
+
+
+def test_a_hard_link_with_an_innocent_name_is_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    holdout = _plant(tmp_path, HOLDOUT_FILES[0])
+    link = tmp_path / "copia.bin"
+    os.link(holdout, link)
+    stat = holdout.stat()
+    monkeypatch.setattr(protocol, "_frozen_files", {(stat.st_dev, stat.st_ino)})
+    with protocol.selection_phase(), pytest.raises(protocol.HoldoutAccessError):
+        link.read_bytes()
+
+
+def test_opening_holdouts_in_one_thread_keeps_them_closed_in_the_others(tmp_path: Path):
+    import threading
+
+    planted = _plant(tmp_path, HOLDOUT_FILES[0])
+    inside, release, seen = threading.Event(), threading.Event(), []
+
+    def final() -> None:
+        with protocol.final_evaluation(protocol.lock_digest()):
+            inside.set()
+            release.wait(5)
+
+    def selection() -> None:
+        try:
+            with protocol.selection_phase():
+                planted.read_bytes()
+            seen.append("letto")
+        except protocol.HoldoutAccessError:
+            seen.append("chiuso")
+
+    opener = threading.Thread(target=final)
+    opener.start()
+    inside.wait(5)
+    reader = threading.Thread(target=selection)
+    reader.start()
+    reader.join(5)
+    release.set()
+    opener.join(5)
+    assert seen == ["chiuso"]
+    with pytest.raises(protocol.HoldoutAccessError):
+        planted.read_bytes()  # il thread principale non e' mai stato aperto
+
+
+def test_generic_configuration_files_are_not_blocked(tmp_path: Path):
+    for name in ("production.json", "production.xml", "Production.yaml"):
+        planted = _plant(tmp_path, name)
+        with protocol.selection_phase():
+            assert planted.read_bytes()
+
+
+def test_every_development_log_is_listed_none_missing():
+    logs = protocol.development_logs()
+    assert len(logs) == 25
+    assert sum(log.category == protocol.SYNTHETIC for log in logs) == 20
+    for log in logs:
+        if log.source.startswith("datasets/"):
+            assert list(protocol.ROOT.glob(log.source.replace("{train,test}", "*"))), log.source
