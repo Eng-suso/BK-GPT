@@ -15,19 +15,18 @@ const ACADEMIC = "tests/simulation/benchmark/g3/discovered/AcademicCredentials_d
 const json = (path: string) => JSON.parse(readFileSync(path, "utf8"));
 
 // Risposte del backend vero (e2e/fixtures/val-01/generate.py).
+const loop = {
+  xml: readFileSync(`${FIXTURES}/loop.bpmn`, "utf8"), file: readFileSync(`${FIXTURES}/loop.json`, "utf8"), name: "pratiche.json",
+  template: json(`${FIXTURES}/loop.template.json`), refusal: json(`${FIXTURES}/loop.refusal.json`), accepted: null,
+};
 const files = {
   academic: {
     xml: readFileSync(`${ACADEMIC}.bpmn`, "utf8"), file: readFileSync(`${ACADEMIC}.json`, "utf8"), name: "AcademicCredentials.json",
     template: json(`${FIXTURES}/academic.template.json`), refusal: json(`${FIXTURES}/academic.refusal.json`), accepted: null,
   },
-  loop: {
-    xml: readFileSync(`${FIXTURES}/loop.bpmn`, "utf8"), file: readFileSync(`${FIXTURES}/loop.json`, "utf8"), name: "pratiche.json",
-    template: json(`${FIXTURES}/loop.template.json`), refusal: json(`${FIXTURES}/loop.refusal.json`), accepted: null,
-  },
-  fixed: {
-    xml: readFileSync(`${FIXTURES}/loop.bpmn`, "utf8"), file: readFileSync(`${FIXTURES}/loop-fixed.json`, "utf8"), name: "pratiche.json",
-    template: json(`${FIXTURES}/loop.template.json`), refusal: null, accepted: json(`${FIXTURES}/loop-fixed.import.json`),
-  },
+  loop,
+  // Lo stesso file con l'uscita riaperta: il server lo accetta.
+  fixed: { ...loop, file: readFileSync(`${FIXTURES}/loop-fixed.json`, "utf8"), refusal: null, accepted: json(`${FIXTURES}/loop-fixed.import.json`) },
 };
 type Kind = keyof typeof files;
 

@@ -14,10 +14,12 @@ cambio della verifica, dell'import o del template:
 
 from __future__ import annotations
 
+import copy
 import json
 from dataclasses import asdict
 from pathlib import Path
 
+from backend.schemas.api import ApiEnvelope, ApiError, ApiMeta
 from backend.schemas.simulation_model import ProsimosImportNote, ProsimosImportResponse
 from backend.schemas.workspace import BpmnModelResponse
 from backend.simulation.ir.from_prosimos import import_prosimos
@@ -46,10 +48,15 @@ def _refusal(scenario: dict, bpmn: str) -> object:
     try:
         import_prosimos(scenario, bpmn)
     except UnsoundProcessError as exc:
-        return {"ok": False, "data": None, "error": {
-            "code": "process_cannot_finish", "message": str(exc), "detail": exc.detail,
-            "request_id": "val-01", "origin": "server", "retryable": False,
-        }, "meta": {"request_id": "val-01", "duration_ms": 1}}
+        return ApiEnvelope(
+            ok=False,
+            data=None,
+            error=ApiError(
+                code="process_cannot_finish", message=str(exc), detail=exc.detail,
+                request_id="val-01", origin="server", retryable=False,
+            ),
+            meta=ApiMeta(request_id="val-01", duration_ms=1),
+        ).model_dump(mode="json")
     raise SystemExit("lo scenario doveva essere rifiutato")
 
 
@@ -73,7 +80,7 @@ def main() -> None:
     loop = json.loads((HERE / "loop.json").read_text(encoding="utf-8"))
     _write("loop.template.json", _template(loop_bpmn))
     _write("loop.refusal.json", _refusal(loop, loop_bpmn))
-    fixed = json.loads(json.dumps(loop))
+    fixed = copy.deepcopy(loop)
     fixed["gateway_branching_probabilities"][0]["probabilities"] = [
         {"path_id": "F_again", "value": 0.2}, {"path_id": "F_done", "value": 0.8},
     ]
