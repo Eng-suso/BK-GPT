@@ -98,6 +98,10 @@ verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Aut
   arrivi, AgentSimulator agli Insurance_Claims (un solo giorno). Tutti contano come
   sconfitta del candidato (o della base). Da rifare alla fine:
   `run.py --configs agentsim --force` sui log dove ha fallito, per il motivo leggibile.
+- 20:35 UTC: AgentSimulator su BPIC 2012 W test fermato a mano dopo 88 minuti su una
+  replica (budget 10): ora gli strumenti hanno un allarme per replica (`fuori budget`).
+  Alla fine: `run.py --retry-failed` per riclassificarlo. Sintetici divisi in due
+  processi (`synthetic.log`, `synthetic2.log`); 348/450 risultati.
 
 ```bash
 tests/simulation/benchmark/g3b/setup_envs.sh
