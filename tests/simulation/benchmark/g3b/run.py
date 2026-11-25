@@ -19,7 +19,7 @@ dei processi, campionata ogni 0,2 s). Il codice esterno gira come sottoprocesso 
 venv di ricerca (``/var/tmp/delir-g3b/envs``) e riceve solo percorsi di log di sviluppo.
 
 Un risultato per file in ``results/<log>/<fase>/<configurazione>.json``, senza orari
-nelle metriche: una misura gia' scritta non si rifa' (``--force`` per rifarla).
+nelle metriche: un risultato gia' scritto non si rifa' (``--force``; ``--retry-failed`` per i falliti).
 Fuori budget (PROTOCOL.md §6) = ``status: out_of_budget`` con tempo e memoria misurati;
 uno strumento che non si applica al log (AT-KDE con meno di 14 giorni di arrivi) =
 ``not_applicable``. Per le schede entrambi contano come sconfitta del candidato.
@@ -466,9 +466,11 @@ def evaluate(config: str, prepared: Prepared, *, seed: int, replicas: int) -> di
     }
 
 
-def _done(path: Path) -> bool:
-    """Misurato o fuori budget: non si rifa'. Un errore si riprova al giro dopo."""
-    return path.is_file() and json.loads(path.read_text(encoding="utf-8"))["status"] in ("measured", "out_of_budget", "not_applicable")
+def _done(path: Path, retry_failed: bool) -> bool:
+    """Gia' scritto: non si rifa'. Con seed fissati un errore si ripete uguale; ``--retry-failed`` lo riprova."""
+    if not path.is_file():
+        return False
+    return not (retry_failed and json.loads(path.read_text(encoding="utf-8"))["status"] == "failed")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -478,14 +480,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--phases", nargs="*", default=list(PHASES), choices=PHASES)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--replicas", type=int, default=PAPER_REPLICAS)
-    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--force", action="store_true", help="rifa' anche le misure gia' scritte")
+    parser.add_argument("--retry-failed", action="store_true", help="riprova le configurazioni fallite")
     args = parser.parse_args(argv)
 
     logs = [log for log in protocol.development_logs() if not args.logs or log.key in args.logs]
     with protocol.selection_phase():
         for log in logs:
             for phase in args.phases:
-                todo = [c for c in args.configs if args.force or not _done(RESULTS / log.key / phase / f"{c}.json")]
+                todo = [c for c in args.configs if args.force or not _done(RESULTS / log.key / phase / f"{c}.json", args.retry_failed)]
                 if not todo:
                     continue
                 prepared = prepare(log, phase)
