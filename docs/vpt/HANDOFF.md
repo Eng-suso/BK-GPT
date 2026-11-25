@@ -70,6 +70,13 @@ Chiusura: HANDOFF.md aggiornato dopo ogni misura, voce in LOG.md, code review, s
 verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Authored-By.
 ```
 
+## RAD-01 → PROTO-02 (in corso dal 2026-11-25)
+
+- Branch `claude/vpt-radar-inventory-j14bbw` (al posto di `chore/radar-inventory`: è il
+  branch assegnato alla sessione cloud), allineato a `main` (`687f4e1`).
+- Stato: download del radar avviato (`fetch` di 32 voci, poi `bpic-ocel2` da solo).
+- Prossimo: script `tests/simulation/benchmark/radar_inventory.py` → `radar/inventory.md`.
+
 ## Ultima misura
 
 ENG-01: harness B2 sullo stack reale prima e dopo, `baseline.json` identico bit per bit
