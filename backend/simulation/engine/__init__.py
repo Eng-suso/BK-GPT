@@ -164,9 +164,17 @@ class SimulationEngine(Protocol):
         ...
 
 
-@cache
 def get_engine(name: str = DEFAULT_ENGINE) -> SimulationEngine:
-    """Il motore registrato con quel nome; per l'MVP solo Prosimos."""
+    """Il motore registrato con quel nome; per l'MVP solo Prosimos.
+
+    Uno per processo e per nome: ``run`` e ``cancel`` devono parlare con la
+    stessa istanza, comunque la si chieda.
+    """
+    return _engine(name)
+
+
+@cache
+def _engine(name: str) -> SimulationEngine:
     if name == "prosimos":
         # Caricato solo qui: l'adattatore importa moduli che a loro volta usano
         # i tipi di questa interfaccia.
