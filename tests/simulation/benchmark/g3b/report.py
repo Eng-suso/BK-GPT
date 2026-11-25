@@ -136,7 +136,7 @@ def verdict(card: Card, phase: str, results: dict, logs: list[str]) -> dict:
                 if mine and theirs and (mine[0] > 2 * theirs[0] or mine[1] > 2 * theirs[1]):
                     costly.append(log)
         per_base[base] = {
-            "wins": wins, "logs": len(usable), "losses": losses, "missing": missing,
+            "wins": wins, "ties": sum(v == "pari" for v in outcome.values()), "logs": len(usable), "losses": losses, "missing": missing,
             "guard_losses": {m: v for m, v in guards.items() if v}, "costlier_than_double": costly,
         }
         if missing:
@@ -145,7 +145,7 @@ def verdict(card: Card, phase: str, results: dict, logs: list[str]) -> dict:
         if wins <= len(usable) / 2:
             reasons.append(f"contro {base}: {LABELS[card.primary]} vince su {wins}/{len(usable)} log")
         if losses:
-            reasons.append(f"contro {base}: {LABELS[card.primary]} perde su {', '.join(losses)}")
+            reasons.append(f"contro {base}: {LABELS[card.primary]} perde su {_logs(losses)}")
         for metric, lost in guards.items():
             if len(lost) > 1:
                 reasons.append(f"contro {base}: guardia {metric} perde su {len(lost)} log")
@@ -153,7 +153,7 @@ def verdict(card: Card, phase: str, results: dict, logs: list[str]) -> dict:
             reasons.append(f"contro {base}: tempo o memoria oltre il doppio su {len(costly)} log")
     budget = [log for log, r in rows.items() if r is None or r.get("status") != "measured"]
     if budget:
-        reasons.append(f"candidato non misurato (mancante, fallito o fuori budget) su {', '.join(budget)}")
+        reasons.append(f"candidato non misurato (fallito, fuori budget o non applicabile) su {_logs(budget)}")
     if card.val01 == "non verificabile":
         reasons.append("VAL-01 non verificabile: nessun modello di processo")
     elif card.val01 == "scenario":
@@ -163,6 +163,10 @@ def verdict(card: Card, phase: str, results: dict, logs: list[str]) -> dict:
     if not complete:
         return {"verdict": "INCOMPLETO", "reasons": reasons, "bases": per_base}
     return {"verdict": "NO-GO" if reasons else "GO", "reasons": reasons, "bases": per_base}
+
+
+def _logs(logs: list[str]) -> str:
+    return ", ".join(logs) if len(logs) <= 4 else f"{len(logs)} log ({', '.join(logs[:3])}, ...)"
 
 
 def _cell(result: dict | None, metric: str) -> str:
@@ -204,6 +208,15 @@ def report(results: dict) -> tuple[str, dict]:
             v = verdict(card, phase, results, logs)
             verdicts[f"{card.component} / {phase}"] = v
             lines.append(f"| {card.component} | {phase} | **{v['verdict']}** | {'; '.join(v['reasons']) or '—'} |")
+    lines += ["", "## Primaria contro ogni base", "", "Log dove la primaria è identificabile: vince / pari / perde.", "",
+              "| Componente | Primaria | Base | Validazione | Test |", "| --- | --- | --- | --- | --- |"]
+    for card in CARDS:
+        for base in card.bases:
+            cells = []
+            for phase in PHASES:
+                b = verdicts[f"{card.component} / {phase}"]["bases"].get(base)
+                cells.append(f"{b['wins']} / {b['ties']} / {len(b['losses'])}" if b else "—")
+            lines.append(f"| {card.component} | {LABELS[card.primary]} | {base} | " + " | ".join(cells) + " |")
     for phase in PHASES:
         lines += ["", f"## Metriche, fase {phase}", ""]
         for log in logs:
