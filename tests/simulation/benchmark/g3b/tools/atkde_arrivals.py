@@ -19,10 +19,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 import logging
 import random
 import time
 from pathlib import Path
+
+# Il codice dello strumento sta nella cartella del suo repository, la cwd.
+sys.path.insert(0, os.getcwd())
 
 import numpy
 import pandas
