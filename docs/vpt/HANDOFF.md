@@ -1,14 +1,16 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-25, dopo la chiusura di VAL-01 (PR #189), PROTO-01 (PR #190) ed
-ENG-01 (PR #191). Ricomposto da chi ha chiuso l'ultimo dei tre (ENG-01).
+Aggiornato: 2026-11-25, dopo VAL-01 (PR #189), PROTO-01 (PR #190), RAD-00 (PR #192) ed
+ENG-01 (PR #191). Ricomposto da chi ha chiuso l'ultimo (ENG-01).
 
 ## Punti attivi
 
-Nessuno. Del P0 restano **LIC-01** (audit delle licenze, nessuna dipendenza) e **G3b**
-(benchmark dei motori scientifici: dipendeva da PROTO-01, ora sbloccato). Poi
-B3.1-B3.3 e B3. ENG-02 parte dopo LIC-01 ed ENG-01 (fatto). Nessun candidato
-(AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima di G3b.
+Nessuno in corso. Prossimi, in parallelo: **LIC-01** (audit delle licenze) e **G3b**
+(benchmark dei motori scientifici, sbloccato da PROTO-01); dal radar **RAD-01**
+(inventario e deduplica) e **ANA-01** (verità analitica del motore), che non toccano gli
+holdout. **PROTO-02** prima di usare in un esperimento un log del radar. Poi B3.1-B3.3 e
+B3; ENG-02 dopo LIC-01. Nessun candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si
+implementa prima di G3b.
 
 ## Ultima misura
 
@@ -16,6 +18,32 @@ ENG-01: harness B2 sullo stack reale prima e dopo, `baseline.json` identico bit 
 (SHA-256 `4e4fce5d…`, 9/9 dentro), anche dopo il merge con VAL-01. G3: il "B = A" di
 SIM-36 resta migliore di ogni scenario SIMOD, salvo BPIC 2017 W con ritardi estranei su
 RED e W1. B6: what-if 10 × 1.000 casi in 11-26 s.
+
+## Research Radar (RAD-00 fatto il 2026-11-25)
+
+Decisione di Sohayb: servono più dati; tutti i dataset si usano per la ricerca. Dettagli e
+regole in [`RESEARCH_RADAR.md`](./RESEARCH_RADAR.md), punti nella sezione R di [`PLAN.md`](./PLAN.md).
+
+```bash
+uv run python scripts/fetch_datasets.py fetch --collection radar   # 33 voci, ~24 GB estratti, MD5 o commit
+uv run python scripts/fetch_datasets.py list                       # colonna "radar"
+uv run pytest --noconftest -q tests/simulation/test_dataset_manifest.py
+```
+
+- 21 dataset (BPIC 2017 completo, 2018, 2019; Sepsis; Hospital Billing; Road Traffic Fines;
+  Helpdesk; 9 pacchetti OCEL 2.0; drift con verità nota; SimBank, ProCause; BPS Quality
+  Framework) e 12 repository (AT-KDE, Kronos, AgentSimulator, ProSiT, DAS, POWL,
+  cdrift-evaluation, SimOC, generatore Declare, SimPy, salabim, QueueSim).
+- **Collezione separata:** non è sviluppo né holdout. Gli holdout di PROTO-01 restano chiusi.
+  Esclusi i BPIC 2015 del pacchetto OCEL. Prima di usare un log: RAD-01 (deduplica per hash e
+  nome; ProCause contiene BPIC 2012/2017, alcuni pacchetti possono contenere i log di Camargo)
+  e PROTO-02 (dichiarazione in `PROTOCOL.md`, secondo holdout congelato).
+- **Da verificare in RAD-01/PROTO-02:** che Sepsis e Hospital Billing non vengano dallo stesso
+  ospedale di BPIC 2011 (holdout).
+- **Non acquisiti:** CDLG e SSD (`gitlab.uni-mannheim.de` rifiutato dal proxy: serve l'host
+  nell'ambiente o il download dal computer di Sohayb), Helpdesk originale (Mendeley), ProcessLog.
+- **Difetto preesistente trovato in review, fuori dal radar:** `backend/security.py:111` e
+  `backend/llm/egress.py:250` non normalizzano `delir_auth_provider` (vedi `LOG.md`).
 
 ## ENG-01 (fatto il 2026-11-25, `feat/sim-engine-interface`)
 

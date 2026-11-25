@@ -3,7 +3,8 @@
 Questo file è il punto di partenza di ogni sessione che lavora sul VPT. La
 strategia (tesi, ipotesi, architettura, letteratura) sta nel doc
 [DeliR Verified Process Twin — Product & Research Master Plan V2](https://claude.ai/artifact/YDeL5nCYLmkDet5UwPjfbU);
-qui ci sono i blocchi da eseguire, la meta di ognuno e come si misura. Lo stato
+qui ci sono i blocchi da eseguire, la meta di ognuno e come si misura. Dataset e repository
+di ricerca aggiuntivi: [`RESEARCH_RADAR.md`](./RESEARCH_RADAR.md). Lo stato
 delle voci SIM è in [`../simulation-plan.md`](../simulation-plan.md), i dataset in
 [`../../datasets/README.md`](../../datasets/README.md).
 
@@ -71,8 +72,26 @@ prima della misura. Le mete marcate *proposta* vanno confermate da Sohayb.
 | VAL-01 validazione formale all'import (P0) | `feat/sim-formal-validation` | Prod | All'import nessun deadlock né livelock, terminazione raggiungibile da ogni stato, probabilità di uscita da ogni ciclo maggiore di zero e numero atteso di ripetizioni finito; lo scenario SIMOD di AcademicCredentials con il ciclo a uscita 0 (G3) è rifiutato; i 19 scenari di `datasets/extraneous-delays/inputs` e gli scenari SIMOD validi di G3 passano; il messaggio dice in linguaggio di business cosa non torna; gate UX (meta confermata da Sohayb il 2026-11-25) | test sull'IR + e2e + gate UX | — | fatto (2026-11-25, #189): 19/19 dataset e 8/8 G3 validi passano, AcademicCredentials `_diff`/`_fuzz` rifiutati; verifica anche al run; e2e 6/6, screenshot in `docs/vpt/ux/val-01/` |
 | ENG-01 Simulation Engine Interface (P0) | `feat/sim-engine-interface` | Prod | Fra l'IR e il motore una sola interfaccia (valida, compila, esegue, annulla, risultati); Prosimos è un adattatore e nessun modulo fuori dall'adattatore lo importa (regola ast-grep bloccante); canvas, agenti, API pubbliche e modelli invariati: suite `tests/simulation` ed e2e verdi senza modificarli (confermata da Sohayb il 2026-11-25) | regola ast-grep + suite | — | fatto (2026-11-25): regola bloccante a 0 rilievi, `tests/simulation` invariati e verdi, harness B2 identico bit per bit |
 | ENG-02 motore di esecuzione proprio o alternativa permissiva (P1, dopo l'MVP) | `feat/sim-native-engine` | Prod | Prosimos resta il motore per l'MVP e i test con le aziende; dopo l'MVP si sostituisce: dopo LIC-01, scelta scritta fra un motore con licenza permissiva e un motore nativo; il motore scelto sta sull'IR, dietro ENG-01, con le metriche di B2 entro gli IC di Prosimos sui 19 scenari (*proposta*) | harness B2 sui due motori | LIC-01, ENG-01 | da fare |
-| PERF-01 benchmark computazionale (P1) | `spike/sim-perf-benchmark` | Ric | Per ogni configurazione di G3b: tempo di discovery, tempo di simulazione, picco di memoria e scalabilità (1.000, 10.000, 100.000 casi), riportati accanto alla fedeltà (*proposta*) | script di misura | G3b | da fare |
-| CF-01 validazione controfattuale (P3) | `spike/sim-counterfactual` | Ric | Su sintetici con verità nota e interventi noti (risorse ±30%, arrivi +20%, un'attività tolta), l'IC 95% della variazione prevista dei KPI contiene quella vera in almeno il 90% dei casi (*proposta*) | harness B2 sui sintetici con interventi | PROTO-01, B3 | da fare |
+| PERF-01 benchmark computazionale (P1) | `spike/sim-perf-benchmark` | Ric | Per ogni configurazione di G3b: tempo di discovery, tempo di simulazione, picco di memoria e scalabilità (1.000, 10.000, 100.000 casi, fino a BPIC 2019 intero), riportati accanto alla fedeltà (*proposta*) | script di misura | G3b | da fare |
+| CF-01 validazione controfattuale (P3) | `spike/sim-counterfactual` | Ric | Su sintetici con verità nota e interventi noti (risorse ±30%, arrivi +20%, un'attività tolta), l'IC 95% della variazione prevista dei KPI contiene quella vera in almeno il 90% dei casi; in più si riportano ampiezza media dell'intervallo, errore puntuale sul Δ KPI e direzione dell'effetto corretta, su GT-01, SimBank e ProCause (*proposta*; la validità reale richiede i pilot PV) | harness B2 sui sintetici con interventi | PROTO-01, B3, GT-01 | da fare |
+
+### R — Research Radar (decisione di Sohayb del 2026-11-25)
+
+Più dati e più processi indipendenti per il miglior simulatore e predittore. Catalogo, regole,
+Ground Truth Benchmark e scorecard in [`RESEARCH_RADAR.md`](./RESEARCH_RADAR.md); voci del
+manifest con `"collection": "radar"`. Il radar è una collezione separata: i 6 holdout di
+PROTO-01 restano congelati e non si toccano.
+
+| Blocco | Branch | Binario | Meta | Misura | Dipende da | Stato |
+| --- | --- | --- | --- | --- | --- | --- |
+| RAD-00 radar nel manifest | `claude/delir-dataset-research-1a7xd5` | Ric | 21 dataset e 12 repository di ricerca nel manifest con URL e MD5 o commit, scaricati e verificati; `fetch --all` invariato, il radar con `fetch --collection radar` | `fetch_datasets.py fetch --collection radar` + `tests/simulation/test_dataset_manifest.py` | D0 | fatto (2026-11-25) |
+| RAD-01 inventario e deduplica | `chore/radar-inventory` | Ric | Per ogni log del radar: casi, eventi, attività, periodo, risorse, inizio e fine presenti, osservabilità; ogni file confrontato per hash e per nome con i log di sviluppo e holdout, sovrapposizioni dichiarate; nessun holdout aperto (la guardia resta attiva) (*proposta*) | script ripetibile → `tests/simulation/benchmark/radar/inventory.md` | RAD-00 | da fare |
+| PROTO-02 seconda collezione e protocollo corretto | `docs/vpt-protocol-2` | Ric | `PROTOCOL.md` dichiara per ogni log del radar: sviluppo, nuovo holdout o escluso, con il motivo; un secondo set di holdout indipendenti congelato per hash prima di usarlo; aggiunti i confronti appaiati accanto agli IC non sovrapposti e le metriche di CF-01 (ampiezza, errore puntuale, direzione), senza modificare il benchmark congelato (*proposta*) | il documento + estensione di `test_protocol.py` | RAD-01 | da fare |
+| RAD-02 generalizzazione cross-industry | `spike/sim-g3b-radar` | Ric | Sui log di sviluppo di PROTO-02 (procurement, assistenza, sanità, pubblica amministrazione): "B = A" e le configurazioni di G3b con le metriche di B2 e IC 95%, risultato per settore; nessun settore lasciato fuori senza motivo scritto (*proposta*) | harness B2 | G3b, PROTO-02 | da fare |
+| ANA-01 verità analitica del motore | `feat/sim-analytic-truth` | Ric → Prod | Su M/M/1, M/M/c e una rete di Jackson il simulatore riproduce tempo medio in coda, in sistema e utilizzo della formula entro 3 errori standard Monte Carlo, su Prosimos e su ogni motore di ENG-02; QueueSim come comparatore indipendente (*proposta*) | `tests/simulation/benchmark/analytic/` | — | da fare |
+| GT-01 DeliR Ground Truth Benchmark | `feat/sim-ground-truth` | Ric | Generatore indipendente dal motore di DeliR (SimPy) con le 8 dimensioni del radar; almeno 50 aziende sintetiche × 3 interventi con To-Be nascosto; almeno 2 generatori non derivati da Prosimos (SimBank, Declare); cause delle attese e parametri veri salvati (*proposta*) | test del generatore + manifest dei casi | PROTO-02 | da fare |
+| DRIFT-01 benchmark del drift | `spike/sim-drift-benchmark` | Ric | Su `existential-drifts`, `cdrift-set` e `cdlg-drift-val` con `cdrift-evaluation`: F1 del rilevamento con tolleranza dichiarata, ritardo medio, falsi allarmi per 1.000 casi; baseline pubblicate riprodotte prima di misurare DeliR (*proposta*) | script dello spike | PROTO-02 | da fare |
+| OC-01 simulazione object-centric | `spike/sim-ocel-simulation` | Ric | Con SimOC sugli OCEL del radar: perdita della simulazione appiattita contro quella object-centric, misurata con le metriche di B2 per tipo di oggetto; decisione scritta (*proposta*) | script dello spike | VPT-07 | da fare |
 
 ### V2 — Twin dai dati
 
@@ -136,5 +155,7 @@ prima della misura. Le mete marcate *proposta* vanno confermate da Sohayb.
 
 B1 → B2 → SIM-36 → SIM-36b e G3 → **P0: LIC-01, PROTO-01, VAL-01, ENG-01 in parallelo → G3b** →
 B3.1-B3.3 → B3.4 e SEL-01 → VPT-01/02 → B8 e VPT-10 → CF-01. ENG-02 dopo LIC-01 ed ENG-01;
-PERF-01 dopo G3b. Non si apre un filone nuovo finché quelli aperti non chiudono. Finché B2 non ha una baseline misurata,
+PERF-01 dopo G3b. **Radar** (2026-11-25): RAD-01 e ANA-01 in parallelo al P0 (non toccano
+gli holdout) → PROTO-02 prima di usare un log del radar → GT-01 e DRIFT-01 → RAD-02 dopo G3b;
+OC-01 dopo VPT-07; GT-01 prima di CF-01. Non si apre un filone nuovo finché quelli aperti non chiudono. Finché B2 non ha una baseline misurata,
 nessuna affermazione di fedeltà entra in materiali commerciali.
