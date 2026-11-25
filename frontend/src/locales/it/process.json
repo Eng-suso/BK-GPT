@@ -208,6 +208,7 @@
       "hideMapping": "Chiudi strumenti avanzati",
       "autoMapWarning": "Conversione automatica incompleta: {{reason}} Puoi associare manualmente i valori disponibili qui sotto.",
       "chooseJson": "Seleziona configurazione",
+      "cannotFinish": "Il file non è stato applicato: alcuni casi non arriverebbero mai alla fine",
       "importNotApplied": "Il file non è stato applicato",
       "importNotAppliedHint": "Lo scenario non è cambiato. Verifica il file {{name}} oppure modifica i parametri qui nell’editor.",
       "importTechnicalReason": "Mostra il motivo tecnico",

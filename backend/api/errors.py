@@ -120,7 +120,22 @@ def setup_api_error_handlers(app: FastAPI) -> None:
         )
 
     from backend.eventlog.service import ConformanceUnavailable
+    from backend.simulation.ir.soundness import UnsoundProcessError
     from backend.workspace_database import UnreadableReviewError
+
+    @app.exception_handler(UnsoundProcessError)
+    async def unsound_process_handler(request: Request, exc: UnsoundProcessError):
+        """VAL-01: lo scenario non si importa perche' qualche caso non finirebbe.
+
+        Il messaggio e' per il consulente; gli id del BPMN restano nel dettaglio.
+        """
+        return api_error_response(
+            request,
+            status_code=400,
+            code="process_cannot_finish",
+            message=str(exc),
+            detail=exc.detail,
+        )
 
     @app.exception_handler(ConformanceUnavailable)
     async def conformance_unavailable_handler(request: Request, exc: ConformanceUnavailable):

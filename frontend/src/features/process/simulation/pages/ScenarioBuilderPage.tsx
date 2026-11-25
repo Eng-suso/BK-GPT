@@ -29,7 +29,7 @@ import { useSourceConflicts } from "../useSourceConflicts";
 import { WhatIfComposer } from "../WhatIfComposer";
 import { ServerScenarioImport } from "../ServerScenarioImport";
 import { draftArrivalsRunFaster, type ScenarioDraft } from "../simulationScenario";
-import { importProsimosOnServer, remapProsimosIds, runImportedModel, type ProsimosImport } from "../prosimosServerImport";
+import { cannotFinish, checkCanFinish, importProsimosOnServer, remapProsimosIds, runImportedModel, type CannotFinish, type ProsimosImport } from "../prosimosServerImport";
 import { HttpError, httpErrorMessage } from "@/lib/http";
 import type { NodeDecoration } from "../canvas/SimulationCanvas";
 
@@ -46,6 +46,8 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
   const [sourceOpen, setSourceOpen] = React.useState(false);
   const [importOpen, setImportOpen] = React.useState(false);
   const [importError, setImportError] = React.useState<string | null>(null);
+  // VAL-01: perche' lo scenario non si simula, detto al consulente; il motivo tecnico resta in importError.
+  const [cannotFinishReason, setCannotFinishReason] = React.useState<string | null>(null);
   const [importName, setImportName] = React.useState<string | null>(null);
   const [genericSource, setGenericSource] = React.useState<{ name: string; fields: NumericJsonField[] } | null>(null);
   const [prosimosSource, setProsimosSource] = React.useState<{ name: string; data: Record<string, unknown> } | null>(null);
@@ -93,6 +95,10 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
       toast.warning(t("simulation.config.arrivalsFaster.title"), { description: t("simulation.config.arrivalsFaster.toast") });
     }
   };
+  const showCannotFinish = (blocked: CannotFinish) => {
+    setCannotFinishReason(blocked.message);
+    setImportError(blocked.detail || blocked.message);
+  };
   const checkOnServer = async (name: string, source: Record<string, unknown>, localCause: unknown) => {
     const request = ++serverRequest.current;
     setServerChecking(true);
@@ -103,11 +109,27 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
       if (request !== serverRequest.current) return;
       // Un rifiuto motivato del server (400) spiega cosa manca; un guasto tecnico no:
       // allora resta la spiegazione dell'editor.
+      const blocked = cannotFinish(serverCause);
+      if (blocked) {
+        showCannotFinish(blocked);
+        return;
+      }
       const local = localCause instanceof Error ? localCause.message : t("simulation.scenario.jsonInvalid");
       setImportError(serverCause instanceof HttpError && serverCause.status === 400 ? httpErrorMessage(serverCause, local) : local);
     } finally {
       if (request === serverRequest.current) setServerChecking(false);
     }
+  };
+  /** VAL-01 per gli scenari che l'editor legge da solo: true se il server li rifiuta (o la risposta e' vecchia). */
+  const refusedByServer = async (source: Record<string, unknown>) => {
+    const request = ++serverRequest.current;
+    setServerChecking(true);
+    const blocked = await checkCanFinish(lab.bpmnModelId, source, bpmnXml);
+    if (request !== serverRequest.current) return true;
+    setServerChecking(false);
+    if (!blocked) return false;
+    showCannotFinish(blocked);
+    return true;
   };
   const runServerImport = async () => {
     if (!serverImport) return;
@@ -136,6 +158,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
     serverRequest.current += 1;
     setServerChecking(false);
     setImportError(null);
+    setCannotFinishReason(null);
     setImportName(file?.name ?? null);
     setGenericSource(null);
     setProsimosSource(null);
@@ -170,6 +193,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
           await checkOnServer(file.name, source, localCause);
           return;
         }
+        if (await refusedByServer(source)) return;
         updateDraft(candidate);
         announceProsimosImport(file.name, candidate);
         setImportOpen(false);
@@ -202,6 +226,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
     if (!prosimosSource) return;
     try {
       const candidate = importScenarioJson(JSON.stringify(prosimosSource.data), lab.bpmnModelId, template, draft, prosimosMapping);
+      if (await refusedByServer(remapProsimosIds(prosimosSource.data, prosimosMapping))) return;
       updateDraft(candidate);
       setProsimosSource(null);
       setImportOpen(false);
@@ -336,7 +361,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
         </DialogContent>
       </Dialog>
 
-      <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) { serverRequest.current += 1; setServerChecking(false); setGenericSource(null); setProsimosSource(null); setServerImport(null); setImportError(null); if (importInput.current) importInput.current.value = ""; } }}>
+      <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) { serverRequest.current += 1; setServerChecking(false); setGenericSource(null); setProsimosSource(null); setServerImport(null); setImportError(null); setCannotFinishReason(null); if (importInput.current) importInput.current.value = ""; } }}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl">
           <DialogTitle>{t("simulation.scenario.sourceFile")}</DialogTitle>
           <DialogDescription>{t("simulation.scenario.importDescription")}</DialogDescription>
@@ -348,13 +373,14 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
             <input ref={importInput} type="file" accept=".json,application/json" aria-label={t("simulation.scenario.chooseJson")} onChange={(event) => void readScenarioFile(event.target.files?.[0])} className="sr-only" />
           </div>
           {importError && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
-            <p className="font-medium text-destructive">{t("simulation.scenario.importNotApplied")}</p>
+            <p className="font-medium text-destructive">{t(cannotFinishReason ? "simulation.scenario.cannotFinish" : "simulation.scenario.importNotApplied")}</p>
+            {cannotFinishReason && <p className="mt-1 whitespace-pre-line break-words">{cannotFinishReason}</p>}
             <p className="mt-1 text-muted-foreground">{t("simulation.scenario.importNotAppliedHint", { name: importName })}</p>
             <details className="mt-2"><summary className="cursor-pointer text-foreground">{t("simulation.scenario.importTechnicalReason")}</summary><p className="mt-2 break-words text-muted-foreground">{importError}</p></details>
           </div>}
           <p role="status" className="text-sm text-muted-foreground empty:hidden">{serverChecking ? t("simulation.scenario.serverImport.checking") : ""}</p>
           {serverImport && <ServerScenarioImport name={serverImport.name} result={serverImport.result} running={serverRunning} onRun={() => void runServerImport()} />}
-          {prosimosSource && template && <ProsimosReferenceMapping fields={prosimosFields} mapping={prosimosMapping} onChange={(next) => { setProsimosMapping(next); setImportError(null); }} />}
+          {prosimosSource && template && <ProsimosReferenceMapping fields={prosimosFields} mapping={prosimosMapping} onChange={(next) => { setProsimosMapping(next); setImportError(null); setCannotFinishReason(null); }} />}
           {genericSource && <div className="grid gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm" role="status">
             <div>
               <p className="font-semibold">{t("simulation.scenario.fileRead")}: {genericSource.name}</p>

@@ -64,6 +64,42 @@ Modello:
 
 ---
 
+## 2026-11-25 — VAL-01 validazione formale all'import — fatto
+
+- Branch / PR: `feat/sim-formal-validation`, #189.
+- Meta (confermata da Sohayb il 2026-11-25, prima era *proposta*): all'import nessun
+  deadlock né livelock, fine raggiungibile da ogni stato, uscita da ogni ciclo > 0 e
+  ripetizioni attese finite; AcademicCredentials di G3 rifiutato; 19 scenari del dataset e
+  scenari SIMOD validi di G3 passano; messaggio in linguaggio di business; gate UX →
+  raggiunta. Misura: `tests/simulation/test_soundness.py` 51/51 (19/19, 8/8, `_diff` e
+  `_fuzz` rifiutati; ciclo con uscita 0,25 → 4 esecuzioni attese); API 400
+  `process_cannot_finish` su import e run; e2e `simulation-import-validation` 6/6
+  (chromium, mobile-chrome, axe pulito) e gli altri e2e d'import 14/14; `tests/simulation`
+  sullo stack 812 passati; vitest simulazione 454/454.
+- Iterazioni: 1) gioco dei gettoni con un ordine fisso → meta sui dati raggiunta subito;
+  2) messaggio ripetitivo → «cosa non torna» e «cosa fare» separati, nome della decisione;
+  3) due test di import toglievano l'uscita di un ciclo: ora tengono l'uscita (il rifiuto
+  è corretto); 4) code review: il verdetto dipendeva dai nomi degli elementi → passo
+  massimo; bozze e what-if → verifica anche al run; 5) simplify.
+- Gate UX (`docs/vpt/ux/val-01/`, desktop 1440 × 900 e Pixel 7, aperti e letti): prima il
+  titolo «alcuni casi non arriverebbero mai alla fine», poi il motivo con i nomi delle
+  attività, «Cosa fare» a capo, «lo scenario non è cambiato», id nel motivo tecnico chiuso.
+  Corretto: «Cosa fare» annegato nel paragrafo; «il motore» → «la simulazione»;
+  «scoperta dal log» → «ricalcola il modello dai dati storici»; «nei dati … dai dati».
+- Code review: `code-review` 8 rilievi, 7 corretti (nomi, inclusive > 10 rami, blocchi
+  persi al limite di stati, bozze e what-if, gergo, attese calcolate sempre, HANDOFF),
+  1 motivato (testo solo in italiano, come IMP-01). `backend/CODE_QUALITY.md`: errore di
+  dominio tipizzato, nessun `Any`. ast-grep 4 regole: 0; ruff pulito; mypy pulito sui file
+  nuovi. `simplify` 4 revisori: 14 applicati, 4 saltati con motivo (parser BPMN comune,
+  cache fra import e run, endpoint di sola verifica, codice delle attese tenuto come prova
+  della meta). Nessuna autenticazione o isolamento toccati: niente `security-review`.
+- Skill: `react-ui-patterns`, `ui-visual-validator`, `code-review`, `simplify`.
+- Decisioni: meta confermata da Sohayb; la verifica vale anche al run (oltre l'import),
+  perché bozze e what-if non passano dall'import.
+- Prossimo passo: G3b dopo PROTO-01; B3.3 usa `require_sound` come criterio.
+
+---
+
 ## 2026-11-25 — Prosimos per l'MVP, nessun contatto con i titolari — fatto
 
 - Branch / PR: `docs/vpt-no-contact`, #188. Solo piano e documenti; Master Plan V2

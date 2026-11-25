@@ -47,6 +47,7 @@ from backend.simulation.ir.model import (
     Uniform,
     Wait,
 )
+from backend.simulation.ir.soundness import require_sound
 
 # Sezioni di uno scenario Prosimos che l'import sa leggere.
 _SECTIONS = {
@@ -137,7 +138,9 @@ class _Bpmn:
 def import_prosimos(scenario: dict, bpmn_xml: str) -> ImportResult:
     """Il modello IR equivalente a ``scenario``, con le note per il consulente.
 
-    Solleva sempre ``ProsimosImportError`` con il motivo, mai un errore grezzo.
+    Solleva sempre ``ProsimosImportError`` con il motivo, mai un errore grezzo; uno
+    scenario che si legge ma in cui qualche caso non finirebbe solleva
+    ``UnsoundProcessError`` (VAL-01), con un codice suo nell'API.
     """
     try:
         return _import(scenario, bpmn_xml)
@@ -240,7 +243,22 @@ def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
     if not model.arrival_bands():
         # Con le fasce gli arrivi li genera il runner dalla sola media: nessun taglio.
         notes.extend(_arrival_notes(model.arrival.interarrival))
+    notes.extend(_soundness_notes(model, bpmn_xml))
     return ImportResult(model=model, notes=tuple(notes), simod=simod)
+
+
+def _soundness_notes(model: SimulationModel, bpmn_xml: str) -> list[ImportNote]:
+    """VAL-01: un modello in cui qualche caso non finirebbe non si importa."""
+    if require_sound(model, bpmn_xml).complete:
+        return []
+    return [
+        ImportNote(
+            "warning",
+            "soundness_unverified",
+            "Il processo ha troppe combinazioni di percorsi per verificare all'import che ogni caso arrivi "
+            "alla fine. Dopo il primo run controlla che i casi completati siano quelli attesi.",
+        )
+    ]
 
 
 # --------------------------------------------------------------------------- #

@@ -1,0 +1,448 @@
+{
+ "resources": [],
+ "tasks": [
+  {
+   "element_id": "node_48a6e920-4e9f-4e26-88ca-e84928937409",
+   "name": "Transferir Creditos",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_b7a275fa-ece7-400b-9e85-a5b17914830e",
+   "name": "Validar solicitud / pre-homologacion",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_57cf14f7-0c93-44a7-89fb-1254b0736054",
+   "name": "Homologacion por grupo de cursos",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_cc826522-ca63-478e-af58-5a952fdf3418",
+   "name": "Evaluacion curso",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_815ceda3-5fd2-4cbb-8c84-c7d7def739dc",
+   "name": "Visto Bueno Cierre Proceso",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_a79829cc-881c-4017-88e8-14ce5ce73d31",
+   "name": "Radicar Solicitud Homologacion",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_5a95775f-02b1-4de3-825b-8e79667e79ba",
+   "name": "Traer informacion estudiante - banner",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_917ce391-54f8-4053-9f7b-159804254a0b",
+   "name": "Recepcion de documentos",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_7ddfe1a2-c906-4af0-8c41-0d88c4ae938c",
+   "name": "Cancelar curso",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_8f624a7d-b065-4846-b5f3-2ccac1c18bad",
+   "name": "Revisar curso",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_cbf140cf-a039-470e-9be3-c1444129300a",
+   "name": "Transferir creditos homologables",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_0d4c41cc-fb9b-45ee-8bb8-e2590436b8df",
+   "name": "Validar solicitud",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_948adeb3-ad53-4aa2-a377-787f1ccea96e",
+   "name": "Avanzar recepcion documentos",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_9bf9c513-0f62-48a9-8c07-1d012f526c5e",
+   "name": "Cancelar Solicitud",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_122e0602-6221-4641-8b7f-29dfe34c7c22",
+   "name": "Notificacion estudiante cancelacion soli",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "node_9f0c94f6-0d9e-4b76-816b-4beb7d3216eb",
+   "name": "Validacion final",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  }
+ ],
+ "gateways": [
+  {
+   "element_id": "node_b615b9b6-7e2d-4da7-983e-b98fe92744ba",
+   "name": "node_b615b9b6-7e2d-4da7-983e-b98fe92744ba",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_61a1f1e1-2a40-4b11-b430-3ddd112d04e3",
+     "flow_name": "",
+     "target_name": "Validar solicitud"
+    },
+    {
+     "flow_id": "node_2d22d8e5-46c3-4b9d-8d1b-3b16ce3db58f",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_55256f7c-87d9-4aa6-85c5-5b48b0e30373",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_743e7941-cad9-47e4-b9f1-095ca3e0c0e8",
+   "name": "node_743e7941-cad9-47e4-b9f1-095ca3e0c0e8",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_5037554f-6090-4691-9fa6-7da595799368",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_7643f037-1e99-46e1-96fb-f8b5304f2b46",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_760d578e-9c8b-43d1-a42e-a0b4203d12c7",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_a4990eb5-1d13-49c1-9fdc-30bf90a5416b",
+   "name": "node_a4990eb5-1d13-49c1-9fdc-30bf90a5416b",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_79520867-2281-45ad-8b0e-180f8f2f59eb",
+     "flow_name": "",
+     "target_name": "Transferir Creditos"
+    },
+    {
+     "flow_id": "node_3c284969-d0e4-41e7-85e2-5d49a53ec035",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_c44a60ab-aed6-4da4-806c-edc212f3abbf",
+   "name": "node_c44a60ab-aed6-4da4-806c-edc212f3abbf",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_2039ae38-2fd3-4c04-aece-043eb5078c0a",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_008f415f-4b1c-46bf-bb5f-1b6ce0995f89",
+     "flow_name": "",
+     "target_name": "Validar solicitud / pre-homologacion"
+    },
+    {
+     "flow_id": "node_4e4f8104-0e52-4d66-9c7e-39880d4722b8",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_ad1dd169-4a36-44e8-b52c-267d603248d8",
+   "name": "node_ad1dd169-4a36-44e8-b52c-267d603248d8",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_5e2b34fc-515a-4fd5-bc28-80cf704a6bfc",
+     "flow_name": "",
+     "target_name": "Recepcion de documentos"
+    },
+    {
+     "flow_id": "node_a5e682c4-ec25-4266-bd06-ca11e363338f",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_477adcf0-2da3-4940-8a84-76b165ccdb49",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_59ccd77a-6108-4118-ba67-eb4072f0934b",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_2734dbbe-582c-493a-aa67-da3bc8038a66",
+   "name": "node_2734dbbe-582c-493a-aa67-da3bc8038a66",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_cefa8dfc-5196-4cc0-a929-4b4f577cb001",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_7415559c-6f8e-442c-8026-ff0fb19aa8be",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_2d55cc0d-cb95-415f-be1a-58ccc9e9ab78",
+   "name": "node_2d55cc0d-cb95-415f-be1a-58ccc9e9ab78",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_4b90909b-d00a-434e-8832-e81c97676fb4",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_74de5818-057d-44d4-ac13-664e86dad6a7",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_4289057c-20f9-4952-9b00-a6ad557e7951",
+   "name": "node_4289057c-20f9-4952-9b00-a6ad557e7951",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_f2e72b22-4df2-4d05-821c-0faeb1105303",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_2e8c1d88-2eaa-40dc-834e-c1c83b185359",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_5d5f569b-7e2c-4b32-af5b-072a433cf9a4",
+   "name": "node_5d5f569b-7e2c-4b32-af5b-072a433cf9a4",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_b17239e8-f503-4be4-95b0-32c565d9f397",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_b3db1214-4c7d-4e26-9c3b-8e9a986e24bc",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_508fef96-42c7-4dc1-bc08-7cf953d3a111",
+   "name": "node_508fef96-42c7-4dc1-bc08-7cf953d3a111",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_79bd10e0-0516-42a8-8741-755b0247620a",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_c96f69b5-875d-4ab3-910d-3695f84e25b1",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_d03f6174-ed2c-4e7c-99c2-ec4471f745da",
+   "name": "node_d03f6174-ed2c-4e7c-99c2-ec4471f745da",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_ee8ebd57-483e-489b-a64b-76fcdaa7b2d0",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_d6f223e8-123b-40aa-94ec-dd0a12c16c23",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_ab0bc67c-ed71-462c-b642-dc2b4d753466",
+   "name": "node_ab0bc67c-ed71-462c-b642-dc2b4d753466",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_ab1fd77a-c444-4528-8d2a-55f9f36268a0",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_16fea8f3-636e-4bbe-a8c9-e7284c69321d",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_59fc62b1-3b4e-4c11-ba7b-1cab3392cdaa",
+   "name": "node_59fc62b1-3b4e-4c11-ba7b-1cab3392cdaa",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_819a9e46-05cd-4100-a710-e69a25c5f5f6",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_f36f103e-36df-4d48-92c5-d9df3ba0f954",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_14f3a361-68f9-4d58-838a-e9076ce1f586",
+   "name": "node_14f3a361-68f9-4d58-838a-e9076ce1f586",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_ad3b4c2d-578d-407b-9d01-8cecdbec79f8",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_f9103f72-b4ae-459e-a885-d778de35533a",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  },
+  {
+   "element_id": "node_c21e20be-4acf-414b-b84d-ad4d3dcb3dea",
+   "name": "node_c21e20be-4acf-414b-b84d-ad4d3dcb3dea",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "node_c921cc1c-0239-463f-a4c6-bc0220fb716b",
+     "flow_name": "",
+     "target_name": ""
+    },
+    {
+     "flow_id": "node_594675d3-432d-4c5a-9f21-32e276a40d00",
+     "flow_name": "",
+     "target_name": ""
+    }
+   ],
+   "escalation": null
+  }
+ ],
+ "waits": [],
+ "merges": [
+  "node_04276dea-ded9-4278-b09d-0756d7b75cd6",
+  "node_0120a7ee-3d76-4e76-b511-03d0648cf886",
+  "node_221dad45-a82e-4a52-98da-8e7e5ac05878",
+  "node_f6963fee-35b0-4c06-8d8e-56d5966e1c46",
+  "node_f3e23767-e6a8-4aa7-86e1-9ebec643b02e",
+  "node_29d0dc2e-a1d3-4545-993f-53f94183cf4e",
+  "node_b9a2688f-a2d7-4766-a669-c9b1ee6340a0",
+  "node_eb4058e9-db97-4b22-9233-82dfe6eb0b11",
+  "node_1a8d2f4e-e570-4fd1-9750-9734c8389acb",
+  "node_831b87f7-c38c-4fda-8912-c5729127ec24",
+  "node_a743c72d-b206-44b8-b04e-65bdcfe22468",
+  "node_70c3cbef-ed57-4bb9-b29d-f8e6497c6ecc",
+  "node_1dc1a637-ffd5-4b0a-b1fb-320662910959",
+  "node_6c4dcedf-7ac9-42df-bd48-b7d9d4ad09d0",
+  "node_ec858169-5549-47f9-bed7-bd571e84cb92",
+  "node_4f81b0a6-f090-4d77-97e9-79a9aa758f7f",
+  "node_30825b97-2ea1-4185-a0d1-30f575158fd4",
+  "node_9e7f7141-c974-48b8-884c-395c56dc09ca",
+  "node_cbd1a6fa-6429-4bba-92ba-48dc467f1844"
+ ],
+ "standard_calendar": {
+  "id": "delir-calendar-standard",
+  "name": "Standard office calendar",
+  "periods": [
+   {
+    "from_day": "MONDAY",
+    "to_day": "FRIDAY",
+    "begin": "09:00",
+    "end": "17:00"
+   }
+  ]
+ }
+}
