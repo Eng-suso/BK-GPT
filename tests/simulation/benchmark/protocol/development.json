@@ -1,0 +1,1602 @@
+[
+  {
+    "log": "AcademicCredentials",
+    "category": "osservabilita completa",
+    "source": "datasets/extraneous-delays/inputs/real-life/AcademicCredentials_{train,test}.csv.gz",
+    "split": "train / test del paper",
+    "properties": {
+      "cases_train": 398,
+      "cases_test": 398,
+      "events": 3733,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0251,
+      "censored_left_test": 0.005,
+      "arrival_rate_ratio": 0.982,
+      "cases_fit": 318,
+      "cases_validation": 80
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      },
+      "true_parameters": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      },
+      "counterfactual": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      }
+    }
+  },
+  {
+    "log": "BPIC_2012_W",
+    "category": "osservabilita completa",
+    "source": "datasets/extraneous-delays/inputs/real-life/BPIC_2012_W_{train,test}.csv.gz",
+    "split": "train / test del paper",
+    "properties": {
+      "cases_train": 3030,
+      "cases_test": 2976,
+      "events": 34906,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0072,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.075,
+      "cases_fit": 2424,
+      "cases_validation": 606
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      },
+      "true_parameters": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      },
+      "counterfactual": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      }
+    }
+  },
+  {
+    "log": "BPIC_2017_W",
+    "category": "osservabilita completa",
+    "source": "datasets/extraneous-delays/inputs/real-life/BPIC_2017_W_{train,test}.csv.gz",
+    "split": "train / test del paper",
+    "properties": {
+      "cases_train": 7402,
+      "cases_test": 7376,
+      "events": 105342,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0033,
+      "censored_left_test": 0.0004,
+      "arrival_rate_ratio": 0.943,
+      "cases_fit": 5922,
+      "cases_validation": 1480
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      },
+      "true_parameters": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      },
+      "counterfactual": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      }
+    }
+  },
+  {
+    "log": "bpic2012",
+    "category": "osservabilita parziale",
+    "source": "manifest bpic2012 (4TU)",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 6543,
+      "cases_test": 6544,
+      "events": 164506,
+      "start_coverage": 0.4339,
+      "resource_coverage": 0.9505,
+      "censored_right_test": 0.062,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.016,
+      "cases_fit": 5234,
+      "cases_validation": 1309
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "NOT VALIDATED",
+        "reason": "6% dei casi di test tagliati dalla fine del log"
+      },
+      "ngram": {
+        "verdict": "NOT VALIDATED",
+        "reason": "6% dei casi di test tagliati dalla fine del log"
+      },
+      "relative_event": {
+        "verdict": "NOT VALIDATED",
+        "reason": "6% dei casi di test tagliati dalla fine del log"
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "NOT VALIDATED",
+        "reason": "inizio delle attivita' su 43% degli eventi"
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      },
+      "true_parameters": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      },
+      "counterfactual": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      }
+    }
+  },
+  {
+    "log": "bpic2013_incidents",
+    "category": "osservabilita parziale",
+    "source": "manifest bpic2013-incidents (4TU)",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 3776,
+      "cases_test": 3778,
+      "events": 65533,
+      "start_coverage": 0.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.37,
+      "censored_left_test": 0.0021,
+      "arrival_rate_ratio": 204.585,
+      "cases_fit": 3021,
+      "cases_validation": 755
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "NOT VALIDATED",
+        "reason": "37% dei casi di test tagliati dalla fine del log"
+      },
+      "ngram": {
+        "verdict": "NOT VALIDATED",
+        "reason": "37% dei casi di test tagliati dalla fine del log"
+      },
+      "relative_event": {
+        "verdict": "NOT VALIDATED",
+        "reason": "37% dei casi di test tagliati dalla fine del log"
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "NOT VALIDATED",
+        "reason": "arrivi di test 204.585× quelli di train: non sono lo stesso flusso"
+      },
+      "processing_time": {
+        "verdict": "NOT VALIDATED",
+        "reason": "inizio delle attivita' su 0% degli eventi"
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      },
+      "true_parameters": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      },
+      "counterfactual": {
+        "verdict": "NOT VALIDATED",
+        "reason": "serve la verita' del processo: c'e' solo nei sintetici"
+      }
+    }
+  },
+  {
+    "log": "Insurance_Claims",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Insurance_Claims.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 5443,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.001,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Insurance_Claims_1_timer",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Insurance_Claims_1_timer.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 5398,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 0.978,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Insurance_Claims_3_timers",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Insurance_Claims_3_timers.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 5403,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.004,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Insurance_Claims_5_timers",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Insurance_Claims_5_timers.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 5371,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.012,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Insurance_Claims_5_timers_after",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Insurance_Claims_5_timers_after.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 5434,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.006,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Loan_Application",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Loan_Application.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 11805,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.001,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Loan_Application_1_timer",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Loan_Application_1_timer.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 11760,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.005,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Loan_Application_3_timers",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Loan_Application_3_timers.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 11626,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.003,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Loan_Application_5_timers",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Loan_Application_5_timers.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 10968,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.002,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Loan_Application_5_timers_after",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Loan_Application_5_timers_after.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 11807,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.001,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Pharmacy",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Pharmacy.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 8356,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.0,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Pharmacy_1_timer",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Pharmacy_1_timer.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 8427,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.0,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Pharmacy_3_timers",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Pharmacy_3_timers.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 8381,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.0,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Pharmacy_5_timers",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Pharmacy_5_timers.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 8321,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.0,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Pharmacy_5_timers_after",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Pharmacy_5_timers_after.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 8372,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.0,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Procure_to_Pay",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Procure_to_Pay.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 13290,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.0,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Procure_to_Pay_1_timer",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Procure_to_Pay_1_timer.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 12677,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.0,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Procure_to_Pay_3_timers",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Procure_to_Pay_3_timers.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 13112,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.0,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Procure_to_Pay_5_timers",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Procure_to_Pay_5_timers.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 13409,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.0,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  },
+  {
+    "log": "Procure_to_Pay_5_timers_after",
+    "category": "sintetico con verita nota",
+    "source": "datasets/extraneous-delays/inputs/synthetic/Procure_to_Pay_5_timers_after.csv.gz",
+    "split": "meta' dei casi per inizio",
+    "properties": {
+      "cases_train": 500,
+      "cases_test": 500,
+      "events": 12936,
+      "start_coverage": 1.0,
+      "resource_coverage": 1.0,
+      "censored_right_test": 0.0,
+      "censored_left_test": 0.0,
+      "arrival_rate_ratio": 1.0,
+      "cases_fit": 400,
+      "cases_validation": 100
+    },
+    "metrics": {
+      "cycle_time_w1": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "ngram": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "relative_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "absolute_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "circadian_event": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "case_arrival": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "processing_time": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "resources": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "waiting_causes": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "true_parameters": {
+        "verdict": "identificabile",
+        "reason": ""
+      },
+      "counterfactual": {
+        "verdict": "identificabile",
+        "reason": ""
+      }
+    }
+  }
+]
