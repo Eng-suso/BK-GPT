@@ -47,6 +47,7 @@ from backend.simulation.ir.model import (
     Uniform,
     Wait,
 )
+from backend.simulation.ir.soundness import SoundnessProblem, check_soundness
 
 # Sezioni di uno scenario Prosimos che l'import sa leggere.
 _SECTIONS = {
@@ -108,6 +109,24 @@ _ARRIVAL_DRIFT = 0.10
 
 class ProsimosImportError(ValueError):
     """Lo scenario non si puo' importare senza perdere o inventare qualcosa."""
+
+
+class UnsoundProcessError(ProsimosImportError):
+    """VAL-01: lo scenario si legge, ma con le sue probabilita' qualche caso non finirebbe."""
+
+    def __init__(self, problems: tuple[SoundnessProblem, ...]) -> None:
+        self.problems = problems
+        super().__init__(" ".join(f"{p.message} Cosa fare: {p.action}" for p in problems))
+
+    @property
+    def message(self) -> str:
+        """Cosa non torna e cosa fare, per il consulente."""
+        return " ".join(f"{p.message} {p.action}" for p in self.problems)
+
+    @property
+    def detail(self) -> str:
+        """Per specialisti: la regola violata e gli id del BPMN."""
+        return "; ".join(p.detail for p in self.problems)
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,7 +259,25 @@ def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
     if not model.arrival_bands():
         # Con le fasce gli arrivi li genera il runner dalla sola media: nessun taglio.
         notes.extend(_arrival_notes(model.arrival.interarrival))
+    notes.extend(_soundness_notes(model, bpmn_xml))
     return ImportResult(model=model, notes=tuple(notes), simod=simod)
+
+
+def _soundness_notes(model: SimulationModel, bpmn_xml: str) -> list[ImportNote]:
+    """VAL-01: un modello in cui qualche caso non finirebbe non si importa."""
+    report = check_soundness(model, bpmn_xml)
+    if report.problems:
+        raise UnsoundProcessError(report.problems)
+    if report.complete:
+        return []
+    return [
+        ImportNote(
+            "warning",
+            "soundness_unverified",
+            "Il processo ha troppe combinazioni di percorsi per verificare all'import che ogni caso arrivi "
+            "alla fine. Dopo il primo run controlla che i casi completati siano quelli attesi.",
+        )
+    ]
 
 
 # --------------------------------------------------------------------------- #

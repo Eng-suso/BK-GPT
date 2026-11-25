@@ -234,12 +234,14 @@ def test_a_branch_without_probability_gets_zero_and_a_note() -> None:
     source, bpmn = _pair(INPUTS / "synthetic" / "Loan_Application.json")
     source = json.loads(json.dumps(source))
     entry, flows = _diverging(source, bpmn)
-    entry["probabilities"] = [{"path_id": flows[0], "value": "1"}]
+    # Il ramo tenuto e' l'uscita del ciclo di rilavorazione: senza, il caso non
+    # finirebbe e VAL-01 rifiuterebbe lo scenario (test_soundness.py).
+    entry["probabilities"] = [{"path_id": flows[1], "value": "1"}]
     result = import_prosimos(source, bpmn)
     gateway = next(
         g for g in result.model.gateways if g.element_id == entry["gateway_id"]
     )
-    assert {b.flow_id: b.probability for b in gateway.branches}[flows[1]] == 0
+    assert {b.flow_id: b.probability for b in gateway.branches}[flows[0]] == 0
     assert any(
         n.topic == "missing_branch" and n.element_id == entry["gateway_id"]
         for n in result.notes
@@ -629,9 +631,10 @@ def test_case_attributes_and_priorities_survive_the_round_trip() -> None:
 def test_one_missing_branch_reads_in_the_singular() -> None:
     source, bpmn = _copy("Loan_Application")
     entry, flows = _diverging(source, bpmn)
+    # Manca il primo ramo (il ritorno indietro), l'uscita del ciclo resta.
     entry["probabilities"] = [
-        {"path_id": flow, "value": "1" if i == 0 else "0"}
-        for i, flow in enumerate(flows[:-1])
+        {"path_id": flow, "value": "1" if flow == flows[-1] else "0"}
+        for flow in flows[1:]
     ]
     result = import_prosimos(source, bpmn)
     note = next(n for n in result.notes if n.topic == "missing_branch")
