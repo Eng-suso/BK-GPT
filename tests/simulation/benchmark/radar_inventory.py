@@ -33,6 +33,7 @@ import json
 import re
 import shutil
 import sqlite3
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -61,8 +62,9 @@ LOG_SUFFIXES = (".xes", ".xes.gz", ".csv", ".csv.gz", ".json", ".jsonocel", ".xm
 ARCHIVE_SUFFIXES = (".zip", ".tar", ".tar.gz", ".tgz")
 # Un archivio dentro un altro si legge in un file temporaneo fino a questa dimensione.
 MAX_NESTED_ARCHIVE = 2 << 30
-# Oltre questa dimensione un OCEL JSON non si carica (json.load tiene tutto in memoria).
-MAX_OCEL_JSON = 3 << 30
+# Oltre questa dimensione un OCEL JSON si legge in streaming con ijson
+# (``uv run --with ijson``): json.load terrebbe tutto in memoria.
+MAX_OCEL_JSON = 256 << 20
 
 # --------------------------------------------------------------------------- soglie del confronto
 
@@ -116,7 +118,8 @@ class Origin:
 
 
 ORIGINS: dict[str, Origin] = {
-    "bps-quality-framework": Origin("misto", "log del paper (Chapela-Campa et al. 2024)", "vari", ("synthetic", "simulated")),
+    # Nella radice i log originali; in real-life/ e synthetic/ (da simulated-logs.zip) i simulati.
+    "bps-quality-framework": Origin("misto", "log del paper (Chapela-Campa et al. 2024)", "vari", ("real-life/", "synthetic/", "simulated")),
     "simbank": Origin("sintetico", "simulatore di un processo di credito (KU Leuven)", "banca"),
     "procause": Origin("codice", "esperimenti controfattuali (KU Leuven)", "banca"),
     "bpic2019": Origin("reale", "multinazionale olandese di vernici e rivestimenti", "procurement"),
@@ -156,6 +159,7 @@ class Source:
     path: str  # relativo alla cartella del dataset
     size: int
     opener: Callable[[], BinaryIO]
+    disk: Path | None = None  # il file su disco, se non e' un membro di archivio
 
     @property
     def name(self) -> str:
@@ -181,7 +185,7 @@ def walk(dataset: str, directory: Path) -> Iterator[Source]:
         relative = path.relative_to(directory)
         if not path.is_file() or ".git" in relative.parts or path.name.endswith(".extracted") or path.suffix == ".part":
             continue
-        yield Source(dataset, relative.as_posix(), path.stat().st_size, lambda p=path: p.open("rb"))
+        yield Source(dataset, relative.as_posix(), path.stat().st_size, lambda p=path: p.open("rb"), path)
 
 
 @contextmanager
@@ -197,8 +201,27 @@ def _seekable(source: Source) -> Iterator[BinaryIO]:
             yield spool
 
 
+def _split_parts(source: Source) -> bool:
+    """Uno zip diviso in parti (``val.z01``, ``val.z02``…, ``val.zip``): zipfile non lo legge da solo."""
+    return source.disk is not None and source.disk.with_suffix(".z01").exists()
+
+
+@contextmanager
+def _joined(source: Source) -> Iterator[Source]:
+    """Le parti riunite in un solo zip temporaneo (``zip -s 0``)."""
+    assert source.disk is not None
+    with tempfile.TemporaryDirectory() as scratch:
+        joined = Path(scratch) / source.name
+        subprocess.run(["zip", "-q", "-s", "0", str(source.disk), "--out", str(joined)], check=True)
+        yield Source(source.dataset, source.path, joined.stat().st_size, lambda: joined.open("rb"))
+
+
 def members(source: Source) -> Iterator[Source]:
     """I file di un archivio come sorgenti, senza estrarli su disco."""
+    if _split_parts(source):
+        with _joined(source) as joined:
+            yield from members(joined)
+        return
     prefix = f"{source.path}!"
     with _seekable(source) as handle:
         if zipfile.is_zipfile(handle):
@@ -342,7 +365,11 @@ class Accumulator:
     last: datetime | None = None
     objects: int = 0
     object_types: set[str] = field(default_factory=set)
-    rows: list[str] = field(default_factory=list)
+    content: int = 0  # somma delle impronte delle righe: non dipende dall'ordine, non tiene le righe
+
+    def row(self, *parts: object) -> None:
+        line = "\x1f".join("" if p is None else str(p) for p in parts).encode("utf-8", "replace")
+        self.content = (self.content + int.from_bytes(hashlib.sha256(line).digest())) % (1 << 256)
 
     def instant(self, raw: str | None) -> datetime | None:
         moment = parse_instant(raw)
@@ -369,7 +396,7 @@ class Accumulator:
         moment = self.instant(end)
         if moment:
             self.with_end += 1
-        self.rows.append(f"{case}\x1f{activity}\x1f{moment.isoformat() if moment else ''}")
+        self.row(case, activity, moment.isoformat() if moment else None)
 
 
 def _text(source: Source) -> Callable[[], io.TextIOWrapper]:
@@ -476,7 +503,28 @@ def _ocel_add(acc: Accumulator, event_type: str | None, time: str | None, relate
     if moment:
         acc.with_end += 1
     acc.case_ids.update(related)
-    acc.rows.append(f"{','.join(sorted(related))}\x1f{event_type}\x1f{moment.isoformat() if moment else ''}")
+    acc.row(",".join(sorted(related)), event_type, moment.isoformat() if moment else None)
+
+
+def _ocel2_event(acc: Accumulator, event: dict) -> None:
+    related = [str(r.get("objectId")) for r in event.get("relationships") or []]
+    _ocel_add(acc, event.get("type"), event.get("time"), related)
+
+
+def _ocel_stream(source: Source, acc: Accumulator) -> bool:
+    """OCEL 2.0 grande in streaming (due passate: eventi, poi oggetti); False senza ijson."""
+    try:
+        import ijson  # noqa: PLC0415 - solo per gli OCEL oltre MAX_OCEL_JSON
+    except ImportError:
+        return False
+    with source.opener() as handle:
+        for event in ijson.items(handle, "events.item"):
+            _ocel2_event(acc, event)
+    with source.opener() as handle:
+        for item in ijson.items(handle, "objects.item"):
+            acc.objects += 1
+            acc.object_types.add(str(item.get("type")))
+    return True
 
 
 def read_ocel_json(source: Source) -> Accumulator | None:
@@ -486,8 +534,9 @@ def read_ocel_json(source: Source) -> Accumulator | None:
     if not any(marker in head for marker in (b'"objectTypes"', b'"eventTypes"', b'"ocel:events"', b'"ocel:global-log"')):
         return None
     acc = Accumulator(kind="object-centric")
-    if source.size > MAX_OCEL_JSON:
-        acc.unparsed = -1  # troppo grande per json.load: solo l'impronta
+    if source.size > MAX_OCEL_JSON and b'"objectTypes"' in head:
+        if not _ocel_stream(source, acc):
+            acc.unparsed = -1  # senza ijson: solo l'impronta
         return acc
     with source.opener() as handle:
         data = json.load(handle)
@@ -501,8 +550,7 @@ def read_ocel_json(source: Source) -> Accumulator | None:
         acc.object_types = {str(o.get("ocel:type")) for o in values}
         return acc
     for event in data.get("events", []):
-        related = [str(r.get("objectId")) for r in event.get("relationships") or []]
-        _ocel_add(acc, event.get("type"), event.get("time"), related)
+        _ocel2_event(acc, event)
     acc.objects = len(data.get("objects", []))
     acc.object_types = {str(o.get("type")) for o in data.get("objects", [])}
     return acc
@@ -542,7 +590,7 @@ def read_ocel_xml(source: Source) -> Accumulator | None:
     """OCEL 2.0 in XML (``<log><object-types>…<events>``), in streaming."""
     acc = Accumulator(kind="object-centric")
     with source.opener() as handle:
-        for kind, element in iterparse(handle, events=("end",)):
+        for _kind, element in iterparse(handle, events=("end",)):
             tag = _local(element.tag)
             if tag == "event" and element.get("type") is not None:
                 related = [o.get("object-id", "") for o in element.iter() if _local(o.tag) == "relationship"]
@@ -641,15 +689,14 @@ class Signature:
     dataset: str
     activities: frozenset[str]
     cases: frozenset[str]
-    content: str  # SHA-256 delle righe (caso, attivita', fine) ordinate: stesso log in un'altra forma
+    content: str  # somma delle impronte delle righe (caso, attivita', fine): stesso log in un'altra forma
+    distinctive: bool = False
 
 
 def signature(acc: Accumulator, label: str, dataset: str) -> Signature:
-    digest = hashlib.sha256()
-    for row in sorted(acc.rows):
-        digest.update(row.encode("utf-8", "replace") + b"\n")
+    case_ids = frozenset(acc.case_ids)
     return Signature(label, dataset, frozenset(a.strip().lower() for a in acc.activities),
-                     frozenset(acc.case_ids), digest.hexdigest())
+                     case_ids, f"{acc.content:064x}", distinctive(case_ids))
 
 
 def distinctive(case_ids: frozenset[str]) -> bool:
@@ -662,7 +709,7 @@ def compare(a: Signature, b: Signature) -> str | None:
     """La relazione di ``a`` con ``b`` secondo le soglie dichiarate in cima al file; None se nessuna."""
     if a.content == b.content and a.cases:
         return "stesso contenuto"
-    if distinctive(a.cases) and distinctive(b.cases):
+    if a.distinctive and b.distinctive:
         # Stessi casi anche con le attivita' ricodificate (es. numeri al posto dei nomi).
         shared = len(a.cases & b.cases)
         if shared / len(b.cases) >= CONTAINED_CASES:
@@ -732,7 +779,8 @@ def development_reference() -> DevelopmentReference:
             previous = signatures[label]
             sig = signature(acc, label, "sviluppo")
             signatures[label] = Signature(label, "sviluppo", previous.activities | sig.activities,
-                                          previous.cases | sig.cases, previous.content)
+                                          previous.cases | sig.cases, previous.content,
+                                          previous.distinctive and sig.distinctive)
         else:
             signatures[label] = signature(acc, label, "sviluppo")
     return DevelopmentReference(by_hash, list(signatures.values()))
@@ -806,7 +854,7 @@ def inspect(source: Source, inventory: Inventory, holdouts: HoldoutReference, de
         try:
             for member in members(source):
                 inspect(member, inventory, holdouts, development, origin, skip_archive=False)
-        except (tarfile.TarError, zipfile.BadZipFile, OSError, EOFError) as exc:
+        except (tarfile.TarError, zipfile.BadZipFile, OSError, EOFError, subprocess.CalledProcessError) as exc:
             record.note = f"archivio non leggibile: {exc}"
         return
     acc = None
@@ -823,7 +871,7 @@ def inspect(source: Source, inventory: Inventory, holdouts: HoldoutReference, de
         return
     record.log = stats(acc, source, origin)
     if acc.unparsed == -1:
-        record.note = "OCEL oltre il limite di json.load: solo l'impronta"
+        record.note = "OCEL grande: serve `uv run --with ijson` per leggerlo, qui solo l'impronta"
     inventory.records.append(record)
     sig = signature(acc, f"{source.dataset}:{source.path}", source.dataset)
     record.development += [r for d in development.signatures if (r := compare(sig, d))]
@@ -908,6 +956,54 @@ def _relations(record: dict) -> str:
     return (text + (f"; +{more}" if more > 0 else "")).replace("|", "/") or "—"
 
 
+GROUP_AT = 5  # da quanti log nella stessa cartella il report li riassume in una riga
+
+
+def _range(values: list) -> str:
+    values = [v for v in values if v is not None]
+    if not values:
+        return "—"
+    low, high = min(values), max(values)
+    return _fmt(low) if low == high else f"{_fmt(low)}-{_fmt(high)}"
+
+
+def _folder(path: str) -> str:
+    cut = max(path.rfind("/"), path.rfind("!"))
+    return path[: cut + 1] if cut >= 0 else ""
+
+
+def _log_row(f: dict) -> str:
+    log = f["log"]
+    cases = _fmt(log["cases"]) if log["kind"] == "piatto" else f"{_fmt(log['objects'])} oggetti / {log['object_types']} tipi"
+    period = f"{log['first']} → {log['last']}" if log["first"] else "—"
+    return (
+        f"| `{f['path']}` | {cases} | {_fmt(log['events'])} | {log['activities']} | {period} | "
+        f"{_fmt(log['resources'])} | {_fmt(log['start_share'])} | {_fmt(log['end_share'])} | "
+        f"{log['observability']} | {_relations(f)} |"
+    )
+
+
+def _group_row(folder: str, group: list[dict]) -> str:
+    """Una riga per tanti log simili (repliche simulate, varianti di drift): intervalli e relazioni distinte."""
+    logs = [f["log"] for f in group]
+    firsts = [log["first"] for log in logs if log["first"]]
+    lasts = [log["last"] for log in logs if log["last"]]
+    period = f"{min(firsts)} → {max(lasts)}" if firsts else "—"
+    targets = Counter(
+        re.sub(r" \(.*\)$", "", relation)
+        for f in group for relation in f["development"] + f["radar"]
+    )
+    relations = "; ".join(f"{t} ({n} log)" for t, n in sorted(targets.items(), key=lambda i: (-i[1], i[0]))[:4])
+    more = len(targets) - 4
+    relations = (relations + (f"; +{more}" if more > 0 else "")).replace("|", "/") or "—"
+    observability = ", ".join(sorted({log["observability"] for log in logs}))
+    return (
+        f"| `{folder}` ({len(group)} log) | {_range([log['cases'] for log in logs])} | {_range([log['events'] for log in logs])} | "
+        f"{_range([log['activities'] for log in logs])} | {period} | {_range([log['resources'] for log in logs])} | "
+        f"{_range([log['start_share'] for log in logs])} | {_range([log['end_share'] for log in logs])} | {observability} | {relations} |"
+    )
+
+
 def to_markdown(report: dict) -> str:
     files = report["files"]
     logs = [f for f in files if f["log"]]
@@ -951,15 +1047,14 @@ def to_markdown(report: dict) -> str:
         lines += [f"### `{ident}`", "",
                   "| File | Casi | Eventi | Attivita' | Periodo | Risorse | Inizio | Fine | Osservabilita' | Relazioni |",
                   "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+        folders: dict[str, list[dict]] = {}
         for f in own:
-            log = f["log"]
-            cases = _fmt(log["cases"]) if log["kind"] == "piatto" else f"{_fmt(log['objects'])} oggetti / {log['object_types']} tipi"
-            period = f"{log['first']} → {log['last']}" if log["first"] else "—"
-            lines.append(
-                f"| `{f['path']}` | {cases} | {_fmt(log['events'])} | {log['activities']} | {period} | "
-                f"{_fmt(log['resources'])} | {_fmt(log['start_share'])} | {_fmt(log['end_share'])} | "
-                f"{log['observability']} | {_relations(f)} |"
-            )
+            folders.setdefault(_folder(f["path"]), []).append(f)
+        for folder, group in folders.items():
+            if len(group) >= GROUP_AT:
+                lines.append(_group_row(folder, group))
+            else:
+                lines += [_log_row(f) for f in group]
         lines.append("")
     notes = [f for f in files if f["note"] and not f["holdout"] and not f["log"]]
     if notes:
