@@ -170,7 +170,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "list":
         for entry in manifest.values():
             collection = entry.get("collection", "")
-            print(f"{entry['id']:34} {entry['mode']:9} {collection:6} {entry['license']}")
+            print(
+                f"{entry['id']:34} {entry['mode']:9} {collection:6} {entry['license']}"
+            )
         return 0
     if args.command == "path":
         if args.id not in manifest:
