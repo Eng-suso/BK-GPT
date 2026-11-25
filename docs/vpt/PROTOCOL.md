@@ -117,10 +117,19 @@ uv run pytest --noconftest -q tests/simulation/benchmark/test_protocol.py   # co
 
 - `protocol.selection_phase()` racchiude ogni punto d'ingresso che sceglie qualcosa
   (G3b, B3.x, SEL-01). Un audit hook di Python rifiuta con `HoldoutAccessError`
-  l'apertura in lettura di ogni file che porta il nome di un log holdout, in qualunque
+  l'apertura in lettura di: ogni file che porta il nome di un log holdout, in qualunque
   cartella e con qualunque estensione da log (anche una copia convertita, per esempio
-  `production.parquet`, o un collegamento con un nome innocuo), e dell'archivio che li
-  contiene. La guardia è attiva per tutti i test del benchmark (`conftest.py`);
+  `production.parquet`); ogni file ricavato da un holdout (`Production_1.csv`,
+  `confidential_2000_modif.bpmn`); ogni file dei dataset holdout, archivio compreso (tutti
+  i 715 file del pacchetto Camargo, compresi i log simulati dai modelli addestrati sugli
+  holdout); un collegamento simbolico o fisico con un nome innocuo a un file holdout della
+  cache. La guardia è attiva per tutti i test del benchmark (`conftest.py`);
+- la fase vale per il thread che la apre: `final_evaluation` in un thread non apre gli
+  holdout negli altri, e un thread nuovo parte chiuso. La guardia non passa ai
+  sottoprocessi (SIMOD, runner): a loro il codice di selezione passa solo percorsi di log
+  di sviluppo. Una copia con un nome innocuo fatta fuori dal processo non si riconosce:
+  la difesa è il test sui nomi qui sotto, più la regola che gli holdout si scaricano solo
+  per la valutazione finale;
 - `test_selection_code_does_not_name_a_holdout_log` fallisce se un file di
   `tests/simulation`, `backend/simulation`, `backend/eventlog` o `scripts` nomina un log
   holdout o il suo dataset; gli unici ammessi sono il lucchetto, lo script che lo scrive e
