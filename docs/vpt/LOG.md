@@ -18,6 +18,20 @@ Modello:
 
 ---
 
+## 2026-11-25 — nessun contatto con i titolari del codice — fatto
+
+- Branch / PR: `docs/vpt-no-contact`. Solo piano e documenti; Master Plan V2 corretto
+  nel Claude Docs.
+- Decisione (Sohayb): DeliR non scrive a nessuno per chiedere autorizzazioni. Si toglie
+  la richiesta ai titolari di Prosimos da LIC-01.
+- Conseguenza: Prosimos 2.1.0 non dichiara una licenza, quindi nel prodotto commerciale
+  va sostituito. ENG-02 non è più "se necessario": serve prima della vendita, come motore
+  nativo sull'IR o motore con licenza permissiva, dietro ENG-01. Per la ricerca e per
+  le misure del benchmark Prosimos resta in uso.
+- Mete: nessuna abbassata.
+
+---
+
 ## 2026-11-24 — Master Plan V2 diventa un programma di ricerca — fatto
 
 - Branch / PR: `docs/vpt-research-program`. Solo piano e documenti; Master Plan V2
