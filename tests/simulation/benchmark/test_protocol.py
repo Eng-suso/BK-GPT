@@ -393,3 +393,80 @@ def test_every_development_log_is_listed_none_missing():
     for log in logs:
         if log.source.startswith("datasets/"):
             assert list(protocol.ROOT.glob(log.source.replace("{train,test}", "*"))), log.source
+
+
+# --------------------------------------------------------------------------- PROTO-02: confronti appaiati
+
+
+def test_paired_comparison_finds_a_consistent_small_improvement_that_intervals_miss():
+    """Repliche appaiate: a e' sempre un po' meglio di b. Gli IC si sovrappongono, il test appaiato no."""
+    base = [10.0, 14.0, 9.0, 16.0, 11.0, 13.0, 8.0, 15.0, 12.0, 10.5]
+    better = [v - 0.5 for v in base]
+    from tests.simulation.benchmark.eval_harness import within_intervals
+    from tests.simulation.benchmark.log_distance import mean_confidence_interval
+
+    def summary(values):
+        mean, ci = mean_confidence_interval(values)
+        return {"mean": mean, "ci95": ci}
+
+    assert within_intervals(summary(better), summary(base))  # per la regola degli IC: pari
+    result = protocol.paired_comparison(better, base)
+    assert result.verdict == "a meglio"
+    assert result.mean_difference == pytest.approx(-0.5)
+    assert result.ci_high < 0 and result.wilcoxon_p < protocol.PAIRED_ALPHA
+
+
+def test_paired_comparison_is_even_on_noise_and_symmetric():
+    a = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+    b = [1.2, 1.8, 3.1, 3.9, 5.2, 5.8, 7.1, 7.9, 9.0, 10.0]
+    assert protocol.paired_comparison(a, b).verdict == "pari"
+    forward, backward = protocol.paired_comparison(a, b), protocol.paired_comparison(b, a)
+    assert forward.mean_difference == pytest.approx(-backward.mean_difference)
+    assert forward.wilcoxon_p == backward.wilcoxon_p
+
+
+def test_paired_comparison_is_deterministic_and_needs_pairs():
+    a, b = [3.0, 4.0, 5.0], [3.5, 4.4, 5.1]
+    assert protocol.paired_comparison(a, b) == protocol.paired_comparison(a, b)
+    with pytest.raises(ValueError):
+        protocol.paired_comparison([1.0, 2.0], [1.0])
+
+
+def test_wilcoxon_exact_matches_the_table():
+    # n = 10, un solo segno negativo sul rango 2: W+ = 53, p = 6/1024 (tavola esatta a due code).
+    assert protocol._wilcoxon_exact([1, -2, 3, 4, 5, 6, 7, 8, 9, 10]) == pytest.approx(6 / 1024)
+    assert protocol._wilcoxon_exact([0.0, 0.0]) == 1.0
+
+
+# --------------------------------------------------------------------------- PROTO-02: metriche di CF-01
+
+
+def _outcome(true_delta, predicted, low, high, baseline=100.0):
+    return protocol.CounterfactualOutcome(baseline, true_delta, predicted, low, high)
+
+
+def test_counterfactual_metrics_report_width_error_and_direction_not_only_coverage():
+    wide = [_outcome(-10, 5, -500, 500), _outcome(8, -3, -500, 500)]
+    narrow = [_outcome(-10, -9, -12, -7), _outcome(8, 7, 5, 10)]
+    w, n = protocol.counterfactual_metrics(wide), protocol.counterfactual_metrics(narrow)
+    assert w.coverage == n.coverage == 1.0  # la copertura da sola non li distingue
+    assert w.mean_width == 1000 and n.mean_width == 5
+    assert w.direction_accuracy == 0.0 and n.direction_accuracy == 1.0
+    assert w.mean_absolute_error == 13 and n.mean_absolute_error == 1
+    assert n.mean_relative_error == pytest.approx(0.01)
+
+
+def test_counterfactual_direction_ignores_effects_too_small_to_have_one():
+    tiny = _outcome(0.5, -0.4, -1, 1)  # 0,5% del KPI: sotto DIRECTION_MIN_EFFECT
+    metrics = protocol.counterfactual_metrics([tiny])
+    assert metrics.direction_cases == 0 and metrics.direction_accuracy is None
+    assert metrics.coverage == 1.0
+
+
+def test_counterfactual_metrics_reject_bad_input():
+    with pytest.raises(ValueError):
+        protocol.counterfactual_metrics([])
+    with pytest.raises(ValueError):
+        protocol.counterfactual_metrics([_outcome(1, 1, 2, 0)])
+    with pytest.raises(ValueError):
+        protocol.counterfactual_metrics([_outcome(1, 1, 0, 2, baseline=0)])
