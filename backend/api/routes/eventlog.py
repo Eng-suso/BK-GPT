@@ -44,6 +44,8 @@ router = APIRouter(
 )
 
 _LOG_NOT_FOUND = "Event log non trovato."
+_PROCESS_NOT_FOUND = "Processo non trovato."
+_TEMPLATE_NOT_FOUND = "Template di mapping non trovato."
 
 
 def parse_prosimos_log(csv_text: str) -> list[LogEvent]:
@@ -52,9 +54,6 @@ def parse_prosimos_log(csv_text: str) -> list[LogEvent]:
     Il nome e' quello storico, rimasto perche' i test sostituiscono qui la lettura.
     """
     return get_engine().read_log(csv_text)
-
-_PROCESS_NOT_FOUND = "Processo non trovato."
-_TEMPLATE_NOT_FOUND = "Template di mapping non trovato."
 
 
 @router.get("/event-logs/{event_log_id}/validation")
