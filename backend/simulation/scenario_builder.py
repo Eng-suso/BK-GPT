@@ -15,7 +15,8 @@ from backend.schemas.simulation import (
     SimCalendarPeriodConfig,
 )
 from backend.simulation.bpmn_resources import describe_bpmn_resources
-from backend.simulation.ir import compile_for_prosimos, model_from_request
+from backend.simulation.engine import get_engine
+from backend.simulation.ir import model_from_request
 from backend.simulation.ir.escalations import expand_escalations
 from backend.simulation.ir.flow_rules import expand_flow_rules
 from backend.simulation.ir.instances import expand_instances
@@ -101,7 +102,7 @@ def _scenario(bpmn_xml: str, model: SimulationModel, tasks: list[BpmnTask], gate
     engine_bpmn, engine_model = expand_flow_rules(engine_bpmn, engine_model)
     engine_bpmn, engine_model = expand_duration_variants(engine_bpmn, engine_model)
     return ProsimosScenario(
-        payload=compile_for_prosimos(engine_model),
+        payload=get_engine().compile(engine_model),
         task_count=len(tasks),
         gateway_count=len(gateways),
         model=model.model_dump(mode="json"),
