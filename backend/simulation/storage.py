@@ -12,6 +12,7 @@ from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.schemas.simulation_model import CreateSimulationModelRunRequest
 from backend.security import get_current_tenant_id
 from backend.settings import settings
+from backend.simulation.engine import get_engine
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationResult
 from backend.simulation.queue import LEGACY_STALE_RUN_ERROR, admit, hold_queue, queue_view, reap_stale_runs
 from backend.workspace_storage import (
@@ -168,7 +169,7 @@ def _new_run(
         bpmn_model_id=bpmn_model_id,
         process_id=process_id,
         scenario_name=scenario_name,
-        engine="prosimos",
+        engine=get_engine().name,
         status="pending",
         idempotency_key=idempotency_key,
         request_json=request.model_copy(
