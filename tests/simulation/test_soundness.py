@@ -114,7 +114,7 @@ def test_the_consultant_reads_no_jargon(name: str) -> None:
     with pytest.raises(UnsoundProcessError) as refused:
         import_prosimos(scenario, bpmn)
 
-    assert not JARGON.search(refused.value.message), refused.value.message
+    assert not JARGON.search(str(refused.value)), str(refused.value)
 
 
 def test_the_loop_reopened_at_the_train_frequency_repeats_a_finite_number_of_times() -> None:

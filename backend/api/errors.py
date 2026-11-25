@@ -133,7 +133,7 @@ def setup_api_error_handlers(app: FastAPI) -> None:
             request,
             status_code=400,
             code="process_cannot_finish",
-            message=exc.message,
+            message=str(exc),
             detail=exc.detail,
         )
 
