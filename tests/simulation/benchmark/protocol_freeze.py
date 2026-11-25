@@ -140,12 +140,13 @@ def build(cache_root: Path) -> dict:
     manifest = fetch_datasets.load_manifest()
     holdouts = []
     for spec in HOLDOUTS:
-        entry = manifest[spec["dataset"]]
+        dataset = str(spec["dataset"])
+        entry = manifest[dataset]
         files = []
         for relative in spec["files"]:
-            path = cache_root / spec["dataset"] / relative
+            path = cache_root / dataset / relative
             if not path.is_file():
-                raise SystemExit(f"manca {path}: scaricalo con scripts/fetch_datasets.py fetch {spec['dataset']}")
+                raise SystemExit(f"manca {path}: scaricalo con scripts/fetch_datasets.py fetch {dataset}")
             files.append({"path": relative, "sha256": _sha256(path), "bytes": path.stat().st_size})
         holdouts.append(
             {
