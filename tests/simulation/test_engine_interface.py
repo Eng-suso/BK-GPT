@@ -5,11 +5,9 @@ import inspect
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
-from backend.simulation import service
 from backend.simulation.engine import (
     EngineCancelled,
     EngineError,
@@ -165,16 +163,3 @@ def test_the_same_request_cannot_run_twice_at_once(monkeypatch):
             await first
 
     asyncio.run(scenario())
-
-
-def test_the_worker_cancels_the_engine_when_the_run_is_no_longer_its_own(monkeypatch):
-    cancelled: list = []
-    monkeypatch.setattr(service.settings, "simulation_heartbeat_seconds", 0)
-    monkeypatch.setattr(service, "beat", lambda run_id, worker_id: False)
-    monkeypatch.setattr(service, "get_engine", lambda: SimpleNamespace(cancel=cancelled.append))
-    claimed = SimpleNamespace(run_id=7, worker_id="w")
-    request = _request()
-
-    asyncio.run(service._keep_beating(claimed, request))
-
-    assert cancelled == [request]

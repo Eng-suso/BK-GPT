@@ -619,7 +619,7 @@ async def _execute_claimed_run(claimed: ClaimedRun, timer: _PhaseTimer) -> dict:
         start_date=claimed.start_date,
         seed=claimed.seed,
     )
-    heart = asyncio.create_task(_keep_beating(claimed, request))
+    heart = asyncio.create_task(_keep_beating(claimed))
     try:
         result = with_output_files(await run_prosimos_simulation(request))
     except EngineError as exc:
@@ -715,7 +715,7 @@ class _PhaseTimer:
 
 
 
-async def _keep_beating(claimed: ClaimedRun, request: EngineRunRequest) -> None:
+async def _keep_beating(claimed: ClaimedRun) -> None:
     while True:
         await asyncio.sleep(settings.simulation_heartbeat_seconds)
         try:
@@ -724,8 +724,9 @@ async def _keep_beating(claimed: ClaimedRun, request: EngineRunRequest) -> None:
             logger.warning("simulazione %s: battito non scritto", claimed.run_id, exc_info=True)
             continue
         if not alive:
-            # Il run non e' piu' nostro: l'esito verrebbe scartato, il motore si ferma qui.
-            get_engine().cancel(request)
+            # Il run non e' piu' nostro: l'esito, quando arriva, verra' scartato.
+            # Non si annulla (``cancel``): il runner finirebbe comunque il calcolo
+            # e il posto liberato qui lo caricherebbe oltre il limite dei run.
             return
 
 
