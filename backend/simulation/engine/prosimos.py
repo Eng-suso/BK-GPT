@@ -6,6 +6,10 @@ scenario JSON (``ir.compile``), il protocollo HTTP del runner
 (``prosimos_adapter``) e il formato del suo log e delle sue statistiche
 (``log_processor``). Fuori dall'adattatore nessuno li importa: si passa da
 ``backend.simulation.engine.get_engine()``.
+
+All'import si carica solo la compilazione, che dipende dal solo IR: il test del
+contratto gira nel venv del runner (Prosimos, senza httpx ne' le impostazioni
+del backend) e compila tramite il registro. Il resto si carica al primo uso.
 """
 
 from __future__ import annotations
@@ -13,25 +17,15 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
-from backend.simulation.compatibility import bpmn_compatibility_report
 from backend.simulation.engine import (
     CompiledScenario,
     EngineCancelled,
     EngineError,
     EngineRunRequest,
     EngineRunResult,
+    LogEvent,
 )
 from backend.simulation.ir.compile import compile_for_prosimos
-from backend.simulation.log_processor import (
-    activity_name_to_element_id,
-    parse_prosimos_log,
-    pool_key,
-    process_prosimos_log,
-    summarize_log_events,
-)
-from backend.simulation.prosimos_adapter import run_prosimos_simulation
-from backend.simulation.validation import validate_simulation_bpmn
 
 if TYPE_CHECKING:
     from backend.schemas.simulation import BpmnCompatibilityResponse
@@ -42,33 +36,41 @@ class ProsimosEngine:
 
     name = "prosimos"
 
-    # Funzioni pure dei moduli dell'adattatore: stesse funzioni, stessi risultati.
-    prepare_bpmn = staticmethod(normalize_bpmn_for_prosimos)
+    # La stessa funzione di ``ir.compile``: stesso JSON, bit per bit.
     compile = staticmethod(compile_for_prosimos)
-    read_log = staticmethod(parse_prosimos_log)
-    activity_ids = staticmethod(activity_name_to_element_id)
-    resource_pool = staticmethod(pool_key)
-    summarize_events = staticmethod(summarize_log_events)
 
     def __init__(self) -> None:
         # I run in volo in questo processo, per richiesta (``id``), e quelli annullati.
         self._running: dict[int, asyncio.Task[EngineRunResult]] = {}
         self._cancelled: set[int] = set()
 
+    # --- valida ---------------------------------------------------------- #
+    def prepare_bpmn(self, bpmn_xml: str) -> str:
+        from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+
+        return normalize_bpmn_for_prosimos(bpmn_xml)
+
     def validate(self, bpmn_xml: str) -> None:
+        from backend.simulation.validation import validate_simulation_bpmn
+
         try:
             validate_simulation_bpmn(bpmn_xml)
         except ValueError as exc:
             raise EngineError(str(exc)) from exc
 
     def compatibility_report(self, bpmn_xml: str) -> BpmnCompatibilityResponse:
+        from backend.simulation.compatibility import bpmn_compatibility_report
+
         return bpmn_compatibility_report(bpmn_xml)
 
+    # --- esegue e annulla ------------------------------------------------ #
     async def run(self, request: EngineRunRequest) -> EngineRunResult:
+        from backend.simulation import prosimos_adapter
+
         key = id(request)
         if key in self._running:
             raise EngineError("Questa richiesta sta gia' girando sul motore.")
-        task = asyncio.ensure_future(run_prosimos_simulation(request))
+        task = asyncio.ensure_future(prosimos_adapter.run_prosimos_simulation(request))
         self._running[key] = task
         try:
             return await task
@@ -90,6 +92,22 @@ class ProsimosEngine:
         task.cancel()
         return True
 
+    # --- risultati ------------------------------------------------------- #
+    def read_log(self, log_csv: str) -> list[LogEvent]:
+        from backend.simulation.log_processor import parse_prosimos_log
+
+        return parse_prosimos_log(log_csv)
+
+    def activity_ids(self, bpmn_xml: str) -> dict[str, str]:
+        from backend.simulation.log_processor import activity_name_to_element_id
+
+        return activity_name_to_element_id(bpmn_xml)
+
+    def resource_pool(self, resource: str) -> str:
+        from backend.simulation.log_processor import pool_key
+
+        return pool_key(resource)
+
     def summarize_run(
         self,
         result: EngineRunResult,
@@ -99,6 +117,8 @@ class ProsimosEngine:
         warmup_cases: int = 0,
         horizon: tuple[float, int] | None = None,
     ) -> tuple[dict, dict]:
+        from backend.simulation.log_processor import activity_name_to_element_id, process_prosimos_log
+
         if not result.event_log_csv:
             raise EngineError("il motore non ha restituito il log degli eventi")
         return process_prosimos_log(
@@ -111,3 +131,7 @@ class ProsimosEngine:
             horizon=horizon,
         )
 
+    def summarize_events(self, events: list[LogEvent], *, name_to_element_id: dict[str, str]) -> dict:
+        from backend.simulation.log_processor import summarize_log_events
+
+        return summarize_log_events(events, name_to_element_id=name_to_element_id)

@@ -2,6 +2,9 @@
 
 import asyncio
 import inspect
+import subprocess
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -21,6 +24,13 @@ from backend.simulation.engine import (
 from backend.simulation.engine.prosimos import ProsimosEngine
 from backend.simulation.models import ProsimosScenario
 from tests.simulation.engine_log import ENGINE_LOG
+
+BPMN = (
+    '<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"><process id="p">'
+    '<startEvent id="s"/><task id="t" name="Controllo"/><endEvent id="e"/>'
+    '<sequenceFlow id="f1" sourceRef="s" targetRef="t"/><sequenceFlow id="f2" sourceRef="t" targetRef="e"/>'
+    "</process></definitions>"
+)
 
 VERBS = (
     "prepare_bpmn", "validate", "compatibility_report", "compile", "run", "cancel",
@@ -61,11 +71,23 @@ def test_historical_names_resolve_to_the_same_adapter_functions():
 
     engine = get_engine()
     assert compile_for_prosimos is compile_function is engine.compile
-    assert engine.prepare_bpmn is normalize_bpmn_for_prosimos
-    assert engine.read_log is parse_prosimos_log
+    assert engine.prepare_bpmn(BPMN) == normalize_bpmn_for_prosimos(BPMN)
+    assert engine.read_log(ENGINE_LOG) == parse_prosimos_log(ENGINE_LOG)
     assert LegacyLogEvent is LogEvent and legacy_warmup is after_warmup
     assert issubclass(ProsimosError, EngineError)
     assert issubclass(ProsimosLogError, EngineLogError)
+
+
+def test_compiling_through_the_registry_loads_only_the_ir():
+    # Il test del contratto compila nel venv del runner, senza httpx ne' le impostazioni del backend.
+    code = (
+        "import sys; from backend.simulation.ir import compile_for_prosimos; "
+        "loaded = [m for m in ('backend.simulation.prosimos_adapter', 'backend.simulation.log_processor', "
+        "'backend.settings', 'httpx') if m in sys.modules]; print(loaded)"
+    )
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True,
+                         cwd=Path(__file__).resolve().parents[2])
+    assert out.stdout.strip() == "[]"
 
 
 def test_read_log_gives_engine_neutral_events():
@@ -86,7 +108,7 @@ def _slow_adapter(monkeypatch, started: asyncio.Event):
         await asyncio.sleep(3600)
         return EngineRunResult()
 
-    monkeypatch.setattr("backend.simulation.engine.prosimos.run_prosimos_simulation", slow)
+    monkeypatch.setattr("backend.simulation.prosimos_adapter.run_prosimos_simulation", slow)
 
 
 def test_cancel_stops_the_run_in_flight_and_frees_the_request(monkeypatch):
