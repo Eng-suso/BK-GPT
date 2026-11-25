@@ -198,3 +198,44 @@ def test_long_numeric_ids_of_another_process_are_not_the_same_cases():
 def test_json_keeps_the_strongest_relations_first():
     record = {"development": ["nome simile a X", "stesso processo di A", "stessa impronta di B"], "radar": []}
     assert inv._compact(record)["development"][0] == "stessa impronta di B"
+
+
+def test_compact_and_epoch_instants():
+    assert inv.parse_instant("20120315093000").year == 2012
+    assert inv.parse_instant("1325376000").year == 2012  # secondi
+    assert inv.parse_instant("1325376000000").year == 2012  # millisecondi
+    assert inv.parse_instant("1325376000000000000").year == 2012  # nanosecondi
+    assert inv.parse_instant("9" * 30) is None
+
+
+def test_a_decompressed_copy_of_a_frozen_holdout_is_marked(tmp_path: Path, monkeypatch):
+    payload = CSV.encode()
+    reference = inv.holdout_reference()
+    reference.by_hash[hashlib.sha256(payload).hexdigest()] = "prova_holdout"  # come _unpacked_fingerprints
+    path = tmp_path / "copia.csv.gz"
+    path.write_bytes(gzip.compress(payload))  # ricompresso: impronta del file diversa, contenuto uguale
+    monkeypatch.setattr(inv, "read_log", lambda source: pytest.fail("un holdout non si legge"))
+    inventory = inv.Inventory()
+    inv.inspect(_source(path), inventory, reference, _empty_development(), ORIGIN, skip_archive=False)
+    assert inventory.records[0].holdout == "holdout:prova_holdout (impronta)"
+
+
+def test_holdout_fingerprints_include_the_unpacked_content(tmp_path: Path):
+    gz = tmp_path / "x.csv.gz"
+    gz.write_bytes(gzip.compress(b"abc"))
+    archive = tmp_path / "x.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("inner.csv", b"abc")
+    expected = hashlib.sha256(b"abc").hexdigest()
+    assert inv._unpacked_fingerprints(gz) == [expected]
+    assert inv._unpacked_fingerprints(archive) == [expected]
+
+
+def test_a_large_ocel_without_ijson_is_reported_not_lost(tmp_path: Path, monkeypatch):
+    path = tmp_path / "big.json"
+    path.write_text('{"objectTypes": [], "eventTypes": [], "events": [], "objects": []}')
+    monkeypatch.setattr(inv, "MAX_OCEL_JSON", 1)
+    monkeypatch.setattr(inv, "_ocel_stream", lambda source, acc: False)
+    inventory = inv.Inventory()
+    inv.inspect(_source(path), inventory, inv.holdout_reference(), _empty_development(), ORIGIN, skip_archive=False)
+    assert "ijson" in inventory.records[0].note

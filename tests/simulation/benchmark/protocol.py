@@ -30,6 +30,7 @@ import os
 import random
 import sys
 import threading
+import zipfile
 from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
@@ -196,9 +197,10 @@ def _audit(event: str, args: tuple) -> None:
     finally:
         _local.reading_lock = False
     if closed:
+        which = next((lock.name for lock in locks or lock_paths() if is_holdout(target, [lock])), "un lucchetto")
         raise HoldoutAccessError(
-            f"{os.fsdecode(target)} e' un log holdout di PROTO-01: si apre solo in "
-            "protocol.final_evaluation(), dopo che la selezione e' chiusa (docs/vpt/PROTOCOL.md)"
+            f"{os.fsdecode(target)} e' un log holdout ({which}): si apre solo in "
+            f"protocol.final_evaluation(<impronta di {which}>), dopo che la selezione e' chiusa (docs/vpt/PROTOCOL.md)"
         )
 
 
@@ -215,15 +217,21 @@ def _cached_holdout_files(lock: Path = LOCK_PATH) -> set[tuple[int, int]]:
     return found
 
 
+def register_lock(lock: Path) -> None:
+    """Un lucchetto nella guardia: nomi e file della cache. ``protocol_freeze`` lo chiama per un set nuovo."""
+    lock_paths.cache_clear()
+    blocked_names(lock)
+    _frozen_by_lock[lock] = _cached_holdout_files(lock)
+    _frozen_files.update(_frozen_by_lock[lock])
+
+
 def install() -> None:
     """Attiva la guardia per tutto il processo (un audit hook non si toglie: e' voluto)."""
     global _installed
     with _install_lock:
         if not _installed:
             for lock in lock_paths():  # i lucchetti si leggono prima di attivare la guardia
-                blocked_names(lock)
-                _frozen_by_lock[lock] = _cached_holdout_files(lock)
-                _frozen_files.update(_frozen_by_lock[lock])
+                register_lock(lock)
             sys.addaudithook(_audit)
             _installed = True
 
@@ -281,6 +289,12 @@ def fingerprint(open_binary: Callable[[], BinaryIO]) -> str:
         for block in iter(lambda: handle.read(1 << 20), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def fingerprint_members(path: Path) -> list[str]:
+    """SHA-256 di ogni file dentro uno zip che potrebbe essere un holdout, letto solo per le impronte."""
+    with _phase("integrity"), zipfile.ZipFile(path) as bundle:
+        return [fingerprint(lambda i=info: bundle.open(i)) for info in bundle.infolist() if not info.is_dir()]
 
 
 def verify_frozen(cache_root: Path, lock: Path = LOCK_PATH) -> list[str]:
@@ -518,8 +532,11 @@ class PairedComparison:
     verdict: Literal["a meglio", "b meglio", "pari"]
 
 
+WILCOXON_EXACT_MAX = 20  # oltre, l'enumerazione dei 2^n segni costa troppo: approssimazione normale
+
+
 def _wilcoxon_exact(differences: Sequence[float]) -> float:
-    """p a due code del test dei ranghi con segno, esatto (enumera i segni: fino a 20 coppie).
+    """p a due code del test dei ranghi con segno: esatto fino a 20 coppie, poi approssimazione normale.
 
     Le differenze nulle si tolgono (Wilcoxon); i pari hanno il rango medio.
     """
@@ -527,8 +544,6 @@ def _wilcoxon_exact(differences: Sequence[float]) -> float:
     n = len(values)
     if n == 0:
         return 1.0
-    if n > 20:
-        raise ValueError("il test esatto enumera 2^n segni: al massimo 20 coppie")
     order = sorted(range(n), key=lambda i: abs(values[i]))
     ranks = [0.0] * n
     i = 0
@@ -542,6 +557,10 @@ def _wilcoxon_exact(differences: Sequence[float]) -> float:
     observed = sum(r for r, v in zip(ranks, values, strict=True) if v > 0)
     total = sum(ranks)
     distance = abs(observed - total / 2)
+    if n > WILCOXON_EXACT_MAX:  # approssimazione normale, con la correzione per i pari
+        ties = Counter(ranks)
+        variance = n * (n + 1) * (2 * n + 1) / 24 - sum(t**3 - t for t in ties.values()) / 48
+        return min(1.0, math.erfc(max(0.0, distance - 0.5) / math.sqrt(2 * variance))) if variance > 0 else 1.0
     extreme = 0
     for mask in range(1 << n):
         positive = sum(ranks[k] for k in range(n) if mask >> k & 1)

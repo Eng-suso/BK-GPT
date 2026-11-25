@@ -5,7 +5,7 @@
     uv run python scripts/fetch_datasets.py fetch bps-quality-framework road-traffic-fines das-rp
     uv run python tests/simulation/benchmark/protocol_freeze.py --set 2      # secondo set (PROTO-02)
 
-Scrive ``protocol/holdout.lock.json``: per ogni log holdout i file, il loro SHA-256
+Scrive ``protocol/holdout.lock.json`` (o ``holdout2.lock.json`` con ``--set 2``): per ogni log holdout i file, il loro SHA-256
 e la dimensione, la categoria, l'organizzazione e perche' e' indipendente dai log
 di sviluppo. Legge i file solo per l'impronta. Se il lucchetto esiste non lo
 riscrive: cambiare gli holdout e' una decisione di Sohayb, scritta in LOG.md, e
@@ -30,6 +30,7 @@ from tests.simulation.benchmark.protocol import (
     PARTIAL,
     SYNTHETIC,
     lock_digest,
+    register_lock,
     sha256_of,
 )
 
@@ -248,10 +249,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.set == 1:
         lock = build(fetch_datasets.cache_dir())
     else:
+        if not LOCK_PATH.exists():
+            print(f"manca {LOCK_PATH}: il secondo set si congela dopo il primo", file=sys.stderr)
+            return 1
         lock = build(fetch_datasets.cache_dir(), HOLDOUTS_2, CONTAINERS_2, FROZEN_ON_2, "PROTO-02, docs/vpt/PROTOCOL.md §10")
         lock["independent_of"] = f"primo set, lucchetto {lock_digest(LOCK_PATH)}"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(lock, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    register_lock(path)  # chiuso subito anche in questo processo
     print(f"scritto {path}, SHA-256 {lock_digest(path)}")
     return 0
 

@@ -157,7 +157,7 @@ def origin_for(ident: str) -> Origin:
     return DEFAULT_ORIGIN
 
 
-DEFAULT_ORIGIN = Origin("codice", "repository di codice", "nessuno", ("simulated", "synthetic", "generated", "test"))
+DEFAULT_ORIGIN = Origin("codice", "repository di codice", "nessuno", ("simulated", "synthetic", "generated"))
 
 
 # --------------------------------------------------------------------------- sorgenti
@@ -275,6 +275,23 @@ def _hashes(opener: Callable[[], BinaryIO], gz: bool) -> tuple[str, str | None]:
         return raw, None
 
 
+def _unpacked_fingerprints(path: Path) -> list[str]:
+    """Le impronte del contenuto di un holdout compresso (gzip o zip) nella cache, se c'e'.
+
+    Una copia decompressa o ricompressa ha un'impronta diversa dal file del lucchetto: queste la
+    riconoscono. Il file si legge solo per l'impronta (``protocol.fingerprint``), mai per gli eventi.
+    """
+    name = path.name.lower()
+    try:
+        if name.endswith(".gz"):
+            return [protocol.fingerprint(lambda: _gunzip(path.open("rb")))]
+        if name.endswith(".zip"):
+            return protocol.fingerprint_members(path)
+    except (OSError, zipfile.BadZipFile, EOFError):
+        return []
+    return []
+
+
 @dataclass(frozen=True, slots=True)
 class HoldoutReference:
     by_hash: dict[str, str]  # sha256 -> id dell'holdout
@@ -285,6 +302,7 @@ def holdout_reference() -> HoldoutReference:
     """Dal lucchetto: impronte, nomi dei file e dei log; piu' gli alias dichiarati qui."""
     by_hash: dict[str, str] = {}
     aliases: dict[str, str] = {}
+    root = fetch_datasets.cache_dir()
     for holdout in (h for lock in protocol.lock_paths() for h in protocol.load_lock(lock)["holdouts"]):
         ident = holdout["id"]
         aliases[normalized(ident)] = ident
@@ -292,6 +310,8 @@ def holdout_reference() -> HoldoutReference:
             aliases[normalized(name)] = ident
         for item in holdout["files"]:
             by_hash[item["sha256"]] = ident
+            for digest in _unpacked_fingerprints(root / holdout["dataset"] / item["path"]):
+                by_hash[digest] = ident
             aliases[normalized(protocol._stem(Path(item["path"]).name))] = ident
         for alias in HOLDOUT_EXTRA_ALIASES.get(normalized(ident), ()):
             aliases[alias] = ident
@@ -330,7 +350,7 @@ def development_by_name(source: Source) -> str | None:
 
 # --------------------------------------------------------------------------- lettura dei log
 
-_FORMATS = ("%Y/%m/%d %H:%M:%S", "%d-%m-%Y %H:%M:%S", "%d-%m-%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%Y%m%d%H%M%S")
+_FORMATS = ("%Y/%m/%d %H:%M:%S", "%d-%m-%Y %H:%M:%S", "%d-%m-%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M")
 
 
 def parse_instant(raw: str | None) -> datetime | None:
@@ -340,9 +360,17 @@ def parse_instant(raw: str | None) -> datetime | None:
     text = raw.strip()
     if not text:
         return None
-    if text.isdigit() and len(text) >= 9:  # epoch in secondi o millisecondi
-        value = int(text)
-        return datetime(1970, 1, 1) + timedelta(seconds=value / 1000 if len(text) >= 13 else value)
+    if text.isdigit() and len(text) == 14:  # 20120315093000
+        try:
+            return datetime.strptime(text, "%Y%m%d%H%M%S")
+        except ValueError:
+            pass
+    if text.isdigit() and len(text) >= 9:  # epoch in secondi, millisecondi, micro o nanosecondi
+        scale = {13: 1e3, 16: 1e6, 19: 1e9}.get(len(text), 1)
+        try:
+            return datetime(1970, 1, 1) + timedelta(seconds=int(text) / scale)
+        except (OverflowError, ValueError):
+            return None
     try:
         instant = datetime.fromisoformat(text.replace("/", "-") if text[:4].isdigit() else text)
     except ValueError:
@@ -411,11 +439,26 @@ class Accumulator:
         self.row(case, activity, moment.isoformat() if moment else None)
 
 
+def _gunzip(raw: BinaryIO) -> BinaryIO:
+    """GzipFile non chiude il file che riceve: questo lo chiude con se'."""
+    inner = gzip.GzipFile(fileobj=raw)
+    close = inner.close
+
+    def close_both() -> None:
+        try:
+            close()
+        finally:
+            raw.close()
+
+    inner.close = close_both  # type: ignore[method-assign]
+    return inner  # type: ignore[return-value]
+
+
 def _text(source: Source) -> Callable[[], io.TextIOWrapper]:
     def opener() -> io.TextIOWrapper:
         handle = source.opener()
         if source.lower.endswith(".gz"):
-            handle = gzip.GzipFile(fileobj=handle)  # type: ignore[assignment]
+            handle = _gunzip(handle)
         return io.TextIOWrapper(handle, encoding="utf-8", errors="replace", newline="")
 
     return opener
@@ -703,6 +746,7 @@ class Signature:
     cases: frozenset[str]
     content: str  # somma delle impronte delle righe (caso, attivita', fine): stesso log in un'altra forma
     distinctive: bool = False
+    parts: frozenset[str] = frozenset()  # contenuto delle parti (train, test) di un log di sviluppo
 
 
 def signature(acc: Accumulator, label: str, dataset: str) -> Signature:
@@ -724,7 +768,7 @@ def distinctive(case_ids: frozenset[str]) -> bool:
 
 def compare(a: Signature, b: Signature) -> str | None:
     """La relazione di ``a`` con ``b`` secondo le soglie dichiarate in cima al file; None se nessuna."""
-    if a.content == b.content and a.cases:
+    if a.cases and (a.content == b.content or a.content in b.parts):
         return f"stesso contenuto di {b.label}"
     common = len(a.activities & b.activities)
     smaller = min(len(a.activities), len(b.activities)) or 1
@@ -802,7 +846,8 @@ def development_reference() -> DevelopmentReference:
             sig = signature(acc, label, "sviluppo")
             signatures[label] = Signature(label, "sviluppo", previous.activities | sig.activities,
                                           previous.cases | sig.cases, previous.content,
-                                          previous.distinctive and sig.distinctive)
+                                          previous.distinctive and sig.distinctive,
+                                          previous.parts | {previous.content, sig.content})
         else:
             signatures[label] = signature(acc, label, "sviluppo")
     return DevelopmentReference(by_hash, list(signatures.values()))
@@ -852,9 +897,10 @@ def inspect(source: Source, inventory: Inventory, holdouts: HoldoutReference, de
         ))
         return
     raw, content = _hashes(source.opener, source.lower.endswith(".gz"))
-    if raw in holdouts.by_hash:
+    frozen = holdouts.by_hash.get(raw) or holdouts.by_hash.get(content or "")
+    if frozen:
         inventory.records.append(FileRecord(
-            source.dataset, source.path, source.size, raw, holdout=f"holdout:{holdouts.by_hash[raw]} (impronta)",
+            source.dataset, source.path, source.size, raw, holdout=f"holdout:{frozen} (impronta)",
             note="non aperto: coincide con un file del lucchetto",
         ))
         return
@@ -885,6 +931,10 @@ def inspect(source: Source, inventory: Inventory, holdouts: HoldoutReference, de
             acc = read_log(source)
         except (OSError, EOFError, ValueError, UnicodeError, csv.Error, sqlite3.Error, SyntaxError) as exc:
             record.note = f"non leggibile come log: {type(exc).__name__}: {str(exc)[:120]}"
+    if acc is not None and acc.unparsed == -1:
+        record.note = "OCEL grande: serve `uv run --with ijson` per leggerlo, qui solo l'impronta"
+        inventory.records.append(record)
+        return
     if acc is None or not acc.events:
         if record.development or record.note:
             inventory.records.append(record)
@@ -892,8 +942,6 @@ def inspect(source: Source, inventory: Inventory, holdouts: HoldoutReference, de
             inventory.other_files[source.dataset] += 1
         return
     record.log = stats(acc, source, origin)
-    if acc.unparsed == -1:
-        record.note = "OCEL grande: serve `uv run --with ijson` per leggerlo, qui solo l'impronta"
     inventory.records.append(record)
     sig = signature(acc, f"{source.dataset}:{source.path}", source.dataset)
     record.development += [r for d in development.signatures if (r := compare(sig, d))]

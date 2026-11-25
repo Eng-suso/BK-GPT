@@ -564,3 +564,10 @@ def test_every_radar_entry_has_a_declared_role():
     assert all(re.match(r"(sviluppo|holdout 2|escluso|codice)", role) for role in roles.values()), roles
     second = {h["dataset"] for h in protocol.load_lock(protocol.LOCK2_PATH)["holdouts"]}
     assert all("holdout 2" in roles[dataset] for dataset in second)
+
+
+def test_paired_comparison_accepts_all_the_replicas_the_harness_allows():
+    a = [float(i) for i in range(31)]
+    b = [v + 1 + (i % 3) * 0.1 for i, v in enumerate(a)]
+    result = protocol.paired_comparison(a, b)
+    assert result.verdict == "a meglio" and result.wilcoxon_p < 1e-5  # approssimazione normale oltre 20
