@@ -12,6 +12,14 @@ trasformato il Master Plan V2 in un programma di ricerca (sezione "P0" di
 **ENG-01** (Simulation Engine Interface); poi **G3b**. B3 parte solo dopo G3b. Nessun
 candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
 
+## ENG-01 (in corso dal 2026-11-25, `feat/sim-engine-interface`)
+
+Simulation Engine Interface fra l'IR e il motore; Prosimos diventa un adattatore.
+In parallelo: VAL-01 e PROTO-01 (non tocco la validazione dell'import nell'IR).
+
+- Stato: branch creato da `origin/main`, stack reale in avvio, misura "prima"
+  dell'harness B2 da prendere.
+
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
 Baseline "B = A" sui 3 log reali train/test del paper (A = train, B = test): il banco
