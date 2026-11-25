@@ -376,3 +376,17 @@ def test_a_deadlock_found_before_the_state_limit_is_still_reported(monkeypatch: 
 
     assert not report.complete
     assert [problem.kind for problem in report.problems] == ["deadlock"]
+
+
+def test_a_run_of_a_model_that_cannot_finish_is_refused_before_the_engine() -> None:
+    """Le bozze dell'editor e le modifiche what-if non passano dall'import: si verificano al run."""
+    from backend.simulation.scenario_builder import build_prosimos_scenario_from_model
+
+    fixtures = ROOT / "e2e" / "fixtures" / "val-01"
+    bpmn = (fixtures / "loop.bpmn").read_text(encoding="utf-8")
+    model = import_prosimos(json.loads((fixtures / "loop-fixed.json").read_text(encoding="utf-8")), bpmn).model
+    assert build_prosimos_scenario_from_model(bpmn_xml=bpmn, model=model).payload
+
+    stuck = model.model_copy(update={"gateways": (_choice("G_complete", F_again=1.0, F_done=0.0),)})
+    with pytest.raises(UnsoundProcessError, match="«Controlla documenti»"):
+        build_prosimos_scenario_from_model(bpmn_xml=bpmn, model=stuck)
