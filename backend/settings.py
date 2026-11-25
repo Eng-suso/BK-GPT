@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -287,6 +287,14 @@ class Settings(BaseSettings):
     sim_replay_schema_version: int = 1
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("delir_auth_provider", mode="before")
+    @classmethod
+    def _normalise_auth_provider(cls, value: object) -> object:
+        # Una sola forma per tutti: `Supabase` o `supabase ` nell'ambiente non
+        # devono passare l'avvio e poi far cadere ogni richiesta nel ramo del
+        # token condiviso.
+        return value.strip().lower() if isinstance(value, str) else value
 
 
 settings = Settings()

@@ -83,7 +83,7 @@ def get_auth_config() -> AuthConfig:
     if not settings.delir_auth_enabled:
         return AuthConfig(provider="local")
     # Un valore diverso da questi non arriva qui: l'avvio lo rifiuta.
-    provider = cast(Literal["token", "supabase"], settings.delir_auth_provider.strip().lower())
+    provider = cast(Literal["token", "supabase"], settings.delir_auth_provider)
     if provider != "supabase":
         return AuthConfig(provider=provider)
     return AuthConfig(

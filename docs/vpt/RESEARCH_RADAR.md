@@ -97,8 +97,9 @@ copiano nel prodotto.
 **Non acquisiti dalla sessione cloud** (host non raggiungibile o sorgente non identificata):
 il generatore CDLG e Steady-State Detection (GitLab dell'Università di Mannheim), l'originale
 di Helpdesk (Mendeley Data), ProcessLog. Al posto di CDLG ci sono i log che ha generato
-(`cdlg-drift-val`), al posto di Helpdesk la copia CSV. Per SSD serve l'host
-`gitlab.uni-mannheim.de` nell'ambiente oppure il download dal computer di Sohayb.
+(`cdlg-drift-val`), al posto di Helpdesk la copia CSV. L'host
+`gitlab.uni-mannheim.de` è nell'ambiente BK-GPT dal 2026-11-25, ma il server risponde 404 a
+ogni richiesta dalla sessione cloud: CDLG e SSD si scaricano dal computer di Sohayb.
 
 ## DeliR Ground Truth Benchmark (GT-01)
 
