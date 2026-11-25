@@ -266,6 +266,7 @@ MAX_CENSORED = 0.05
 MIN_START_COVERAGE = 0.95
 MIN_RESOURCE_COVERAGE = 0.95
 END_COVERAGE = 0.95
+MAX_ARRIVAL_RATIO = 2.0  # B con arrivi piu' di 2 volte (o meno della meta') di A: non e' lo stesso flusso
 NOT_VALIDATED = "NOT VALIDATED"
 IDENTIFIABLE = "identificabile"
 
@@ -291,18 +292,26 @@ def _traces(events: Sequence[Event]) -> list[list[str]]:
 def properties(train: Sequence[Event], test: Sequence[Event], *, has_start: Sequence[bool], has_resource: Sequence[bool]) -> dict:
     """Proprieta' metodologiche del log, calcolate dai dati e non da un modello.
 
-    - casi tagliati a destra in B: l'ultima attivita' non e' fra quelle con cui finisce
-      il 95% dei casi "maturi" di A (iniziati nella prima meta' di A, che hanno avuto
-      tempo di finire); a sinistra, lo stesso con l'attivita' iniziale e i casi della
-      seconda meta' di A (iniziati quando il log era gia' aperto);
+    - casi tagliati a destra in B: la quota di casi di B la cui ultima attivita' non e'
+      fra quelle con cui finisce il 95% dei casi "maturi" di A (iniziati nella prima
+      meta' di A, che hanno avuto tempo di finire), meno la stessa quota fra i casi
+      maturi (il 5% che il 95% lascia fuori per costruzione); a sinistra, lo stesso con
+      l'attivita' iniziale e i casi della seconda meta' di A (iniziati a log aperto);
     - copertura dell'inizio e della risorsa sugli eventi;
     - rapporto fra il ritmo degli arrivi di B e quello di A (stazionarieta', solo riportato).
     """
     early, late = split_by_start(train, 0.5)
-    ends = _boundary_activities(_traces(early), -1)
-    starts = _boundary_activities(_traces(late), 0)
+    early_traces, late_traces = _traces(early), _traces(late)
+    ends = _boundary_activities(early_traces, -1)
+    starts = _boundary_activities(late_traces, 0)
     test_traces = _traces(test)
     n_test = len(test_traces)
+
+    def excess(outside_test: int, reference: list[list[str]], outside: set[str], position: int) -> float:
+        # Il 95% copre per costruzione: anche un log completo ha ~5% di casi fuori. Conta solo
+        # la quota di test fuori oltre quella dei casi di riferimento di A.
+        base = sum(t[position] not in outside for t in reference) / len(reference) if reference else 0.0
+        return round(max(0.0, outside_test / n_test - base), 4) if n_test else 1.0
 
     def rate(events: Sequence[Event]) -> float:
         by_case = cases(list(events))
@@ -317,8 +326,8 @@ def properties(train: Sequence[Event], test: Sequence[Event], *, has_start: Sequ
         "events": len(train) + len(test),
         "start_coverage": round(sum(has_start) / len(has_start), 4) if has_start else 0.0,
         "resource_coverage": round(sum(has_resource) / len(has_resource), 4) if has_resource else 0.0,
-        "censored_right_test": round(sum(t[-1] not in ends for t in test_traces) / n_test, 4) if n_test else 1.0,
-        "censored_left_test": round(sum(t[0] not in starts for t in test_traces) / n_test, 4) if n_test else 1.0,
+        "censored_right_test": excess(sum(t[-1] not in ends for t in test_traces), early_traces, ends, -1),
+        "censored_left_test": excess(sum(t[0] not in starts for t in test_traces), late_traces, starts, 0),
         "arrival_rate_ratio": round(rate_b / rate_a, 3) if rate_a and not math.isnan(rate_a) and not math.isnan(rate_b) else None,
     }
 
@@ -340,13 +349,18 @@ def identifiability(props: dict, *, synthetic: bool) -> dict[str, tuple[str, str
     no_start = (props["start_coverage"] < MIN_START_COVERAGE, f"inizio delle attivita' su {props['start_coverage']:.0%} degli eventi")
     no_resource = (props["resource_coverage"] < MIN_RESOURCE_COVERAGE, f"risorsa su {props['resource_coverage']:.0%} degli eventi")
     no_truth = (not synthetic, "serve la verita' del processo: c'e' solo nei sintetici")
+    ratio = props["arrival_rate_ratio"]
+    unstable = (
+        ratio is None or not 1 / MAX_ARRIVAL_RATIO <= ratio <= MAX_ARRIVAL_RATIO,
+        f"arrivi di test {ratio}× quelli di train: non sono lo stesso flusso" if ratio else "ritmo degli arrivi non misurabile",
+    )
 
     rule("cycle_time_w1", [few, cut_right, cut_left])
     rule("ngram", [few, cut_right, cut_left])
     rule("relative_event", [few, cut_right, cut_left])
     rule("absolute_event", [few])
     rule("circadian_event", [few])
-    rule("case_arrival", [few, cut_left])
+    rule("case_arrival", [few, cut_left, unstable])
     rule("processing_time", [few, no_start])
     rule("resources", [few, no_resource])
     rule("waiting_causes", [few, no_truth])
