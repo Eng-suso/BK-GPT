@@ -27,15 +27,17 @@ import hashlib
 import json
 import math
 import os
+import random
 import sys
 import threading
+import zipfile
 from collections import Counter
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
-from typing import Literal
+from typing import BinaryIO, Literal
 
 from scripts import fetch_datasets
 from tests.simulation.benchmark.eval_harness import INPUTS, REAL_LIFE
@@ -44,6 +46,8 @@ from tests.simulation.benchmark.log_distance import Event, cases
 BENCHMARK = Path(__file__).resolve().parent
 ROOT = BENCHMARK.parents[2]
 LOCK_PATH = BENCHMARK / "protocol" / "holdout.lock.json"
+# Il secondo set di holdout (PROTO-02), indipendente dal primo: il primo lucchetto resta com'e'.
+LOCK2_PATH = BENCHMARK / "protocol" / "holdout2.lock.json"
 PROTOCOL_DOC = ROOT / "docs" / "vpt" / "PROTOCOL.md"
 
 # Estensioni con cui un log (o una sua copia convertita) puo' comparire su disco. Non
@@ -58,12 +62,16 @@ class HoldoutAccessError(PermissionError):
 # --------------------------------------------------------------------------- lucchetto
 
 
-def sha256_of(path: Path) -> str:
+def sha256_stream(handle: BinaryIO) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(block)
+    for block in iter(lambda: handle.read(1 << 20), b""):
+        digest.update(block)
     return digest.hexdigest()
+
+
+def sha256_of(path: Path) -> str:
+    with path.open("rb") as handle:
+        return sha256_stream(handle)
 
 
 def lock_digest(path: Path = LOCK_PATH) -> str:
@@ -77,6 +85,12 @@ def lock_digest(path: Path = LOCK_PATH) -> str:
 @cache
 def load_lock(path: Path = LOCK_PATH) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+@cache
+def lock_paths() -> tuple[Path, ...]:
+    """I lucchetti congelati: quello di PROTO-01 e, se c'e', il secondo set di PROTO-02."""
+    return tuple(path for path in (LOCK_PATH, LOCK2_PATH) if path.is_file())
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,15 +111,18 @@ def blocked_names(path: Path = LOCK_PATH) -> BlockedNames:
     stems: set[str] = set()
     folders: set[str] = set()
     for holdout in lock["holdouts"]:
-        folders.add(holdout["dataset"].lower())
+        # Un holdout dentro un pacchetto che resta di sviluppo chiude solo i suoi file (PROTO-02).
+        whole = holdout.get("closes_dataset", True)
+        if whole:
+            folders.add(holdout["dataset"].lower())
         for item in holdout["files"]:
             relative = Path(item["path"])
             names.add(relative.name.lower())
             stems.add(_stem(relative.name).lower())
-            if len(relative.parts) > 1:  # la radice dell'archivio estratto (es. il pacchetto Camargo)
+            if whole and len(relative.parts) > 1:  # la radice dell'archivio estratto (es. il pacchetto Camargo)
                 folders.add(relative.parts[0].lower())
         stems.update(stem.lower() for stem in holdout["names"])
-    for container in lock["containers"]:
+    for container in lock.get("containers", []):
         names.add(container["file"].lower())
     return BlockedNames(frozenset(names), frozenset(stems), frozenset(folders))
 
@@ -115,14 +132,20 @@ def _derived(stem: str, blocked: frozenset[str]) -> bool:
     return any(stem == s or stem.startswith((f"{s}_", f"{s}-")) for s in blocked)
 
 
-def is_holdout(path: str | bytes | os.PathLike) -> bool:
-    """Il file e' un log holdout, ne deriva, o sta in un dataset holdout (archivio compreso)."""
+def is_holdout(path: str | bytes | os.PathLike, locks: Sequence[Path] | None = None) -> bool:
+    """Il file e' un log holdout, ne deriva, o sta in un dataset holdout (archivio compreso).
+
+    ``locks``: i lucchetti da considerare; di default tutti quelli congelati.
+    """
     # Gira a ogni apertura di file del processo: stringhe, niente Path ne' syscall.
     *folders, name = os.fsdecode(path).lower().replace("\\", "/").split("/")
-    blocked = blocked_names()
-    if name in blocked.names or not blocked.folders.isdisjoint(folders):
-        return True
-    return name.endswith(LOG_SUFFIXES) and _derived(_stem(name), blocked.stems)
+    for lock in lock_paths() if locks is None else locks:
+        blocked = blocked_names(lock)
+        if name in blocked.names or not blocked.folders.isdisjoint(folders):
+            return True
+        if name.endswith(LOG_SUFFIXES) and _derived(_stem(name), blocked.stems):
+            return True
+    return False
 
 
 # --------------------------------------------------------------------------- guardia
@@ -133,9 +156,9 @@ _installed = False
 # gli holdout; "final" li apre per la valutazione finale; "integrity" solo per l'impronta.
 # Un thread nuovo parte chiuso: aprire gli holdout in un thread non li apre negli altri.
 _local = threading.local()
-_OPEN_PHASES = {"final", "integrity"}
 _ACCMODE = getattr(os, "O_ACCMODE", os.O_RDONLY | os.O_WRONLY | os.O_RDWR)  # Windows non lo definisce
-_frozen_files: set[tuple[int, int]] = set()  # (device, inode) dei file holdout nella cache
+_frozen_files: set[tuple[int, int]] = set()  # (device, inode) dei file holdout nella cache, tutti i lucchetti
+_frozen_by_lock: dict[Path, set[tuple[int, int]]] = {}
 
 
 def _reads(mode: str | None, flags: int) -> bool:
@@ -145,36 +168,52 @@ def _reads(mode: str | None, flags: int) -> bool:
     return flags & _ACCMODE in (os.O_RDONLY, os.O_RDWR)
 
 
-def _same_file_as_a_holdout(target: str | bytes | os.PathLike) -> bool:
+def _same_file_as_a_holdout(target: str | bytes | os.PathLike, locks: Sequence[Path] | None = None) -> bool:
     """Un collegamento (anche fisico) con un nome innocuo a un file holdout della cache."""
-    if os.path.islink(target) and is_holdout(os.path.realpath(target)):
+    if os.path.islink(target) and is_holdout(os.path.realpath(target), locks):
         return True
-    if not _frozen_files:
+    frozen = _frozen_files if locks is None else set().union(*(_frozen_by_lock.get(lock, set()) for lock in locks))
+    if not frozen:
         return False
     try:
         stat = os.stat(target)
     except OSError:
         return False
-    return (stat.st_dev, stat.st_ino) in _frozen_files
+    return (stat.st_dev, stat.st_ino) in frozen
 
 
 def _audit(event: str, args: tuple) -> None:
-    if event != "open" or getattr(_local, "phase", "closed") in _OPEN_PHASES:
+    phase = getattr(_local, "phase", "closed")
+    if event != "open" or phase == "integrity":
         return
     target, mode, flags = args
     if isinstance(target, int) or target is None or not _reads(mode, flags):  # descrittore, o sola scrittura
         return
-    if is_holdout(target) or _same_file_as_a_holdout(target):
+    # Nella valutazione finale e' aperto solo il lucchetto scelto: gli altri set restano chiusi.
+    locks = None if phase != "final" else tuple(lock for lock in lock_paths() if lock != _local.open_lock)
+    if locks == ():
+        return
+    if getattr(_local, "reading_lock", False):  # la guardia che legge un lucchetto non si controlla da sola
+        return
+    _local.reading_lock = True
+    try:
+        candidates = lock_paths() if locks is None else locks
+        which = next((lock.name for lock in candidates if is_holdout(target, [lock])), None)
+        if which is None and _same_file_as_a_holdout(target, locks):
+            which = "un lucchetto"
+    finally:
+        _local.reading_lock = False
+    if which:
         raise HoldoutAccessError(
-            f"{os.fsdecode(target)} e' un log holdout di PROTO-01: si apre solo in "
-            "protocol.final_evaluation(), dopo che la selezione e' chiusa (docs/vpt/PROTOCOL.md)"
+            f"{os.fsdecode(target)} e' un log holdout ({which}): si apre solo in "
+            f"protocol.final_evaluation(<impronta di {which}>), dopo che la selezione e' chiusa (docs/vpt/PROTOCOL.md)"
         )
 
 
-def _cached_holdout_files() -> set[tuple[int, int]]:
+def _cached_holdout_files(lock: Path = LOCK_PATH) -> set[tuple[int, int]]:
     root = fetch_datasets.cache_dir()
     found = set()
-    for holdout in load_lock()["holdouts"]:
+    for holdout in load_lock(lock)["holdouts"]:
         for item in holdout["files"]:
             try:
                 stat = (root / holdout["dataset"] / item["path"]).stat()
@@ -184,13 +223,21 @@ def _cached_holdout_files() -> set[tuple[int, int]]:
     return found
 
 
+def register_lock(lock: Path) -> None:
+    """Un lucchetto nella guardia: nomi e file della cache. ``protocol_freeze`` lo chiama per un set nuovo."""
+    lock_paths.cache_clear()
+    blocked_names(lock)
+    _frozen_by_lock[lock] = _cached_holdout_files(lock)
+    _frozen_files.update(_frozen_by_lock[lock])
+
+
 def install() -> None:
     """Attiva la guardia per tutto il processo (un audit hook non si toglie: e' voluto)."""
     global _installed
     with _install_lock:
         if not _installed:
-            blocked_names()  # il lucchetto si legge prima di attivare la guardia
-            _frozen_files.update(_cached_holdout_files())
+            for lock in lock_paths():  # i lucchetti si leggono prima di attivare la guardia
+                register_lock(lock)
             sys.addaudithook(_audit)
             _installed = True
 
@@ -220,24 +267,47 @@ def selection_phase() -> Iterator[None]:
 
 @contextmanager
 def final_evaluation(digest: str) -> Iterator[None]:
-    """Apre gli holdout nel thread corrente. ``digest`` e' l'impronta scritta in PROTOCOL.md.
+    """Apre gli holdout di un lucchetto nel thread corrente; gli altri set restano chiusi.
 
-    Si usa una volta, a selezione chiusa e congelata, e l'apertura si scrive in LOG.md.
+    ``digest`` e' l'impronta del lucchetto scritta in PROTOCOL.md. Si usa una volta per set, a
+    selezione chiusa e congelata, e l'apertura si scrive in LOG.md.
     """
-    if digest != lock_digest():
+    opened = next((lock for lock in lock_paths() if lock_digest(lock) == digest), None)
+    if opened is None:
         raise HoldoutAccessError("impronta del lucchetto diversa: gli holdout restano chiusi")
-    with _phase("final"):
-        yield
+    previous = getattr(_local, "open_lock", None)
+    _local.open_lock = opened
+    try:
+        with _phase("final"):
+            yield
+    finally:
+        _local.open_lock = previous
 
 
-def verify_frozen(cache_root: Path) -> list[str]:
+def fingerprint(open_binary: Callable[[], BinaryIO]) -> str:
+    """SHA-256 di un file che potrebbe essere un holdout, letto solo per l'impronta (RAD-01).
+
+    Serve a dire se una copia trovata altrove coincide con il lucchetto senza leggerne gli
+    eventi: restituisce solo l'impronta, mai il contenuto.
+    """
+    with _phase("integrity"), open_binary() as handle:
+        return sha256_stream(handle)
+
+
+def fingerprint_members(path: Path) -> list[str]:
+    """SHA-256 di ogni file dentro uno zip che potrebbe essere un holdout, letto solo per le impronte."""
+    with _phase("integrity"), zipfile.ZipFile(path) as bundle:
+        return [fingerprint(lambda i=info: bundle.open(i)) for info in bundle.infolist() if not info.is_dir()]
+
+
+def verify_frozen(cache_root: Path, lock: Path = LOCK_PATH) -> list[str]:
     """Le differenze fra i log holdout nella cache e il lucchetto; vuota se tutto torna.
 
     Legge i file solo per calcolarne lo SHA-256, mai per il contenuto.
     """
     problems = []
     with _phase("integrity"):
-        for holdout in load_lock()["holdouts"]:
+        for holdout in load_lock(lock)["holdouts"]:
             for item in holdout["files"]:
                 path = cache_root / holdout["dataset"] / item["path"]
                 if not path.is_file():
@@ -444,3 +514,198 @@ def identifiability(props: LogProperties, *, synthetic: bool) -> dict[str, tuple
     rule("true_parameters", [few, no_truth])
     rule("counterfactual", [few, no_truth])
     return verdicts
+
+
+# --------------------------------------------------------------------------- confronti appaiati (PROTO-02)
+
+# Accanto alla regola degli intervalli non sovrapposti (eval_harness.within_intervals), che resta
+# quella delle mete gia' scritte: dove le repliche sono appaiate (stesso seed, stesso log) si
+# riporta anche un test sulla differenza. Le distanze sono "piu' basso e' meglio".
+PAIRED_BOOTSTRAP_SAMPLES = 10_000
+PAIRED_SEED = 20261125
+PAIRED_ALPHA = 0.05
+
+
+@dataclass(frozen=True, slots=True)
+class PairedComparison:
+    mean_difference: float  # media di a - b: negativa se a ha distanze piu' basse
+    ci_low: float  # intervallo bootstrap al 95% della differenza media
+    ci_high: float
+    wilcoxon_p: float  # test dei ranghi con segno, esatto, a due code
+    verdict: Literal["a meglio", "b meglio", "pari"]
+
+
+WILCOXON_EXACT_MAX = 20  # oltre, l'enumerazione dei 2^n segni costa troppo: approssimazione normale
+
+
+def _wilcoxon_p(differences: Sequence[float]) -> float:
+    """p a due code del test dei ranghi con segno: esatto fino a 20 coppie, poi approssimazione normale.
+
+    Le differenze nulle si tolgono (Wilcoxon); i pari hanno il rango medio.
+    """
+    values = [d for d in differences if d != 0]
+    n = len(values)
+    if n == 0:
+        return 1.0
+    order = sorted(range(n), key=lambda i: abs(values[i]))
+    ranks = [0.0] * n
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and abs(values[order[j + 1]]) == abs(values[order[i]]):
+            j += 1
+        for k in range(i, j + 1):
+            ranks[order[k]] = (i + j) / 2 + 1
+        i = j + 1
+    observed = sum(r for r, v in zip(ranks, values, strict=True) if v > 0)
+    total = sum(ranks)
+    distance = abs(observed - total / 2)
+    if n > WILCOXON_EXACT_MAX:  # approssimazione normale, con la correzione per i pari
+        ties = Counter(ranks)
+        variance = n * (n + 1) * (2 * n + 1) / 24 - sum(t**3 - t for t in ties.values()) / 48
+        return min(1.0, math.erfc(max(0.0, distance - 0.5) / math.sqrt(2 * variance))) if variance > 0 else 1.0
+    extreme = 0
+    for mask in range(1 << n):
+        positive = sum(ranks[k] for k in range(n) if mask >> k & 1)
+        extreme += abs(positive - total / 2) >= distance - 1e-12
+    return extreme / (1 << n)
+
+
+def paired_comparison(a: Sequence[float], b: Sequence[float], *, seed: int = PAIRED_SEED) -> PairedComparison:
+    """Due configurazioni con le stesse repliche appaiate: chi ha la distanza piu' bassa, e quanto.
+
+    Vince chi ha l'intervallo bootstrap della differenza media tutto dalla sua parte dello zero;
+    il p di Wilcoxon si riporta accanto. Deterministico: stesso seed, stesso risultato.
+    """
+    if len(a) != len(b) or len(a) < 2:
+        raise ValueError("servono almeno due repliche appaiate, tante per parte")
+    differences = [x - y for x, y in zip(a, b, strict=True)]
+    n = len(differences)
+    rng = random.Random(seed)
+    means = sorted(math.fsum(rng.choices(differences, k=n)) / n for _ in range(PAIRED_BOOTSTRAP_SAMPLES))
+    low = means[int(PAIRED_BOOTSTRAP_SAMPLES * PAIRED_ALPHA / 2)]
+    high = means[int(PAIRED_BOOTSTRAP_SAMPLES * (1 - PAIRED_ALPHA / 2)) - 1]
+    verdict: Literal["a meglio", "b meglio", "pari"] = "a meglio" if high < 0 else "b meglio" if low > 0 else "pari"
+    return PairedComparison(round(math.fsum(differences) / n, 6), round(low, 6), round(high, 6),
+                            round(_wilcoxon_p(differences), 6), verdict)
+
+
+# --------------------------------------------------------------------------- metriche di CF-01 (PROTO-02)
+
+# Una copertura del 90% si ottiene anche con intervalli enormi: con la copertura si riportano
+# ampiezza, errore sulla grandezza dell'effetto, bias e direzione (PROTOCOL.md §11).
+# Margine di equivalenza δ: quota del KPI di partenza sotto la quale un effetto e' trascurabile.
+# L'1% e' il margine standardizzato *provvisorio* del benchmark comparativo (Sohayb, 2026-11-25),
+# non una soglia universale di rilevanza pratica (SESOI): dove un KPI lo giustifica si passa un
+# margine assoluto per intervento, e i risultati si riportano anche agli altri margini.
+EQUIVALENCE_MARGIN = 0.01
+SENSITIVITY_MARGINS = (0.005, 0.01, 0.02, 0.05)
+EffectClass = Literal["INCREASE", "DECREASE", "NEGLIGIBLE", "INCONCLUSIVE"]
+
+
+def classify_effect(low: float, high: float, margin: float) -> EffectClass:
+    """Classe di un effetto dal suo intervallo e dal margine δ (stesse unita' del KPI).
+
+    Regola conservativa ispirata ai test di equivalenza, non il TOST: decide solo un intervallo
+    tutto da una parte (sotto -δ, sopra +δ, o dentro ±δ); il resto e' INCONCLUSIVE.
+    """
+    if low > high:
+        raise ValueError("intervallo con il minimo sopra il massimo")
+    if high < -margin:
+        return "DECREASE"
+    if low > margin:
+        return "INCREASE"
+    if -margin <= low and high <= margin:
+        return "NEGLIGIBLE"
+    return "INCONCLUSIVE"
+
+
+@dataclass(frozen=True, slots=True)
+class CounterfactualOutcome:
+    """Un intervento con verita' nota: Δ KPI vero (con il suo intervallo, se la verita' e' stimata
+    da repliche del generatore), Δ previsto e intervallo al 95% della previsione."""
+
+    baseline: float  # KPI prima dell'intervento (verita')
+    true_delta: float
+    predicted_delta: float
+    low: float
+    high: float
+    true_low: float | None = None  # None: verita' esatta (true_delta)
+    true_high: float | None = None
+    absolute_margin: float | None = None  # δ in unita' del KPI (SESOI del KPI, o KPI di partenza nullo)
+
+    def __post_init__(self) -> None:
+        if (self.true_low is None) != (self.true_high is None):
+            raise ValueError("l'intervallo della verita' vuole tutti e due gli estremi, o nessuno")
+
+    def margin(self, relative: float) -> float:
+        if self.absolute_margin is not None:
+            return self.absolute_margin
+        if self.baseline == 0:
+            raise ValueError("KPI di partenza nullo: serve un margine assoluto")
+        return relative * abs(self.baseline)
+
+    def truth_class(self, relative: float) -> EffectClass:
+        low = self.true_delta if self.true_low is None else self.true_low
+        high = self.true_delta if self.true_high is None else self.true_high
+        return classify_effect(low, high, self.margin(relative))
+
+
+@dataclass(frozen=True, slots=True)
+class CounterfactualMetrics:
+    cases: int
+    margin: float  # δ relativo usato (i margini assoluti degli interventi prevalgono)
+    coverage: float  # quota di Δ veri dentro l'intervallo (meta di CF-01: almeno 90%)
+    mean_width: float  # ampiezza media dell'intervallo, nelle unita' del KPI
+    mean_relative_width: float | None  # ampiezza / |KPI di partenza|, sui KPI di partenza non nulli
+    mean_absolute_error: float  # |Δ previsto - Δ vero|: errore sulla grandezza, senza soglia
+    mean_signed_error: float  # media di Δ previsto - Δ vero: bias (sovrastima > 0)
+    mean_relative_error: float | None  # |Δ previsto - Δ vero| / |KPI di partenza|, sui non nulli
+    truth_classes: dict[str, int]  # INCREASE, DECREASE, NEGLIGIBLE, INCONCLUSIVE della verita'
+    inconclusive_share: float  # quota di verita' INCONCLUSIVE: si riporta sempre
+    direction_cases: int  # verita' INCREASE o DECREASE
+    direction_accuracy: float | None  # quota con il segno del Δ previsto giusto, su quelle
+    class_agreement: float | None  # classe dell'intervallo previsto uguale a quella vera, sulle verita' decise
+
+
+def counterfactual_metrics(
+    outcomes: Sequence[CounterfactualOutcome], margin: float = EQUIVALENCE_MARGIN
+) -> CounterfactualMetrics:
+    """Le metriche di CF-01 su un insieme di interventi con verita' nota, al margine δ dato."""
+    if not outcomes:
+        raise ValueError("nessun intervento")
+    for o in outcomes:
+        if o.low > o.high:
+            raise ValueError("intervallo con il minimo sopra il massimo")
+    n = len(outcomes)
+    truth = [o.truth_class(margin) for o in outcomes]
+    decided = [(o, t) for o, t in zip(outcomes, truth, strict=True) if t != "INCONCLUSIVE"]
+    directional = [o for o, t in decided if t in ("INCREASE", "DECREASE")]
+    right = sum(o.predicted_delta != 0 and math.copysign(1, o.predicted_delta) == math.copysign(1, o.true_delta)
+                for o in directional)
+    agree = sum(classify_effect(o.low, o.high, o.margin(margin)) == t for o, t in decided)
+    scaled = [o for o in outcomes if o.baseline != 0]
+
+    def mean(values: list[float]) -> float | None:
+        return round(math.fsum(values) / len(values), 6) if values else None
+
+    return CounterfactualMetrics(
+        cases=n,
+        margin=margin,
+        coverage=round(sum(o.low <= o.true_delta <= o.high for o in outcomes) / n, 4),
+        mean_width=round(math.fsum(o.high - o.low for o in outcomes) / n, 6),
+        mean_relative_width=mean([(o.high - o.low) / abs(o.baseline) for o in scaled]),
+        mean_absolute_error=round(math.fsum(abs(o.predicted_delta - o.true_delta) for o in outcomes) / n, 6),
+        mean_signed_error=round(math.fsum(o.predicted_delta - o.true_delta for o in outcomes) / n, 6),
+        mean_relative_error=mean([abs(o.predicted_delta - o.true_delta) / abs(o.baseline) for o in scaled]),
+        truth_classes={c: truth.count(c) for c in ("INCREASE", "DECREASE", "NEGLIGIBLE", "INCONCLUSIVE")},
+        inconclusive_share=round(truth.count("INCONCLUSIVE") / n, 4),
+        direction_cases=len(directional),
+        direction_accuracy=round(right / len(directional), 4) if directional else None,
+        class_agreement=round(agree / len(decided), 4) if decided else None,
+    )
+
+
+def counterfactual_sensitivity(outcomes: Sequence[CounterfactualOutcome]) -> dict[float, CounterfactualMetrics]:
+    """Le stesse metriche ai margini di sensibilita' (0,5%, 1%, 2%, 5%): nessun margine nasconde gli altri."""
+    return {margin: counterfactual_metrics(outcomes, margin) for margin in SENSITIVITY_MARGINS}

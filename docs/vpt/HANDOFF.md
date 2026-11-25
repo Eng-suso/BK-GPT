@@ -1,14 +1,14 @@
 # Dove siamo adesso
 
 Aggiornato: 2026-11-25, dopo VAL-01 (PR #189), PROTO-01 (PR #190), ENG-01 (PR #191), RAD-00
-(PR #192) e la correzione di `DELIR_AUTH_PROVIDER`.
+(PR #192), la correzione di `DELIR_AUTH_PROVIDER` e RAD-01 + PROTO-02 (PR #194).
 
 ## Punti attivi
 
-Nessuno in corso: ENG-01 è fatto (PR #191). Liberi, con dipendenze chiuse: **G3b** (P0,
-percorso critico), **LIC-01** (P0), **RAD-01** → **PROTO-02** (radar), **ANA-01**. Poi
-B3.1-B3.3 e B3; ENG-02 dopo LIC-01. Nessun candidato (AT-KDE, POWL, ProSiT,
-AgentSimulator) si implementa prima di G3b. I due prompt qui sotto avviano G3b e RAD-01.
+Nessuno in corso: RAD-01 e PROTO-02 sono fatti (PR #194). Liberi, con dipendenze chiuse:
+**G3b** (P0, percorso critico), **LIC-01** (P0), **ANA-01**, **GT-01** (dopo PROTO-02). Poi
+B3.1-B3.3 e B3; RAD-02 dopo G3b; ENG-02 dopo LIC-01. Nessun candidato (AT-KDE, POWL, ProSiT,
+AgentSimulator) si implementa prima di G3b. Il prompt qui sotto avvia G3b.
 
 ## Prompt per i prossimi agenti
 
@@ -40,35 +40,39 @@ verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Aut
 Non abbassare nessuna meta.
 ```
 
-### Agente 2 — RAD-01 inventario e deduplica, poi PROTO-02
+## RAD-01 e PROTO-02 (fatti il 2026-11-25, PR #194)
 
-```text
-Lavori sul Verified Process Twin di DeliR, punti RAD-01 e poi PROTO-02 di docs/vpt/PLAN.md
-(sezione R, Research Radar). Segui docs/vpt/WORKFLOW.md e CLAUDE.md alla lettera: leggi
-HANDOFF.md, PLAN.md, RESEARCH_RADAR.md, PROTOCOL.md e le ultime tre voci di LOG.md; controlla
-i branch aperti rispetto a main; lavora sul branch chore/radar-inventory.
+Il radar è inventariato e dichiarato; il secondo set di holdout è congelato. Dettagli in
+[`PROTOCOL.md`](./PROTOCOL.md) §0, §10, §11, §12.
 
-RAD-01: scarica il radar (`uv run python scripts/fetch_datasets.py fetch --collection radar`,
-~2,9 GB, ~24 GB estratti; bpic-ocel2 da solo 18 GB, scaricalo per ultimo o per id). Scrivi
-uno script ripetibile che per ogni log del radar riporti casi, eventi, attività, periodo,
-risorse, presenza di inizio e fine, osservabilità, e confronti ogni file per SHA-256 e per
-nome con i log di sviluppo e con il lucchetto degli holdout
-(tests/simulation/benchmark/protocol/holdout.lock.json). Sovrapposizioni note da verificare:
-BPIC 2012/2017 dentro ProCause, BPIC 2012 W e 2013 nella copia di Helpdesk, i log di Camargo
-nei pacchetti di AgentSimulator e del BPS Quality Framework; Sepsis e Hospital Billing non
-devono venire dall'ospedale di BPIC 2011 (holdout). L'audit hook del protocollo resta attivo:
-nessun holdout si apre, un file che coincide si marca senza leggerne gli eventi. Report in
-tests/simulation/benchmark/radar/inventory.md.
-
-PROTO-02: in PROTOCOL.md dichiara per ogni log del radar sviluppo, nuovo holdout o escluso,
-con il motivo; congela per hash un secondo set di holdout indipendenti prima di usarlo;
-aggiungi i confronti appaiati accanto agli IC non sovrapposti e le metriche complete di CF-01
-(ampiezza, errore puntuale, direzione), senza modificare il benchmark congelato; estendi
-test_protocol.py. Le mete marcate proposta vanno confermate da Sohayb prima di chiudere.
-
-Chiusura: HANDOFF.md aggiornato dopo ogni misura, voce in LOG.md, code review, simplify, CI
-verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Authored-By.
+```bash
+uv run python scripts/fetch_datasets.py fetch --collection radar && uv run python scripts/fetch_datasets.py fetch bpic2012 bpic2013-incidents
+uv run --with ijson python tests/simulation/benchmark/radar_inventory.py      # 22 min → radar/inventory.{md,json}
+uv run pytest --noconftest -q tests/simulation/benchmark/test_protocol.py tests/simulation/benchmark/test_radar_inventory.py
 ```
+
+- **Inventario:** 33/33 voci, 2.205 log, 42 file holdout marcati e mai aperti (8 con i nomi del
+  primo set in Kronos, 34 del secondo). Sovrapposizioni: ProCause senza file BPIC; Helpdesk con
+  BPIC 2012 W e 2013 (stessi casi) ed `env_permit` (escluso, CoSeLoG come BPIC 2015); BPS
+  Quality Framework con AcademicCredentials identico, BPIC 2012/2017 W e simulati; Sepsis e
+  Hospital Billing da un ospedale regionale, non quello accademico di BPIC 2011.
+- **Ruoli** (§10): sviluppo BPIC 2019, BPIC 2018, Sepsis, Hospital Billing, BPIC 2017 completo,
+  Helpdesk (solo ricerca), OCEL e drift; holdout 2 CallCenter e Road Traffic Fines (una famiglia
+  con l'estratto di DAS-RP); codice i repository senza log.
+- **Secondo set:** `protocol/holdout2.lock.json` `24974f9b…`. CallCenter è con ogni probabilità
+  CALL degli articoli di SIMOD: indipendenza organizzativa non dichiarata finché non c'è una prova.
+  La guardia chiude i due set; `final_evaluation(<impronta>)` ne apre uno. Si apre una volta, alla
+  fine di RAD-02, con dati, divisioni, commit, configurazioni e regole congelati e scritti in
+  `LOG.md`; dopo l'uso diventa un benchmark di regressione.
+- **Per G3b e RAD-02:** `protocol.paired_comparison` (bootstrap e Wilcoxon) si riporta accanto a
+  `within_intervals`, senza cambiare le mete. Per CF-01: `counterfactual_metrics(outcomes, margin)`
+  e `counterfactual_sensitivity` (classi INCREASE, DECREASE, NEGLIGIBLE, INCONCLUSIVE, bias,
+  inconclusivi; δ provvisorio dell'1%, margine assoluto per KPI con baseline nulla o SESOI).
+- **Per GT-01:** scenari di sviluppo separati da scenari riservati alla validazione finale,
+  congelati per hash; generatore non dipendente solo dal motore valutato.
+- **Estensioni di ricerca aperte:** decision regret e tasso di interventi sbagliati, CRN
+  sincronizzati per entità, ProCause come generatore di verità controfattuale; verifica della
+  provenienza di CallCenter; il riferimento «Doubly robust impact evaluation» da completare.
 
 ## Ultima misura
 

@@ -7,3 +7,4 @@
 # PROTO-01: l'impronta del lucchetto degli holdout e' scritta in docs/vpt/PROTOCOL.md;
 # con CRLF cambierebbe e la valutazione finale non si aprirebbe.
 tests/simulation/benchmark/protocol/holdout.lock.json text eol=lf
+tests/simulation/benchmark/protocol/holdout2.lock.json text eol=lf
