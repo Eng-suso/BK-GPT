@@ -1,12 +1,72 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-25, dopo RAD-00 (Research Radar nel manifest e nel piano).
+Aggiornato: 2026-11-25, dopo RAD-00 e la correzione di `DELIR_AUTH_PROVIDER`.
 
 ## Punti attivi
 
-Nessuno in corso. Prossimi, in parallelo: il P0 (**LIC-01**, **ENG-01**, poi **G3b**) e,
-dal radar, **RAD-01** (inventario e deduplica) e **ANA-01** (verità analitica del motore),
-che non toccano gli holdout. **PROTO-02** prima di usare in un esperimento un log del radar.
+- **ENG-01** in corso su `feat/sim-engine-interface` (un altro agente; ha già fuso RAD-00).
+- Liberi, con dipendenze chiuse: **G3b** (P0, percorso critico), **LIC-01** (P0),
+  **RAD-01** → **PROTO-02** (radar), **ANA-01**. I due prompt qui sotto avviano G3b e RAD-01.
+
+## Prompt per i prossimi agenti
+
+Ognuno in una sessione nuova sul repository `eng-suso/bk-gpt`, dal `main` aggiornato.
+
+### Agente 1 — G3b benchmark dei motori scientifici
+
+```text
+Lavori sul Verified Process Twin di DeliR, punto G3b di docs/vpt/PLAN.md (P0, percorso
+critico). Segui docs/vpt/WORKFLOW.md e CLAUDE.md alla lettera: leggi HANDOFF.md, PLAN.md,
+PROTOCOL.md e le ultime tre voci di LOG.md; controlla i branch aperti rispetto a main; metti
+G3b "in corso" e lavora sul branch spike/sim-g3b-ablation.
+
+Obiettivo: sui log di sviluppo del protocollo (development_logs(), holdout esclusi) misura
+"B = A", SIMOD, SIMOD con ritardi estranei, ProSiT, AgentSimulator, SIMOD con arrivi AT-KDE e
+l'ablazione per componente, con le metriche di B2 e IC 95% più tempo di discovery, tempo di
+simulazione e picco di memoria. Ogni punto d'ingresso che sceglie qualcosa gira dentro
+protocol.selection_phase(); la scelta si fa sulla validazione (train_validation). Prima di
+misurare scrivi in LOG.md le schede di go/no-go (§7 di PROTOCOL.md) e rispetta il budget del §6.
+Il codice esterno (AT-KDE, ProSiT, AgentSimulator, Kronos) è già nel manifest, collezione
+radar: `uv run python scripts/fetch_datasets.py fetch at-kde prosit agentsimulator simod`;
+resta nell'ambiente di ricerca, mai importato dal prodotto. Non aprire gli holdout: si aprono
+una volta sola con final_evaluation(<impronta>) a selezione congelata, e solo se Sohayb lo
+conferma. Stack reale: scripts/vpt_stack.sh start.
+
+Chiusura: risultati in tests/simulation/benchmark/g3b/ con il comando per rifarli, decisione
+per componente in LOG.md, HANDOFF.md aggiornato dopo ogni misura. Code review, simplify, CI
+verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Authored-By.
+Non abbassare nessuna meta.
+```
+
+### Agente 2 — RAD-01 inventario e deduplica, poi PROTO-02
+
+```text
+Lavori sul Verified Process Twin di DeliR, punti RAD-01 e poi PROTO-02 di docs/vpt/PLAN.md
+(sezione R, Research Radar). Segui docs/vpt/WORKFLOW.md e CLAUDE.md alla lettera: leggi
+HANDOFF.md, PLAN.md, RESEARCH_RADAR.md, PROTOCOL.md e le ultime tre voci di LOG.md; controlla
+i branch aperti rispetto a main; lavora sul branch chore/radar-inventory.
+
+RAD-01: scarica il radar (`uv run python scripts/fetch_datasets.py fetch --collection radar`,
+~2,9 GB, ~24 GB estratti; bpic-ocel2 da solo 18 GB, scaricalo per ultimo o per id). Scrivi
+uno script ripetibile che per ogni log del radar riporti casi, eventi, attività, periodo,
+risorse, presenza di inizio e fine, osservabilità, e confronti ogni file per SHA-256 e per
+nome con i log di sviluppo e con il lucchetto degli holdout
+(tests/simulation/benchmark/protocol/holdout.lock.json). Sovrapposizioni note da verificare:
+BPIC 2012/2017 dentro ProCause, BPIC 2012 W e 2013 nella copia di Helpdesk, i log di Camargo
+nei pacchetti di AgentSimulator e del BPS Quality Framework; Sepsis e Hospital Billing non
+devono venire dall'ospedale di BPIC 2011 (holdout). L'audit hook del protocollo resta attivo:
+nessun holdout si apre, un file che coincide si marca senza leggerne gli eventi. Report in
+tests/simulation/benchmark/radar/inventory.md.
+
+PROTO-02: in PROTOCOL.md dichiara per ogni log del radar sviluppo, nuovo holdout o escluso,
+con il motivo; congela per hash un secondo set di holdout indipendenti prima di usarlo;
+aggiungi i confronti appaiati accanto agli IC non sovrapposti e le metriche complete di CF-01
+(ampiezza, errore puntuale, direzione), senza modificare il benchmark congelato; estendi
+test_protocol.py. Le mete marcate proposta vanno confermate da Sohayb prima di chiudere.
+
+Chiusura: HANDOFF.md aggiornato dopo ogni misura, voce in LOG.md, code review, simplify, CI
+verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Authored-By.
+```
 
 ## Research Radar (RAD-00 fatto il 2026-11-25)
 
@@ -29,10 +89,12 @@ uv run pytest --noconftest -q tests/simulation/test_dataset_manifest.py
   e PROTO-02 (dichiarazione in `PROTOCOL.md`, secondo holdout congelato).
 - **Da verificare in RAD-01/PROTO-02:** che Sepsis e Hospital Billing non vengano dallo stesso
   ospedale di BPIC 2011 (holdout).
-- **Non acquisiti:** CDLG e SSD (`gitlab.uni-mannheim.de` rifiutato dal proxy: serve l'host
-  nell'ambiente o il download dal computer di Sohayb), Helpdesk originale (Mendeley), ProcessLog.
-- **Difetto preesistente trovato in review, fuori dal radar:** `backend/security.py:111` e
-  `backend/llm/egress.py:250` non normalizzano `delir_auth_provider` (vedi `LOG.md`).
+- **Non acquisiti:** CDLG e SSD. L'host `gitlab.uni-mannheim.de` ora è nell'ambiente BK-GPT,
+  ma il server risponde 404 a ogni richiesta dalla sessione cloud (anche alla home): vanno
+  scaricati dal computer di Sohayb e aggiunti al manifest con il commit. Anche Helpdesk
+  originale (Mendeley) e ProcessLog restano fuori.
+- **Corretto il 2026-11-25:** `DELIR_AUTH_PROVIDER` si normalizza una volta in `Settings`
+  (prima `Supabase` passava l'avvio e poi ogni token Supabase riceveva 401).
 
 ## PROTO-01 (fatto il 2026-11-25, PR #190)
 
