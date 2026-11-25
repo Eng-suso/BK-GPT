@@ -405,14 +405,9 @@ def test_paired_comparison_finds_a_consistent_small_improvement_that_intervals_m
     """Repliche appaiate: a e' sempre un po' meglio di b. Gli IC si sovrappongono, il test appaiato no."""
     base = [10.0, 14.0, 9.0, 16.0, 11.0, 13.0, 8.0, 15.0, 12.0, 10.5]
     better = [v - 0.5 for v in base]
-    from tests.simulation.benchmark.eval_harness import within_intervals
-    from tests.simulation.benchmark.log_distance import mean_confidence_interval
+    from tests.simulation.benchmark.eval_harness import summarize, within_intervals
 
-    def summary(values):
-        mean, ci = mean_confidence_interval(values)
-        return {"mean": mean, "ci95": ci}
-
-    assert within_intervals(summary(better), summary(base))  # per la regola degli IC: pari
+    assert within_intervals(summarize(better), summarize(base))  # per la regola degli IC: pari
     result = protocol.paired_comparison(better, base)
     assert result.verdict == "a meglio"
     assert result.mean_difference == pytest.approx(-0.5)
@@ -435,10 +430,10 @@ def test_paired_comparison_is_deterministic_and_needs_pairs():
         protocol.paired_comparison([1.0, 2.0], [1.0])
 
 
-def test_wilcoxon_exact_matches_the_table():
+def test_wilcoxon_p_matches_the_table():
     # n = 10, un solo segno negativo sul rango 2: W+ = 53, p = 6/1024 (tavola esatta a due code).
-    assert protocol._wilcoxon_exact([1, -2, 3, 4, 5, 6, 7, 8, 9, 10]) == pytest.approx(6 / 1024)
-    assert protocol._wilcoxon_exact([0.0, 0.0]) == 1.0
+    assert protocol._wilcoxon_p([1, -2, 3, 4, 5, 6, 7, 8, 9, 10]) == pytest.approx(6 / 1024)
+    assert protocol._wilcoxon_p([0.0, 0.0]) == 1.0
 
 
 # --------------------------------------------------------------------------- PROTO-02: metriche di CF-01

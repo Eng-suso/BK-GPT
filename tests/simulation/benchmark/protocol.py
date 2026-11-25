@@ -62,12 +62,16 @@ class HoldoutAccessError(PermissionError):
 # --------------------------------------------------------------------------- lucchetto
 
 
-def sha256_of(path: Path) -> str:
+def sha256_stream(handle: BinaryIO) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(block)
+    for block in iter(lambda: handle.read(1 << 20), b""):
+        digest.update(block)
     return digest.hexdigest()
+
+
+def sha256_of(path: Path) -> str:
+    with path.open("rb") as handle:
+        return sha256_stream(handle)
 
 
 def lock_digest(path: Path = LOCK_PATH) -> str:
@@ -193,11 +197,13 @@ def _audit(event: str, args: tuple) -> None:
         return
     _local.reading_lock = True
     try:
-        closed = is_holdout(target, locks) or _same_file_as_a_holdout(target, locks)
+        candidates = lock_paths() if locks is None else locks
+        which = next((lock.name for lock in candidates if is_holdout(target, [lock])), None)
+        if which is None and _same_file_as_a_holdout(target, locks):
+            which = "un lucchetto"
     finally:
         _local.reading_lock = False
-    if closed:
-        which = next((lock.name for lock in locks or lock_paths() if is_holdout(target, [lock])), "un lucchetto")
+    if which:
         raise HoldoutAccessError(
             f"{os.fsdecode(target)} e' un log holdout ({which}): si apre solo in "
             f"protocol.final_evaluation(<impronta di {which}>), dopo che la selezione e' chiusa (docs/vpt/PROTOCOL.md)"
@@ -284,11 +290,8 @@ def fingerprint(open_binary: Callable[[], BinaryIO]) -> str:
     Serve a dire se una copia trovata altrove coincide con il lucchetto senza leggerne gli
     eventi: restituisce solo l'impronta, mai il contenuto.
     """
-    digest = hashlib.sha256()
     with _phase("integrity"), open_binary() as handle:
-        for block in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
+        return sha256_stream(handle)
 
 
 def fingerprint_members(path: Path) -> list[str]:
@@ -535,7 +538,7 @@ class PairedComparison:
 WILCOXON_EXACT_MAX = 20  # oltre, l'enumerazione dei 2^n segni costa troppo: approssimazione normale
 
 
-def _wilcoxon_exact(differences: Sequence[float]) -> float:
+def _wilcoxon_p(differences: Sequence[float]) -> float:
     """p a due code del test dei ranghi con segno: esatto fino a 20 coppie, poi approssimazione normale.
 
     Le differenze nulle si tolgono (Wilcoxon); i pari hanno il rango medio.
@@ -584,7 +587,7 @@ def paired_comparison(a: Sequence[float], b: Sequence[float], *, seed: int = PAI
     high = means[int(PAIRED_BOOTSTRAP_SAMPLES * (1 - PAIRED_ALPHA / 2)) - 1]
     verdict: Literal["a meglio", "b meglio", "pari"] = "a meglio" if high < 0 else "b meglio" if low > 0 else "pari"
     return PairedComparison(round(math.fsum(differences) / n, 6), round(low, 6), round(high, 6),
-                            round(_wilcoxon_exact(differences), 6), verdict)
+                            round(_wilcoxon_p(differences), 6), verdict)
 
 
 # --------------------------------------------------------------------------- metriche di CF-01 (PROTO-02)

@@ -41,7 +41,7 @@ import zipfile
 from collections import Counter
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import BinaryIO
@@ -50,13 +50,15 @@ from xml.etree.ElementTree import iterparse
 if __package__ in (None, ""):  # lanciato come script
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from backend.eventlog.readers import _local
 from scripts import fetch_datasets
 from tests.simulation.benchmark import protocol
+from tests.simulation.benchmark.benchmark_datasets import DATASETS as CACHED_DEVELOPMENT
 
 OUT = protocol.BENCHMARK / "radar"
 DATASETS_DIR = protocol.ROOT / "datasets"
 # I log di sviluppo letti dalla cache (gli altri sono in datasets/, nel repo).
-DEVELOPMENT_CACHE = ("bpic2012", "bpic2013-incidents")
+DEVELOPMENT_CACHE = tuple(d.manifest_id for d in CACHED_DEVELOPMENT.values())
 
 LOG_SUFFIXES = (".xes", ".xes.gz", ".csv", ".csv.gz", ".json", ".jsonocel", ".xmlocel", ".sqlite", ".xml", ".parquet")
 ARCHIVE_SUFFIXES = (".zip", ".tar", ".tar.gz", ".tgz")
@@ -145,6 +147,9 @@ ORIGINS: dict[str, Origin] = {
     "prosit": Origin("misto", "log degli esperimenti di ProSiT", "vari", ("simulated", "synthetic", "generated")),
     "das-rp": Origin("misto", "log degli esperimenti di DAS", "vari", ("simulated", "synthetic", "generated")),
 }
+DEFAULT_ORIGIN = Origin("codice", "repository di codice", "nessuno", ("simulated", "synthetic", "generated"))
+
+
 def origin_for(ident: str) -> Origin:
     """L'origine dichiarata; per un dataset holdout chiuso per intero la dice il suo lucchetto
     (il test dei nomi di PROTO-01 vieta di scriverne l'id fra virgolette qui)."""
@@ -157,7 +162,6 @@ def origin_for(ident: str) -> Origin:
     return DEFAULT_ORIGIN
 
 
-DEFAULT_ORIGIN = Origin("codice", "repository di codice", "nessuno", ("simulated", "synthetic", "generated"))
 
 
 # --------------------------------------------------------------------------- sorgenti
@@ -255,22 +259,15 @@ def members(source: Source) -> Iterator[Source]:
 # --------------------------------------------------------------------------- impronte
 
 
-def sha256_stream(handle: BinaryIO) -> str:
-    digest = hashlib.sha256()
-    for block in iter(lambda: handle.read(1 << 20), b""):
-        digest.update(block)
-    return digest.hexdigest()
-
-
 def _hashes(opener: Callable[[], BinaryIO], gz: bool) -> tuple[str, str | None]:
     """SHA-256 del file e, se e' compresso con gzip, del contenuto (stesso log, altra compressione)."""
     with opener() as handle:
-        raw = sha256_stream(handle)
+        raw = protocol.sha256_stream(handle)
     if not gz:
         return raw, None
     try:
-        with opener() as handle, gzip.GzipFile(fileobj=handle) as inner:
-            return raw, sha256_stream(inner)
+        with _gunzip(opener()) as inner:
+            return raw, protocol.sha256_stream(inner)
     except (OSError, EOFError):
         return raw, None
 
@@ -325,19 +322,19 @@ def holdout_by_name(source: Source, reference: HoldoutReference) -> str | None:
     voluto largo, un falso allarme lascia fuori un file dall'inventario, non apre un holdout.
     """
     parts = [p for p in re.split(r"[/!]", source.path) if p]
-    if protocol.is_holdout(source.path.replace("!", "/")):
-        for part in reversed(parts):
+
+    def alias_in(candidates: list[str]) -> str | None:
+        for part in candidates:
             key = normalized(protocol._stem(part))
             for alias, ident in reference.aliases.items():
-                if alias in key:
+                if alias and alias in key:
                     return ident
-        return "holdout"  # la guardia lo blocca: una cartella o un file del lucchetto
-    for part in parts:
-        key = normalized(protocol._stem(part))
-        for alias, ident in reference.aliases.items():
-            if alias and alias in key:
-                return ident
-    return None
+        return None
+
+    if protocol.is_holdout(source.path.replace("!", "/")):
+        # la guardia lo blocca: una cartella o un file del lucchetto, l'id dal nome piu' vicino
+        return alias_in(parts[::-1]) or "holdout"
+    return alias_in(parts)
 
 
 def development_by_name(source: Source) -> str | None:
@@ -387,6 +384,9 @@ def parse_instant(raw: str | None) -> datetime | None:
     return instant
 
 
+_MODULUS = 1 << 256
+
+
 @dataclass(slots=True)
 class Accumulator:
     """Conteggi di un log letto in streaming: niente eventi in memoria, solo insiemi di nomi."""
@@ -409,7 +409,7 @@ class Accumulator:
 
     def row(self, *parts: object) -> None:
         line = "\x1f".join("" if p is None else str(p) for p in parts).encode("utf-8", "replace")
-        self.content = (self.content + int.from_bytes(hashlib.sha256(line).digest())) % (1 << 256)
+        self.content = (self.content + int.from_bytes(hashlib.sha256(line).digest())) % _MODULUS
 
     def instant(self, raw: str | None) -> datetime | None:
         moment = parse_instant(raw)
@@ -464,15 +464,11 @@ def _text(source: Source) -> Callable[[], io.TextIOWrapper]:
     return opener
 
 
-def _local(tag: str) -> str:
-    return tag.rsplit("}", 1)[-1]
-
-
 def read_xes(source: Source) -> Accumulator:
     """XES in streaming: id del caso dalla traccia, attributi di primo livello dell'evento."""
     acc = Accumulator()
-    with source.opener() as raw:
-        handle: BinaryIO = gzip.GzipFile(fileobj=raw) if source.lower.endswith(".gz") else raw  # type: ignore[assignment]
+    raw = source.opener()
+    with _gunzip(raw) if source.lower.endswith(".gz") else raw as handle:
         depth = 0
         trace_depth = event_depth = -1
         case: str | None = None
@@ -541,12 +537,9 @@ def read_csv(source: Source) -> Accumulator | None:
         for row in reader:
             stage = (row.get(lifecycle) or "").lower() if lifecycle else ""
             stamp = row.get(end) if end else None
-            if start:
-                acc.add(row.get(case), row.get(activity), row.get(start), stamp, row.get(resource) if resource else None)
-            elif stage == "start":
-                acc.add(row.get(case), row.get(activity), stamp, None, row.get(resource) if resource else None, stage)
-            else:
-                acc.add(row.get(case), row.get(activity), None, stamp, row.get(resource) if resource else None, stage or None)
+            begin, finish = (row.get(start), stamp) if start else (stamp, None) if stage == "start" else (None, stamp)
+            acc.add(row.get(case), row.get(activity), begin, finish, row.get(resource) if resource else None,
+                    None if start else stage or None)
     return acc
 
 
@@ -614,10 +607,12 @@ def read_ocel_json(source: Source) -> Accumulator | None:
 def read_ocel_sqlite(source: Source) -> Accumulator | None:
     """OCEL 2.0 in SQLite: ``event``, ``object``, ``event_object`` e una tabella ``event_<tipo>`` con l'istante."""
     with tempfile.TemporaryDirectory() as scratch:
-        path = Path(scratch) / "log.sqlite"
-        with source.opener() as raw, path.open("wb") as out:
-            shutil.copyfileobj(raw, out, 1 << 20)
-        connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        path = source.disk  # su disco si apre in sola lettura; un membro d'archivio si copia
+        if path is None:
+            path = Path(scratch) / "log.sqlite"
+            with source.opener() as raw, path.open("wb") as out:
+                shutil.copyfileobj(raw, out, 1 << 20)
+        connection = sqlite3.connect(f"file:{path}?mode=ro&immutable=1", uri=True)
         try:
             tables = {row[0] for row in connection.execute("select name from sqlite_master where type='table'")}
             if not {"event", "object"} <= tables:
@@ -705,17 +700,18 @@ def is_simulated(source: Source, origin: Origin) -> bool:
 
 
 def stats(acc: Accumulator, source: Source, origin: Origin) -> LogStats:
-    instances = max(acc.with_end, acc.with_start) or acc.events
-    if acc.lifecycle.get("start"):  # una riga per transizione: le istanze sono le fini
-        instances = max(acc.lifecycle.get("complete", 0), acc.with_end) or acc.events
+    # Con una riga per transizione le istanze sono le fini; altrimenti le righe con un istante.
+    transitions = bool(acc.lifecycle.get("start"))
+    instances = (max(acc.lifecycle.get("complete", 0), acc.with_end) if transitions
+                 else max(acc.with_end, acc.with_start)) or acc.events
     start_share = round(min(1.0, acc.with_start / instances), 4) if instances else 0.0
     end_share = round(min(1.0, acc.with_end / instances), 4) if instances else 0.0
-    resource_share = 1.0 if acc.has_resource_column and acc.resources else 0.0
+    has_resources = acc.has_resource_column and bool(acc.resources)
     if acc.kind == "object-centric":
         observability = "object-centric"
     elif is_simulated(source, origin):
         observability = "sintetico"
-    elif start_share >= protocol.MIN_START_COVERAGE and resource_share and end_share >= 0.95:
+    elif start_share >= protocol.MIN_START_COVERAGE and has_resources and end_share >= 0.95:
         observability = "completa"
     else:
         observability = "parziale"
@@ -771,31 +767,30 @@ def compare(a: Signature, b: Signature) -> str | None:
     if a.cases and (a.content == b.content or a.content in b.parts):
         return f"stesso contenuto di {b.label}"
     common = len(a.activities & b.activities)
-    smaller = min(len(a.activities), len(b.activities)) or 1
+    activity_share = common / (min(len(a.activities), len(b.activities)) or 1)
     # Gli id dei casi da soli bastano solo se le attivita' combaciano almeno in parte o sono
     # ricodificate (numeri al posto dei nomi): id numerici lunghi si ripetono fra log diversi.
-    comparable = common / smaller >= OVERLAP_ACTIVITIES or encoded(a.activities) or encoded(b.activities)
-    if a.distinctive and b.distinctive and comparable:
-        # Stessi casi anche con le attivita' ricodificate (es. numeri al posto dei nomi).
-        shared = len(a.cases & b.cases)
-        if min(shared / len(a.cases), shared / len(b.cases)) >= CONTAINED_CASES:
-            return f"stessi casi di {b.label} ({shared / len(b.cases):.0%})"
-        if shared / len(b.cases) >= CONTAINED_CASES:
-            return f"contiene i casi di {b.label} ({shared / len(b.cases):.0%})"
-        if shared / len(a.cases) >= CONTAINED_CASES:
-            return f"casi contenuti in {b.label} ({shared / len(a.cases):.0%})"
-    if len(a.activities) < MIN_ACTIVITIES or len(b.activities) < MIN_ACTIVITIES:
-        return None
-    jaccard = common / len(a.activities | b.activities)
-    shared = len(a.cases & b.cases) if common else 0
+    by_ids = a.distinctive and b.distinctive and (
+        activity_share >= OVERLAP_ACTIVITIES or encoded(a.activities) or encoded(b.activities))
+    shared = len(a.cases & b.cases) if common or by_ids else 0
     a_in_b = shared / len(a.cases) if a.cases else 0.0
     b_in_a = shared / len(b.cases) if b.cases else 0.0
-    if common / smaller >= SAME_ACTIVITIES and b_in_a >= CONTAINED_CASES:
+    if by_ids:  # stessi casi anche con le attivita' ricodificate
+        if min(a_in_b, b_in_a) >= CONTAINED_CASES:
+            return f"stessi casi di {b.label} ({b_in_a:.0%})"
+        if b_in_a >= CONTAINED_CASES:
+            return f"contiene i casi di {b.label} ({b_in_a:.0%})"
+        if a_in_b >= CONTAINED_CASES:
+            return f"casi contenuti in {b.label} ({a_in_b:.0%})"
+    if len(a.activities) < MIN_ACTIVITIES or len(b.activities) < MIN_ACTIVITIES:
+        return None
+    if activity_share >= SAME_ACTIVITIES and b_in_a >= CONTAINED_CASES:
         return f"contiene {b.label} ({b_in_a:.0%} dei casi)"
-    if common / smaller >= SAME_ACTIVITIES and a_in_b >= CONTAINED_CASES:
+    if activity_share >= SAME_ACTIVITIES and a_in_b >= CONTAINED_CASES:
         return f"contenuto in {b.label} ({a_in_b:.0%} dei casi)"
-    if common / smaller >= OVERLAP_ACTIVITIES and max(a_in_b, b_in_a) >= OVERLAP_CASES:
+    if activity_share >= OVERLAP_ACTIVITIES and max(a_in_b, b_in_a) >= OVERLAP_CASES:
         return f"sovrapposto a {b.label} ({max(a_in_b, b_in_a):.0%} dei casi)"
+    jaccard = common / len(a.activities | b.activities)
     if jaccard >= SAME_PROCESS_ACTIVITIES:
         return f"stesso processo di {b.label} (attivita' {jaccard:.0%} in comune)"
     return None
@@ -841,15 +836,12 @@ def development_reference() -> DevelopmentReference:
             continue
         label = _development_label(path)
         # train e test sono parti dello stesso log: la firma e' una per log (l'unione).
-        if label in signatures:
-            previous = signatures[label]
-            sig = signature(acc, label, "sviluppo")
-            signatures[label] = Signature(label, "sviluppo", previous.activities | sig.activities,
-                                          previous.cases | sig.cases, previous.content,
-                                          previous.distinctive and sig.distinctive,
-                                          previous.parts | {previous.content, sig.content})
-        else:
-            signatures[label] = signature(acc, label, "sviluppo")
+        sig = signature(acc, label, "sviluppo")
+        previous = signatures.get(label)
+        signatures[label] = sig if previous is None else replace(
+            previous, activities=previous.activities | sig.activities, cases=previous.cases | sig.cases,
+            distinctive=previous.distinctive and sig.distinctive, parts=previous.parts | {previous.content, sig.content},
+        )
     return DevelopmentReference(by_hash, list(signatures.values()))
 
 
@@ -976,9 +968,8 @@ def build(ids: list[str]) -> Inventory:
             continue
         origin = origin_for(ident)
         for source in walk(ident, directory):
-            path = directory / source.path
             inspect(source, inventory, holdouts, development, origin,
-                    skip_archive=_is_archive(source.name) and _extracted(directory, path))
+                    skip_archive=_is_archive(source.name) and _extracted(directory, source.disk))
         print(f"ok  {ident}", file=sys.stderr)
     cross_compare(inventory)
     return inventory
