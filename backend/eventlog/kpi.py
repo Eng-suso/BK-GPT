@@ -65,7 +65,6 @@ def summarize(log: EventLog, name_to_element_id: dict[str, str] | None = None) -
     summary = get_engine().summarize_events(to_log_events(log), name_to_element_id=name_to_element_id or {})
     summary["cost"] = _cost(log.events, len({e.case_id for e in log.events}))
     summary["byResource"] = []
-    summary.pop("prosimosCrossCheck", None)
     summary["timing"] = timing(log)
     summary["firstEnableObserved"] = all(events[0].enabled is not None for events in log.cases().values())
     summary["enablementObserved"] = all(event.enabled is not None for event in log.events)

@@ -134,4 +134,7 @@ class ProsimosEngine:
     def summarize_events(self, events: list[LogEvent], *, name_to_element_id: dict[str, str]) -> dict:
         from backend.simulation.log_processor import summarize_log_events
 
-        return summarize_log_events(events, name_to_element_id=name_to_element_id)
+        summary = summarize_log_events(events, name_to_element_id=name_to_element_id)
+        # Il confronto con le statistiche di Prosimos non esiste per un log qualsiasi.
+        summary.pop("prosimosCrossCheck", None)
+        return summary
