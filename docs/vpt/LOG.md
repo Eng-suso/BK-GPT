@@ -18,6 +18,52 @@ Modello:
 
 ---
 
+## 2026-11-25 — PROTO-01 protocollo sperimentale — consegnato, meta *proposta* da confermare
+
+- Branch / PR: `docs/vpt-protocol`.
+- Meta: `docs/vpt/PROTOCOL.md` con categorie, NOT VALIDATED per log e metrica, nessun log
+  escluso, holdout congelati per hash prima di G3b, divisione train / validazione / test,
+  budget, go/no-go; più un test che fallisce se il codice di selezione legge un holdout →
+  consegnata. Misura: `test_protocol.py` 124/124 (`--noconftest`), `tests/simulation` sullo
+  stack reale 885 passati e 5 saltati con la guardia attiva, `protocol_properties.py` su
+  25/25 log di sviluppo, 0 non disponibili.
+- Holdout, scelti e congelati alle 08:12 UTC del 2026-11-25 (commit `476e705`) prima di ogni
+  misura: Production, ConsultaDataMining 2016-18, PurchasingExample, confidential_2000
+  (pacchetto Camargo 2022, CC BY 4.0), BPIC 2015 Municipality 1 e BPIC 2011 Hospital (4TU,
+  aggiunti al manifest). Lucchetto `1cfaa147a37187c1a319968f200c99d1cc5918ac0795c8a95e8ee70286c35cdb`.
+  Letti per sceglierli solo nomi, dimensioni, licenze e la presenza di `qbp:` nel BPMN
+  confidential; `cvs_pharmacy` non è un holdout: stesse attività di Pharmacy.
+- Iterazioni: 1) regola dei casi tagliati "fuori dal 95% delle attività finali" → 6% su
+  AcademicCredentials e 5% su BPIC 2012 W, per costruzione; ora conta l'eccesso sui casi
+  maturi di A (2,5% e 0,7%); 2) BPIC 2013 incidents ha arrivi di B ×204 rispetto ad A:
+  aggiunta la regola degli arrivi (fuori da ×0,5-×2, CAR NOT VALIDATED), uguale per tutti.
+- Identificabilità: 3 log del paper e 20 sintetici validano le metriche osservabili; BPIC 2012
+  NOT VALIDATED su W1, NGD, RED e durate; BPIC 2013 su W1, NGD, RED, CAR e durate (AED, CED,
+  risorse valide). Cause delle attese, parametri veri e controfattuale solo sui sintetici.
+- Code review: `code-review` 9 rilievi, tutti corretti: file derivati dagli holdout nel
+  pacchetto Camargo (log simulati da modelli addestrati sugli holdout, BPMN vero modificato)
+  ora chiusi per cartella e per prefisso; fase per thread invece che globale; lucchetto LF in
+  `.gitattributes` (impronta stabile su Windows); `O_ACCMODE` assente su Windows; collegamenti
+  fisici chiusi per inode; `.json` e `.xml` tolti dalle estensioni bloccate (falsi allarmi su
+  `production.json`); colonna in più nella tabella; nessun sintetico saltato in silenzio;
+  HANDOFF aggiornato. `backend/CODE_QUALITY.md`: proprietà in una dataclass e verdetti e
+  categorie `Literal` invece di `dict` e stringhe libere. ast-grep 4 regole: 0. ruff e mypy
+  puliti. `simplify`: i 4 revisori si sono fermati per il limite d'uso; revisione fatta in
+  sessione: una sola funzione SHA-256, log e percorsi del harness riusati, controllo
+  dell'hook solo su stringhe. Non applicati: `cases()` calcolato più volte in `properties`
+  (script da 20 s), import dei moduli che vogliono il database nel test (serve lo stack).
+  Nessuna autenticazione o isolamento fra clienti: niente `security-review`.
+- Skill: `code-review`, `simplify`, `docs` (lettura del Master Plan V2). Nessuna di
+  frontend: punto di ricerca senza UI, niente gate UX.
+- Branch aperti all'inizio: tutti indietro rispetto a `main` e già mergiati, tranne
+  `docs/vpt-no-contact` (#188, decisione di Sohayb), mergiato su `main` durante la sessione
+  e ripreso qui.
+- Decisioni: nessuna meta cambiata. Le soglie del §4, il budget del §6 e il go/no-go del §7
+  sono *proposta*: PROTO-01 si chiude con la conferma di Sohayb.
+- Prossimo passo: G3b, dentro `selection_phase()`, con le schede del §7 scritte prima.
+
+---
+
 ## 2026-11-25 — Prosimos per l'MVP, nessun contatto con i titolari — fatto
 
 - Branch / PR: `docs/vpt-no-contact`, #188. Solo piano e documenti; Master Plan V2
