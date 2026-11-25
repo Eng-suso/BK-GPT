@@ -5,8 +5,8 @@ componente di discovery o di simulazione è migliore di un altro. È scritto e
 congelato **prima** di qualsiasi misura di G3b; cambiarlo è una decisione di Sohayb,
 scritta in [`LOG.md`](./LOG.md) con data e motivo.
 
-- Stato: scritto il 2026-11-25 (PROTO-01). Le soglie e il modello di go/no-go sono
-  *proposta*, da confermare da Sohayb.
+- Stato: scritto il 2026-11-25 (PROTO-01). Soglie, budget e modello di go/no-go
+  confermati da Sohayb lo stesso giorno.
 - In codice: [`tests/simulation/benchmark/protocol.py`](../../tests/simulation/benchmark/protocol.py)
   (log, divisioni, regole, guardia sugli holdout), con i test in
   [`test_protocol.py`](../../tests/simulation/benchmark/test_protocol.py).
@@ -161,7 +161,7 @@ modello, con le stesse soglie per ogni log (`protocol.properties` e
   seconda metà di A;
 - rapporto fra il ritmo degli arrivi di B e quello di A.
 
-**Regole** (*proposta*):
+**Regole:**
 
 | Metrica | NOT VALIDATED se |
 | --- | --- |
@@ -215,7 +215,7 @@ osservata.
 - Il test dei log di sviluppo è già stato guardato (B2, SIM-36b, G3): per questo esistono gli
   holdout. Una vittoria che vale solo sui log di sviluppo non è una generalizzazione.
 
-## 6. Budget di calcolo (*proposta*)
+## 6. Budget di calcolo
 
 Lo stesso per ogni configurazione, misurato sulla macchina di riferimento (4 vCPU, 16 GB,
 la sessione cloud dello stack di `scripts/vpt_stack.sh`):
@@ -231,7 +231,7 @@ la sessione cloud dello stack di `scripts/vpt_stack.sh`):
   sconfitta su tutte le metriche, il log resta;
 - tempi e memoria si riportano accanto alla fedeltà (PERF-01).
 
-## 7. Go/no-go per componente (*proposta*)
+## 7. Go/no-go per componente
 
 Ogni componente (arrivi, attese, control flow, risorse, motore) si decide con una scheda
 scritta in `LOG.md` **prima** della misura:
