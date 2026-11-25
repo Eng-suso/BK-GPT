@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="D" targetNamespace="https://example.test/val01">
+<bpmn:process id="P" isExecutable="false">
+<bpmn:startEvent id="Start" />
+<bpmn:exclusiveGateway id="G_merge" />
+<bpmn:task id="T_check" name="Controlla documenti" />
+<bpmn:exclusiveGateway id="G_complete" name="Documenti completi?" />
+<bpmn:task id="T_archive" name="Archivia pratica" />
+<bpmn:endEvent id="End" />
+<bpmn:sequenceFlow id="F0" sourceRef="Start" targetRef="G_merge" />
+<bpmn:sequenceFlow id="F1" sourceRef="G_merge" targetRef="T_check" />
+<bpmn:sequenceFlow id="F2" sourceRef="T_check" targetRef="G_complete" />
+<bpmn:sequenceFlow id="F_again" name="No" sourceRef="G_complete" targetRef="G_merge" />
+<bpmn:sequenceFlow id="F_done" name="Sì" sourceRef="G_complete" targetRef="T_archive" />
+<bpmn:sequenceFlow id="F5" sourceRef="T_archive" targetRef="End" />
+</bpmn:process>
+<bpmndi:BPMNDiagram id="DD"><bpmndi:BPMNPlane id="PL" bpmnElement="P">
+<bpmndi:BPMNShape id="Start_di" bpmnElement="Start"><dc:Bounds x="60" y="140" width="36" height="36" /></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="G_merge_di" bpmnElement="G_merge" isMarkerVisible="true"><dc:Bounds x="140" y="133" width="50" height="50" /></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="T_check_di" bpmnElement="T_check"><dc:Bounds x="230" y="118" width="120" height="80" /></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="G_complete_di" bpmnElement="G_complete" isMarkerVisible="true"><dc:Bounds x="400" y="133" width="50" height="50" /></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="T_archive_di" bpmnElement="T_archive"><dc:Bounds x="500" y="118" width="120" height="80" /></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="End_di" bpmnElement="End"><dc:Bounds x="670" y="140" width="36" height="36" /></bpmndi:BPMNShape>
+<bpmndi:BPMNEdge id="F0_di" bpmnElement="F0"><di:waypoint x="96" y="158" /><di:waypoint x="140" y="158" /></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="F1_di" bpmnElement="F1"><di:waypoint x="190" y="158" /><di:waypoint x="230" y="158" /></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="F2_di" bpmnElement="F2"><di:waypoint x="350" y="158" /><di:waypoint x="400" y="158" /></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="F_again_di" bpmnElement="F_again"><di:waypoint x="425" y="133" /><di:waypoint x="425" y="70" /><di:waypoint x="165" y="70" /><di:waypoint x="165" y="133" /></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="F_done_di" bpmnElement="F_done"><di:waypoint x="450" y="158" /><di:waypoint x="500" y="158" /></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="F5_di" bpmnElement="F5"><di:waypoint x="620" y="158" /><di:waypoint x="670" y="158" /></bpmndi:BPMNEdge>
+</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>

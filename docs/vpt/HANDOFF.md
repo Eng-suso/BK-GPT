@@ -12,6 +12,40 @@ trasformato il Master Plan V2 in un programma di ricerca (sezione "P0" di
 **ENG-01** (Simulation Engine Interface); poi **G3b**. B3 parte solo dopo G3b. Nessun
 candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
 
+## VAL-01 (fatto il 2026-11-25, `feat/sim-formal-validation`, PR #189)
+
+All'import e prima di ogni run DeliR verifica che ogni caso possa finire: niente
+deadlock né livelock, fine raggiungibile da ogni stato, uscita da ogni ciclo con
+probabilità > 0, ripetizioni attese finite. Meta confermata da Sohayb il 2026-11-25.
+
+```bash
+uv run pytest --noconftest -q tests/simulation/test_soundness.py          # 51 test, < 2 s
+eval "$(scripts/vpt_stack.sh env)" && uv run pytest -q tests/simulation/test_prosimos_import_api.py
+npx playwright test e2e/simulation-import-validation.spec.ts              # DELIR_UX_SHOTS=docs/vpt/ux/val-01
+PYTHONPATH=. uv run python e2e/fixtures/val-01/generate.py                # risposte vere per l'e2e (serve lo stack)
+```
+
+- **Misura:** 19/19 scenari del dataset e 8/8 scenari SIMOD validi di G3 passano;
+  AcademicCredentials `_diff` e `_fuzz` rifiutati sul gateway `node_59fc62b1…`;
+  < 0,1 s e ≤ 119 stati per scenario. Suite `tests/simulation` sullo stack: 812 passati.
+- **Metodo** (`backend/simulation/ir/soundness.py`): gioco dei gettoni a passo
+  massimo (scattano insieme tutti gli elementi abilitati: il verdetto non dipende dai
+  nomi), rami a probabilità 0 esplorati come impossibili per nominare la decisione che
+  chiude il ciclo; `check_soundness(..., expected=True)` dà le esecuzioni attese per
+  attività (catena assorbente). Limiti: 8 gettoni per flusso, 50.000 stati, 4096
+  combinazioni per passo, 10 rami per inclusiva; oltre, verifica incompleta: l'import
+  avvisa (`soundness_unverified`) ma tiene i blocchi già provati.
+- **Dove si applica:** `import_prosimos` e `scenario_builder` (bozze, what-if) via
+  `require_sound`; `UnsoundProcessError` non è un `ValueError` e arriva al gestore comune
+  → 400 `process_cannot_finish` su import e run. Nella UI il motivo è in chiaro con
+  «Cosa fare» a capo; i file che l'editor legge da solo passano dalla verifica del server.
+- **Da sapere per B3.3:** «supera VAL-01» = `require_sound(model, bpmn)` senza eccezioni.
+  Regole e escalation: ogni ramo possibile (nessuna attesa calcolata). Inclusive: ogni
+  combinazione non vuota dei rami (Prosimos non documenta la sua semantica).
+- **Seguiti proposti (non fatti):** messaggi del server solo in italiano (come le note
+  di IMP-01); un solo parser BPMN con `flow_graph` (ingressi, nomi, eventi di bordo);
+  endpoint di sola verifica per l'editor invece dell'import completo.
+
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
 Baseline "B = A" sui 3 log reali train/test del paper (A = train, B = test): il banco
