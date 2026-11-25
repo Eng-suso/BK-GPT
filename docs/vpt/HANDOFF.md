@@ -74,16 +74,15 @@ verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Aut
 
 - Branch `claude/vpt-radar-inventory-j14bbw` (al posto di `chore/radar-inventory`: è il
   branch assegnato alla sessione cloud), allineato a `main` (`687f4e1`).
-- Stato: radar scaricato (33/33, 24 GB nella cache). Script
-  `tests/simulation/benchmark/radar_inventory.py` scritto e provato su 11 voci; giro completo
-  in corso (`uv run --with ijson python tests/simulation/benchmark/radar_inventory.py`,
-  ijson serve per gli OCEL di bpic-ocel2 fino a 11 GB).
-- Trovato finora: ProCause non contiene file di BPIC 2012/2017 (solo `.gitkeep`, li legge da
-  fuori); la copia di Helpdesk contiene BPIC 2012 W e BPIC 2013 incidents (stessi casi) e
-  `env_permit` (CoSeLoG, stesso progetto dei comuni di BPIC 2015: da escludere in PROTO-02);
-  il BPS Quality Framework contiene AcademicCredentials identico per hash, BPIC 2012/2017 e i
-  simulati, più CallCenter (nuovo). Sepsis e Hospital Billing: ospedale regionale (Mannhardt,
-  ERP), BPIC 2011 è un ospedale accademico (van Dongen): metadati 4TU.
+- Stato: script d'inventario e secondo set fatti; code review (10 rilievi, tutti corretti) e
+  simplify applicati; giro finale dell'inventario in corso (`uv run --with ijson python
+  tests/simulation/benchmark/radar_inventory.py`, ~30 min) → `radar/inventory.{md,json}`.
+- PROTO-02: secondo set congelato (`protocol/holdout2.lock.json`, `24974f9b…`): CallCenter
+  (completa) + Road Traffic Fines con la copia `Trafic` di DAS-RP (parziale). Nessun sintetico
+  indipendente nel radar (DAS-RP `data_attribute_log` è Loan_Application): la categoria la copre
+  GT-01. PROTOCOL.md §10 (ruolo di ogni voce) e §11 (CF-01), confronti appaiati nel §1.
+- Da fare dopo il giro: rileggere il report, aggiornare i numeri del §10 se cambiano, PLAN, LOG,
+  PR, CI, merge. Scelta del set e soglia dell'1% per la direzione presentate a Sohayb («procedi»).
 
 ## Ultima misura
 
