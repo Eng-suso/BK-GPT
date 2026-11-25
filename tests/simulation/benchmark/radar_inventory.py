@@ -293,6 +293,7 @@ def _unpacked_fingerprints(path: Path) -> list[str]:
 class HoldoutReference:
     by_hash: dict[str, str]  # sha256 -> id dell'holdout
     aliases: dict[str, str]  # nome normalizzato -> id dell'holdout
+    containers: dict[str, str]  # archivio che contiene un holdout (minuscolo) -> id dell'holdout
 
 
 def holdout_reference() -> HoldoutReference:
@@ -300,6 +301,12 @@ def holdout_reference() -> HoldoutReference:
     by_hash: dict[str, str] = {}
     aliases: dict[str, str] = {}
     root = fetch_datasets.cache_dir()
+    containers: dict[str, str] = {}
+    for lock in protocol.lock_paths():
+        data = protocol.load_lock(lock)
+        for container in data.get("containers", []):
+            owner = next(h["id"] for h in data["holdouts"] if h["dataset"] == container["dataset"])
+            containers[container["file"].lower()] = owner
     for holdout in (h for lock in protocol.lock_paths() for h in protocol.load_lock(lock)["holdouts"]):
         ident = holdout["id"]
         aliases[normalized(ident)] = ident
@@ -312,7 +319,7 @@ def holdout_reference() -> HoldoutReference:
             aliases[normalized(protocol._stem(Path(item["path"]).name))] = ident
         for alias in HOLDOUT_EXTRA_ALIASES.get(normalized(ident), ()):
             aliases[alias] = ident
-    return HoldoutReference(by_hash, aliases)
+    return HoldoutReference(by_hash, aliases, containers)
 
 
 def holdout_by_name(source: Source, reference: HoldoutReference) -> str | None:
@@ -332,9 +339,11 @@ def holdout_by_name(source: Source, reference: HoldoutReference) -> str | None:
         return None
 
     if protocol.is_holdout(source.path.replace("!", "/")):
-        # la guardia lo blocca: una cartella o un file del lucchetto, l'id dal nome piu' vicino
-        return alias_in(parts[::-1]) or "holdout"
-    return alias_in(parts)
+        # la guardia lo blocca: un file, un archivio o una cartella di un lucchetto
+        return reference.containers.get(source.lower) or alias_in(parts[::-1]) or "holdout"
+    # Il confronto largo vale per i log e gli archivi: codice e documenti con un nome simile
+    # (l'esempio "call center" di una libreria di code) non sono un holdout.
+    return alias_in(parts) if source.lower.endswith(LOG_SUFFIXES + ARCHIVE_SUFFIXES) else None
 
 
 def development_by_name(source: Source) -> str | None:
@@ -862,9 +871,14 @@ class FileRecord:
 
 
 def redacted(path: str, ident: str) -> str:
-    """Il percorso senza il nome dell'holdout (il test dei nomi di PROTO-01 lo vieta nel repo)."""
+    """Il percorso senza il nome dell'holdout, ne' nel file ne' nelle cartelle che lo ripetono
+    (il test dei nomi di PROTO-01 vieta di scriverli nel repo)."""
     parts = re.split(r"([/!])", path)
-    return "".join(f"[nome di un holdout: {ident}]" if i == len(parts) - 1 else p for i, p in enumerate(parts))
+    key = normalized(ident)
+    return "".join(
+        f"[nome di un holdout: {ident}]" if i == len(parts) - 1 or (p not in "/!" and key in normalized(p)) else p
+        for i, p in enumerate(parts)
+    )
 
 
 @dataclass(slots=True)
@@ -885,7 +899,7 @@ def inspect(source: Source, inventory: Inventory, holdouts: HoldoutReference, de
         how = "impronta e nome" if match else "nome"
         inventory.records.append(FileRecord(
             source.dataset, redacted(source.path, named), source.size, digest, holdout=f"holdout:{match or named} ({how})",
-            note="non aperto: porta il nome di un log holdout di PROTO-01",
+            note="non aperto: porta il nome di un holdout (o del suo archivio)",
         ))
         return
     raw, content = _hashes(source.opener, source.lower.endswith(".gz"))
@@ -1111,8 +1125,8 @@ def to_markdown(report: dict) -> str:
     ]
     held = [f for f in files if f["holdout"]]
     if held:
-        lines += ["| Voce | File (nome redatto) | Coincidenza | Nota |", "| --- | --- | --- | --- |"]
-        lines += [f"| `{_bare(f['dataset'])}` | `{f['path']}` | {f['holdout']} | {f['note']} |" for f in held]
+        lines += ["| Voce | File (nome redatto) | Byte | SHA-256 | Coincidenza | Nota |", "| --- | --- | --- | --- | --- | --- |"]
+        lines += [f"| `{_bare(f['dataset'])}` | `{f['path']}` | {_fmt(f['bytes'])} | `{f['sha256'][:12]}` | {f['holdout']} | {f['note']} |" for f in held]
     else:
         lines.append("Nessun file del radar coincide con un holdout, ne' per impronta ne' per nome.")
     lines += ["", "## Per voce", "", "| Voce | Origine | Settore | Log | Altri file | Holdout | Legati allo sviluppo |",

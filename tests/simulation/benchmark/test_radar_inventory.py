@@ -239,3 +239,19 @@ def test_a_large_ocel_without_ijson_is_reported_not_lost(tmp_path: Path, monkeyp
     inventory = inv.Inventory()
     inv.inspect(_source(path), inventory, inv.holdout_reference(), _empty_development(), ORIGIN, skip_archive=False)
     assert "ijson" in inventory.records[0].note
+
+
+def test_code_with_a_name_like_a_holdout_is_not_a_holdout():
+    reference = inv.holdout_reference()
+    ident = protocol.load_lock()["holdouts"][0]["names"][0]
+    code = inv.Source("prova", f"examples/{ident}Queue.py", 1, lambda: io.BytesIO(b""))
+    log = inv.Source("prova", f"examples/{ident}Queue.csv", 1, lambda: io.BytesIO(b""))
+    assert inv.holdout_by_name(code, reference) is None
+    assert inv.holdout_by_name(log, reference) is not None
+
+
+def test_an_archive_closed_by_a_lock_is_named_after_its_holdout():
+    reference = inv.holdout_reference()
+    container, owner = next(iter(reference.containers.items()))
+    source = inv.Source("prova", container, 1, lambda: io.BytesIO(b""))
+    assert inv.holdout_by_name(source, reference) == owner
