@@ -19,6 +19,7 @@ import csv
 import gzip
 import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 if __package__ in (None, ""):  # lanciato come script
@@ -79,11 +80,12 @@ def measure(log: protocol.DevelopmentLog) -> dict:
     except DatasetUnavailable as exc:
         return {**row, "status": "unavailable", "reason": str(exc)}
     props = protocol.properties(train, test, has_start=has_start, has_resource=has_resource)
-    fit, validation = protocol.train_validation(train)
-    props["cases_fit"] = len({e.case_id for e in fit})
-    props["cases_validation"] = len({e.case_id for e in validation})
     verdicts = protocol.identifiability(props, synthetic=log.category == protocol.SYNTHETIC)
-    return {**row, "properties": props, "metrics": {m: {"verdict": v, "reason": why} for m, (v, why) in verdicts.items()}}
+    return {
+        **row,
+        "properties": asdict(props),
+        "metrics": {m: {"verdict": v, "reason": why} for m, (v, why) in verdicts.items()},
+    }
 
 
 def table(rows: list[dict]) -> str:

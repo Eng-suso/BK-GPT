@@ -6,15 +6,15 @@
     "split": "train / test del paper",
     "properties": {
       "cases_train": 398,
+      "cases_fit": 318,
+      "cases_validation": 80,
       "cases_test": 398,
       "events": 3733,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0251,
       "censored_left_test": 0.005,
-      "arrival_rate_ratio": 0.982,
-      "cases_fit": 318,
-      "cases_validation": 80
+      "arrival_rate_ratio": 0.982
     },
     "metrics": {
       "cycle_time_w1": {
@@ -70,15 +70,15 @@
     "split": "train / test del paper",
     "properties": {
       "cases_train": 3030,
+      "cases_fit": 2424,
+      "cases_validation": 606,
       "cases_test": 2976,
       "events": 34906,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0072,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.075,
-      "cases_fit": 2424,
-      "cases_validation": 606
+      "arrival_rate_ratio": 1.075
     },
     "metrics": {
       "cycle_time_w1": {
@@ -134,15 +134,15 @@
     "split": "train / test del paper",
     "properties": {
       "cases_train": 7402,
+      "cases_fit": 5922,
+      "cases_validation": 1480,
       "cases_test": 7376,
       "events": 105342,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0033,
       "censored_left_test": 0.0004,
-      "arrival_rate_ratio": 0.943,
-      "cases_fit": 5922,
-      "cases_validation": 1480
+      "arrival_rate_ratio": 0.943
     },
     "metrics": {
       "cycle_time_w1": {
@@ -198,15 +198,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 6543,
+      "cases_fit": 5234,
+      "cases_validation": 1309,
       "cases_test": 6544,
       "events": 164506,
       "start_coverage": 0.4339,
       "resource_coverage": 0.9505,
       "censored_right_test": 0.062,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.016,
-      "cases_fit": 5234,
-      "cases_validation": 1309
+      "arrival_rate_ratio": 1.016
     },
     "metrics": {
       "cycle_time_w1": {
@@ -262,15 +262,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 3776,
+      "cases_fit": 3021,
+      "cases_validation": 755,
       "cases_test": 3778,
       "events": 65533,
       "start_coverage": 0.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.37,
       "censored_left_test": 0.0021,
-      "arrival_rate_ratio": 204.585,
-      "cases_fit": 3021,
-      "cases_validation": 755
+      "arrival_rate_ratio": 204.585
     },
     "metrics": {
       "cycle_time_w1": {
@@ -326,15 +326,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 5443,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.001,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.001
     },
     "metrics": {
       "cycle_time_w1": {
@@ -390,15 +390,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 5398,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 0.978,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 0.978
     },
     "metrics": {
       "cycle_time_w1": {
@@ -454,15 +454,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 5403,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.004,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.004
     },
     "metrics": {
       "cycle_time_w1": {
@@ -518,15 +518,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 5371,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.012,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.012
     },
     "metrics": {
       "cycle_time_w1": {
@@ -582,15 +582,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 5434,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.006,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.006
     },
     "metrics": {
       "cycle_time_w1": {
@@ -646,15 +646,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 11805,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.001,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.001
     },
     "metrics": {
       "cycle_time_w1": {
@@ -710,15 +710,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 11760,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.005,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.005
     },
     "metrics": {
       "cycle_time_w1": {
@@ -774,15 +774,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 11626,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.003,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.003
     },
     "metrics": {
       "cycle_time_w1": {
@@ -838,15 +838,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 10968,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.002,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.002
     },
     "metrics": {
       "cycle_time_w1": {
@@ -902,15 +902,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 11807,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.001,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.001
     },
     "metrics": {
       "cycle_time_w1": {
@@ -966,15 +966,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 8356,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.0,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.0
     },
     "metrics": {
       "cycle_time_w1": {
@@ -1030,15 +1030,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 8427,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.0,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.0
     },
     "metrics": {
       "cycle_time_w1": {
@@ -1094,15 +1094,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 8381,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.0,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.0
     },
     "metrics": {
       "cycle_time_w1": {
@@ -1158,15 +1158,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 8321,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.0,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.0
     },
     "metrics": {
       "cycle_time_w1": {
@@ -1222,15 +1222,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 8372,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.0,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.0
     },
     "metrics": {
       "cycle_time_w1": {
@@ -1286,15 +1286,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 13290,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.0,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.0
     },
     "metrics": {
       "cycle_time_w1": {
@@ -1350,15 +1350,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 12677,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.0,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.0
     },
     "metrics": {
       "cycle_time_w1": {
@@ -1414,15 +1414,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 13112,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.0,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.0
     },
     "metrics": {
       "cycle_time_w1": {
@@ -1478,15 +1478,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 13409,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.0,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.0
     },
     "metrics": {
       "cycle_time_w1": {
@@ -1542,15 +1542,15 @@
     "split": "meta' dei casi per inizio",
     "properties": {
       "cases_train": 500,
+      "cases_fit": 400,
+      "cases_validation": 100,
       "cases_test": 500,
       "events": 12936,
       "start_coverage": 1.0,
       "resource_coverage": 1.0,
       "censored_right_test": 0.0,
       "censored_left_test": 0.0,
-      "arrival_rate_ratio": 1.0,
-      "cases_fit": 400,
-      "cases_validation": 100
+      "arrival_rate_ratio": 1.0
     },
     "metrics": {
       "cycle_time_w1": {

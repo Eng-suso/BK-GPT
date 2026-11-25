@@ -257,7 +257,7 @@ def test_a_split_never_cuts_a_case_and_rejects_bad_fractions():
 # --------------------------------------------------------------------------- identificabilita'
 
 
-def _props(train: list[Event], test: list[Event], start: float = 1.0, resource: float = 1.0) -> dict:
+def _props(train: list[Event], test: list[Event], start: float = 1.0, resource: float = 1.0) -> protocol.LogProperties:
     n = len(train) + len(test)
     return protocol.properties(
         train, test, has_start=[i < start * n for i in range(n)], has_resource=[i < resource * n for i in range(n)]
@@ -302,7 +302,7 @@ def test_rare_end_activities_are_not_counted_as_cut_cases():
         return out
 
     props = _props(rare(200, 0), rare(200, 200))
-    assert props["censored_right_test"] == 0.0
+    assert props.censored_right_test == 0.0
     assert protocol.identifiability(props, synthetic=False)["cycle_time_w1"][0] == protocol.IDENTIFIABLE
 
 
