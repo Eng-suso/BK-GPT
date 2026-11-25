@@ -12,6 +12,15 @@ trasformato il Master Plan V2 in un programma di ricerca (sezione "P0" di
 **ENG-01** (Simulation Engine Interface); poi **G3b**. B3 parte solo dopo G3b. Nessun
 candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
 
+## VAL-01 (in corso dal 2026-11-25, `feat/sim-formal-validation`)
+
+Validazione formale dei modelli all'import: nessun deadlock né livelock, fine
+raggiungibile da ogni stato, uscita da ogni ciclo con probabilità > 0. Lavora una
+sessione Claude per Sohayb; in parallelo altre due su PROTO-01 ed ENG-01 (VAL-01 non
+tocca `prosimos_adapter.py` né la coda dei run).
+
+- Stato: branch creato da `origin/main`, nessuna misura ancora.
+
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
 Baseline "B = A" sui 3 log reali train/test del paper (A = train, B = test): il banco
