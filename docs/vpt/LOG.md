@@ -18,7 +18,7 @@ Modello:
 
 ---
 
-## 2026-11-25 — RAD-01 inventario del radar e PROTO-02 secondo set — in corso (manca la conferma di Sohayb)
+## 2026-11-25 — RAD-01 inventario del radar e PROTO-02 secondo set — fatto
 
 - Branch / PR: `claude/vpt-radar-inventory-j14bbw` (il branch assegnato alla sessione cloud, al
   posto di `chore/radar-inventory`).
@@ -45,7 +45,20 @@ Modello:
   sintetico Loan_Application; Kronos file con i nomi di Production e PurchasingExample. Sepsis e
   Hospital Billing: ospedale regionale (Mannhardt, ERP), BPIC 2011 ospedale accademico (van
   Dongen), dai metadati 4TU.
-- Decisioni: «procedi» di Sohayb (2026-11-25) preso come via libera alla proposta del secondo set;
+- Decisione di Sohayb (2026-11-25, dopo una revisione con la letteratura): secondo set confermato
+  (CallCenter, Road Traffic Fines con l'estratto di DAS-RP come una sola famiglia; BPIC 2018 resta
+  sviluppo), con precisazioni al protocollo: capacità distinte (descrittiva, predittiva,
+  generalizzazione, controfattuale; Sargent 2013), due livelli di separazione (fra processi e nel
+  tempo dentro ogni log), holdout usato una volta con codice e configurazioni congelati (Dwork 2015),
+  CallCenter senza indipendenza organizzativa dichiarata finché la provenienza non è verificata
+  (probabile CALL degli articoli di SIMOD; nessuna fonte pubblica la dice), GT-01 con scenari
+  riservati. CF-01: 1% come margine standardizzato provvisorio, non soglia universale (SESOI,
+  Lakens 2017); sensibilità a 0,5%, 2%, 5%; margine assoluto per baseline nulle; classi INCREASE,
+  DECREASE, NEGLIGIBLE, INCONCLUSIVE con gli inconclusivi riportati; bias e metriche continue senza
+  soglia. Rimandati come estensioni: decision regret, tasso di interventi sbagliati, CRN per entità,
+  ProCause. Non adottato: l'holdout 1 come validazione ripetuta (lo schema proposto lo disegnava
+  così), perché contraddice PROTO-01 confermato, in cui il primo set si apre una volta alla fine di G3b.
+- Prima: «procedi» di Sohayb preso come via libera alla proposta del secondo set;
   il sintetico di DAS-RP proposto in un primo momento è caduto (è Loan_Application di sviluppo):
   la categoria sintetica del secondo set la copre GT-01. Da confermare esplicitamente prima del
   merge: il secondo set e la soglia dell'1% per la direzione dell'effetto (CF-01).
@@ -60,7 +73,9 @@ Modello:
   statistica in un modulo a parte. Nessuna modifica ad autenticazione: niente `security-review`.
 - Skill: code-review, simplify (backend e ricerca: nessuna skill di frontend). Nessuna UI: gate UX
   non applicabile.
-- Prossimo passo: conferma di Sohayb, CI verde, merge; poi RAD-02 sui log di sviluppo del §10.
+- Seconda code review sulle modifiche di CF-01: 1 rilievo (intervallo della verità con un solo
+  estremo), corretto. Test: `test_protocol.py` 124 → 144, `test_radar_inventory.py` 22.
+- Prossimo passo: G3b (percorso critico), poi RAD-02 sui log di sviluppo del §10; GT-01 è libero.
 
 ## 2026-11-25 — Code review di RAD-00: login Supabase e host di Mannheim — fatto
 
