@@ -1,0 +1,96 @@
+{
+ "resource_profiles": [
+  {
+   "id": "p",
+   "name": "Back office",
+   "resource_list": [
+    {
+     "id": "r1",
+     "name": "Operatore",
+     "cost_per_hour": 35,
+     "amount": 2,
+     "calendar": "cal",
+     "assignedTasks": [
+      "T_check",
+      "T_archive"
+     ]
+    }
+   ]
+  }
+ ],
+ "arrival_time_distribution": {
+  "distribution_name": "fix",
+  "distribution_params": [
+   {
+    "value": 1800
+   }
+  ]
+ },
+ "arrival_time_calendar": [
+  {
+   "from": "MONDAY",
+   "to": "FRIDAY",
+   "beginTime": "09:00:00",
+   "endTime": "17:00:00"
+  }
+ ],
+ "gateway_branching_probabilities": [
+  {
+   "gateway_id": "G_complete",
+   "probabilities": [
+    {
+     "path_id": "F_again",
+     "value": 0.2
+    },
+    {
+     "path_id": "F_done",
+     "value": 0.8
+    }
+   ]
+  }
+ ],
+ "task_resource_distribution": [
+  {
+   "task_id": "T_check",
+   "resources": [
+    {
+     "resource_id": "r1",
+     "distribution_name": "fix",
+     "distribution_params": [
+      {
+       "value": 900
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "task_id": "T_archive",
+   "resources": [
+    {
+     "resource_id": "r1",
+     "distribution_name": "fix",
+     "distribution_params": [
+      {
+       "value": 300
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "resource_calendars": [
+  {
+   "id": "cal",
+   "name": "Ufficio",
+   "time_periods": [
+    {
+     "from": "MONDAY",
+     "to": "FRIDAY",
+     "beginTime": "09:00:00",
+     "endTime": "17:00:00"
+    }
+   ]
+  }
+ ]
+}

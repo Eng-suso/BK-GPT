@@ -27,6 +27,7 @@ from backend.simulation.ir.baseline import baseline_model
 from backend.simulation.ir.bpmn_check import check_model_against_bpmn
 from backend.simulation.ir.from_request import standard_calendar
 from backend.simulation.ir.model import SimulationModel, TimerEscalation
+from backend.simulation.ir.soundness import require_sound
 from backend.simulation.ir.patch import apply_patch
 from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, BpmnWait, ProsimosScenario
 from backend.simulation.timers import (
@@ -86,6 +87,8 @@ def build_prosimos_scenario(
     model = with_flow_rules(model, request)
     model = with_bpmn_waits(with_request_waits(model, request), parse_bpmn_waits(bpmn_xml))
     _require_timer_durations(model)
+    # VAL-01: anche una bozza dell'editor o una modifica what-if deve far finire ogni caso.
+    require_sound(model, bpmn_xml)
     return _scenario(bpmn_xml, model, tasks, gateways)
 
 
@@ -128,6 +131,7 @@ def build_prosimos_scenario_from_model(*, bpmn_xml: str, model: SimulationModel)
     check_model_against_bpmn(model, tasks, gateways)
     model = with_bpmn_waits(model, parse_bpmn_waits(bpmn_xml))
     _require_timer_durations(model)
+    require_sound(model, bpmn_xml)
     return _scenario(bpmn_xml, model, tasks, gateways)
 
 
