@@ -14,9 +14,20 @@ candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
 
 ## PROTO-01 (in corso dal 2026-11-25, `docs/vpt-protocol`)
 
-Protocollo sperimentale per G3b in `docs/vpt/PROTOCOL.md`. Appena preso: lettura di
-piano, log, Master Plan V2 e dataset fatta. Prossimo passo: scegliere e congelare per
-hash i log holdout, prima di qualsiasi misura.
+Protocollo sperimentale per G3b in `docs/vpt/PROTOCOL.md` (da scrivere: ultimo passo).
+
+- **Holdout congelati** prima di ogni misura (commit `476e705`):
+  `tests/simulation/benchmark/protocol/holdout.lock.json`, SHA-256 del lucchetto
+  `1cfaa147…`. 6 log: Production, ConsultaDataMining, PurchasingExample, confidential_2000
+  (pacchetto Camargo 2022, CC BY 4.0), BPIC 2015 Municipality 1, BPIC 2011 Hospital (4TU).
+  Solo hash nel repo.
+- **Guardia:** `protocol.py` (audit hook), `test_protocol.py` 115/116 verdi; manca solo
+  l'impronta scritta in PROTOCOL.md.
+- **Identificabilità** dei 25 log di sviluppo: `protocol_properties.py` →
+  `protocol/identifiability.md`. Iterazione 1: la regola "95% delle attività finali"
+  segnava per costruzione ~5% di casi tagliati anche nei log completi → ora conta
+  l'eccesso sui casi maturi di A. BPIC 2013: 37% tagliati, arrivi ×204 → W1, NGD, RED,
+  CAR NOT VALIDATED; AED e CED validi.
 
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
