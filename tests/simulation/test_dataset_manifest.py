@@ -133,3 +133,34 @@ def test_reextracts_when_the_archive_changes(tmp_path: Path, monkeypatch) -> Non
 def test_path_of_unknown_id_is_an_error(capsys) -> None:
     assert fetch_datasets.main(["path", "nessuno"]) == 1
     assert "non nel manifest" in capsys.readouterr().err
+
+
+def _fetched_ids(monkeypatch, argv: list[str]) -> list[str]:
+    seen: list[str] = []
+
+    def fake_fetch(entry: dict, *, allow_noncommercial: bool = False) -> Path:
+        seen.append(entry["id"])
+        return Path("/dev/null")
+
+    monkeypatch.setattr(fetch_datasets, "fetch", fake_fetch)
+    assert fetch_datasets.main(argv) == 0
+    return seen
+
+
+def test_fetch_all_leaves_the_radar_collection_out(monkeypatch) -> None:
+    radar = {i for i, e in MANIFEST.items() if e.get("collection") == "radar"}
+    assert radar, "la collezione radar e' vuota"
+    core = _fetched_ids(monkeypatch, ["fetch", "--all"])
+    assert core and not radar & set(core)
+    assert set(_fetched_ids(monkeypatch, ["fetch", "--collection", "radar"])) == {
+        i for i in radar if MANIFEST[i]["mode"] == "fetch"
+    }
+
+
+def test_radar_entries_declare_kind_and_plan_use() -> None:
+    for entry in MANIFEST.values():
+        if entry.get("collection") != "radar":
+            continue
+        assert entry["kind"] in {"dataset", "code", "code+dataset"}, entry["id"]
+        assert entry["use"], entry["id"]
+        assert entry["mode"] != "vendored", f"{entry['id']}: il radar resta in cache"

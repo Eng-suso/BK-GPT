@@ -7,11 +7,17 @@ il manifest; i repository git si fermano sul commit fissato. Quelli
 ``academic`` hanno una licenza non commerciale: servono per la ricerca, non
 per i numeri commerciali, e richiedono ``--allow-noncommercial``.
 
+Le voci con ``collection`` (oggi ``radar``, il Research Radar del VPT) sono una
+collezione separata dal nucleo: ``fetch --all`` non le prende, si scaricano con
+``fetch --collection radar`` o per id. Nessuna e' un log di sviluppo o holdout
+finche' ``docs/vpt/PROTOCOL.md`` non la dichiara.
+
 Uso:
     uv run python scripts/fetch_datasets.py list
     uv run python scripts/fetch_datasets.py verify
     uv run python scripts/fetch_datasets.py fetch bpic2012 simod
     uv run python scripts/fetch_datasets.py fetch --all
+    uv run python scripts/fetch_datasets.py fetch --collection radar
     uv run python scripts/fetch_datasets.py path bpic2012
 """
 
@@ -153,6 +159,9 @@ def main(argv: list[str] | None = None) -> int:
     p_fetch.add_argument("ids", nargs="*")
     p_fetch.add_argument("--all", action="store_true")
     p_fetch.add_argument("--allow-noncommercial", action="store_true")
+    p_fetch.add_argument(
+        "--collection", help="tutte le voci scaricabili di una collezione (es. radar)"
+    )
     p_path = sub.add_parser("path")
     p_path.add_argument("id")
     args = parser.parse_args(argv)
@@ -160,7 +169,8 @@ def main(argv: list[str] | None = None) -> int:
     manifest = load_manifest()
     if args.command == "list":
         for entry in manifest.values():
-            print(f"{entry['id']:34} {entry['mode']:9} {entry['license']}")
+            collection = entry.get("collection", "")
+            print(f"{entry['id']:34} {entry['mode']:9} {collection:6} {entry['license']}")
         return 0
     if args.command == "path":
         if args.id not in manifest:
@@ -180,13 +190,18 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"ERR {exc}", file=sys.stderr)
         return 1 if failed else 0
 
-    if args.all:
+    if args.all or args.collection:
         wanted = {"fetch", "academic"} if args.allow_noncommercial else {"fetch"}
-        ids = [i for i, e in manifest.items() if e["mode"] in wanted]
+        ids = [
+            i
+            for i, e in manifest.items()
+            if e["mode"] in wanted and e.get("collection") == args.collection
+        ]
+        ids += args.ids
     else:
         ids = args.ids
     if not ids:
-        parser.error("indica gli id o --all")
+        parser.error("indica gli id, --all o --collection")
     failed = 0
     for dataset_id in ids:
         if dataset_id not in manifest:
