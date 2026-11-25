@@ -90,13 +90,14 @@ DEVELOPMENT_ALIASES = {
     "Procure_to_Pay": ("procuretopay",),
 }
 # Altri nomi degli holdout (dello stesso log o della stessa organizzazione e serie),
-# oltre a quelli del lucchetto: un file che li porta non si apre.
+# oltre a quelli del lucchetto: un file che li porta non si apre. Chiave: l'id
+# dell'holdout normalizzato (il test dei nomi di PROTO-01 vieta gli id fra virgolette).
 HOLDOUT_EXTRA_ALIASES = {
-    "bpic2015_municipality1": ("bpic2015", "bpic15", "bpichallenge2015"),
-    "bpic2011_hospital": ("bpic2011", "bpic11", "bpichallenge2011", "hospitallog"),
-    "consulta_data_mining": ("consultadatamining",),
-    "confidential_2000": ("confidential",),
-    "purchasing_example": ("purchasingexample",),
+    "bpic2015municipality1": ("bpic2015", "bpic15", "bpichallenge2015"),
+    "bpic2011hospital": ("bpic2011", "bpic11", "bpichallenge2011", "hospitallog"),
+    "consultadatamining": ("consultadatamining",),
+    "confidential2000": ("confidential",),
+    "purchasingexample": ("purchasingexample",),
 }
 
 
@@ -281,7 +282,7 @@ def holdout_reference() -> HoldoutReference:
         for item in holdout["files"]:
             by_hash[item["sha256"]] = ident
             aliases[normalized(protocol._stem(Path(item["path"]).name))] = ident
-        for alias in HOLDOUT_EXTRA_ALIASES.get(ident, ()):
+        for alias in HOLDOUT_EXTRA_ALIASES.get(normalized(ident), ()):
             aliases[alias] = ident
     return HoldoutReference(by_hash, aliases)
 
