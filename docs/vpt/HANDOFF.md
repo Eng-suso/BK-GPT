@@ -70,19 +70,21 @@ Chiusura: HANDOFF.md aggiornato dopo ogni misura, voce in LOG.md, code review, s
 verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Authored-By.
 ```
 
-## RAD-01 → PROTO-02 (in corso dal 2026-11-25)
+## RAD-01 → PROTO-02 (in corso dal 2026-11-25, manca solo la conferma di Sohayb)
 
-- Branch `claude/vpt-radar-inventory-j14bbw` (al posto di `chore/radar-inventory`: è il
-  branch assegnato alla sessione cloud), allineato a `main` (`687f4e1`).
-- Stato: script d'inventario e secondo set fatti; code review (10 rilievi, tutti corretti) e
-  simplify applicati; giro finale dell'inventario in corso (`uv run --with ijson python
-  tests/simulation/benchmark/radar_inventory.py`, ~30 min) → `radar/inventory.{md,json}`.
-- PROTO-02: secondo set congelato (`protocol/holdout2.lock.json`, `24974f9b…`): CallCenter
-  (completa) + Road Traffic Fines con la copia `Trafic` di DAS-RP (parziale). Nessun sintetico
-  indipendente nel radar (DAS-RP `data_attribute_log` è Loan_Application): la categoria la copre
-  GT-01. PROTOCOL.md §10 (ruolo di ogni voce) e §11 (CF-01), confronti appaiati nel §1.
-- Da fare dopo il giro: rileggere il report, aggiornare i numeri del §10 se cambiano, PLAN, LOG,
-  PR, CI, merge. Scelta del set e soglia dell'1% per la direzione presentate a Sohayb («procedi»).
+- Branch `claude/vpt-radar-inventory-j14bbw`, PR aperta; lavoro finito e misurato.
+- Inventario: `uv run --with ijson python tests/simulation/benchmark/radar_inventory.py`
+  (22 min, serve la cache del radar e `fetch bpic2012 bpic2013-incidents`) →
+  `tests/simulation/benchmark/radar/inventory.{md,json}`: 33/33 voci, 2.205 log, 42 file holdout
+  marcati e mai aperti.
+- Protocollo: PROTOCOL.md §10 (ruolo di ogni voce, sovrapposizioni, secondo set), §11 (CF-01),
+  confronto appaiato nel §1. Secondo lucchetto `protocol/holdout2.lock.json` `24974f9b…`:
+  CallCenter + Road Traffic Fines (con `Trafic` di DAS-RP). La guardia chiude i due set e
+  `final_evaluation(<impronta>)` ne apre uno solo.
+- Per chiudere: Sohayb conferma il secondo set e la soglia dell'1% della direzione (CF-01);
+  poi CI verde, merge su `main`, PLAN «fatto», questa sezione riscritta.
+- Per RAD-02: log di sviluppo del radar dal §10 (BPIC 2019, BPIC 2018, Sepsis, Hospital Billing,
+  Helpdesk solo ricerca, BPIC 2017 completo); il secondo set si apre una volta, alla fine.
 
 ## Ultima misura
 

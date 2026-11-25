@@ -18,6 +18,50 @@ Modello:
 
 ---
 
+## 2026-11-25 — RAD-01 inventario del radar e PROTO-02 secondo set — in corso (manca la conferma di Sohayb)
+
+- Branch / PR: `claude/vpt-radar-inventory-j14bbw` (il branch assegnato alla sessione cloud, al
+  posto di `chore/radar-inventory`).
+- Meta RAD-01 (*proposta*): per ogni log del radar casi, eventi, attività, periodo, risorse, inizio
+  e fine, osservabilità; ogni file confrontato per hash e nome con sviluppo e holdout; nessun
+  holdout aperto → misura: 33/33 voci, 2.205 log, 42 file holdout marcati e mai aperti (8 con i
+  nomi del primo set in Kronos, 34 del secondo set), sovrapposizioni dichiarate in PROTOCOL.md §10
+  (comando: `uv run --with ijson python tests/simulation/benchmark/radar_inventory.py`, 22 min;
+  report in `tests/simulation/benchmark/radar/inventory.md`).
+- Meta PROTO-02 (*proposta*): ruolo di ogni voce del radar, secondo set congelato per hash prima
+  dell'uso, confronti appaiati e metriche di CF-01 senza toccare il benchmark → PROTOCOL.md §10
+  e §11, `holdout2.lock.json` `24974f9b…` (CallCenter, Road Traffic Fines con la copia di DAS-RP),
+  primo lucchetto invariato; `test_protocol.py` 124 → 139 test, `test_radar_inventory.py` 22.
+- Iterazioni: 1) giro di prova: falsi «contiene i casi» fra id numerici lunghi di processi diversi
+  (BPIC19 OCEL contro AcademicCredentials) → gli id da soli valgono solo con attività in comune o
+  ricodificate; JSON da 129 MB → relazioni più forti, al massimo 6; simulati del BPS Quality
+  Framework letti come «completa» → marcatori di percorso; 2) OCEL fino a 11 GB → streaming con
+  ijson; zip in 7 parti di `cdlg-drift-val` → riuniti con `zip -s 0`; 3) giro finale dopo la review.
+- Trovato: ProCause non contiene file BPIC (solo `.gitkeep`); la copia di Helpdesk contiene BPIC
+  2012 W e BPIC 2013 incidents (stessi casi, attività come numeri) e `env_permit` (CoSeLoG, escluso:
+  forse lo stesso comune dell'holdout BPIC 2015); il BPS Quality Framework contiene
+  AcademicCredentials identico per hash, BPIC 2012/2017 W e simulati, più CallCenter; AgentSimulator
+  e AT-KDE solo Loan_Application; DAS-RP estratti di BPIC 2019, Sepsis, Road Traffic Fines e un
+  sintetico Loan_Application; Kronos file con i nomi di Production e PurchasingExample. Sepsis e
+  Hospital Billing: ospedale regionale (Mannhardt, ERP), BPIC 2011 ospedale accademico (van
+  Dongen), dai metadati 4TU.
+- Decisioni: «procedi» di Sohayb (2026-11-25) preso come via libera alla proposta del secondo set;
+  il sintetico di DAS-RP proposto in un primo momento è caduto (è Loan_Application di sviluppo):
+  la categoria sintetica del secondo set la copre GT-01. Da confermare esplicitamente prima del
+  merge: il secondo set e la soglia dell'1% per la direzione dell'effetto (CF-01).
+- Code review: `code-review` 10 rilievi, tutti corretti (Wilcoxon oltre 20 repliche con
+  l'approssimazione normale; istanti compatti ed epoch; copie decompresse o ricompresse degli
+  holdout riconosciute per impronta del contenuto; OCEL grandi senza ijson riportati; messaggio
+  della guardia con il set; lucchetto nuovo registrato nel processo; `--set 2` senza il primo
+  lucchetto; contenuto delle parti train/test; marcatore `test`; file gzip chiusi). `simplify`
+  (4 revisori): applicati un solo `sha256_stream`, helper riusati (`_local`, `summarize`,
+  `DATASETS`), `compare` a calcolo unico, codice duplicato tolto; non applicati con motivo (PR):
+  streaming in un passaggio, sketch degli id, alias spostati nella guardia, tabella dei set,
+  statistica in un modulo a parte. Nessuna modifica ad autenticazione: niente `security-review`.
+- Skill: code-review, simplify (backend e ricerca: nessuna skill di frontend). Nessuna UI: gate UX
+  non applicabile.
+- Prossimo passo: conferma di Sohayb, CI verde, merge; poi RAD-02 sui log di sviluppo del §10.
+
 ## 2026-11-25 — Code review di RAD-00: login Supabase e host di Mannheim — fatto
 
 - Branch / PR: `claude/delir-dataset-research-1a7xd5`.
