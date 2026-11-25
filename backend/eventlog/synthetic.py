@@ -14,6 +14,7 @@ from backend.simulation.engine import LogEvent, get_engine
 
 
 def from_log_events(events: list[LogEvent], *, source_name: str | None = None) -> EventLog:
+    pool = get_engine().resource_pool
     canonical = tuple(
         CanonicalEvent(
             case_id=ev.case_id,
@@ -22,7 +23,7 @@ def from_log_events(events: list[LogEvent], *, source_name: str | None = None) -
             enabled=_utc(ev.enable),
             end=_utc(ev.end),
             resource=ev.resource or None,
-            role=get_engine().resource_pool(ev.resource) if ev.resource else None,
+            role=pool(ev.resource) if ev.resource else None,
         )
         for ev in events
     )
