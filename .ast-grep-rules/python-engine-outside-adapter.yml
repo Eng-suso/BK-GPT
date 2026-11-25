@@ -39,6 +39,21 @@ rule:
       has:
         field: module_name
         regex: *adapter
+    # from .log_processor import ... / from ..ir.compile import ...
+    - kind: import_from_statement
+      has:
+        field: module_name
+        kind: relative_import
+        regex: '^\.+(prosimos_adapter|bpmn_normalizer|compatibility|log_processor|compile|prosimos|ir\.compile|engine\.prosimos)(\s|$)'
+    # from . import log_processor / from .. import prosimos_adapter
+    - kind: import_from_statement
+      all:
+        - has:
+            field: module_name
+            regex: '^\.+(ir|engine)?$'
+        - has:
+            field: name
+            regex: '^(prosimos_adapter|bpmn_normalizer|compatibility|log_processor|compile|compile_for_prosimos|prosimos)(\s|$)'
     # from backend.simulation import prosimos_adapter / from backend.simulation.ir import compile
     - kind: import_from_statement
       all:
