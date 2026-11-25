@@ -89,7 +89,15 @@ verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Aut
   conta come sconfitta.
 - **Misura completa lanciata** il 2026-11-25 alle ~18:10 UTC in due processi:
   log `/var/tmp/delir-g3b/logs/real.log` (5 log reali/parziali) e `synthetic.log` (20).
-  Se la sessione si interrompe basta rilanciare `run.py`: salta ciò che è misurato.
+  Se la sessione si interrompe basta rilanciare `run.py`: salta ciò che è già scritto
+  (`--retry-failed` riprova i falliti). Alle 19:01 UTC: 142/450 risultati.
+- Già visto: Prosimos della ricerca identico al percorso del prodotto (`engine_check.json`,
+  repliche uguali su BPIC 2012 W extr). SIMOD con ritardi crolla su AcademicCredentials
+  test (come in G3); ProSiT e AgentSimulator vanno in overflow di data su
+  AcademicCredentials validazione; AT-KDE non si applica ai sintetici con < 14 giorni di
+  arrivi, AgentSimulator agli Insurance_Claims (un solo giorno). Tutti contano come
+  sconfitta del candidato (o della base). Da rifare alla fine:
+  `run.py --configs agentsim --force` sui log dove ha fallito, per il motivo leggibile.
 
 ```bash
 tests/simulation/benchmark/g3b/setup_envs.sh
