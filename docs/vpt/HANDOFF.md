@@ -14,7 +14,7 @@ Decisione di Sohayb: servono più dati; tutti i dataset si usano per la ricerca.
 regole in [`RESEARCH_RADAR.md`](./RESEARCH_RADAR.md), punti nella sezione R di [`PLAN.md`](./PLAN.md).
 
 ```bash
-uv run python scripts/fetch_datasets.py fetch --collection radar   # 33 voci, ~3 GB, MD5 o commit
+uv run python scripts/fetch_datasets.py fetch --collection radar   # 33 voci, ~24 GB estratti, MD5 o commit
 uv run python scripts/fetch_datasets.py list                       # colonna "radar"
 uv run pytest --noconftest -q tests/simulation/test_dataset_manifest.py
 ```

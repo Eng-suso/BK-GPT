@@ -11,7 +11,7 @@ uv run python scripts/fetch_datasets.py list                       # catalogo
 uv run python scripts/fetch_datasets.py verify                     # i dataset nel repo ci sono
 uv run python scripts/fetch_datasets.py fetch --all                # tutti quelli scaricabili
 uv run python scripts/fetch_datasets.py fetch --all --allow-noncommercial   # anche quelli accademici
-uv run python scripts/fetch_datasets.py fetch --collection radar   # Research Radar (~3 GB)
+uv run python scripts/fetch_datasets.py fetch --collection radar   # Research Radar (~2,9 GB di download, ~24 GB estratti)
 uv run python scripts/fetch_datasets.py path bpic2012              # dove sta
 ```
 

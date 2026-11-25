@@ -8,7 +8,7 @@ simulatore e predittore; tutti i dataset e i repository qui sotto si usano per l
 sezione «R — Research Radar».
 
 ```bash
-uv run python scripts/fetch_datasets.py fetch --collection radar   # tutto il radar, MD5 o commit verificati
+uv run python scripts/fetch_datasets.py fetch --collection radar   # tutto il radar: ~2,9 GB di download, ~24 GB estratti (bpic-ocel2 da solo 18 GB)
 uv run python scripts/fetch_datasets.py fetch bpic2019 simbank      # per id
 ```
 
@@ -18,7 +18,7 @@ uv run python scripts/fetch_datasets.py fetch bpic2019 simbank      # per id
    restano congelati e chiusi. Un log del radar entra in un esperimento solo dopo che
    PROTO-02 lo ha dichiarato (sviluppo, nuovo holdout o escluso) in `PROTOCOL.md`.
 2. **Deduplica prima dell'uso (RAD-01).** Alcuni pacchetti contengono log che abbiamo già
-   (BPIC 2012/2017 dentro ProCause, i log di Camargo dentro i pacchetti di SIMOD, AgentSimulator
+   (BPIC 2012/2017 dentro ProCause, BPIC 2012 W e BPIC 2013 nella copia di Helpdesk, i log di Camargo dentro i pacchetti di SIMOD, AgentSimulator
    e del BPS Quality Framework). Si confrontano per hash e per nome; un file che coincide con
    un holdout si marca e non si apre. Esclusi già dal manifest: i BPIC 2015 del pacchetto OCEL
    (Municipality 1 è un holdout, gli altri comuni sono lo stesso processo).

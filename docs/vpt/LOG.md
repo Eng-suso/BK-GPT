@@ -24,7 +24,7 @@ Modello:
 - Origine: analisi «Dataset & Research Radar» portata da Sohayb; decisione di Sohayb: servono
   più dati, si usano tutti i dataset per la ricerca (il prodotto non è in vendita).
 - Meta: 21 dataset e 12 repository nel manifest con URL e MD5 o commit, scaricati e verificati;
-  `fetch --all` invariato → misura ottenuta: download in corso (14/33 verificati, nessun errore); esito finale aggiornato a fine download (comando:
+  `fetch --all` invariato → misura ottenuta: 33/33 scaricati e verificati, 0 errori, ~24 GB estratti nella cache (bpic-ocel2 18 GB) (comando:
   `uv run python scripts/fetch_datasets.py fetch --collection radar`).
 - Cosa è cambiato:
   - `datasets/manifest.json`: 33 voci con `"collection": "radar"` e `kind`
