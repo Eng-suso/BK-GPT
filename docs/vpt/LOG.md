@@ -18,6 +18,40 @@ Modello:
 
 ---
 
+## 2026-11-25 — RAD-00 Research Radar nel manifest e nel piano — fatto
+
+- Branch / PR: `claude/delir-dataset-research-1a7xd5`.
+- Origine: analisi «Dataset & Research Radar» portata da Sohayb; decisione di Sohayb: servono
+  più dati, si usano tutti i dataset per la ricerca (il prodotto non è in vendita).
+- Meta: 21 dataset e 12 repository nel manifest con URL e MD5 o commit, scaricati e verificati;
+  `fetch --all` invariato → misura ottenuta: download in corso (14/33 verificati, nessun errore); esito finale aggiornato a fine download (comando:
+  `uv run python scripts/fetch_datasets.py fetch --collection radar`).
+- Cosa è cambiato:
+  - `datasets/manifest.json`: 33 voci con `"collection": "radar"` e `kind`
+    (Zenodo, 4TU, GitHub, GitLab), ognuna con i punti del piano che la usano;
+  - `scripts/fetch_datasets.py`: `fetch --collection <nome>`; `--all` resta il nucleo,
+    `--all --collection radar` prende entrambi; test in `test_dataset_manifest.py`;
+  - `docs/vpt/RESEARCH_RADAR.md`: catalogo, lacune coperte, regole, Ground Truth Benchmark,
+    tre correzioni al protocollo, scorecard della North Star;
+  - `PLAN.md`: sezione R (RAD-00, RAD-01, PROTO-02, RAD-02, ANA-01, GT-01, DRIFT-01, OC-01),
+    CF-01 e PERF-01 estesi, ordine aggiornato; Master Plan V2 aggiornato (tabella dei dataset,
+    ordine di esecuzione, paragrafo sul radar).
+- Decisioni: il radar è una collezione separata; i 6 holdout di PROTO-01 non si toccano.
+  Esclusi dal manifest i BPIC 2015 del pacchetto OCEL (Municipality 1 è holdout, gli altri
+  comuni sono lo stesso processo). Nessun evento di un log del radar letto: solo nomi, dimensioni,
+  licenze. Nel repo pubblico non entra nessun file del radar, solo il manifest.
+- Non acquisiti: CDLG e Steady-State Detection (`gitlab.uni-mannheim.de` rifiutato dal proxy),
+  Helpdesk originale (Mendeley), ProcessLog (sorgente non identificata). Sostituti nel radar:
+  `cdlg-drift-val`, copia CSV di Helpdesk.
+- Review: `code-review` (1 rilievo: `--all --collection` saltava il nucleo, corretto con test;
+  una prima esecuzione sul `main` locale vecchio ha trovato un difetto preesistente, fuori da
+  questo diff e confermato su `main`: `backend/security.py:111` e `backend/llm/egress.py:250`
+  confrontano `delir_auth_provider` senza `strip().lower()`, mentre l'avvio e `/v1/auth/config`
+  lo normalizzano; con `DELIR_AUTH_PROVIDER=Supabase` ogni token Supabase riceve 401. Da
+  correggere in un punto a parte), `simplify` (selezione degli id unificata).
+- Skill: code-review, simplify. Nessuna UI toccata: gate UX non applicabile.
+- Prossimo passo: RAD-01 (inventario e deduplica), in parallelo al P0; poi PROTO-02.
+
 ## 2026-11-25 — PROTO-01 protocollo sperimentale — fatto
 
 - Branch / PR: `docs/vpt-protocol`, #190, CI verde.
