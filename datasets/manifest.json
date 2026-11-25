@@ -79,7 +79,8 @@
       "bytes": 282752653,
       "extract": true,
       "use": [
-        "validazione predittiva e confronto con approcci pubblicati (H1)"
+        "validazione predittiva e confronto con approcci pubblicati (H1)",
+        "PROTO-01: Production, ConsultaDataMining, PurchasingExample e confidential sono log holdout, si aprono solo per la valutazione finale"
       ]
     },
     {
@@ -183,6 +184,36 @@
       "use": [
         "ricerca e pubblicazioni accademiche (R1, R6, benchmark A → B)",
         "mai nei numeri commerciali di DeliR"
+      ]
+    },
+    {
+      "id": "bpic2015-municipality1",
+      "title": "BPI Challenge 2015, Municipality 1 (permessi edilizi di un comune olandese)",
+      "mode": "fetch",
+      "license": "4TU General Terms of Use",
+      "source": "https://doi.org/10.4121/uuid:a0addfda-2044-4541-a450-fdcc9fe16d17",
+      "url": "https://data.4tu.nl/file/6f35269e-4ce7-4bc4-9abb-b3cea04cad00/2c8d5827-3e08-471d-98e2-6ffdec92f958",
+      "file": "BPIC15_1.xes",
+      "md5": "6c8a04d566eef571cf0aaf7b6f70310b",
+      "bytes": 41227060,
+      "extract": false,
+      "use": [
+        "PROTO-01 log holdout (osservabilità parziale): si apre solo per la valutazione finale"
+      ]
+    },
+    {
+      "id": "bpic2011-hospital",
+      "title": "BPI Challenge 2011, Hospital log (ospedale universitario olandese)",
+      "mode": "fetch",
+      "license": "4TU General Terms of Use",
+      "source": "https://doi.org/10.4121/uuid:d9769f3d-0ab0-4fb8-803b-0d1120ffcf54",
+      "url": "https://data.4tu.nl/file/5ea5bb88-feaa-4e6f-a743-6460a755e05b/6f9640f9-0f1e-44d2-9495-ef9d1bd82218",
+      "file": "Hospital_log.xes.gz",
+      "md5": "482adef27906fb3f0b66989798edd987",
+      "bytes": 2384410,
+      "extract": false,
+      "use": [
+        "PROTO-01 log holdout (osservabilità parziale): si apre solo per la valutazione finale"
       ]
     }
   ]
