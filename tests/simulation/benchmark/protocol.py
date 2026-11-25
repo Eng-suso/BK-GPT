@@ -45,6 +45,8 @@ from tests.simulation.benchmark.log_distance import Event, cases
 BENCHMARK = Path(__file__).resolve().parent
 ROOT = BENCHMARK.parents[2]
 LOCK_PATH = BENCHMARK / "protocol" / "holdout.lock.json"
+# Il secondo set di holdout (PROTO-02), indipendente dal primo: il primo lucchetto resta com'e'.
+LOCK2_PATH = BENCHMARK / "protocol" / "holdout2.lock.json"
 PROTOCOL_DOC = ROOT / "docs" / "vpt" / "PROTOCOL.md"
 
 # Estensioni con cui un log (o una sua copia convertita) puo' comparire su disco. Non
@@ -80,6 +82,12 @@ def load_lock(path: Path = LOCK_PATH) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+@cache
+def lock_paths() -> tuple[Path, ...]:
+    """I lucchetti congelati: quello di PROTO-01 e, se c'e', il secondo set di PROTO-02."""
+    return tuple(path for path in (LOCK_PATH, LOCK2_PATH) if path.is_file())
+
+
 @dataclass(frozen=True, slots=True)
 class BlockedNames:
     names: frozenset[str]  # nomi di file esatti (minuscolo)
@@ -98,7 +106,8 @@ def blocked_names(path: Path = LOCK_PATH) -> BlockedNames:
     stems: set[str] = set()
     folders: set[str] = set()
     for holdout in lock["holdouts"]:
-        folders.add(holdout["dataset"].lower())
+        if holdout.get("closes_dataset", True):  # un holdout dentro un pacchetto di sviluppo chiude solo i suoi file
+            folders.add(holdout["dataset"].lower())
         for item in holdout["files"]:
             relative = Path(item["path"])
             names.add(relative.name.lower())
@@ -106,7 +115,7 @@ def blocked_names(path: Path = LOCK_PATH) -> BlockedNames:
             if len(relative.parts) > 1:  # la radice dell'archivio estratto (es. il pacchetto Camargo)
                 folders.add(relative.parts[0].lower())
         stems.update(stem.lower() for stem in holdout["names"])
-    for container in lock["containers"]:
+    for container in lock.get("containers", []):
         names.add(container["file"].lower())
     return BlockedNames(frozenset(names), frozenset(stems), frozenset(folders))
 
@@ -116,14 +125,20 @@ def _derived(stem: str, blocked: frozenset[str]) -> bool:
     return any(stem == s or stem.startswith((f"{s}_", f"{s}-")) for s in blocked)
 
 
-def is_holdout(path: str | bytes | os.PathLike) -> bool:
-    """Il file e' un log holdout, ne deriva, o sta in un dataset holdout (archivio compreso)."""
+def is_holdout(path: str | bytes | os.PathLike, locks: Sequence[Path] | None = None) -> bool:
+    """Il file e' un log holdout, ne deriva, o sta in un dataset holdout (archivio compreso).
+
+    ``locks``: i lucchetti da considerare; di default tutti quelli congelati.
+    """
     # Gira a ogni apertura di file del processo: stringhe, niente Path ne' syscall.
     *folders, name = os.fsdecode(path).lower().replace("\\", "/").split("/")
-    blocked = blocked_names()
-    if name in blocked.names or not blocked.folders.isdisjoint(folders):
-        return True
-    return name.endswith(LOG_SUFFIXES) and _derived(_stem(name), blocked.stems)
+    for lock in lock_paths() if locks is None else locks:
+        blocked = blocked_names(lock)
+        if name in blocked.names or not blocked.folders.isdisjoint(folders):
+            return True
+        if name.endswith(LOG_SUFFIXES) and _derived(_stem(name), blocked.stems):
+            return True
+    return False
 
 
 # --------------------------------------------------------------------------- guardia
@@ -134,9 +149,9 @@ _installed = False
 # gli holdout; "final" li apre per la valutazione finale; "integrity" solo per l'impronta.
 # Un thread nuovo parte chiuso: aprire gli holdout in un thread non li apre negli altri.
 _local = threading.local()
-_OPEN_PHASES = {"final", "integrity"}
 _ACCMODE = getattr(os, "O_ACCMODE", os.O_RDONLY | os.O_WRONLY | os.O_RDWR)  # Windows non lo definisce
-_frozen_files: set[tuple[int, int]] = set()  # (device, inode) dei file holdout nella cache
+_frozen_files: set[tuple[int, int]] = set()  # (device, inode) dei file holdout nella cache, tutti i lucchetti
+_frozen_by_lock: dict[Path, set[tuple[int, int]]] = {}
 
 
 def _reads(mode: str | None, flags: int) -> bool:
@@ -146,36 +161,42 @@ def _reads(mode: str | None, flags: int) -> bool:
     return flags & _ACCMODE in (os.O_RDONLY, os.O_RDWR)
 
 
-def _same_file_as_a_holdout(target: str | bytes | os.PathLike) -> bool:
+def _same_file_as_a_holdout(target: str | bytes | os.PathLike, locks: Sequence[Path] | None = None) -> bool:
     """Un collegamento (anche fisico) con un nome innocuo a un file holdout della cache."""
-    if os.path.islink(target) and is_holdout(os.path.realpath(target)):
+    if os.path.islink(target) and is_holdout(os.path.realpath(target), locks):
         return True
-    if not _frozen_files:
+    frozen = _frozen_files if locks is None else set().union(*(_frozen_by_lock.get(lock, set()) for lock in locks))
+    if not frozen:
         return False
     try:
         stat = os.stat(target)
     except OSError:
         return False
-    return (stat.st_dev, stat.st_ino) in _frozen_files
+    return (stat.st_dev, stat.st_ino) in frozen
 
 
 def _audit(event: str, args: tuple) -> None:
-    if event != "open" or getattr(_local, "phase", "closed") in _OPEN_PHASES:
+    phase = getattr(_local, "phase", "closed")
+    if event != "open" or phase == "integrity":
         return
     target, mode, flags = args
     if isinstance(target, int) or target is None or not _reads(mode, flags):  # descrittore, o sola scrittura
         return
-    if is_holdout(target) or _same_file_as_a_holdout(target):
+    # Nella valutazione finale e' aperto solo il lucchetto scelto: gli altri set restano chiusi.
+    locks = None if phase != "final" else tuple(lock for lock in lock_paths() if lock != _local.open_lock)
+    if locks == ():
+        return
+    if is_holdout(target, locks) or _same_file_as_a_holdout(target, locks):
         raise HoldoutAccessError(
             f"{os.fsdecode(target)} e' un log holdout di PROTO-01: si apre solo in "
             "protocol.final_evaluation(), dopo che la selezione e' chiusa (docs/vpt/PROTOCOL.md)"
         )
 
 
-def _cached_holdout_files() -> set[tuple[int, int]]:
+def _cached_holdout_files(lock: Path = LOCK_PATH) -> set[tuple[int, int]]:
     root = fetch_datasets.cache_dir()
     found = set()
-    for holdout in load_lock()["holdouts"]:
+    for holdout in load_lock(lock)["holdouts"]:
         for item in holdout["files"]:
             try:
                 stat = (root / holdout["dataset"] / item["path"]).stat()
@@ -190,8 +211,10 @@ def install() -> None:
     global _installed
     with _install_lock:
         if not _installed:
-            blocked_names()  # il lucchetto si legge prima di attivare la guardia
-            _frozen_files.update(_cached_holdout_files())
+            for lock in lock_paths():  # i lucchetti si leggono prima di attivare la guardia
+                blocked_names(lock)
+                _frozen_by_lock[lock] = _cached_holdout_files(lock)
+                _frozen_files.update(_frozen_by_lock[lock])
             sys.addaudithook(_audit)
             _installed = True
 
@@ -221,14 +244,21 @@ def selection_phase() -> Iterator[None]:
 
 @contextmanager
 def final_evaluation(digest: str) -> Iterator[None]:
-    """Apre gli holdout nel thread corrente. ``digest`` e' l'impronta scritta in PROTOCOL.md.
+    """Apre gli holdout di un lucchetto nel thread corrente; gli altri set restano chiusi.
 
-    Si usa una volta, a selezione chiusa e congelata, e l'apertura si scrive in LOG.md.
+    ``digest`` e' l'impronta del lucchetto scritta in PROTOCOL.md. Si usa una volta per set, a
+    selezione chiusa e congelata, e l'apertura si scrive in LOG.md.
     """
-    if digest != lock_digest():
+    opened = next((lock for lock in lock_paths() if lock_digest(lock) == digest), None)
+    if opened is None:
         raise HoldoutAccessError("impronta del lucchetto diversa: gli holdout restano chiusi")
-    with _phase("final"):
-        yield
+    previous = getattr(_local, "open_lock", None)
+    _local.open_lock = opened
+    try:
+        with _phase("final"):
+            yield
+    finally:
+        _local.open_lock = previous
 
 
 def fingerprint(open_binary: Callable[[], BinaryIO]) -> str:
@@ -244,14 +274,14 @@ def fingerprint(open_binary: Callable[[], BinaryIO]) -> str:
     return digest.hexdigest()
 
 
-def verify_frozen(cache_root: Path) -> list[str]:
+def verify_frozen(cache_root: Path, lock: Path = LOCK_PATH) -> list[str]:
     """Le differenze fra i log holdout nella cache e il lucchetto; vuota se tutto torna.
 
     Legge i file solo per calcolarne lo SHA-256, mai per il contenuto.
     """
     problems = []
     with _phase("integrity"):
-        for holdout in load_lock()["holdouts"]:
+        for holdout in load_lock(lock)["holdouts"]:
             for item in holdout["files"]:
                 path = cache_root / holdout["dataset"] / item["path"]
                 if not path.is_file():
