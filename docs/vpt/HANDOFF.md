@@ -12,19 +12,46 @@ trasformato il Master Plan V2 in un programma di ricerca (sezione "P0" di
 **ENG-01** (Simulation Engine Interface); poi **G3b**. B3 parte solo dopo G3b. Nessun
 candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
 
-## ENG-01 (in corso dal 2026-11-25, `feat/sim-engine-interface`)
+## ENG-01 (fatto il 2026-11-25, `feat/sim-engine-interface`)
 
-Simulation Engine Interface fra l'IR e il motore; Prosimos diventa un adattatore.
-In parallelo: VAL-01 e PROTO-01 (non tocco la validazione dell'import nell'IR).
+Fra l'IR e il motore c'è una sola porta: `backend/simulation/engine/`. Prosimos 2.1
+è un adattatore dietro di essa e la CI blocca chi lo importa da fuori.
 
-- Misura "prima" (harness B2 su `main` 3cb2825, stack reale, 19 scenari): SHA-256
-  di `baseline.json` `4e4fce5d…`. Diverso dal file nel repo (`24809a7f…`) solo per
-  `import_notes` 4 → 5 sulle 4 Procure_to_Pay: la nota di IMP-01 arrivata dopo B2;
-  metriche identiche. Il "dopo" deve dare `4e4fce5d…`.
-- Interfaccia: `backend/simulation/engine/__init__.py` (verbi, tipi, registro),
-  adattatore `engine/prosimos.py`; regola `.ast-grep-rules/python-engine-outside-adapter.yml`
-  (prova a due vie fatta: 7/7 import vietati presi, 4/4 leciti no). Prima del
-  refactor 15 rilievi in `backend/`.
+```bash
+uvx --from ast-grep-cli==0.51.3 ast-grep scan --error --rule .ast-grep-rules/python-engine-outside-adapter.yml backend/   # 0 rilievi
+eval "$(scripts/vpt_stack.sh env)" && uv run pytest -q tests/simulation/test_engine_interface.py
+uv run python tests/simulation/benchmark/eval_harness.py --out /tmp/b2    # baseline.json identico a main
+```
+
+- **Interfaccia** (`engine/__init__.py`): `SimulationEngine` (Protocol) con i verbi
+  valida (`prepare_bpmn`, `validate`, `compatibility_report`), compila (`compile`),
+  esegue (`run`), annulla (`cancel`), risultati (`read_log`, `resource_pool`,
+  `summarize_run`, `summarize_events`); tipi neutri `LogEvent`, `after_warmup`,
+  `EngineError`/`EngineCancelled`/`EngineLogError`, alias `CompiledScenario`,
+  `EngineRunRequest`, `EngineRunResult` dei modelli (invariati); registro `get_engine()`,
+  un'istanza per nome.
+- **Adattatore**: `engine/prosimos.py` più i moduli che sanno di Prosimos
+  (`prosimos_adapter`, `bpmn_normalizer`, `compatibility`, `ir/compile`,
+  `log_processor`). All'import carica solo `ir.compile`: il test del contratto gira
+  nel venv del runner senza httpx (c'è un test che lo controlla).
+- **Regola** `python-engine-outside-adapter` (bloccante in CI): `prosimos`,
+  `pix_framework` e i moduli dell'adattatore, import assoluti e relativi. Provata nei
+  due sensi: 11/11 import vietati presi, 7/7 leciti no.
+- **Nomi storici rimasti** perché i test (non modificabili) li sostituiscono:
+  `service.run_prosimos_simulation`, `routes/eventlog.parse_prosimos_log`,
+  `ir.compile_for_prosimos` (risolto dal registro). Test e script in `scripts/`
+  importano ancora l'adattatore: sono fuori dalla regola (solo `backend/`).
+- **Annulla**: c'è nell'interfaccia e nei test, ma il worker non lo usa. Il runner
+  HTTP non sa fermare un calcolo: annullare libera il posto mentre il runner lavora
+  ancora (oltre `SIMULATION_MAX_CONCURRENT_RUNS`). Collegarlo richiede un endpoint di
+  stop nel runner (seguito per ENG-02).
+- **Misura**: harness B2 prima e dopo, `baseline.json` SHA-256 `4e4fce5d…` identico
+  bit per bit (9/9 dentro). Il file in `b2/baseline.json` del repo (`24809a7f…`) è
+  vecchio di IMP-01: differisce solo per `import_notes` 4 → 5 sulle 4 Procure_to_Pay.
+  Suite intera 3018 passati; `tests/simulation` + `tests/eventlog` 848; contratto nel
+  venv del runner 32/32.
+- **Per ENG-02**: un motore nuovo è una classe che rispetta `SimulationEngine`,
+  registrata in `_engine`; `simulation_runs.engine` salva già il nome.
 
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
