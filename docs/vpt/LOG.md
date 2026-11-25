@@ -18,6 +18,18 @@ Modello:
 
 ---
 
+## 2026-11-25 — Prosimos per l'MVP, nessun contatto con i titolari — fatto
+
+- Branch / PR: `docs/vpt-no-contact`, #188. Solo piano e documenti; Master Plan V2
+  corretto nel Claude Docs.
+- Decisione (Sohayb, dopo aver parlato con chi di dovere): Prosimos resta il motore per
+  l'MVP e per i test del prodotto con le aziende; dopo l'MVP si sostituisce con un motore
+  nativo sull'IR o con licenza permissiva (ENG-02, dietro ENG-01). Nessun contatto con i
+  titolari del codice: la richiesta esce da LIC-01.
+- Mete: nessuna abbassata.
+
+---
+
 ## 2026-11-24 — Master Plan V2 diventa un programma di ricerca — fatto
 
 - Branch / PR: `docs/vpt-research-program`. Solo piano e documenti; Master Plan V2
