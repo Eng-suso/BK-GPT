@@ -40,31 +40,18 @@ puo' prendere ogni ramo: la verifica la tratta cosi' e non calcola le attese.
 from __future__ import annotations
 
 from collections import defaultdict, deque
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from itertools import combinations, product
 from typing import Literal
 
 from defusedxml import ElementTree
 
+from backend.simulation.flow_graph import ACTIVITY_TAGS
 from backend.simulation.ir.model import Gateway, SimulationModel
 
 ProblemKind = Literal["no_start", "deadlock", "livelock", "unbounded"]
 
-ACTIVITY_TAGS = frozenset(
-    {
-        "task",
-        "userTask",
-        "serviceTask",
-        "scriptTask",
-        "businessRuleTask",
-        "manualTask",
-        "sendTask",
-        "receiveTask",
-        "callActivity",
-        "subProcess",
-    }
-)
 _CHOICE_TAGS = frozenset({"exclusiveGateway", "eventBasedGateway"})
 _INCLUSIVE_TAGS = frozenset({"inclusiveGateway", "complexGateway"})
 
@@ -124,9 +111,12 @@ class _Outcome:
 
     add: tuple[str, ...]
     probability: float | None  # None: possibile, probabilita' sconosciuta
-    possible: bool = True
     via: str | None = None  # il ramo di una decisione
     terminate: bool = False
+
+    @property
+    def possible(self) -> bool:
+        return _may_take(self.probability)
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,13 +126,21 @@ class _Step:
     fired: tuple[str, ...]
     target: Marking
     probability: float | None
-    possible: bool
     # Le decisioni che in questo passo prendono un ramo a probabilita' 0, con il ramo.
     zero: tuple[tuple[str, str], ...] = ()
 
+    @property
+    def possible(self) -> bool:
+        return not self.zero
 
-class UnsoundProcessError(ValueError):
-    """Con le sue probabilita' qualche caso del modello non finirebbe: non si simula."""
+
+class UnsoundProcessError(Exception):
+    """Con le sue probabilita' qualche caso del modello non finirebbe: non si simula.
+
+    Non e' un ``ValueError``: le route che trasformano i ``ValueError`` in un 400
+    generico la lasciano passare al gestore comune (``backend/api/errors.py``), che
+    risponde con il codice stabile ``process_cannot_finish`` su import e run.
+    """
 
     def __init__(self, problems: tuple[SoundnessProblem, ...]) -> None:
         self.problems = problems
@@ -227,7 +225,9 @@ class _Checker:
         # A ogni passo scattano tutti gli elementi abilitati (passo massimo).
         self.nodes = sorted(node for node in graph.tags if graph.incoming.get(node))
         self.known_probabilities = True
-        self._upstream: dict[str, set[int]] = {}
+        self.inputs = {node: tuple(self.index[f] for f in graph.incoming[node]) for node in self.nodes}
+        self._upstream: dict[tuple[int, str], set[int]] = {}
+        self._outcome_cache: dict[str, list[_Outcome]] = {}
 
     # ---- regole di scatto ------------------------------------------------- #
 
@@ -235,12 +235,9 @@ class _Checker:
         for flow in flows:
             marking[self.index[flow]] += 1
 
-    def _inputs(self, node: str) -> list[int]:
-        return [self.index[flow] for flow in self.graph.incoming[node]]
-
     def _enabled(self, node: str, marking: Marking) -> int | None:
         """L'indice del flusso da cui ``node`` prende il gettone, -1 se li prende tutti."""
-        inputs = self._inputs(node)
+        inputs = self.inputs[node]
         tag = self.graph.tags[node]
         if tag == "parallelGateway":
             return -1 if all(marking[i] for i in inputs) else None
@@ -252,7 +249,7 @@ class _Checker:
 
     def _or_join_ready(self, node: str, marking: Marking) -> bool:
         """Unione inclusiva: nessun gettone altrove puo' ancora arrivare a un ingresso vuoto."""
-        inputs = set(self._inputs(node))
+        inputs = set(self.inputs[node])
         empty = {i for i in inputs if not marking[i]}
         for i, tokens in enumerate(marking):
             if tokens and i not in inputs and self._reaches(i, node) & empty:
@@ -261,7 +258,7 @@ class _Checker:
 
     def _reaches(self, flow: int, join: str) -> set[int]:
         """Gli ingressi di ``join`` che un gettone su ``flow`` puo' raggiungere senza attraversarlo."""
-        key = f"{flow}->{join}"
+        key = (flow, join)
         if key not in self._upstream:
             seen: set[int] = set()
             todo = [flow]
@@ -273,7 +270,7 @@ class _Checker:
                 target = self.graph.flow_ends[self.flows[current]][1]
                 if target != join:
                     todo.extend(self.index[f] for f in self._outputs(target))
-            self._upstream[key] = seen & set(self._inputs(join))
+            self._upstream[key] = seen & set(self.inputs[join])
         return self._upstream[key]
 
     def _outputs(self, node: str) -> list[str]:
@@ -292,7 +289,7 @@ class _Checker:
             taken = self._enabled(node, marking)
             if taken is None:
                 continue
-            for i in self._inputs(node) if taken == -1 else [taken]:
+            for i in self.inputs[node] if taken == -1 else [taken]:
                 after[i] -= 1
             outcomes = self._outcomes(node)
             fired.append(node)
@@ -312,10 +309,16 @@ class _Checker:
             if any(outcome.terminate for outcome in combo):
                 target = [0] * len(target)
             zero = tuple((node, o.via or "") for node, o in zip(fired, combo, strict=True) if not o.possible)
-            steps.append(_Step(tuple(fired), tuple(target), probability, not zero, zero))
+            steps.append(_Step(tuple(fired), tuple(target), probability, zero))
         return steps
 
     def _outcomes(self, node: str) -> list[_Outcome]:
+        """Gli esiti di ``node``: non dipendono dallo stato, si calcolano una volta."""
+        if node not in self._outcome_cache:
+            self._outcome_cache[node] = self._compute_outcomes(node)
+        return self._outcome_cache[node]
+
+    def _compute_outcomes(self, node: str) -> list[_Outcome]:
         tag = self.graph.tags[node]
         outgoing = self.graph.outgoing.get(node, [])
         if tag == "endEvent":
@@ -323,7 +326,7 @@ class _Checker:
         if tag in _CHOICE_TAGS and len(outgoing) > 1:
             weights = self._weights(node, outgoing)
             return [
-                _Outcome((flow,), weights[flow], _may_take(weights[flow]), via=flow) for flow in outgoing
+                _Outcome((flow,), weights[flow], via=flow) for flow in outgoing
             ]
         if tag in _INCLUSIVE_TAGS and len(outgoing) > 1:
             return self._inclusive(node, outgoing)
@@ -352,7 +355,7 @@ class _Checker:
             for size in range(1, len(possible) + 1)
             for chosen in combinations(possible, size)
         ]
-        outcomes += [_Outcome((flow,), 0.0, False, via=flow) for flow in outgoing if flow not in possible]
+        outcomes += [_Outcome((flow,), 0.0, via=flow) for flow in outgoing if flow not in possible]
         return outcomes
 
     def _weights(self, node: str, outgoing: list[str]) -> dict[str, float | None]:
@@ -395,10 +398,7 @@ class _Checker:
         try:
             while queue:
                 marking, possible = queue.popleft()
-                if possible:
-                    if marking in reachable:
-                        continue
-                elif marking in steps:
+                if marking in (reachable if possible else steps):
                     continue
                 if marking not in steps:
                     if len(steps) >= MAX_STATES:
@@ -411,14 +411,15 @@ class _Checker:
                 if possible:
                     reachable.add(marking)
                 for step in steps[marking]:
-                    queue.append((step.target, possible and step.possible))
+                    follow = possible and step.possible
+                    if step.target not in (reachable if follow else steps):
+                        queue.append((step.target, follow))
         except _TooLarge:
             complete = False
 
         problems: list[SoundnessProblem] = []
-        exploded = sorted(overflow & reachable)
-        if exploded:
-            problems.append(self._unbounded(exploded[0]))
+        if overflow & reachable:
+            problems.append(self._unbounded(min(overflow & reachable)))
         # Uno stato con lavoro aperto e nessun passo e' un blocco anche se la
         # verifica si e' fermata prima della fine.
         deadlocks = sorted(m for m in reachable if any(m) and not steps[m] and m not in overflow)
@@ -426,9 +427,10 @@ class _Checker:
             problems.append(self._deadlock(deadlocks))
         if not complete:
             return SoundnessReport(problems=tuple(problems), states=len(steps), complete=False)
-        finishing = self._finishing(steps, {m for m in steps if not any(m)})
+        back = _backward(steps)
+        finishing = _reaching(back, {m for m in steps if not any(m)})
         # Chi finisce comunque in un blocco o nel lavoro che si moltiplica e' gia' detto sopra.
-        doomed = self._finishing(steps, set(deadlocks) | overflow)
+        doomed = _reaching(back, set(deadlocks) | overflow)
         trapped = {m for m in reachable if m not in finishing and m not in doomed}
         if trapped:
             problems.append(self._livelock(trapped, steps, finishing))
@@ -436,22 +438,6 @@ class _Checker:
         if expected and not problems and self.known_probabilities and len(initial) == 1:
             executions = self._expected(initial[0], steps, reachable)
         return SoundnessReport(problems=tuple(problems), states=len(steps), expected_executions=executions)
-
-    def _finishing(self, steps: dict[Marking, list[_Step]], goals: set[Marking]) -> set[Marking]:
-        """Gli stati da cui uno dei ``goals`` si raggiunge per rami possibili."""
-        back: dict[Marking, list[Marking]] = defaultdict(list)
-        for source, out in steps.items():
-            for step in out:
-                if step.possible:
-                    back[step.target].append(source)
-        done = set(goals)
-        todo = list(done)
-        while todo:
-            for source in back[todo.pop()]:
-                if source not in done:
-                    done.add(source)
-                    todo.append(source)
-        return done
 
     def _expected(
         self, start: Marking, steps: dict[Marking, list[_Step]], reachable: set[Marking]
@@ -485,28 +471,27 @@ class _Checker:
         return f"«{before}»" if before else "un passo senza nome"
 
     def _activity_before(self, node: str) -> str | None:
-        seen, todo = {node}, deque([node])
-        while todo:
-            current = todo.popleft()
-            for flow in sorted(self.graph.incoming.get(current, [])):
-                source = self.graph.flow_ends[flow][0]
-                if self.graph.tags.get(source) in ACTIVITY_TAGS and self.graph.names.get(source):
-                    return self.graph.names[source]
-                if source not in seen:
-                    seen.add(source)
-                    todo.append(source)
-        return None
+        """La prima attivita' con un nome risalendo i flussi da ``node``."""
+        return self._nearest_activity(node, lambda n: self.graph.incoming.get(n, []), 0)
 
     def _activity_after(self, flow: str) -> str | None:
-        seen, todo = {flow}, deque([flow])
+        """La prima attivita' con un nome seguendo ``flow``."""
+        target = self.graph.flow_ends[flow][1]
+        if self.graph.tags.get(target) in ACTIVITY_TAGS and self.graph.names.get(target):
+            return self.graph.names[target]
+        return self._nearest_activity(target, lambda n: self.graph.outgoing.get(n, []), 1)
+
+    def _nearest_activity(self, start: str, flows: Callable[[str], list[str]], end: int) -> str | None:
+        """Ricerca in ampiezza della prima attivita' con un nome; ``end`` 0 risale, 1 scende."""
+        seen, todo = {start}, deque([start])
         while todo:
-            target = self.graph.flow_ends[todo.popleft()][1]
-            if self.graph.tags.get(target) in ACTIVITY_TAGS and self.graph.names.get(target):
-                return self.graph.names[target]
-            for nxt in sorted(self.graph.outgoing.get(target, [])):
-                if nxt not in seen:
-                    seen.add(nxt)
-                    todo.append(nxt)
+            for flow in sorted(flows(todo.popleft())):
+                node = self.graph.flow_ends[flow][end]
+                if self.graph.tags.get(node) in ACTIVITY_TAGS and self.graph.names.get(node):
+                    return self.graph.names[node]
+                if node not in seen:
+                    seen.add(node)
+                    todo.append(node)
         return None
 
     def _waiting(self, marking: Marking) -> list[str]:
@@ -600,6 +585,28 @@ class _Checker:
         )
 
 
+def _backward(steps: dict[Marking, list[_Step]]) -> dict[Marking, list[Marking]]:
+    """Per ogni stato, gli stati da cui ci si arriva con un passo possibile."""
+    back: dict[Marking, list[Marking]] = defaultdict(list)
+    for source, out in steps.items():
+        for step in out:
+            if step.possible:
+                back[step.target].append(source)
+    return back
+
+
+def _reaching(back: dict[Marking, list[Marking]], goals: set[Marking]) -> set[Marking]:
+    """Gli stati da cui uno dei ``goals`` si raggiunge per passi possibili."""
+    done = set(goals)
+    todo = list(done)
+    while todo:
+        for source in back.get(todo.pop(), ()):
+            if source not in done:
+                done.add(source)
+                todo.append(source)
+    return done
+
+
 def _may_take(weight: float | None) -> bool:
     """Un ramo si puo' prendere se la sua probabilita' e' sconosciuta o positiva."""
     return weight is None or weight > 0
@@ -628,9 +635,7 @@ def _expected_visits(
         position = {m: i for i, m in enumerate(members)}
         size = len(members)
         # (I - Q_cc)^T v = b
-        matrix = [[0.0] * size for _ in range(size)]
-        for i in range(size):
-            matrix[i][i] = 1.0
+        matrix = [[float(i == j) for j in range(size)] for i in range(size)]
         for source in members:
             for target, probability in transitions.get(source, []):
                 if target in position:
