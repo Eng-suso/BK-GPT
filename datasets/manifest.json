@@ -444,7 +444,10 @@
         "B3.1 e B3.2 su un processo breve",
         "l'originale (Mendeley Data, Polato) non è raggiungibile dalla sessione cloud"
       ],
-      "collection": "radar"
+      "collection": "radar",
+      "files_md5": {
+        "data/helpdesk.csv": "a2d82bdbf71573189d20db09f3b1805c"
+      }
     },
     {
       "id": "ocel-container-logistics",
@@ -698,7 +701,8 @@
       "extract": true,
       "use": [
         "VPT-07 stesso log in forma piatta e object-centric",
-        "i BPIC 2015 del pacchetto non si scaricano: Municipality 1 è un holdout e gli altri comuni sono lo stesso processo"
+        "i BPIC 2015 del pacchetto non si scaricano: Municipality 1 è un holdout e gli altri comuni sono lo stesso processo",
+        "estratto occupa ~18 GB (BPIC 2016 soprattutto): si scarica per id quando serve"
       ],
       "collection": "radar"
     },
