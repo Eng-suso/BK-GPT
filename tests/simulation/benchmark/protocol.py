@@ -593,54 +593,115 @@ def paired_comparison(a: Sequence[float], b: Sequence[float], *, seed: int = PAI
 # --------------------------------------------------------------------------- metriche di CF-01 (PROTO-02)
 
 # Una copertura del 90% si ottiene anche con intervalli enormi: con la copertura si riportano
-# ampiezza, errore puntuale sul Δ KPI e direzione dell'effetto. Un effetto vero piu' piccolo di
-# questa quota del KPI di partenza non ha una direzione da indovinare (proposta).
-DIRECTION_MIN_EFFECT = 0.01
+# ampiezza, errore sulla grandezza dell'effetto, bias e direzione (PROTOCOL.md §11).
+# Margine di equivalenza δ: quota del KPI di partenza sotto la quale un effetto e' trascurabile.
+# L'1% e' il margine standardizzato *provvisorio* del benchmark comparativo (Sohayb, 2026-11-25),
+# non una soglia universale di rilevanza pratica (SESOI): dove un KPI lo giustifica si passa un
+# margine assoluto per intervento, e i risultati si riportano anche agli altri margini.
+EQUIVALENCE_MARGIN = 0.01
+SENSITIVITY_MARGINS = (0.005, 0.01, 0.02, 0.05)
+EffectClass = Literal["INCREASE", "DECREASE", "NEGLIGIBLE", "INCONCLUSIVE"]
+
+
+def classify_effect(low: float, high: float, margin: float) -> EffectClass:
+    """Classe di un effetto dal suo intervallo e dal margine δ (stesse unita' del KPI).
+
+    Regola conservativa ispirata ai test di equivalenza, non il TOST: decide solo un intervallo
+    tutto da una parte (sotto -δ, sopra +δ, o dentro ±δ); il resto e' INCONCLUSIVE.
+    """
+    if low > high:
+        raise ValueError("intervallo con il minimo sopra il massimo")
+    if high < -margin:
+        return "DECREASE"
+    if low > margin:
+        return "INCREASE"
+    if -margin <= low and high <= margin:
+        return "NEGLIGIBLE"
+    return "INCONCLUSIVE"
 
 
 @dataclass(frozen=True, slots=True)
 class CounterfactualOutcome:
-    """Un intervento su un sintetico con verita' nota: Δ KPI vero, previsto e intervallo al 95%."""
+    """Un intervento con verita' nota: Δ KPI vero (con il suo intervallo, se la verita' e' stimata
+    da repliche del generatore), Δ previsto e intervallo al 95% della previsione."""
 
     baseline: float  # KPI prima dell'intervento (verita')
     true_delta: float
     predicted_delta: float
     low: float
     high: float
+    true_low: float | None = None  # None: verita' esatta (true_delta)
+    true_high: float | None = None
+    absolute_margin: float | None = None  # δ in unita' del KPI (SESOI del KPI, o KPI di partenza nullo)
+
+    def margin(self, relative: float) -> float:
+        if self.absolute_margin is not None:
+            return self.absolute_margin
+        if self.baseline == 0:
+            raise ValueError("KPI di partenza nullo: serve un margine assoluto")
+        return relative * abs(self.baseline)
+
+    def truth_class(self, relative: float) -> EffectClass:
+        low = self.true_delta if self.true_low is None else self.true_low
+        high = self.true_delta if self.true_high is None else self.true_high
+        return classify_effect(low, high, self.margin(relative))
 
 
 @dataclass(frozen=True, slots=True)
 class CounterfactualMetrics:
     cases: int
+    margin: float  # δ relativo usato (i margini assoluti degli interventi prevalgono)
     coverage: float  # quota di Δ veri dentro l'intervallo (meta di CF-01: almeno 90%)
     mean_width: float  # ampiezza media dell'intervallo, nelle unita' del KPI
-    mean_relative_width: float  # ampiezza / |KPI di partenza|
-    mean_absolute_error: float  # |Δ previsto - Δ vero|
-    mean_relative_error: float  # |Δ previsto - Δ vero| / |KPI di partenza|
-    direction_cases: int  # interventi con un effetto vero di almeno DIRECTION_MIN_EFFECT
-    direction_accuracy: float | None  # quota con il segno del Δ previsto giusto, su quelli
+    mean_relative_width: float | None  # ampiezza / |KPI di partenza|, sui KPI di partenza non nulli
+    mean_absolute_error: float  # |Δ previsto - Δ vero|: errore sulla grandezza, senza soglia
+    mean_signed_error: float  # media di Δ previsto - Δ vero: bias (sovrastima > 0)
+    mean_relative_error: float | None  # |Δ previsto - Δ vero| / |KPI di partenza|, sui non nulli
+    truth_classes: dict[str, int]  # INCREASE, DECREASE, NEGLIGIBLE, INCONCLUSIVE della verita'
+    inconclusive_share: float  # quota di verita' INCONCLUSIVE: si riporta sempre
+    direction_cases: int  # verita' INCREASE o DECREASE
+    direction_accuracy: float | None  # quota con il segno del Δ previsto giusto, su quelle
+    class_agreement: float | None  # classe dell'intervallo previsto uguale a quella vera, sulle verita' decise
 
 
-def counterfactual_metrics(outcomes: Sequence[CounterfactualOutcome]) -> CounterfactualMetrics:
-    """Le metriche complete di CF-01 su un insieme di interventi con verita' nota."""
+def counterfactual_metrics(
+    outcomes: Sequence[CounterfactualOutcome], margin: float = EQUIVALENCE_MARGIN
+) -> CounterfactualMetrics:
+    """Le metriche di CF-01 su un insieme di interventi con verita' nota, al margine δ dato."""
     if not outcomes:
         raise ValueError("nessun intervento")
     for o in outcomes:
         if o.low > o.high:
             raise ValueError("intervallo con il minimo sopra il massimo")
-        if o.baseline == 0:
-            raise ValueError("KPI di partenza nullo: errore relativo non definito")
     n = len(outcomes)
-    directional = [o for o in outcomes if abs(o.true_delta) >= DIRECTION_MIN_EFFECT * abs(o.baseline)]
-    right = sum(math.copysign(1, o.predicted_delta) == math.copysign(1, o.true_delta) and o.predicted_delta != 0
+    truth = [o.truth_class(margin) for o in outcomes]
+    decided = [(o, t) for o, t in zip(outcomes, truth, strict=True) if t != "INCONCLUSIVE"]
+    directional = [o for o, t in decided if t in ("INCREASE", "DECREASE")]
+    right = sum(o.predicted_delta != 0 and math.copysign(1, o.predicted_delta) == math.copysign(1, o.true_delta)
                 for o in directional)
+    agree = sum(classify_effect(o.low, o.high, o.margin(margin)) == t for o, t in decided)
+    scaled = [o for o in outcomes if o.baseline != 0]
+
+    def mean(values: list[float]) -> float | None:
+        return round(math.fsum(values) / len(values), 6) if values else None
+
     return CounterfactualMetrics(
         cases=n,
+        margin=margin,
         coverage=round(sum(o.low <= o.true_delta <= o.high for o in outcomes) / n, 4),
         mean_width=round(math.fsum(o.high - o.low for o in outcomes) / n, 6),
-        mean_relative_width=round(math.fsum((o.high - o.low) / abs(o.baseline) for o in outcomes) / n, 6),
+        mean_relative_width=mean([(o.high - o.low) / abs(o.baseline) for o in scaled]),
         mean_absolute_error=round(math.fsum(abs(o.predicted_delta - o.true_delta) for o in outcomes) / n, 6),
-        mean_relative_error=round(math.fsum(abs(o.predicted_delta - o.true_delta) / abs(o.baseline) for o in outcomes) / n, 6),
+        mean_signed_error=round(math.fsum(o.predicted_delta - o.true_delta for o in outcomes) / n, 6),
+        mean_relative_error=mean([abs(o.predicted_delta - o.true_delta) / abs(o.baseline) for o in scaled]),
+        truth_classes={c: truth.count(c) for c in ("INCREASE", "DECREASE", "NEGLIGIBLE", "INCONCLUSIVE")},
+        inconclusive_share=round(truth.count("INCONCLUSIVE") / n, 4),
         direction_cases=len(directional),
         direction_accuracy=round(right / len(directional), 4) if directional else None,
+        class_agreement=round(agree / len(decided), 4) if decided else None,
     )
+
+
+def counterfactual_sensitivity(outcomes: Sequence[CounterfactualOutcome]) -> dict[float, CounterfactualMetrics]:
+    """Le stesse metriche ai margini di sensibilita' (0,5%, 1%, 2%, 5%): nessun margine nasconde gli altri."""
+    return {margin: counterfactual_metrics(outcomes, margin) for margin in SENSITIVITY_MARGINS}

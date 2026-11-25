@@ -455,7 +455,7 @@ def test_counterfactual_metrics_report_width_error_and_direction_not_only_covera
 
 
 def test_counterfactual_direction_ignores_effects_too_small_to_have_one():
-    tiny = _outcome(0.5, -0.4, -1, 1)  # 0,5% del KPI: sotto DIRECTION_MIN_EFFECT
+    tiny = _outcome(0.5, -0.4, -1, 1)  # 0,5% del KPI: dentro il margine δ dell'1%
     metrics = protocol.counterfactual_metrics([tiny])
     assert metrics.direction_cases == 0 and metrics.direction_accuracy is None
     assert metrics.coverage == 1.0
@@ -566,3 +566,39 @@ def test_paired_comparison_accepts_all_the_replicas_the_harness_allows():
     b = [v + 1 + (i % 3) * 0.1 for i, v in enumerate(a)]
     result = protocol.paired_comparison(a, b)
     assert result.verdict == "a meglio" and result.wilcoxon_p < 1e-5  # approssimazione normale oltre 20
+
+
+def test_effects_are_classified_only_when_the_interval_is_on_one_side():
+    assert protocol.classify_effect(-5, -2, 1) == "DECREASE"
+    assert protocol.classify_effect(2, 5, 1) == "INCREASE"
+    assert protocol.classify_effect(-0.5, 0.8, 1) == "NEGLIGIBLE"
+    assert protocol.classify_effect(-0.5, 3, 1) == "INCONCLUSIVE"
+
+
+def test_an_uncertain_truth_is_inconclusive_and_counted():
+    sure = _outcome(-10, -9, -12, -7)
+    unsure = protocol.CounterfactualOutcome(100.0, 2.0, 1.5, -1, 4, true_low=-0.5, true_high=4.5)
+    metrics = protocol.counterfactual_metrics([sure, unsure])
+    assert metrics.truth_classes == {"INCREASE": 0, "DECREASE": 1, "NEGLIGIBLE": 0, "INCONCLUSIVE": 1}
+    assert metrics.inconclusive_share == 0.5
+    assert metrics.direction_cases == 1 and metrics.class_agreement == 1.0
+
+
+def test_signed_error_shows_a_systematic_overestimate():
+    over = [_outcome(-10, -14, -16, -12), _outcome(-20, -26, -28, -24)]
+    metrics = protocol.counterfactual_metrics(over)
+    assert metrics.mean_signed_error == -5.0  # previsto piu' negativo del vero: effetto sovrastimato
+    assert metrics.mean_absolute_error == 5.0
+
+
+def test_a_zero_baseline_needs_an_absolute_margin():
+    zero = protocol.CounterfactualOutcome(0.0, 3.0, 2.5, 1, 4, absolute_margin=1.0)
+    metrics = protocol.counterfactual_metrics([zero])
+    assert metrics.truth_classes["INCREASE"] == 1 and metrics.mean_relative_error is None
+
+
+def test_sensitivity_reports_every_margin():
+    outcome = _outcome(1.5, 1.2, 0.5, 2.5)  # 1,5% del KPI
+    table = protocol.counterfactual_sensitivity([outcome])
+    assert list(table) == list(protocol.SENSITIVITY_MARGINS)
+    assert table[0.01].direction_cases == 1 and table[0.02].direction_cases == 0
