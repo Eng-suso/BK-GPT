@@ -470,3 +470,52 @@ def test_counterfactual_metrics_reject_bad_input():
         protocol.counterfactual_metrics([_outcome(1, 1, 2, 0)])
     with pytest.raises(ValueError):
         protocol.counterfactual_metrics([_outcome(1, 1, 0, 2, baseline=0)])
+
+
+# --------------------------------------------------------------------------- PROTO-02: due set di holdout
+
+
+def _second_lock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, closes_dataset: bool) -> Path:
+    """Un secondo lucchetto di prova accanto al primo, vero e invariato."""
+    lock = tmp_path / "holdout2.lock.json"
+    lock.write_text(json.dumps({
+        "protocol": "prova",
+        "holdouts": [{
+            "id": "secondo", "dataset": "pacchetto-misto", "closes_dataset": closes_dataset,
+            "names": ["SecondoSet"],
+            "files": [{"path": "logs/SecondoSet.csv.gz", "sha256": "0" * 64, "bytes": 1}],
+        }],
+    }), encoding="utf-8")
+    monkeypatch.setattr(protocol, "lock_paths", lambda: (protocol.LOCK_PATH, lock))
+    return lock
+
+
+def test_the_second_lock_closes_its_logs_and_derived_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _second_lock(tmp_path, monkeypatch, closes_dataset=False)
+    assert protocol.is_holdout("cache/altro/SecondoSet.csv.gz")
+    assert protocol.is_holdout("cache/altro/secondoset_simulato_3.csv")
+    assert not protocol.is_holdout("cache/pacchetto-misto/logs/sviluppo.csv.gz")  # il pacchetto resta di sviluppo
+    planted = _plant(tmp_path, "SecondoSet.csv")
+    with protocol.selection_phase(), pytest.raises(protocol.HoldoutAccessError):
+        planted.read_bytes()
+
+
+def test_a_second_lock_can_close_the_whole_dataset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _second_lock(tmp_path, monkeypatch, closes_dataset=True)
+    assert protocol.is_holdout("cache/pacchetto-misto/logs/sviluppo.csv.gz")
+
+
+def test_final_evaluation_opens_one_set_and_keeps_the_other_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    second = _second_lock(tmp_path, monkeypatch, closes_dataset=False)
+    first_log = _plant(tmp_path, HOLDOUT_FILES[0])
+    second_log = _plant(tmp_path, "SecondoSet.csv")
+    with protocol.final_evaluation(protocol.lock_digest()):
+        assert first_log.read_bytes()
+        with pytest.raises(protocol.HoldoutAccessError):
+            second_log.read_bytes()
+    with protocol.final_evaluation(protocol.lock_digest(second)):
+        assert second_log.read_bytes()
+        with pytest.raises(protocol.HoldoutAccessError):
+            first_log.read_bytes()
+    with protocol.selection_phase(), pytest.raises(protocol.HoldoutAccessError):
+        second_log.read_bytes()

@@ -106,13 +106,15 @@ def blocked_names(path: Path = LOCK_PATH) -> BlockedNames:
     stems: set[str] = set()
     folders: set[str] = set()
     for holdout in lock["holdouts"]:
-        if holdout.get("closes_dataset", True):  # un holdout dentro un pacchetto di sviluppo chiude solo i suoi file
+        # Un holdout dentro un pacchetto che resta di sviluppo chiude solo i suoi file (PROTO-02).
+        whole = holdout.get("closes_dataset", True)
+        if whole:
             folders.add(holdout["dataset"].lower())
         for item in holdout["files"]:
             relative = Path(item["path"])
             names.add(relative.name.lower())
             stems.add(_stem(relative.name).lower())
-            if len(relative.parts) > 1:  # la radice dell'archivio estratto (es. il pacchetto Camargo)
+            if whole and len(relative.parts) > 1:  # la radice dell'archivio estratto (es. il pacchetto Camargo)
                 folders.add(relative.parts[0].lower())
         stems.update(stem.lower() for stem in holdout["names"])
     for container in lock.get("containers", []):
@@ -186,7 +188,14 @@ def _audit(event: str, args: tuple) -> None:
     locks = None if phase != "final" else tuple(lock for lock in lock_paths() if lock != _local.open_lock)
     if locks == ():
         return
-    if is_holdout(target, locks) or _same_file_as_a_holdout(target, locks):
+    if getattr(_local, "reading_lock", False):  # la guardia che legge un lucchetto non si controlla da sola
+        return
+    _local.reading_lock = True
+    try:
+        closed = is_holdout(target, locks) or _same_file_as_a_holdout(target, locks)
+    finally:
+        _local.reading_lock = False
+    if closed:
         raise HoldoutAccessError(
             f"{os.fsdecode(target)} e' un log holdout di PROTO-01: si apre solo in "
             "protocol.final_evaluation(), dopo che la selezione e' chiusa (docs/vpt/PROTOCOL.md)"
