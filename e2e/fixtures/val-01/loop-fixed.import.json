@@ -1,0 +1,165 @@
+{
+ "bpmn_model_id": "val-model",
+ "model": {
+  "schema_version": 1,
+  "arrival": {
+   "interarrival": {
+    "kind": "fixed",
+    "value": 1800.0
+   },
+   "calendar_id": "arrival",
+   "provenance": {
+    "origin": "manual",
+    "confidence": null,
+    "sources": [],
+    "note": "Importato da uno scenario Prosimos"
+   },
+   "bands": [],
+   "band_attribute": null,
+   "months": []
+  },
+  "calendars": [
+   {
+    "id": "cal",
+    "name": "Ufficio",
+    "periods": [
+     {
+      "from_day": "MONDAY",
+      "to_day": "FRIDAY",
+      "begin": "09:00:00",
+      "end": "17:00:00",
+      "probability": null
+     }
+    ],
+    "workload": []
+   },
+   {
+    "id": "arrival",
+    "name": "Arrivi",
+    "periods": [
+     {
+      "from_day": "MONDAY",
+      "to_day": "FRIDAY",
+      "begin": "09:00:00",
+      "end": "17:00:00",
+      "probability": null
+     }
+    ],
+    "workload": []
+   }
+  ],
+  "pools": [
+   {
+    "id": "p",
+    "name": "Back office",
+    "resources": [
+     {
+      "id": "r1",
+      "name": "Operatore",
+      "cost_per_hour": 35.0,
+      "amount": 2,
+      "calendar_id": "cal",
+      "provenance": {
+       "origin": "manual",
+       "confidence": null,
+       "sources": [],
+       "note": "Importato da uno scenario Prosimos"
+      },
+      "shifts": [],
+      "kind": "person"
+     }
+    ]
+   }
+  ],
+  "activities": [
+   {
+    "element_id": "T_check",
+    "name": "Controlla documenti",
+    "assignments": [
+     {
+      "resource_id": "r1",
+      "duration": {
+       "kind": "fixed",
+       "value": 900.0
+      },
+      "provenance": {
+       "origin": "manual",
+       "confidence": null,
+       "sources": [],
+       "note": "Importato da uno scenario Prosimos"
+      }
+     }
+    ],
+    "duration_by": null,
+    "skip": null,
+    "rework": null,
+    "duration_windows": [],
+    "instances": 1,
+    "sequential_instances": true
+   },
+   {
+    "element_id": "T_archive",
+    "name": "Archivia pratica",
+    "assignments": [
+     {
+      "resource_id": "r1",
+      "duration": {
+       "kind": "fixed",
+       "value": 300.0
+      },
+      "provenance": {
+       "origin": "manual",
+       "confidence": null,
+       "sources": [],
+       "note": "Importato da uno scenario Prosimos"
+      }
+     }
+    ],
+    "duration_by": null,
+    "skip": null,
+    "rework": null,
+    "duration_windows": [],
+    "instances": 1,
+    "sequential_instances": true
+   }
+  ],
+  "gateways": [
+   {
+    "element_id": "G_complete",
+    "branches": [
+     {
+      "flow_id": "F_again",
+      "probability": 0.2,
+      "condition": null,
+      "provenance": {
+       "origin": "manual",
+       "confidence": null,
+       "sources": [],
+       "note": "Importato da uno scenario Prosimos"
+      }
+     },
+     {
+      "flow_id": "F_done",
+      "probability": 0.8,
+      "condition": null,
+      "provenance": {
+       "origin": "manual",
+       "confidence": null,
+       "sources": [],
+       "note": "Importato da uno scenario Prosimos"
+      }
+     }
+    ],
+    "escalation": null
+   }
+  ],
+  "case_attributes": [],
+  "attribute_updates": [],
+  "priority_rules": [],
+  "waits": [],
+  "availability": "fixed",
+  "granule_minutes": null
+ },
+ "notes": [],
+ "simod": {}
+}

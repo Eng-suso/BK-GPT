@@ -310,3 +310,13 @@ def test_the_import_keeps_the_old_message_text_for_existing_callers() -> None:
 
     assert str(refused.value).startswith("I casi che arrivano a «Avanzar recepcion documentos»")
     assert "Cosa fare:" in str(refused.value)
+
+
+def test_a_named_decision_is_called_by_its_name() -> None:
+    nodes = dict(LOOP_NODES)
+    bpmn = _bpmn(nodes, LOOP_FLOWS, names={"A": "Verifica documenti", "G": "Documenti completi?"})
+
+    report = check_soundness(_model(["A"], (_choice("G", f_back=1.0, f_exit=0.0),)), bpmn)
+
+    (problem,) = report.problems
+    assert "alla decisione «Documenti completi?» il processo li rimanda indietro" in problem.message

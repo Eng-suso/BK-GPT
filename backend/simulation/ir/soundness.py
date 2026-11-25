@@ -323,7 +323,7 @@ class _Checker:
                 problems=(
                     SoundnessProblem(
                         "no_start",
-                        "Il disegno del processo non ha un inizio: il motore non saprebbe da dove far partire i casi.",
+                        "Il disegno del processo non ha un inizio: la simulazione non saprebbe da dove far partire i casi.",
                         "Aggiungi l'inizio del processo nel disegno e importa di nuovo lo scenario.",
                         detail="nessuno startEvent nel BPMN",
                     ),
@@ -468,7 +468,7 @@ class _Checker:
             )
         else:
             message = (
-                "Alcuni casi si fermano a metà: il percorso porta a un passo che il motore non sa eseguire, "
+                "Alcuni casi si fermano a metà: il percorso porta a un passo che la simulazione non sa eseguire, "
                 "e quei casi non finirebbero mai."
             )
             action = "Collega il percorso a un'attività o alla fine del processo e importa di nuovo lo scenario."
@@ -493,13 +493,17 @@ class _Checker:
             gateway = sorted(exits)[0]
             before = self._activity_before(gateway)
             towards = self._activity_after(sorted(exits[gateway])[0])
-            where = f"dopo «{before}»" if before else self._label(gateway)
+            named = self.graph.names.get(gateway)
+            if named:
+                where = again = f"alla decisione «{named}»"
+            else:
+                where = f"dopo «{before}»" if before else self._label(gateway)
+                again = "dopo quell'attività" if before in names[:3] else where
             exit_text = f" verso «{towards}»" if towards else ""
-            again = "dopo quell'attività" if before in names[:3] else where
             message = (
                 f"I casi che arrivano a {activities or where} non escono più da quel tratto: {again} il "
                 f"processo li rimanda indietro ogni volta, perché la strada per proseguire{exit_text} ha "
-                "probabilità 0. Il motore ripeterebbe quel tratto all'infinito e i risultati non avrebbero senso."
+                "probabilità 0. La simulazione ripeterebbe quel tratto all'infinito e i risultati non avrebbero senso."
             )
             action = (
                 "Dai a quella strada una probabilità maggiore di zero (per esempio la quota di casi che nei dati "
