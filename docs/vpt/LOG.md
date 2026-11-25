@@ -30,12 +30,57 @@ Modello:
   in cui un deploy Supabase avrebbe accettato il token condiviso.
 - `gitlab.uni-mannheim.de` aggiunto all'ambiente BK-GPT: raggiungibile, ma risponde 404 a ogni
   richiesta, anche alla home. CDLG e SSD restano da scaricare dal computer di Sohayb.
-- Branch aperti rispetto a `main`: `feat/sim-engine-interface` (ENG-01, in corso, non toccato);
-  `feat/canvas-agent-architecture` (26), `feat/mcp-server` (3), `claude/charming-hawking-0bmoev`
+- Branch aperti rispetto a `main`: `feat/sim-engine-interface` (ENG-01) fuso in `main` (#191)
+  durante questa review, `main` riunito nel branch; `feat/canvas-agent-architecture` (26), `feat/mcp-server` (3), `claude/charming-hawking-0bmoev`
   (3, media), `fix/sim-zero-fixed-durations` (1, del 23/11) fuori dal VPT: segnalati a Sohayb,
   non fusi senza la sua decisione.
 - Skill: code-review, simplify, security-review.
 - Prossimo passo: i due prompt in `HANDOFF.md` (G3b; RAD-01 → PROTO-02).
+## 2026-11-25 — ENG-01 Simulation Engine Interface — fatto
+
+- Branch / PR: `feat/sim-engine-interface`.
+- Meta: una sola interfaccia fra IR e motore (valida, compila, esegue, annulla,
+  risultati); Prosimos adattatore, nessun modulo fuori dall'adattatore lo importa
+  (regola ast-grep bloccante); canvas, agenti, API pubbliche e modelli invariati,
+  suite `tests/simulation` ed e2e verdi senza modificarli → raggiunta. Misura: regola
+  `python-engine-outside-adapter` 0 rilievi in `backend/` (15 prima del refactor);
+  nessun file in `tests/` esistente modificato, `tests/simulation` + `tests/eventlog`
+  848 passati, suite intera 3018; harness B2 `baseline.json` prima e dopo identico
+  (SHA-256 `4e4fce5d…`, 9/9 dentro); nessun file del frontend toccato (e2e in CI).
+- Iterazioni: 1) interfaccia e regola, 15 rilievi → 0; 2) un test nuovo ha trovato
+  due istanze del motore (`get_engine()` e `get_engine("prosimos")` in cache separate)
+  → un'istanza per nome; 3) il test del contratto nel venv del runner falliva
+  (l'adattatore caricava httpx e le impostazioni) → all'import solo `ir.compile`;
+  4) harness interrotto da un run chiuso dal fixture dei test lanciati in parallelo:
+  rilanciato da solo.
+- Code review: `code-review` 7 rilievi. Corretti: il worker che annullava un run perso
+  lo segnava fallito anche se rimesso in coda, e il runner restava carico oltre il
+  limite → il worker non annulla (il verbo resta, collegarlo richiede uno stop nel
+  runner); regola estesa agli import relativi; gruppo delle risorse letto una volta per
+  log; namespace BPMN da una sola fonte; `prosimosCrossCheck` tolto nell'adattatore;
+  funzione storica dopo le costanti. Motivati: `ir/from_prosimos` fuori dalla regola
+  (è il lettore del formato di file, non il motore, ed è di VAL-01); nomi storici
+  richiesti dai test invariati. `simplify` (4 revisori): tolti il verbo `activity_ids`
+  (senza chiamanti), lo stato duplicato dell'annullamento (`Task.cancelling()`), il
+  doppio controllo del log mancante, l'adattatore caricato in `storage` per un nome,
+  un import doppio; rami della regola uniti; modulo dei log risolto una volta. Non
+  applicati: togliere `cancel`/`validate` (verbi richiesti dalla meta), `ir`
+  risolto dal registro invece di un'eccezione nella regola, helper per il BPMN della
+  richiesta (schema già presente 6 volte prima del diff). `backend/CODE_QUALITY.md`:
+  Protocol al confine, dataclass per gli eventi, nessun `Any` nuovo; ast-grep 5 regole
+  a 0 sui file toccati; ruff e mypy puliti (mypy ora copre `backend/simulation/engine`).
+  Nessuna modifica ad autenticazione o isolamento: niente `security-review`.
+- Decisioni: meta (*proposta*) confermata da Sohayb il 2026-11-25 ("procedi") con la
+  misura sopra, compreso `cancel` presente nell'interfaccia ma non usato dal worker.
+- Skill: `code-review`, `simplify` (backend: nessuna skill di frontend).
+- Trovato per strada: `tests/simulation/benchmark/b2/baseline.json` nel repo è
+  precedente a IMP-01 (`import_notes` 4 invece di 5 sulle Procure_to_Pay), metriche
+  identiche. Non aggiornato qui. Branch vecchi non miei, molto indietro su `main`:
+  `claude/charming-hawking-0bmoev`, `feat/mcp-server`, `feat/canvas-agent-architecture`,
+  `fix/sim-zero-fixed-durations`.
+- Prossimo passo: ENG-02 dopo LIC-01; per un annullamento vero serve uno stop nel runner.
+
+---
 
 ## 2026-11-25 — RAD-00 Research Radar nel manifest e nel piano — fatto
 

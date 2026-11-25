@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 import httpx
 
 from backend.settings import settings
+from backend.simulation.engine import EngineError
 from backend.simulation.models import ProsimosSimulationRequest, ProsimosSimulationResult
 from backend.simulation.validation import validate_simulation_bpmn
 
@@ -18,8 +19,8 @@ logger = logging.getLogger(__name__)
 MIN_ENGINE_MAJOR = 2
 
 
-class ProsimosError(RuntimeError):
-    pass
+class ProsimosError(EngineError):
+    """Il runner Prosimos non ha eseguito il run."""
 
 
 def _auth_headers() -> dict[str, str]:

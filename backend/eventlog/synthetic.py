@@ -10,10 +10,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from backend.eventlog.model import CanonicalEvent, EventLog
-from backend.simulation.log_processor import LogEvent, parse_prosimos_log, pool_key
+from backend.simulation.engine import LogEvent, get_engine
 
 
 def from_log_events(events: list[LogEvent], *, source_name: str | None = None) -> EventLog:
+    pool = get_engine().resource_pool
     canonical = tuple(
         CanonicalEvent(
             case_id=ev.case_id,
@@ -22,7 +23,7 @@ def from_log_events(events: list[LogEvent], *, source_name: str | None = None) -
             enabled=_utc(ev.enable),
             end=_utc(ev.end),
             resource=ev.resource or None,
-            role=pool_key(ev.resource) if ev.resource else None,
+            role=pool(ev.resource) if ev.resource else None,
         )
         for ev in events
     )
@@ -31,7 +32,7 @@ def from_log_events(events: list[LogEvent], *, source_name: str | None = None) -
 
 def from_prosimos_csv(csv_text: str, *, source_name: str | None = None) -> EventLog:
     """Il CSV di Prosimos come ``EventLog`` simulato. Alza ``ProsimosLogError`` se non si legge."""
-    return from_log_events(parse_prosimos_log(csv_text), source_name=source_name)
+    return from_log_events(get_engine().read_log(csv_text), source_name=source_name)
 
 
 def _utc(epoch: float) -> datetime:

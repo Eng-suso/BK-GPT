@@ -33,7 +33,7 @@ from backend.schemas.eventlog import (
     ResourceMatchReportResponse,
     UploadedEventLogResponse,
 )
-from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+from backend.simulation.engine import get_engine
 from backend.simulation.scenario_builder import describe_scenario_template
 from backend.workspace_database import get_bpmn_model, get_process
 from backend.workspace_services.source_ingestion import MAX_FILE_BYTES
@@ -268,7 +268,7 @@ def conformance(event_log_id: str) -> EventLogConformanceResponse:
     try:
         # Gli element_id dell'abbinamento vengono dal BPMN normalizzato per il
         # motore (``_model_targets``): si riproduce lo stesso.
-        result = check_conformance(canonical, normalize_bpmn_for_prosimos(xml), matches)
+        result = check_conformance(canonical, get_engine().prepare_bpmn(xml), matches)
     except ConformanceModelError as exc:
         raise ConformanceUnavailable("model_not_replayable", str(exc)) from exc
 
@@ -346,7 +346,7 @@ def _model_targets(process_id: str) -> _ModelTargets:
     if model is None or not (model.get("xml") or "").strip():
         return _ModelTargets([], [], None)
     xml = model["xml"]
-    template = describe_scenario_template(normalize_bpmn_for_prosimos(xml), source_bpmn_xml=xml)
+    template = describe_scenario_template(get_engine().prepare_bpmn(xml), source_bpmn_xml=xml)
     return _ModelTargets(
         activities=[ModelElement(task.element_id, task.name) for task in template.tasks],
         resources=[ModelElement(resource.id, resource.name) for resource in template.resources],

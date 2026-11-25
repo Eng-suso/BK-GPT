@@ -1,0 +1,56 @@
+id: delir-py-engine-outside-adapter
+language: python
+severity: error
+message: >-
+  Modulo del motore Prosimos importato fuori dall'adattatore. Passa dalla
+  Simulation Engine Interface: `from backend.simulation.engine import
+  get_engine` e poi `prepare_bpmn`, `validate`, `compile`, `run`, `cancel`,
+  `read_log`, `summarize_run`.
+note: >-
+  Invariante di ENG-01 (docs/vpt/PLAN.md). Prosimos e' il motore dell'MVP ma
+  non e' dato per scontato (ENG-02, LIC-01): se un modulo del prodotto lo usa
+  direttamente, cambiare motore significa riscrivere il prodotto. L'adattatore
+  e' `backend/simulation/engine/prosimos.py` piu' i moduli che sanno di
+  Prosimos (normalizzazione del BPMN, compatibilita', scenario JSON, runner
+  HTTP, log e statistiche); solo il registro `backend/simulation/engine/__init__.py`
+  carica l'adattatore. Il pacchetto `prosimos` (e `pix_framework`) gira solo nel
+  runner di `ops/prosimos/runner`.
+files:
+  - "backend/**/*.py"
+ignores:
+  - "backend/simulation/engine/__init__.py"
+  - "backend/simulation/engine/prosimos.py"
+  - "backend/simulation/prosimos_adapter.py"
+  - "backend/simulation/bpmn_normalizer.py"
+  - "backend/simulation/compatibility.py"
+  - "backend/simulation/ir/compile.py"
+  - "backend/simulation/log_processor.py"
+rule:
+  any:
+    # import prosimos / import backend.simulation.prosimos_adapter as x
+    - kind: import_statement
+      has:
+        any:
+          - kind: dotted_name
+          - kind: aliased_import
+        regex: &adapter '^(prosimos|pix_framework)(\.|\s|$)|^backend\.simulation\.(prosimos_adapter|bpmn_normalizer|compatibility|log_processor|ir\.compile|engine\.prosimos)(\s|$)'
+    # from <modulo dell'adattatore> import ...
+    - kind: import_from_statement
+      has:
+        field: module_name
+        regex: *adapter
+    # from .log_processor import ... / from ..ir.compile import ...
+    - kind: import_from_statement
+      has:
+        field: module_name
+        kind: relative_import
+        regex: '^\.+(prosimos_adapter|bpmn_normalizer|compatibility|log_processor|compile|prosimos|ir\.compile|engine\.prosimos)(\s|$)'
+    # from backend.simulation import prosimos_adapter / from . import log_processor
+    - kind: import_from_statement
+      all:
+        - has:
+            field: module_name
+            regex: '^(\.+|backend\.simulation\.?)(ir|engine)?$'
+        - has:
+            field: name
+            regex: '^(prosimos_adapter|bpmn_normalizer|compatibility|log_processor|compile|compile_for_prosimos|prosimos)(\s|$)'

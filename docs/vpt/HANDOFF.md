@@ -1,12 +1,14 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-25, dopo RAD-00 e la correzione di `DELIR_AUTH_PROVIDER`.
+Aggiornato: 2026-11-25, dopo VAL-01 (PR #189), PROTO-01 (PR #190), ENG-01 (PR #191), RAD-00
+(PR #192) e la correzione di `DELIR_AUTH_PROVIDER`.
 
 ## Punti attivi
 
-- **ENG-01** in corso su `feat/sim-engine-interface` (un altro agente; ha già fuso RAD-00).
-- Liberi, con dipendenze chiuse: **G3b** (P0, percorso critico), **LIC-01** (P0),
-  **RAD-01** → **PROTO-02** (radar), **ANA-01**. I due prompt qui sotto avviano G3b e RAD-01.
+Nessuno in corso: ENG-01 è fatto (PR #191). Liberi, con dipendenze chiuse: **G3b** (P0,
+percorso critico), **LIC-01** (P0), **RAD-01** → **PROTO-02** (radar), **ANA-01**. Poi
+B3.1-B3.3 e B3; ENG-02 dopo LIC-01. Nessun candidato (AT-KDE, POWL, ProSiT,
+AgentSimulator) si implementa prima di G3b. I due prompt qui sotto avviano G3b e RAD-01.
 
 ## Prompt per i prossimi agenti
 
@@ -68,6 +70,13 @@ Chiusura: HANDOFF.md aggiornato dopo ogni misura, voce in LOG.md, code review, s
 verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Authored-By.
 ```
 
+## Ultima misura
+
+ENG-01: harness B2 sullo stack reale prima e dopo, `baseline.json` identico bit per bit
+(SHA-256 `4e4fce5d…`, 9/9 dentro), anche dopo il merge con VAL-01. G3: il "B = A" di
+SIM-36 resta migliore di ogni scenario SIMOD, salvo BPIC 2017 W con ritardi estranei su
+RED e W1. B6: what-if 10 × 1.000 casi in 11-26 s.
+
 ## Research Radar (RAD-00 fatto il 2026-11-25)
 
 Decisione di Sohayb: servono più dati; tutti i dataset si usano per la ricerca. Dettagli e
@@ -95,6 +104,47 @@ uv run pytest --noconftest -q tests/simulation/test_dataset_manifest.py
   originale (Mendeley) e ProcessLog restano fuori.
 - **Corretto il 2026-11-25:** `DELIR_AUTH_PROVIDER` si normalizza una volta in `Settings`
   (prima `Supabase` passava l'avvio e poi ogni token Supabase riceveva 401).
+
+## ENG-01 (fatto il 2026-11-25, `feat/sim-engine-interface`)
+
+Fra l'IR e il motore c'è una sola porta: `backend/simulation/engine/`. Prosimos 2.1
+è un adattatore dietro di essa e la CI blocca chi lo importa da fuori.
+
+```bash
+uvx --from ast-grep-cli==0.51.3 ast-grep scan --error --rule .ast-grep-rules/python-engine-outside-adapter.yml backend/   # 0 rilievi
+eval "$(scripts/vpt_stack.sh env)" && uv run pytest -q tests/simulation/test_engine_interface.py
+uv run python tests/simulation/benchmark/eval_harness.py --out /tmp/b2    # baseline.json identico a main
+```
+
+- **Interfaccia** (`engine/__init__.py`): `SimulationEngine` (Protocol) con i verbi
+  valida (`prepare_bpmn`, `validate`, `compatibility_report`), compila (`compile`),
+  esegue (`run`), annulla (`cancel`), risultati (`read_log`, `resource_pool`,
+  `summarize_run`, `summarize_events`); tipi neutri `LogEvent`, `after_warmup`,
+  `EngineError`/`EngineCancelled`/`EngineLogError`, alias `CompiledScenario`,
+  `EngineRunRequest`, `EngineRunResult` dei modelli (invariati); registro `get_engine()`,
+  un'istanza per nome.
+- **Adattatore**: `engine/prosimos.py` più i moduli che sanno di Prosimos
+  (`prosimos_adapter`, `bpmn_normalizer`, `compatibility`, `ir/compile`,
+  `log_processor`). All'import carica solo `ir.compile`: il test del contratto gira
+  nel venv del runner senza httpx (c'è un test che lo controlla).
+- **Regola** `python-engine-outside-adapter` (bloccante in CI): `prosimos`,
+  `pix_framework` e i moduli dell'adattatore, import assoluti e relativi. Provata nei
+  due sensi: 11/11 import vietati presi, 7/7 leciti no.
+- **Nomi storici rimasti** perché i test (non modificabili) li sostituiscono:
+  `service.run_prosimos_simulation`, `routes/eventlog.parse_prosimos_log`,
+  `ir.compile_for_prosimos` (risolto dal registro). Test e script in `scripts/`
+  importano ancora l'adattatore: sono fuori dalla regola (solo `backend/`).
+- **Annulla**: c'è nell'interfaccia e nei test, ma il worker non lo usa. Il runner
+  HTTP non sa fermare un calcolo: annullare libera il posto mentre il runner lavora
+  ancora (oltre `SIMULATION_MAX_CONCURRENT_RUNS`). Collegarlo richiede un endpoint di
+  stop nel runner (seguito per ENG-02).
+- **Misura**: harness B2 prima e dopo, `baseline.json` SHA-256 `4e4fce5d…` identico
+  bit per bit (9/9 dentro). Il file in `b2/baseline.json` del repo (`24809a7f…`) è
+  vecchio di IMP-01: differisce solo per `import_notes` 4 → 5 sulle 4 Procure_to_Pay.
+  Suite intera 3018 passati; `tests/simulation` + `tests/eventlog` 848; contratto nel
+  venv del runner 32/32.
+- **Per ENG-02**: un motore nuovo è una classe che rispetta `SimulationEngine`,
+  registrata in `_engine`; `simulation_runs.engine` salva già il nome.
 
 ## PROTO-01 (fatto il 2026-11-25, PR #190)
 
@@ -247,13 +297,6 @@ uv run python tests/simulation/benchmark/throughput.py --check   # 1, 2, 4 worke
   risveglio vale nello stesso processo: con piu' processi API un posto liberato da un
   altro processo aspetta ancora il giro (servirebbe `LISTEN/NOTIFY`). B7 puo' contare
   su ~50 run/min da 1.000 casi con 4 worker.
-
-## Ultima misura
-
-G3, seed 20261124, 10 repliche sullo stack reale: SIMOD 5.2.1 a calendari fissi batte lo
-scenario del paper su 4/4 metriche su BPIC 2012 W e 2017 W; il "B = A" di SIM-36 resta
-migliore di ogni scenario SIMOD, salvo BPIC 2017 W con ritardi estranei su RED e W1.
-B6: what-if 10 × 1.000 casi in 11-26 s. SIM-36: baseline in `tests/simulation/benchmark/sim36/`.
 
 ## G3 spike SIMOD (fatto il 2026-11-24)
 
