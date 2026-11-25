@@ -3,3 +3,7 @@
 
 # `git apply` rifiuta i patch con CRLF: mantienili LF ovunque.
 *.patch -text
+
+# PROTO-01: l'impronta del lucchetto degli holdout e' scritta in docs/vpt/PROTOCOL.md;
+# con CRLF cambierebbe e la valutazione finale non si aprirebbe.
+tests/simulation/benchmark/protocol/holdout.lock.json text eol=lf

@@ -1,16 +1,21 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-24, dopo la chiusura di SIM-36b (PR #184) e IMP-01 (PR #185).
-Ricomposto da chi ha chiuso l'ultimo dei due (IMP-01).
+Aggiornato: 2026-11-25, dopo la chiusura di VAL-01 (PR #189), PROTO-01 (PR #190) ed
+ENG-01 (PR #191). Ricomposto da chi ha chiuso l'ultimo dei tre (ENG-01).
 
 ## Punti attivi
 
-Nessuno. SIM-36, G3, B6, SIM-36b e IMP-01 sono chiusi. Il 2026-11-24 Sohayb ha
-trasformato il Master Plan V2 in un programma di ricerca (sezione "P0" di
-[`PLAN.md`](./PLAN.md)): prossimi, in parallelo, **LIC-01** (audit delle licenze),
-**PROTO-01** (protocollo sperimentale), **VAL-01** (validazione formale all'import) ed
-**ENG-01** (Simulation Engine Interface); poi **G3b**. B3 parte solo dopo G3b. Nessun
-candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
+Nessuno. Del P0 restano **LIC-01** (audit delle licenze, nessuna dipendenza) e **G3b**
+(benchmark dei motori scientifici: dipendeva da PROTO-01, ora sbloccato). Poi
+B3.1-B3.3 e B3. ENG-02 parte dopo LIC-01 ed ENG-01 (fatto). Nessun candidato
+(AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima di G3b.
+
+## Ultima misura
+
+ENG-01: harness B2 sullo stack reale prima e dopo, `baseline.json` identico bit per bit
+(SHA-256 `4e4fce5d…`, 9/9 dentro), anche dopo il merge con VAL-01. G3: il "B = A" di
+SIM-36 resta migliore di ogni scenario SIMOD, salvo BPIC 2017 W con ritardi estranei su
+RED e W1. B6: what-if 10 × 1.000 casi in 11-26 s.
 
 ## ENG-01 (fatto il 2026-11-25, `feat/sim-engine-interface`)
 
@@ -52,6 +57,35 @@ uv run python tests/simulation/benchmark/eval_harness.py --out /tmp/b2    # base
   venv del runner 32/32.
 - **Per ENG-02**: un motore nuovo è una classe che rispetta `SimulationEngine`,
   registrata in `_engine`; `simulation_runs.engine` salva già il nome.
+
+## PROTO-01 (fatto il 2026-11-25, PR #190)
+
+Il protocollo di G3b è in [`PROTOCOL.md`](./PROTOCOL.md); in codice
+`tests/simulation/benchmark/protocol.py`, test in `test_protocol.py` (124).
+
+```bash
+uv run python scripts/fetch_datasets.py fetch bpic2012 bpic2013-incidents
+uv run python tests/simulation/benchmark/protocol_properties.py     # identificabilità dei 25 log di sviluppo
+uv run pytest --noconftest -q tests/simulation/benchmark/test_protocol.py
+```
+
+- **Holdout congelati prima di ogni misura** (commit `476e705`): 6 log, lucchetto
+  `protocol/holdout.lock.json`, impronta `1cfaa147…` scritta in PROTOCOL.md. Production,
+  ConsultaDataMining, PurchasingExample, confidential_2000 (pacchetto Camargo 2022) e BPIC
+  2015 Municipality 1, BPIC 2011 Hospital (4TU). Nel repo solo gli hash.
+- **Guardia:** audit hook in `selection_phase()`, attivo per tutti i test del benchmark
+  (`conftest.py`): chiude per nome, file derivati, cartelle dei dataset holdout (715/715 file
+  del pacchetto Camargo), collegamenti; fase per thread. Il test sui nomi copre il codice
+  di `tests/simulation`, `backend/simulation`, `backend/eventlog`, `scripts`. Si apre solo
+  con `final_evaluation(<impronta>)`, una volta, alla fine di G3b.
+- **Identificabilità** (`protocol/identifiability.md`): i 3 log del paper e i 20 sintetici
+  validano tutte le metriche osservabili; BPIC 2012 no su W1, NGD, RED (6% tagliati) e durate
+  (inizio sul 43%); BPIC 2013 no su W1, NGD, RED, CAR e durate, sì su AED, CED e risorse.
+- **Per G3b:** punti d'ingresso in `selection_phase()`, log da `development_logs()`, scelta
+  sulla validazione (`train_validation`, ultimo 20% del train), schede di go/no-go (§7) in
+  `LOG.md` prima della misura, budget del §6.
+- **Confermati da Sohayb (2026-11-25):** soglie del §4 (5% tagliati, 95% coperture, arrivi
+  ×2, 30 casi), budget del §6, go/no-go del §7.
 
 ## VAL-01 (fatto il 2026-11-25, `feat/sim-formal-validation`, PR #189)
 
@@ -175,13 +209,6 @@ uv run python tests/simulation/benchmark/throughput.py --check   # 1, 2, 4 worke
   risveglio vale nello stesso processo: con piu' processi API un posto liberato da un
   altro processo aspetta ancora il giro (servirebbe `LISTEN/NOTIFY`). B7 puo' contare
   su ~50 run/min da 1.000 casi con 4 worker.
-
-## Ultima misura
-
-G3, seed 20261124, 10 repliche sullo stack reale: SIMOD 5.2.1 a calendari fissi batte lo
-scenario del paper su 4/4 metriche su BPIC 2012 W e 2017 W; il "B = A" di SIM-36 resta
-migliore di ogni scenario SIMOD, salvo BPIC 2017 W con ritardi estranei su RED e W1.
-B6: what-if 10 × 1.000 casi in 11-26 s. SIM-36: baseline in `tests/simulation/benchmark/sim36/`.
 
 ## G3 spike SIMOD (fatto il 2026-11-24)
 
