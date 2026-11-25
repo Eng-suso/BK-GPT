@@ -139,10 +139,6 @@ class SimulationEngine(Protocol):
         """Il log degli eventi salvato di un run; ``EngineLogError`` se non si legge."""
         ...
 
-    def activity_ids(self, bpmn_xml: str) -> dict[str, str]:
-        """Dal nome dell'attivita' scritto nel log all'id dell'elemento BPMN."""
-        ...
-
     def resource_pool(self, resource: str) -> str:
         """Il gruppo di risorse (ruolo) di una risorsa scritta nel log."""
         ...

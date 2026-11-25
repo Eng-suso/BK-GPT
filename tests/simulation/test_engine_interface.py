@@ -32,7 +32,7 @@ BPMN = (
 
 VERBS = (
     "prepare_bpmn", "validate", "compatibility_report", "compile", "run", "cancel",
-    "read_log", "activity_ids", "resource_pool", "summarize_run", "summarize_events",
+    "read_log", "resource_pool", "summarize_run", "summarize_events",
 )
 
 

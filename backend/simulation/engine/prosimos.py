@@ -15,6 +15,8 @@ del backend) e compila tramite il registro. Il resto si carica al primo uso.
 from __future__ import annotations
 
 import asyncio
+from functools import cache
+from types import ModuleType
 from typing import TYPE_CHECKING
 
 from backend.simulation.engine import (
@@ -31,6 +33,13 @@ if TYPE_CHECKING:
     from backend.schemas.simulation import BpmnCompatibilityResponse
 
 
+@cache
+def _log_processor() -> ModuleType:
+    from backend.simulation import log_processor
+
+    return log_processor
+
+
 class ProsimosEngine:
     """Prosimos 2.1 tramite il runner DeliR (``ops/prosimos/runner``)."""
 
@@ -40,9 +49,8 @@ class ProsimosEngine:
     compile = staticmethod(compile_for_prosimos)
 
     def __init__(self) -> None:
-        # I run in volo in questo processo, per richiesta (``id``), e quelli annullati.
+        # I run in volo in questo processo, per richiesta (``id``).
         self._running: dict[int, asyncio.Task[EngineRunResult]] = {}
-        self._cancelled: set[int] = set()
 
     # --- valida ---------------------------------------------------------- #
     def prepare_bpmn(self, bpmn_xml: str) -> str:
@@ -75,20 +83,19 @@ class ProsimosEngine:
         try:
             return await task
         except asyncio.CancelledError:
-            if key in self._cancelled:
-                # Il runner chiude comunque il suo run: la risposta, se arriva, si scarta.
-                raise EngineCancelled("La simulazione e' stata annullata prima della fine.") from None
-            raise
+            current = asyncio.current_task()
+            if current is not None and current.cancelling():
+                raise  # annullato da fuori (es. spegnimento del worker), non da ``cancel``
+            # Il runner chiude comunque il suo run: la risposta, se arriva, si scarta.
+            raise EngineCancelled("La simulazione e' stata annullata prima della fine.") from None
         finally:
             self._running.pop(key, None)
-            self._cancelled.discard(key)
 
     def cancel(self, request: EngineRunRequest) -> bool:
         key = id(request)
         task = self._running.get(key)
         if task is None or task.done():
             return False
-        self._cancelled.add(key)
         task.cancel()
         return True
 
@@ -98,15 +105,9 @@ class ProsimosEngine:
 
         return parse_prosimos_log(log_csv)
 
-    def activity_ids(self, bpmn_xml: str) -> dict[str, str]:
-        from backend.simulation.log_processor import activity_name_to_element_id
-
-        return activity_name_to_element_id(bpmn_xml)
-
     def resource_pool(self, resource: str) -> str:
-        from backend.simulation.log_processor import pool_key
-
-        return pool_key(resource)
+        # Chiamato per ogni evento del log: il modulo si risolve una volta sola.
+        return _log_processor().pool_key(resource)
 
     def summarize_run(
         self,
@@ -119,10 +120,8 @@ class ProsimosEngine:
     ) -> tuple[dict, dict]:
         from backend.simulation.log_processor import activity_name_to_element_id, process_prosimos_log
 
-        if not result.event_log_csv:
-            raise EngineError("il motore non ha restituito il log degli eventi")
         return process_prosimos_log(
-            result.event_log_csv,
+            result.event_log_csv or "",
             normalized_bpmn_xml=bpmn_xml,
             scenario_payload=scenario.payload,
             prosimos_stats=result.payload,
