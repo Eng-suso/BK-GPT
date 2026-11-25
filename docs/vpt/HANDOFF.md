@@ -12,28 +12,39 @@ trasformato il Master Plan V2 in un programma di ricerca (sezione "P0" di
 **ENG-01** (Simulation Engine Interface); poi **G3b**. B3 parte solo dopo G3b. Nessun
 candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
 
-## VAL-01 (in corso dal 2026-11-25, `feat/sim-formal-validation`)
+## VAL-01 (fatto il 2026-11-25, `feat/sim-formal-validation`, PR #189)
 
-Validazione formale dei modelli all'import: nessun deadlock né livelock, fine
-raggiungibile da ogni stato, uscita da ogni ciclo con probabilità > 0, ripetizioni
-attese finite. In parallelo altre due sessioni su PROTO-01 ed ENG-01 (VAL-01 non tocca
-`prosimos_adapter.py` né la coda dei run).
+All'import e prima di ogni run DeliR verifica che ogni caso possa finire: niente
+deadlock né livelock, fine raggiungibile da ogni stato, uscita da ogni ciclo con
+probabilità > 0, ripetizioni attese finite. Meta confermata da Sohayb il 2026-11-25.
 
-- **Misura** (`uv run pytest --noconftest -q tests/simulation/test_soundness.py`, 51 test):
-  19/19 scenari del dataset passano, 8/8 scenari SIMOD validi di G3 passano,
-  AcademicCredentials `_diff` e `_fuzz` (ciclo a uscita 0) rifiutati sul gateway
-  `node_59fc62b1…`; < 0,1 s e ≤ 119 stati per scenario. e2e
-  `simulation-import-validation` 6/6 (chromium, mobile-chrome, axe pulito); suite
-  `tests/simulation` sullo stack 810 passati.
-- **Dove vive:** `backend/simulation/ir/soundness.py` (gioco dei gettoni a passo massimo +
-  catena assorbente per le ripetizioni attese). `import_prosimos` rifiuta con
-  `UnsoundProcessError` → 400 `process_cannot_finish` (`backend/api/errors.py`); anche
-  `scenario_builder` la chiama prima del motore (bozze dell'editor, what-if). La UI mostra
-  il messaggio in chiaro e gli id nel motivo tecnico; i file che l'editor legge da solo
-  passano anche dalla verifica del server.
-- **Gate UX:** screenshot in `docs/vpt/ux/val-01/` aperti e letti.
-- **Stato:** code review fatta (8 rilievi, 7 corretti, 1 motivato); `simplify` in corso;
-  poi PR. La meta è *proposta*: serve la conferma di Sohayb prima del merge.
+```bash
+uv run pytest --noconftest -q tests/simulation/test_soundness.py          # 51 test, < 2 s
+eval "$(scripts/vpt_stack.sh env)" && uv run pytest -q tests/simulation/test_prosimos_import_api.py
+npx playwright test e2e/simulation-import-validation.spec.ts              # DELIR_UX_SHOTS=docs/vpt/ux/val-01
+PYTHONPATH=. uv run python e2e/fixtures/val-01/generate.py                # risposte vere per l'e2e (serve lo stack)
+```
+
+- **Misura:** 19/19 scenari del dataset e 8/8 scenari SIMOD validi di G3 passano;
+  AcademicCredentials `_diff` e `_fuzz` rifiutati sul gateway `node_59fc62b1…`;
+  < 0,1 s e ≤ 119 stati per scenario. Suite `tests/simulation` sullo stack: 812 passati.
+- **Metodo** (`backend/simulation/ir/soundness.py`): gioco dei gettoni a passo
+  massimo (scattano insieme tutti gli elementi abilitati: il verdetto non dipende dai
+  nomi), rami a probabilità 0 esplorati come impossibili per nominare la decisione che
+  chiude il ciclo; `check_soundness(..., expected=True)` dà le esecuzioni attese per
+  attività (catena assorbente). Limiti: 8 gettoni per flusso, 50.000 stati, 4096
+  combinazioni per passo, 10 rami per inclusiva; oltre, verifica incompleta: l'import
+  avvisa (`soundness_unverified`) ma tiene i blocchi già provati.
+- **Dove si applica:** `import_prosimos` e `scenario_builder` (bozze, what-if) via
+  `require_sound`; `UnsoundProcessError` non è un `ValueError` e arriva al gestore comune
+  → 400 `process_cannot_finish` su import e run. Nella UI il motivo è in chiaro con
+  «Cosa fare» a capo; i file che l'editor legge da solo passano dalla verifica del server.
+- **Da sapere per B3.3:** «supera VAL-01» = `require_sound(model, bpmn)` senza eccezioni.
+  Regole e escalation: ogni ramo possibile (nessuna attesa calcolata). Inclusive: ogni
+  combinazione non vuota dei rami (Prosimos non documenta la sua semantica).
+- **Seguiti proposti (non fatti):** messaggi del server solo in italiano (come le note
+  di IMP-01); un solo parser BPMN con `flow_graph` (ingressi, nomi, eventi di bordo);
+  endpoint di sola verifica per l'editor invece dell'import completo.
 
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
