@@ -12,6 +12,12 @@ trasformato il Master Plan V2 in un programma di ricerca (sezione "P0" di
 **ENG-01** (Simulation Engine Interface); poi **G3b**. B3 parte solo dopo G3b. Nessun
 candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
 
+## PROTO-01 (in corso dal 2026-11-25, `docs/vpt-protocol`)
+
+Protocollo sperimentale per G3b in `docs/vpt/PROTOCOL.md`. Appena preso: lettura di
+piano, log, Master Plan V2 e dataset fatta. Prossimo passo: scegliere e congelare per
+hash i log holdout, prima di qualsiasi misura.
+
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
 Baseline "B = A" sui 3 log reali train/test del paper (A = train, B = test): il banco
