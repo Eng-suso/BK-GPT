@@ -27,6 +27,7 @@ import hashlib
 import json
 import math
 import os
+import random
 import sys
 import threading
 from collections import Counter
@@ -457,3 +458,128 @@ def identifiability(props: LogProperties, *, synthetic: bool) -> dict[str, tuple
     rule("true_parameters", [few, no_truth])
     rule("counterfactual", [few, no_truth])
     return verdicts
+
+
+# --------------------------------------------------------------------------- confronti appaiati (PROTO-02)
+
+# Accanto alla regola degli intervalli non sovrapposti (eval_harness.within_intervals), che resta
+# quella delle mete gia' scritte: dove le repliche sono appaiate (stesso seed, stesso log) si
+# riporta anche un test sulla differenza. Le distanze sono "piu' basso e' meglio".
+PAIRED_BOOTSTRAP_SAMPLES = 10_000
+PAIRED_SEED = 20261125
+PAIRED_ALPHA = 0.05
+
+
+@dataclass(frozen=True, slots=True)
+class PairedComparison:
+    mean_difference: float  # media di a - b: negativa se a ha distanze piu' basse
+    ci_low: float  # intervallo bootstrap al 95% della differenza media
+    ci_high: float
+    wilcoxon_p: float  # test dei ranghi con segno, esatto, a due code
+    verdict: Literal["a meglio", "b meglio", "pari"]
+
+
+def _wilcoxon_exact(differences: Sequence[float]) -> float:
+    """p a due code del test dei ranghi con segno, esatto (enumera i segni: fino a 20 coppie).
+
+    Le differenze nulle si tolgono (Wilcoxon); i pari hanno il rango medio.
+    """
+    values = [d for d in differences if d != 0]
+    n = len(values)
+    if n == 0:
+        return 1.0
+    if n > 20:
+        raise ValueError("il test esatto enumera 2^n segni: al massimo 20 coppie")
+    order = sorted(range(n), key=lambda i: abs(values[i]))
+    ranks = [0.0] * n
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and abs(values[order[j + 1]]) == abs(values[order[i]]):
+            j += 1
+        for k in range(i, j + 1):
+            ranks[order[k]] = (i + j) / 2 + 1
+        i = j + 1
+    observed = sum(r for r, v in zip(ranks, values, strict=True) if v > 0)
+    total = sum(ranks)
+    distance = abs(observed - total / 2)
+    extreme = 0
+    for mask in range(1 << n):
+        positive = sum(ranks[k] for k in range(n) if mask >> k & 1)
+        extreme += abs(positive - total / 2) >= distance - 1e-12
+    return extreme / (1 << n)
+
+
+def paired_comparison(a: Sequence[float], b: Sequence[float], *, seed: int = PAIRED_SEED) -> PairedComparison:
+    """Due configurazioni con le stesse repliche appaiate: chi ha la distanza piu' bassa, e quanto.
+
+    Vince chi ha l'intervallo bootstrap della differenza media tutto dalla sua parte dello zero;
+    il p di Wilcoxon si riporta accanto. Deterministico: stesso seed, stesso risultato.
+    """
+    if len(a) != len(b) or len(a) < 2:
+        raise ValueError("servono almeno due repliche appaiate, tante per parte")
+    differences = [x - y for x, y in zip(a, b, strict=True)]
+    n = len(differences)
+    rng = random.Random(seed)
+    means = sorted(math.fsum(rng.choices(differences, k=n)) / n for _ in range(PAIRED_BOOTSTRAP_SAMPLES))
+    low = means[int(PAIRED_BOOTSTRAP_SAMPLES * PAIRED_ALPHA / 2)]
+    high = means[int(PAIRED_BOOTSTRAP_SAMPLES * (1 - PAIRED_ALPHA / 2)) - 1]
+    verdict: Literal["a meglio", "b meglio", "pari"] = "a meglio" if high < 0 else "b meglio" if low > 0 else "pari"
+    return PairedComparison(round(math.fsum(differences) / n, 6), round(low, 6), round(high, 6),
+                            round(_wilcoxon_exact(differences), 6), verdict)
+
+
+# --------------------------------------------------------------------------- metriche di CF-01 (PROTO-02)
+
+# Una copertura del 90% si ottiene anche con intervalli enormi: con la copertura si riportano
+# ampiezza, errore puntuale sul Δ KPI e direzione dell'effetto. Un effetto vero piu' piccolo di
+# questa quota del KPI di partenza non ha una direzione da indovinare (proposta).
+DIRECTION_MIN_EFFECT = 0.01
+
+
+@dataclass(frozen=True, slots=True)
+class CounterfactualOutcome:
+    """Un intervento su un sintetico con verita' nota: Δ KPI vero, previsto e intervallo al 95%."""
+
+    baseline: float  # KPI prima dell'intervento (verita')
+    true_delta: float
+    predicted_delta: float
+    low: float
+    high: float
+
+
+@dataclass(frozen=True, slots=True)
+class CounterfactualMetrics:
+    cases: int
+    coverage: float  # quota di Δ veri dentro l'intervallo (meta di CF-01: almeno 90%)
+    mean_width: float  # ampiezza media dell'intervallo, nelle unita' del KPI
+    mean_relative_width: float  # ampiezza / |KPI di partenza|
+    mean_absolute_error: float  # |Δ previsto - Δ vero|
+    mean_relative_error: float  # |Δ previsto - Δ vero| / |KPI di partenza|
+    direction_cases: int  # interventi con un effetto vero di almeno DIRECTION_MIN_EFFECT
+    direction_accuracy: float | None  # quota con il segno del Δ previsto giusto, su quelli
+
+
+def counterfactual_metrics(outcomes: Sequence[CounterfactualOutcome]) -> CounterfactualMetrics:
+    """Le metriche complete di CF-01 su un insieme di interventi con verita' nota."""
+    if not outcomes:
+        raise ValueError("nessun intervento")
+    for o in outcomes:
+        if o.low > o.high:
+            raise ValueError("intervallo con il minimo sopra il massimo")
+        if o.baseline == 0:
+            raise ValueError("KPI di partenza nullo: errore relativo non definito")
+    n = len(outcomes)
+    directional = [o for o in outcomes if abs(o.true_delta) >= DIRECTION_MIN_EFFECT * abs(o.baseline)]
+    right = sum(math.copysign(1, o.predicted_delta) == math.copysign(1, o.true_delta) and o.predicted_delta != 0
+                for o in directional)
+    return CounterfactualMetrics(
+        cases=n,
+        coverage=round(sum(o.low <= o.true_delta <= o.high for o in outcomes) / n, 4),
+        mean_width=round(math.fsum(o.high - o.low for o in outcomes) / n, 6),
+        mean_relative_width=round(math.fsum((o.high - o.low) / abs(o.baseline) for o in outcomes) / n, 6),
+        mean_absolute_error=round(math.fsum(abs(o.predicted_delta - o.true_delta) for o in outcomes) / n, 6),
+        mean_relative_error=round(math.fsum(abs(o.predicted_delta - o.true_delta) / abs(o.baseline) for o in outcomes) / n, 6),
+        direction_cases=len(directional),
+        direction_accuracy=round(right / len(directional), 4) if directional else None,
+    )
