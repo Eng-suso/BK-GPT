@@ -546,3 +546,21 @@ def test_frozen_second_set_in_the_cache_matches_the_lock():
     if not all((root / d).is_dir() for d in datasets):
         pytest.skip("secondo set non scaricato: scripts/fetch_datasets.py fetch " + " ".join(datasets))
     assert protocol.verify_frozen(root, protocol.LOCK2_PATH) == []
+
+
+def test_every_radar_entry_has_a_declared_role():
+    """PROTO-02: ogni voce del radar ha un ruolo (sviluppo, holdout 2, escluso, codice) e un motivo."""
+    text = protocol.PROTOCOL_DOC.read_text(encoding="utf-8")
+    section = text[text.index("### Ruolo di ogni voce"):text.index("### Secondo set di holdout")]
+    roles: dict[str, str] = {}
+    for line in section.splitlines():
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) == 3 and cells[0].startswith("`"):
+            for ident in re.findall(r"`([^`]+)`", cells[0]):
+                roles[ident] = cells[1]
+            assert cells[2], f"{cells[0]}: manca il motivo"
+    radar = {i for i, e in fetch_datasets.load_manifest().items() if e.get("collection") == "radar"}
+    assert set(roles) == radar
+    assert all(re.match(r"(sviluppo|holdout 2|escluso|codice)", role) for role in roles.values()), roles
+    second = {h["dataset"] for h in protocol.load_lock(protocol.LOCK2_PATH)["holdouts"]}
+    assert all("holdout 2" in roles[dataset] for dataset in second)

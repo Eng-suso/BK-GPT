@@ -1,4 +1,4 @@
-# Protocollo sperimentale del VPT (PROTO-01)
+# Protocollo sperimentale del VPT (PROTO-01, esteso da PROTO-02)
 
 Il protocollo che G3b, B3.1-B3.4, SEL-01, PERF-01 e CF-01 seguono per dire se un
 componente di discovery o di simulazione è migliore di un altro. È scritto e
@@ -15,6 +15,11 @@ scritta in [`LOG.md`](./LOG.md) con data e motivo.
   impronta SHA-256 **`1cfaa147a37187c1a319968f200c99d1cc5918ac0795c8a95e8ee70286c35cdb`**.
   Il test `test_the_lock_digest_is_written_in_the_protocol` lega questo numero al file:
   cambiare un holdout senza cambiare questa riga fa fallire la CI.
+- Secondo set di holdout (PROTO-02, §10):
+  [`protocol/holdout2.lock.json`](../../tests/simulation/benchmark/protocol/holdout2.lock.json),
+  impronta SHA-256 **`24974f9b11e3e66b4297105ff4684036f306a9f83351a7ad7ddae19801a7e576`**
+  (`test_the_second_lock_digest_is_written_in_the_protocol`). Il primo lucchetto e il benchmark
+  congelato non cambiano.
 
 ## 1. Cosa si misura
 
@@ -30,7 +35,17 @@ Per ogni configurazione e ogni log:
 
 Il confronto fra due configurazioni usa la regola comune di B2
 (`eval_harness.within_intervals`): una vince se i due intervalli al 95% non si
-sovrappongono; altrimenti sono pari.
+sovrappongono; altrimenti sono pari. Le mete già scritte restano decise da questa regola.
+
+**Confronto appaiato, accanto (PROTO-02).** Gli intervalli che non si sovrappongono sono un
+criterio conservativo, non un test sulla differenza. Dove le repliche sono appaiate (stesso log,
+stesso seed `20261124 + replica`) si riporta accanto anche `protocol.paired_comparison`:
+differenza media delle distanze, intervallo bootstrap al 95% della differenza (10.000
+ricampionamenti, seed `20261125`) e p del test dei ranghi con segno di Wilcoxon, esatto a due
+code. Verdetto: «a meglio» o «b meglio» se l'intervallo della differenza sta tutto da una parte
+dello zero, altrimenti «pari». Esempio nei test: un miglioramento costante di 0,5 su repliche
+con varianza alta è «pari» per gli intervalli e «a meglio» per il confronto appaiato. Il
+confronto appaiato non cambia nessuna meta già scritta; una meta nuova che lo usa lo dichiara.
 
 ## 2. Log e categorie
 
@@ -278,3 +293,105 @@ uv run pytest --noconftest -q tests/simulation/benchmark/test_protocol.py
   volta per configurazione scelta, gli holdout una volta alla fine.
 - Le schede del §7 si scrivono in `LOG.md` prima di lanciare le misure.
 - Le metriche NOT VALIDATED del §4 si riportano nelle tabelle, marcate, e non contano.
+
+## 10. La seconda collezione: il Research Radar (PROTO-02)
+
+Il radar (`collection: radar` nel manifest, [`RESEARCH_RADAR.md`](./RESEARCH_RADAR.md)) è una
+collezione separata. Qui ogni sua voce riceve un ruolo, una volta, dopo l'inventario di RAD-01 e
+prima di qualsiasi uso: **sviluppo** (si usa per sviluppare e scegliere), **holdout 2** (secondo
+set, chiuso come il primo), **escluso** (non si usa, con il motivo) o **codice** (repository senza
+log propri da valutare: si esegue come baseline o strumento). I log di sviluppo del §2 e i 6
+holdout del §2 non cambiano.
+
+**Inventario** (RAD-01): `tests/simulation/benchmark/radar_inventory.py`, report in
+[`radar/inventory.md`](../../tests/simulation/benchmark/radar/inventory.md). Per ogni file del radar,
+anche dentro gli archivi: SHA-256 confrontato con ogni file di `datasets/`, con i log di sviluppo
+in cache e con i due lucchetti; nome confrontato con i log di sviluppo e con gli holdout; contenuto
+(attività e id dei casi) confrontato con i log di sviluppo e con le altre voci. Gira dentro
+`selection_phase()`: un file con il nome di un holdout si marca e se ne calcola solo l'impronta
+(`protocol.fingerprint`), mai gli eventi.
+
+### Sovrapposizioni trovate (RAD-01)
+
+| Attesa | Verifica |
+| --- | --- |
+| BPIC 2012/2017 dentro ProCause | **No come file**: il repository ha solo `data/bpic2012/.gitkeep` e `data/bpic2017/.gitkeep`; il notebook di pulizia li legge da fuori. Gli esperimenti di ProCause su quei log sono esperimenti sui log di sviluppo. |
+| BPIC 2012 W e 2013 nella copia di Helpdesk | **Sì**: `bpi_12_w.csv` e `bpi_12_w_no_repeat.csv` hanno tutti i casi di BPIC 2012 W di sviluppo (attività ricodificate come numeri); `bpi_13_incidents.csv` ha gli stessi casi di BPIC 2013 incidents. In più `env_permit*.csv`: il permesso ambientale (WABO) del progetto CoSeLoG, lo stesso progetto dei comuni di BPIC 2015. |
+| Log di Camargo in AgentSimulator e nel BPS Quality Framework | **AgentSimulator**: solo `LoanApp` (processo Loan_Application di sviluppo) e i suoi simulati. **BPS Quality Framework**: AcademicCredentials train/test identici per hash a quelli di sviluppo; BPIC 2012 e 2017 (W) con gli stessi casi dello sviluppo; LoanApp e Procure2Pay sono i processi sintetici di sviluppo; i simulati di SIMOD e ServiceMiner di questi; in più **CallCenter**, che non è in nessun altro posto. Nessun holdout del primo set. |
+| Log di Camargo altrove | **Kronos** (`tests/assets`): 6 file con i nomi di Production e PurchasingExample (anche dentro due zip): marcati, non aperti, esclusi. Nessuno coincide per impronta con il primo lucchetto (sono estratti diversi). |
+| Sepsis e Hospital Billing non dall'ospedale di BPIC 2011 | **Verificato sui metadati 4TU** (nessun holdout aperto): BPIC 2011 è il log di un *ospedale accademico* olandese (van Dongen, 2011); Sepsis viene dall'ERP di *un ospedale* e Hospital Billing dai moduli finanziari dell'ERP di *un ospedale regionale*, tutti e due di Mannhardt. Organizzazione diversa da BPIC 2011. Sepsis e Hospital Billing sono trattati come la stessa organizzazione (stesso autore, stesso ERP): stanno insieme dalla stessa parte (sviluppo). Limite: i metadati non nominano gli ospedali. |
+| Altre copie | DAS-RP contiene estratti CSV di BPIC 2019, Sepsis e Road Traffic Fines (stessi casi) e un sintetico (`data_attribute_log`) sul processo Loan_Application di sviluppo; `bpic-ocel2` contiene BPIC 2017 e 2019 in OCEL (stessi eventi di `bpic2017-full` e `bpic2019`). |
+
+### Ruolo di ogni voce
+
+| Voce | Ruolo | Motivo |
+| --- | --- | --- |
+| `bps-quality-framework` | sviluppo, tranne CallCenter (holdout 2) | copie e simulati dei log di sviluppo (stessi processi, stessi casi): riferimento esterno per le distanze, non log indipendenti; CallCenter è l'unico processo nuovo |
+| `simbank` | sviluppo | generatore con interventi e confondenti per CF-01 e B7 |
+| `procause` | codice | nessun log nel repository; i suoi esperimenti usano BPIC 2012/2017 (sviluppo) e SimBank |
+| `bpic2019` | sviluppo | procurement per RAD-02, scalabilità per PERF-01 (1,6 M eventi) |
+| `bpic2018` | sviluppo | pubblica amministrazione per RAD-02, cambi annuali per B8, PERF-01 |
+| `bpic2017-full` | sviluppo | stessi casi di BPIC 2017 W di sviluppo, stessa banca di BPIC 2012: non indipendente |
+| `sepsis-cases` | sviluppo | sanità per RAD-02; ospedale diverso da BPIC 2011 (sopra) |
+| `hospital-billing` | sviluppo | sanità per RAD-02; stessa organizzazione di Sepsis: non può fare da holdout contro di lui |
+| `road-traffic-fines` | holdout 2 | pubblica amministrazione indipendente da ogni log di sviluppo (polizia locale italiana); la copia di DAS-RP è chiusa con lui |
+| `helpdesk` | sviluppo per `helpdesk.csv` (solo ricerca); escluso il resto | `helpdesk.csv`: assistenza per RAD-02, ma senza licenza: i suoi numeri non sostengono affermazioni commerciali (H1) e non può essere holdout; `bpi_12_w*` e `bpi_13_incidents` sono copie dei log di sviluppo; `env_permit*` esclusi: stesso progetto (CoSeLoG) dei comuni di BPIC 2015, forse lo stesso comune dell'holdout Municipality 1, e non si può verificare senza aprirlo |
+| `ocel-container-logistics`, `ocel-order-management`, `ocel-procure-to-pay`, `ocel-state-aware`, `ocel-standard-collection`, `ocel-lrms-simulated` | sviluppo | object-centric per VPT-07 e OC-01; fuori dal benchmark piatto di G3b |
+| `ocel-steel-logistics` | sviluppo | unico OCEL reale (acciaieria) per VPT-07 e OC-01 |
+| `bpic-ocel2` | sviluppo | BPIC 2014 (Rabobank) e 2016 (UWV) per OC-01; BPIC 2017 e 2019 sono gli stessi log di `bpic2017-full` e `bpic2019`. I BPIC 2015 non sono nel manifest |
+| `existential-drifts`, `cdrift-set`, `cdlg-drift-val` | sviluppo | sintetici con drift noti per DRIFT-01 e B8 |
+| `at-kde` | sviluppo | il codice degli arrivi per B3.1; `LoanAppInflation` è il processo Loan_Application di sviluppo |
+| `kronos-waiting-time` | codice; esclusi i file con i nomi del primo set | log di prova del codice; quelli con il nome di un holdout non si aprono |
+| `agentsimulator` | sviluppo | baseline per G3b e B3.4; `LoanApp` è un processo di sviluppo |
+| `prosit` | codice | nessun log nel repository |
+| `das-rp` | sviluppo, tranne l'estratto di Road Traffic Fines (holdout 2) | baseline per B3.3; estratti di BPIC 2019 e Sepsis (sviluppo) e un sintetico sul processo Loan_Application |
+| `powl`, `cdrift-evaluation`, `simoc`, `declare-log-generator`, `simpy`, `salabim`, `queuesim` | codice | strumenti; i log di prova di `cdrift-evaluation` (Ceravolo, Ostovar) sono sintetici con drift per DRIFT-01 |
+
+### Secondo set di holdout
+
+Scelto dopo l'inventario e prima di ogni uso dei log del radar, con i criteri del §3 (pubblico
+con hash fisso e licenza che permette di usarne i numeri; organizzazione e processo diversi da
+ogni log di sviluppo, del primo set e del radar dichiarato di sviluppo; mai usato da DeliR per
+sviluppare; dimensioni nel budget del §6). Congelato il 2026-11-25 da
+`protocol_freeze.py --set 2`, prima di qualsiasi misura su questi log.
+
+| Holdout | Categoria | Organizzazione | Fonte | Divisione | Cosa conosciamo (RAD-01, prima del congelamento) |
+| --- | --- | --- | --- | --- | --- |
+| CallCenter | osservabilità completa | call center (origine non documentata nel pacchetto) | BPS Quality Framework, Zenodo 12126071, Apache-2.0 | train e test pubblicati (una settimana ciascuno) | 260.889 / 260.890 casi, ~450.000 eventi a parte, 19 attività, ~2.700 risorse, gennaio 2008 |
+| Road Traffic Fines | osservabilità parziale | polizia locale italiana | 4TU, General Terms | metà dei casi per inizio | 150.370 casi, 561.470 eventi, 11 attività, 2000-2013, nessun inizio |
+
+- **Chiusi con loro:** i simulati, i modelli e le misure di CallCenter nel pacchetto (per nome,
+  `CallCenter_*`) e i quattro archivi del pacchetto che li contengono; l'estratto CSV di Road
+  Traffic Fines in DAS-RP (`Trafic`). Il resto dei due pacchetti resta di sviluppo
+  (`closes_dataset: false` nel lucchetto): la guardia chiude i file, non la cartella.
+- **Sintetico con verità nota:** nessun sintetico pubblicato del radar è indipendente dai
+  processi di sviluppo (quello di DAS-RP è Loan_Application; i drift sono di DRIFT-01). La
+  categoria nel secondo set la coprono le aziende di GT-01 con il To-Be nascosto.
+- **Cosa è stato letto per sceglierli:** nomi, dimensioni, licenze, metadati 4TU e i conteggi
+  dell'inventario qui sopra (casi, eventi, attività, periodo, risorse), calcolati da RAD-01 su
+  tutto il radar prima del congelamento. Nessun modello, configurazione o soglia è stato scelto
+  su questi log; dopo il congelamento l'inventario non li apre più.
+- **Limiti dichiarati:** l'origine di CallCenter non è documentata nel pacchetto: indipendente
+  come processo e come settore, organizzazione non verificabile. Le aziende del radar dichiarate
+  di sviluppo restano un rischio se un holdout futuro venisse da una di loro: si controlla qui
+  prima di aggiungerlo.
+- **Guardia e apertura:** la stessa del §3. `final_evaluation(<impronta>)` apre solo il set
+  di quell'impronta: aprire il primo set non apre il secondo, e viceversa. Il secondo set si apre
+  una volta, alla fine del punto che lo usa (RAD-02), a selezione chiusa.
+
+## 11. Metriche di CF-01 (PROTO-02)
+
+Una copertura del 90% si ottiene anche con intervalli enormi. Per ogni insieme di interventi con
+verità nota (`protocol.counterfactual_metrics`) si riportano insieme:
+
+- **copertura**: quota di Δ KPI veri dentro l'intervallo al 95% (la meta di CF-01);
+- **ampiezza**: media dell'intervallo, in unità del KPI e relativa al KPI di partenza;
+- **errore puntuale**: media di |Δ previsto − Δ vero|, assoluta e relativa al KPI di partenza;
+- **direzione**: quota di interventi con il segno del Δ previsto giusto, contata solo dove
+  l'effetto vero è almeno l'**1%** del KPI di partenza (`DIRECTION_MIN_EFFECT`, *proposta*):
+  sotto, la direzione è rumore.
+
+Nei test: due modelli con la stessa copertura del 100%, uno con intervalli larghi 1.000 e la
+direzione sbagliata, l'altro largo 5 con la direzione giusta, si distinguono su ampiezza,
+errore e direzione. La validità sotto le ipotesi del generatore non è validità reale: per quella
+servono i pilot PV (`RESEARCH_RADAR.md`).
