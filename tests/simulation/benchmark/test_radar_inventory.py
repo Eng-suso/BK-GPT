@@ -94,7 +94,7 @@ def _signature(text: str, label: str) -> inv.Signature:
 
 def test_same_content_in_another_form_is_recognized():
     reordered = CSV.splitlines()[0] + "\n" + "\n".join(reversed(CSV.splitlines()[1:])) + "\n"
-    assert inv.compare(_signature(CSV, "a"), _signature(reordered, "b")) == "stesso contenuto"
+    assert inv.compare(_signature(CSV, "a"), _signature(reordered, "b")) == "stesso contenuto di b"
 
 
 def test_a_partition_is_contained_and_the_whole_contains_it():
@@ -187,3 +187,14 @@ def test_development_copy_is_found_by_hash_and_name(tmp_path: Path):
 def test_the_committed_report_does_not_name_a_holdout():
     """Il report sta in tests/simulation: il test dei nomi di PROTO-01 lo controlla gia'; qui il redatto."""
     assert inv.redacted("a/b!c/x.csv", "id") == "a/b!c/[nome di un holdout: id]"
+
+
+def test_long_numeric_ids_of_another_process_are_not_the_same_cases():
+    """Gli oggetti di un OCEL con id numerici lunghi non 'contengono' i casi di un log di un altro processo."""
+    other = CSV.replace("Register", "Create PO").replace("Check", "Receive goods").replace("Approve", "Pay invoice")
+    assert inv.compare(_signature(other, "acquisti"), _signature(CSV, "prestiti")) is None
+
+
+def test_json_keeps_the_strongest_relations_first():
+    record = {"development": ["nome simile a X", "stesso processo di A", "stessa impronta di B"], "radar": []}
+    assert inv._compact(record)["development"][0] == "stessa impronta di B"

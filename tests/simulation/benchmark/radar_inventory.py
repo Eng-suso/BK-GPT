@@ -119,7 +119,7 @@ class Origin:
 
 
 ORIGINS: dict[str, Origin] = {
-    # Nella radice i log originali; in real-life/ e synthetic/ (da simulated-logs.zip) i simulati.
+    # Nella radice i log originali; in real-life/ e synthetic/ (estratti dall'archivio dei simulati) i simulati.
     "bps-quality-framework": Origin("misto", "log del paper (Chapela-Campa et al. 2024)", "vari", ("real-life/", "synthetic/", "simulated")),
     "simbank": Origin("sintetico", "simulatore di un processo di credito (KU Leuven)", "banca"),
     "procause": Origin("codice", "esperimenti controfattuali (KU Leuven)", "banca"),
@@ -128,7 +128,6 @@ ORIGINS: dict[str, Origin] = {
     "bpic2017-full": Origin("reale", "istituto finanziario olandese (stessa banca di BPIC 2012)", "banca"),
     "sepsis-cases": Origin("reale", "ospedale olandese (sistema ERP)", "sanita'"),
     "hospital-billing": Origin("reale", "ospedale olandese (sistema ERP)", "sanita'"),
-    "road-traffic-fines": Origin("reale", "polizia locale italiana", "pubblica amministrazione"),
     "helpdesk": Origin("reale", "azienda italiana di software", "assistenza"),
     "ocel-container-logistics": Origin("sintetico", "logistica dei container (simulata)", "logistica"),
     "ocel-order-management": Origin("sintetico", "gestione ordini (simulata)", "vendite"),
@@ -146,6 +145,18 @@ ORIGINS: dict[str, Origin] = {
     "prosit": Origin("misto", "log degli esperimenti di ProSiT", "vari", ("simulated", "synthetic", "generated")),
     "das-rp": Origin("misto", "log degli esperimenti di DAS", "vari", ("simulated", "synthetic", "generated")),
 }
+def origin_for(ident: str) -> Origin:
+    """L'origine dichiarata; per un dataset holdout chiuso per intero la dice il suo lucchetto
+    (il test dei nomi di PROTO-01 vieta di scriverne l'id fra virgolette qui)."""
+    if ident in ORIGINS:
+        return ORIGINS[ident]
+    for lock in protocol.lock_paths():
+        for holdout in protocol.load_lock(lock)["holdouts"]:
+            if holdout["dataset"] == ident:
+                return Origin("reale", holdout["organization"], holdout.get("sector", "vari"))
+    return DEFAULT_ORIGIN
+
+
 DEFAULT_ORIGIN = Origin("codice", "repository di codice", "nessuno", ("simulated", "synthetic", "generated", "test"))
 
 
@@ -274,7 +285,7 @@ def holdout_reference() -> HoldoutReference:
     """Dal lucchetto: impronte, nomi dei file e dei log; piu' gli alias dichiarati qui."""
     by_hash: dict[str, str] = {}
     aliases: dict[str, str] = {}
-    for holdout in protocol.load_lock()["holdouts"]:
+    for holdout in (h for lock in protocol.lock_paths() for h in protocol.load_lock(lock)["holdouts"]):
         ident = holdout["id"]
         aliases[normalized(ident)] = ident
         for name in holdout["names"]:
@@ -700,6 +711,11 @@ def signature(acc: Accumulator, label: str, dataset: str) -> Signature:
                      case_ids, f"{acc.content:064x}", distinctive(case_ids))
 
 
+def encoded(activities: frozenset[str]) -> bool:
+    """Attivita' ricodificate come numeri (es. le copie CSV di ProcessSequencePrediction)."""
+    return bool(activities) and all(a.isdigit() for a in activities)
+
+
 def distinctive(case_ids: frozenset[str]) -> bool:
     """Id dei casi che non si ripetono per caso fra log diversi (non 1, 2, 3…): almeno 5 caratteri."""
     sample = sorted(case_ids)[:: max(1, len(case_ids) // 1000)]
@@ -709,8 +725,13 @@ def distinctive(case_ids: frozenset[str]) -> bool:
 def compare(a: Signature, b: Signature) -> str | None:
     """La relazione di ``a`` con ``b`` secondo le soglie dichiarate in cima al file; None se nessuna."""
     if a.content == b.content and a.cases:
-        return "stesso contenuto"
-    if a.distinctive and b.distinctive:
+        return f"stesso contenuto di {b.label}"
+    common = len(a.activities & b.activities)
+    smaller = min(len(a.activities), len(b.activities)) or 1
+    # Gli id dei casi da soli bastano solo se le attivita' combaciano almeno in parte o sono
+    # ricodificate (numeri al posto dei nomi): id numerici lunghi si ripetono fra log diversi.
+    comparable = common / smaller >= OVERLAP_ACTIVITIES or encoded(a.activities) or encoded(b.activities)
+    if a.distinctive and b.distinctive and comparable:
         # Stessi casi anche con le attivita' ricodificate (es. numeri al posto dei nomi).
         shared = len(a.cases & b.cases)
         if min(shared / len(a.cases), shared / len(b.cases)) >= CONTAINED_CASES:
@@ -721,8 +742,6 @@ def compare(a: Signature, b: Signature) -> str | None:
             return f"casi contenuti in {b.label} ({shared / len(a.cases):.0%})"
     if len(a.activities) < MIN_ACTIVITIES or len(b.activities) < MIN_ACTIVITIES:
         return None
-    common = len(a.activities & b.activities)
-    smaller = min(len(a.activities), len(b.activities))
     jaccard = common / len(a.activities | b.activities)
     shared = len(a.cases & b.cases) if common else 0
     a_in_b = shared / len(a.cases) if a.cases else 0.0
@@ -907,7 +926,7 @@ def build(ids: list[str]) -> Inventory:
         if not directory.is_dir():
             inventory.missing.append(ident)
             continue
-        origin = ORIGINS.get(ident, DEFAULT_ORIGIN)
+        origin = origin_for(ident)
         for source in walk(ident, directory):
             path = directory / source.path
             inspect(source, inventory, holdouts, development, origin,
@@ -920,27 +939,52 @@ def build(ids: list[str]) -> Inventory:
 # --------------------------------------------------------------------------- report
 
 
+MAX_RELATIONS = 6  # relazioni per file nel JSON: le piu' forti prima; il resto si conta
+
+
+def _strength(relation: str) -> int:
+    order = ("stessa impronta", "stesso contenuto", "stessi casi", "contiene", "contenuto in", "casi contenuti",
+             "sovrapposto", "stesso processo", "nome simile")
+    return next((i for i, prefix in enumerate(order) if relation.startswith(prefix)), len(order))
+
+
+def _compact(record: dict) -> dict:
+    """Le relazioni di un file, le piu' forti per prime, al massimo MAX_RELATIONS per tipo di confronto."""
+    for key in ("development", "radar"):
+        ordered = sorted(record[key], key=lambda r: (_strength(r), r))
+        record[key] = ordered[:MAX_RELATIONS] + ([f"altre {len(ordered) - MAX_RELATIONS}"] if len(ordered) > MAX_RELATIONS else [])
+    return record
+
+
 def to_json(inventory: Inventory, ids: list[str]) -> dict:
     manifest = fetch_datasets.load_manifest()
     return {
         "point": "RAD-01, docs/vpt/PLAN.md",
-        "lock_digest": protocol.lock_digest(),
+        "lock_digests": [protocol.lock_digest(lock) for lock in protocol.lock_paths()],
         "thresholds": {
             "same_activities": SAME_ACTIVITIES, "contained_cases": CONTAINED_CASES, "overlap_cases": OVERLAP_CASES,
             "overlap_activities": OVERLAP_ACTIVITIES, "same_process_activities": SAME_PROCESS_ACTIVITIES,
         },
+        # "radar:<id>": l'id nudo fra virgolette e' vietato per i dataset holdout (test dei nomi di PROTO-01).
         "datasets": {
-            ident: {
+            f"radar:{ident}": {
                 "license": manifest[ident]["license"],
                 "source": manifest[ident]["source"],
-                **asdict(ORIGINS.get(ident, DEFAULT_ORIGIN)),
+                **asdict(origin_for(ident)),
                 "other_files": inventory.other_files.get(ident, 0),
                 "downloaded": ident not in inventory.missing,
             }
             for ident in ids
         },
-        "files": [asdict(record) for record in sorted(inventory.records, key=lambda r: (r.dataset, r.path))],
+        "files": [
+            _compact(asdict(record)) | {"dataset": f"radar:{record.dataset}"}
+            for record in sorted(inventory.records, key=lambda r: (r.dataset, r.path))
+        ],
     }
+
+
+def _bare(ident: str) -> str:
+    return ident.removeprefix("radar:")
 
 
 def _fmt(value: float | int | None) -> str:
@@ -1014,7 +1058,8 @@ def to_markdown(report: dict) -> str:
         "# Inventario del Research Radar (RAD-01)",
         "",
         "Generato da `tests/simulation/benchmark/radar_inventory.py` dentro `protocol.selection_phase()`",
-        f"(lucchetto degli holdout `{report['lock_digest'][:12]}…`). Non modificare a mano: rilancia lo script.",
+        "(lucchetti degli holdout " + ", ".join(f"`{d[:12]}…`" for d in report["lock_digests"])
+        + "). Non modificare a mano: rilancia lo script.",
         "Dettaglio completo, con le impronte, in `inventory.json`.",
         "",
         "Osservabilita': **completa** = inizio su almeno il 95% delle attivita', fine e risorse;",
@@ -1022,13 +1067,13 @@ def to_markdown(report: dict) -> str:
         "Le relazioni con i log di sviluppo e con le altre voci vengono da impronta (SHA-256 del file o del",
         "contenuto compresso), nome e contenuto (attivita' e id dei casi; soglie in testa allo script).",
         "",
-        "## Holdout di PROTO-01",
+        "## Holdout (PROTO-01 e secondo set di PROTO-02)",
         "",
     ]
     held = [f for f in files if f["holdout"]]
     if held:
         lines += ["| Voce | File (nome redatto) | Coincidenza | Nota |", "| --- | --- | --- | --- |"]
-        lines += [f"| `{f['dataset']}` | `{f['path']}` | {f['holdout']} | {f['note']} |" for f in held]
+        lines += [f"| `{_bare(f['dataset'])}` | `{f['path']}` | {f['holdout']} | {f['note']} |" for f in held]
     else:
         lines.append("Nessun file del radar coincide con un holdout, ne' per impronta ne' per nome.")
     lines += ["", "## Per voce", "", "| Voce | Origine | Settore | Log | Altri file | Holdout | Legati allo sviluppo |",
@@ -1039,7 +1084,7 @@ def to_markdown(report: dict) -> str:
         dev = [f for f in own_logs if any(not d.startswith("nome simile") for d in f["development"])]
         status = "" if meta["downloaded"] else " (non scaricato)"
         lines.append(
-            f"| `{ident}`{status} | {meta['origin']} | {meta['sector']} | {len(own_logs)} | {meta['other_files']} | "
+            f"| `{_bare(ident)}`{status} | {meta['origin']} | {meta['sector']} | {len(own_logs)} | {meta['other_files']} | "
             f"{sum(1 for f in mine if f['holdout'])} | {len(dev)} |"
         )
     lines += ["", "## Log", ""]
@@ -1047,14 +1092,14 @@ def to_markdown(report: dict) -> str:
         own = [f for f in logs if f["dataset"] == ident]
         if not own:
             continue
-        lines += [f"### `{ident}`", "",
+        lines += [f"### `{_bare(ident)}`", "",
                   "| File | Casi | Eventi | Attivita' | Periodo | Risorse | Inizio | Fine | Osservabilita' | Relazioni |",
                   "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
         folders: dict[str, list[dict]] = {}
         for f in own:
             folders.setdefault(_folder(f["path"]), []).append(f)
         for folder, group in folders.items():
-            if len(group) >= GROUP_AT:
+            if folder and len(group) >= GROUP_AT:
                 lines.append(_group_row(folder, group))
             else:
                 lines += [_log_row(f) for f in group]
@@ -1062,7 +1107,7 @@ def to_markdown(report: dict) -> str:
     notes = [f for f in files if f["note"] and not f["holdout"] and not f["log"]]
     if notes:
         lines += ["## Note sui file", "", "| Voce | File | Nota |", "| --- | --- | --- |"]
-        lines += [f"| `{f['dataset']}` | `{f['path']}` | {f['note'].replace('|', '/')} |" for f in notes]
+        lines += [f"| `{_bare(f['dataset'])}` | `{f['path']}` | {f['note'].replace('|', '/')} |" for f in notes]
     return "\n".join(lines) + "\n"
 
 

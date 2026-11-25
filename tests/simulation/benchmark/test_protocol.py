@@ -26,6 +26,7 @@ from tests.simulation.benchmark.log_distance import Event, read_csv_log
 LOCK = protocol.load_lock()
 HOLDOUT_FILES = sorted({Path(f["path"]).name for h in LOCK["holdouts"] for f in h["files"]})
 HOLDOUT_DATASETS = sorted({h["dataset"] for h in LOCK["holdouts"]})
+LOCKS = [protocol.load_lock(path) for path in protocol.lock_paths()]  # PROTO-01 e il secondo set di PROTO-02
 
 # Il codice che sviluppa e sceglie: benchmark, simulazione, event log e script.
 SELECTION_ROOTS = ("tests/simulation", "backend/simulation", "backend/eventlog", "scripts")
@@ -33,6 +34,7 @@ SELECTION_ROOTS = ("tests/simulation", "backend/simulation", "backend/eventlog",
 ALLOWED = {
     "tests/simulation/benchmark/protocol_freeze.py",
     "tests/simulation/benchmark/protocol/holdout.lock.json",
+    "tests/simulation/benchmark/protocol/holdout2.lock.json",
     "tests/simulation/benchmark/test_protocol.py",
 }
 SCANNED_SUFFIXES = (".py", ".sh", ".yml", ".yaml", ".toml", ".json", ".md", ".txt", ".cfg", ".ini")
@@ -44,15 +46,16 @@ def _tracked_files(*roots: str) -> list[str]:
 
 
 def _holdout_patterns() -> list[re.Pattern[str]]:
-    blocked = protocol.blocked_names()
-    patterns = [re.compile(re.escape(name), re.IGNORECASE) for name in sorted(blocked.names)]
-    for holdout in LOCK["holdouts"]:
+    names = sorted(set().union(*(protocol.blocked_names(path).names for path in protocol.lock_paths())))
+    patterns = [re.compile(re.escape(name), re.IGNORECASE) for name in names]
+    for holdout in (h for lock in LOCKS for h in lock["holdouts"]):
         for stem in holdout["names"]:
             # il nome del log con un'estensione da log, o fra virgolette (un id costruito a mano)
             suffixes = "|".join(re.escape(s) for s in protocol.LOG_SUFFIXES)
             patterns.append(re.compile(rf"(?<![\w]){re.escape(stem)}(?:{suffixes})\b", re.IGNORECASE))
             patterns.append(re.compile(rf"[\"']{re.escape(stem)}(?:_(?:train|test))?[\"']"))
-    patterns += [re.compile(rf"[\"']{re.escape(dataset)}[\"']") for dataset in HOLDOUT_DATASETS]
+    closed = sorted({h["dataset"] for lock in LOCKS for h in lock["holdouts"] if h.get("closes_dataset", True)})
+    patterns += [re.compile(rf"[\"']{re.escape(dataset)}[\"']") for dataset in closed]
     return patterns
 
 
@@ -519,3 +522,27 @@ def test_final_evaluation_opens_one_set_and_keeps_the_other_closed(tmp_path: Pat
             first_log.read_bytes()
     with protocol.selection_phase(), pytest.raises(protocol.HoldoutAccessError):
         second_log.read_bytes()
+
+
+def test_the_second_lock_digest_is_written_in_the_protocol():
+    assert protocol.LOCK2_PATH in protocol.lock_paths(), "secondo set non congelato"
+    assert protocol.lock_digest(protocol.LOCK2_PATH) in protocol.PROTOCOL_DOC.read_text(encoding="utf-8")
+
+
+def test_the_second_set_is_independent_of_the_first_and_of_development():
+    first, second = (protocol.load_lock(path) for path in (protocol.LOCK_PATH, protocol.LOCK2_PATH))
+    assert second["independent_of"].endswith(protocol.lock_digest(protocol.LOCK_PATH))
+    hashes = lambda lock: {f["sha256"] for h in lock["holdouts"] for f in h["files"]}  # noqa: E731
+    assert not hashes(first) & hashes(second)
+    assert not {h["id"] for h in first["holdouts"]} & {h["id"] for h in second["holdouts"]}
+    for log in protocol.development_logs():
+        assert not protocol.is_holdout(log.source, [protocol.LOCK2_PATH]), log.source
+    assert {h["category"] for h in second["holdouts"]} == {protocol.COMPLETE, protocol.PARTIAL}
+
+
+def test_frozen_second_set_in_the_cache_matches_the_lock():
+    root = fetch_datasets.cache_dir()
+    datasets = sorted({h["dataset"] for h in protocol.load_lock(protocol.LOCK2_PATH)["holdouts"]})
+    if not all((root / d).is_dir() for d in datasets):
+        pytest.skip("secondo set non scaricato: scripts/fetch_datasets.py fetch " + " ".join(datasets))
+    assert protocol.verify_frozen(root, protocol.LOCK2_PATH) == []
