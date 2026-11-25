@@ -15,18 +15,25 @@ candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
 ## VAL-01 (in corso dal 2026-11-25, `feat/sim-formal-validation`)
 
 Validazione formale dei modelli all'import: nessun deadlock né livelock, fine
-raggiungibile da ogni stato, uscita da ogni ciclo con probabilità > 0. Lavora una
-sessione Claude per Sohayb; in parallelo altre due su PROTO-01 ed ENG-01 (VAL-01 non
-tocca `prosimos_adapter.py` né la coda dei run).
+raggiungibile da ogni stato, uscita da ogni ciclo con probabilità > 0, ripetizioni
+attese finite. In parallelo altre due sessioni su PROTO-01 ed ENG-01 (VAL-01 non tocca
+`prosimos_adapter.py` né la coda dei run).
 
-- Misura 1 (2026-11-25, `uv run pytest --noconftest -q tests/simulation/test_soundness.py`):
+- **Misura** (`uv run pytest --noconftest -q tests/simulation/test_soundness.py`, 51 test):
   19/19 scenari del dataset passano, 8/8 scenari SIMOD validi di G3 passano,
-  AcademicCredentials `_diff` e `_fuzz` (ciclo a uscita 0) rifiutati con il gateway
-  `node_59fc62b1…`; < 0,1 s per scenario, al massimo 72 stati.
-- Fatto: `backend/simulation/ir/soundness.py` (gioco dei gettoni + catena assorbente),
-  chiamato da `import_prosimos`; `UnsoundProcessError` → 400 `process_cannot_finish`
-  (`backend/api/errors.py`). Da fare: UI (messaggio visibile, non solo nel motivo
-  tecnico; verifica anche per gli scenari che l'editor importa da solo), e2e, gate UX.
+  AcademicCredentials `_diff` e `_fuzz` (ciclo a uscita 0) rifiutati sul gateway
+  `node_59fc62b1…`; < 0,1 s e ≤ 119 stati per scenario. e2e
+  `simulation-import-validation` 6/6 (chromium, mobile-chrome, axe pulito); suite
+  `tests/simulation` sullo stack 810 passati.
+- **Dove vive:** `backend/simulation/ir/soundness.py` (gioco dei gettoni a passo massimo +
+  catena assorbente per le ripetizioni attese). `import_prosimos` rifiuta con
+  `UnsoundProcessError` → 400 `process_cannot_finish` (`backend/api/errors.py`); anche
+  `scenario_builder` la chiama prima del motore (bozze dell'editor, what-if). La UI mostra
+  il messaggio in chiaro e gli id nel motivo tecnico; i file che l'editor legge da solo
+  passano anche dalla verifica del server.
+- **Gate UX:** screenshot in `docs/vpt/ux/val-01/` aperti e letti.
+- **Stato:** code review fatta (8 rilievi, 7 corretti, 1 motivato); `simplify` in corso;
+  poi PR. La meta è *proposta*: serve la conferma di Sohayb prima del merge.
 
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
