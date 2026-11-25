@@ -27,7 +27,8 @@ from backend.schemas.simulation_model import (
 from backend.schemas.workspace import BpmnModelResponse
 from backend.security import require_principal
 from backend.simulation.advisor import ExperimentReport, suggest_experiments
-from backend.simulation.ir.from_prosimos import ProsimosImportError, UnsoundProcessError, import_prosimos
+from backend.simulation.ir.from_prosimos import ProsimosImportError, import_prosimos
+from backend.simulation.ir.soundness import UnsoundProcessError
 from backend.simulation.service import (
     claim_proposals_for_model,
     SimulationCapacityError,

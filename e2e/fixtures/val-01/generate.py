@@ -20,7 +20,8 @@ from pathlib import Path
 
 from backend.schemas.simulation_model import ProsimosImportNote, ProsimosImportResponse
 from backend.schemas.workspace import BpmnModelResponse
-from backend.simulation.ir.from_prosimos import UnsoundProcessError, import_prosimos
+from backend.simulation.ir.from_prosimos import import_prosimos
+from backend.simulation.ir.soundness import UnsoundProcessError
 from backend.simulation.service import scenario_template_for_model
 
 ROOT = Path(__file__).resolve().parents[3]

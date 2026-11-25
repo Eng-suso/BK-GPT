@@ -47,7 +47,7 @@ from backend.simulation.ir.model import (
     Uniform,
     Wait,
 )
-from backend.simulation.ir.soundness import SoundnessProblem, check_soundness
+from backend.simulation.ir.soundness import UnsoundProcessError, require_sound
 
 # Sezioni di uno scenario Prosimos che l'import sa leggere.
 _SECTIONS = {
@@ -111,23 +111,6 @@ class ProsimosImportError(ValueError):
     """Lo scenario non si puo' importare senza perdere o inventare qualcosa."""
 
 
-class UnsoundProcessError(ProsimosImportError):
-    """VAL-01: lo scenario si legge, ma con le sue probabilita' qualche caso non finirebbe."""
-
-    def __init__(self, problems: tuple[SoundnessProblem, ...]) -> None:
-        self.problems = problems
-        # Cosa non torna e cosa fare, per il consulente.
-        # Un paragrafo per cosa non torna, uno per cosa fare: la UI li tiene separati.
-        super().__init__(
-            "\n\n".join(f"{p.message}\nCosa fare: {p.action[:1].lower()}{p.action[1:]}" for p in problems)
-        )
-
-    @property
-    def detail(self) -> str:
-        """Per specialisti: la regola violata e gli id del BPMN."""
-        return "; ".join(p.detail for p in self.problems)
-
-
 @dataclass(frozen=True, slots=True)
 class ImportNote:
     kind: NoteKind
@@ -159,7 +142,7 @@ def import_prosimos(scenario: dict, bpmn_xml: str) -> ImportResult:
     """
     try:
         return _import(scenario, bpmn_xml)
-    except ProsimosImportError:
+    except (ProsimosImportError, UnsoundProcessError):
         raise
     except ValidationError as exc:
         raise ProsimosImportError(_explain(exc)) from exc
@@ -264,10 +247,7 @@ def _import(scenario: dict, bpmn_xml: str) -> ImportResult:
 
 def _soundness_notes(model: SimulationModel, bpmn_xml: str) -> list[ImportNote]:
     """VAL-01: un modello in cui qualche caso non finirebbe non si importa."""
-    report = check_soundness(model, bpmn_xml)
-    if report.problems:
-        raise UnsoundProcessError(report.problems)
-    if report.complete:
+    if require_sound(model, bpmn_xml).complete:
         return []
     return [
         ImportNote(

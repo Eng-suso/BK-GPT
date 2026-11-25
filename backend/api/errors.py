@@ -120,7 +120,7 @@ def setup_api_error_handlers(app: FastAPI) -> None:
         )
 
     from backend.eventlog.service import ConformanceUnavailable
-    from backend.simulation.ir.from_prosimos import UnsoundProcessError
+    from backend.simulation.ir.soundness import UnsoundProcessError
     from backend.workspace_database import UnreadableReviewError
 
     @app.exception_handler(UnsoundProcessError)
