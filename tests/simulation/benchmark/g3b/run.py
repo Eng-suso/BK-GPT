@@ -451,7 +451,7 @@ def evaluate(config: str, prepared: Prepared, *, seed: int, replicas: int) -> di
         return {**base, "status": "out_of_budget", "reason": str(exc), "cost": {"seconds": exc.run.seconds, "peak_mb": exc.run.peak_mb}}
     except (RuntimeError, OSError, StopIteration) as exc:
         # Uno strumento che dichiara di non potersi applicare al log non si riprova.
-        status = "not_applicable" if "non applicabile" in str(exc) else "failed"
+        status = "not_applicable" if "non applicabile" in str(exc) else "out_of_budget" if "fuori budget" in str(exc) else "failed"
         return {**base, "status": status, "reason": str(exc)[:2000]}
     if any(not log for log in logs):
         return {**base, "status": "failed", "reason": "una replica senza eventi", "cost": cost}

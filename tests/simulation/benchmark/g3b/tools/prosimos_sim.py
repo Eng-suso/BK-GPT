@@ -23,6 +23,7 @@ import argparse
 import csv
 import json
 import random
+import signal
 import tempfile
 import time
 from datetime import datetime
@@ -32,6 +33,13 @@ import numpy
 from prosimos.simulation_engine import SimBPMEnv, execute_full_process, run_simulation
 from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_setup import SimDiffSetup
+
+REPLICA_SECONDS = 600  # PROTOCOL.md §6: al massimo 10 minuti per replica
+
+
+def _over_budget(_signum, _frame):
+    raise SystemExit(f"fuori budget: una replica oltre {REPLICA_SECONDS} s")
+
 
 ALWAYS_OPEN = [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59.999999"}]
 
@@ -85,6 +93,8 @@ def main() -> int:
         random.seed(seed)
         numpy.random.seed(seed)
         log_path = args.out / f"sim_{replica}.csv"
+        signal.signal(signal.SIGALRM, _over_budget)
+        signal.alarm(REPLICA_SECONDS)
         began = time.perf_counter()
         if arrivals is None:
             with tempfile.NamedTemporaryFile(suffix=".csv") as stats:
@@ -96,6 +106,7 @@ def main() -> int:
             instants = sorted(datetime.fromisoformat(a) for a in arrivals[replica])
             simulate_fixed(args.bpmn, scenario_path, start, instants, log_path)
         timings.append(round(time.perf_counter() - began, 3))
+        signal.alarm(0)
     (args.out / "timings.json").write_text(json.dumps({"simulation_seconds": timings}))
     return 0
 

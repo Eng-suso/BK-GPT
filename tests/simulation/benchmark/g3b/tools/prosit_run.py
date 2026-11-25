@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import signal
 import time
 import warnings
 from pathlib import Path
@@ -32,6 +33,13 @@ COLUMNS = {
     "start_time": "start:timestamp",
     "end_time": "time:timestamp",
 }
+
+
+REPLICA_SECONDS = 600  # PROTOCOL.md §6: al massimo 10 minuti per replica
+
+
+def _over_budget(_signum, _frame):
+    raise SystemExit(f"fuori budget: una replica oltre {REPLICA_SECONDS} s")
 
 
 def read_log(path: Path):
@@ -68,9 +76,12 @@ def main() -> int:
     for replica in range(args.replicas):
         random.seed(args.seed + replica)
         numpy.random.seed(args.seed + replica)
+        signal.signal(signal.SIGALRM, _over_budget)
+        signal.alarm(REPLICA_SECONDS)
         began = time.perf_counter()
         simulated = SimulatorEngine(params).apply(n_traces=args.cases, t_start=start)
         timings.append(round(time.perf_counter() - began, 3))
+        signal.alarm(0)
         out = simulated.rename(columns={v: k for k, v in COLUMNS.items()})[list(COLUMNS)]
         out.to_csv(args.out / f"sim_{replica}.csv", index=False)
     (args.out / "timings.json").write_text(json.dumps({"discovery_seconds": discovery, "simulation_seconds": timings}))

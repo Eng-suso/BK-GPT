@@ -24,6 +24,7 @@ import json
 import os
 import sys
 import random
+import signal
 import time
 import warnings
 from pathlib import Path
@@ -37,6 +38,13 @@ from source import simulation as agent_simulation
 from source.discovery import discover_simulation_parameters
 
 RENAME = {"activity": "activity_name", "start_time": "start_timestamp", "end_time": "end_timestamp"}
+
+
+REPLICA_SECONDS = 600  # PROTOCOL.md §6: al massimo 10 minuti per replica
+
+
+def _over_budget(_signum, _frame):
+    raise SystemExit(f"fuori budget: una replica oltre {REPLICA_SECONDS} s")
 
 
 def read_input(path: Path) -> pandas.DataFrame:
@@ -107,9 +115,12 @@ def main() -> int:
         random.seed(args.seed + replica)
         numpy.random.seed(args.seed + replica)
         parameters["case_arrival_times"] = list(arrivals)
+        signal.signal(signal.SIGALRM, _over_budget)
+        signal.alarm(REPLICA_SECONDS)
         began = time.perf_counter()
         agent_simulation.simulate_process(train, parameters, str(work), 1)
         timings.append(round(time.perf_counter() - began, 3))
+        signal.alarm(0)
         (work / "simulated_log_0.csv").rename(args.out / f"sim_{replica}.csv")
     choice = {k: parameters.get(k) for k in ("central_orchestration", "discover_extr_delays")}
     (args.out / "timings.json").write_text(
