@@ -18,9 +18,9 @@ Modello:
 
 ---
 
-## 2026-11-25 — PROTO-01 protocollo sperimentale — consegnato, meta *proposta* da confermare
+## 2026-11-25 — PROTO-01 protocollo sperimentale — fatto
 
-- Branch / PR: `docs/vpt-protocol`.
+- Branch / PR: `docs/vpt-protocol`, #190, CI verde.
 - Meta: `docs/vpt/PROTOCOL.md` con categorie, NOT VALIDATED per log e metrica, nessun log
   escluso, holdout congelati per hash prima di G3b, divisione train / validazione / test,
   budget, go/no-go; più un test che fallisce se il codice di selezione legge un holdout →
@@ -58,8 +58,8 @@ Modello:
 - Branch aperti all'inizio: tutti indietro rispetto a `main` e già mergiati, tranne
   `docs/vpt-no-contact` (#188, decisione di Sohayb), mergiato su `main` durante la sessione
   e ripreso qui.
-- Decisioni: nessuna meta cambiata. Le soglie del §4, il budget del §6 e il go/no-go del §7
-  sono *proposta*: PROTO-01 si chiude con la conferma di Sohayb.
+- Decisioni (Sohayb, 2026-11-25): confermate così le soglie del §4, il budget del §6 e il
+  go/no-go del §7. Nessuna meta abbassata.
 - Prossimo passo: G3b, dentro `selection_phase()`, con le schede del §7 scritte prima.
 
 ---

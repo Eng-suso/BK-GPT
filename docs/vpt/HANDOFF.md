@@ -12,7 +12,7 @@ trasformato il Master Plan V2 in un programma di ricerca (sezione "P0" di
 **ENG-01** (Simulation Engine Interface); poi **G3b**. B3 parte solo dopo G3b. Nessun
 candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
 
-## PROTO-01 (consegnato il 2026-11-25, `docs/vpt-protocol`; attende la conferma delle mete *proposta*)
+## PROTO-01 (fatto il 2026-11-25, PR #190)
 
 Il protocollo di G3b è in [`PROTOCOL.md`](./PROTOCOL.md); in codice
 `tests/simulation/benchmark/protocol.py`, test in `test_protocol.py` (124).
@@ -38,8 +38,8 @@ uv run pytest --noconftest -q tests/simulation/benchmark/test_protocol.py
 - **Per G3b:** punti d'ingresso in `selection_phase()`, log da `development_logs()`, scelta
   sulla validazione (`train_validation`, ultimo 20% del train), schede di go/no-go (§7) in
   `LOG.md` prima della misura, budget del §6.
-- **Da confermare (Sohayb):** soglie del §4 (5% tagliati, 95% coperture, arrivi ×2, 30 casi),
-  budget del §6, go/no-go del §7.
+- **Confermati da Sohayb (2026-11-25):** soglie del §4 (5% tagliati, 95% coperture, arrivi
+  ×2, 30 casi), budget del §6, go/no-go del §7.
 
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
