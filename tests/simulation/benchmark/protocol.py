@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Literal
 
 from scripts import fetch_datasets
+from tests.simulation.benchmark.eval_harness import INPUTS, REAL_LIFE
 from tests.simulation.benchmark.log_distance import Event, cases
 
 BENCHMARK = Path(__file__).resolve().parent
@@ -55,6 +56,14 @@ class HoldoutAccessError(PermissionError):
 
 
 # --------------------------------------------------------------------------- lucchetto
+
+
+def sha256_of(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def lock_digest(path: Path = LOCK_PATH) -> str:
@@ -108,13 +117,10 @@ def _derived(stem: str, blocked: frozenset[str]) -> bool:
 
 def is_holdout(path: str | bytes | os.PathLike) -> bool:
     """Il file e' un log holdout, ne deriva, o sta in un dataset holdout (archivio compreso)."""
-    text = os.fsdecode(path)
-    name = os.path.basename(text).lower()
+    # Gira a ogni apertura di file del processo: stringhe, niente Path ne' syscall.
+    *folders, name = os.fsdecode(path).lower().replace("\\", "/").split("/")
     blocked = blocked_names()
-    if name in blocked.names:
-        return True
-    parts = {part.lower() for part in Path(text).parts[:-1]}
-    if parts & blocked.folders:
+    if name in blocked.names or not blocked.folders.isdisjoint(folders):
         return True
     return name.endswith(LOG_SUFFIXES) and _derived(_stem(name), blocked.stems)
 
@@ -237,11 +243,7 @@ def verify_frozen(cache_root: Path) -> list[str]:
                 if not path.is_file():
                     problems.append(f"{holdout['id']}: manca {path}")
                     continue
-                digest = hashlib.sha256()
-                with path.open("rb") as handle:
-                    for block in iter(lambda: handle.read(1 << 20), b""):
-                        digest.update(block)
-                if digest.hexdigest() != item["sha256"]:
+                if sha256_of(path) != item["sha256"]:
                     problems.append(f"{holdout['id']}: {item['path']} ha un'impronta diversa dal lucchetto")
     return problems
 
@@ -253,6 +255,7 @@ COMPLETE: Category = "osservabilita completa"
 PARTIAL: Category = "osservabilita parziale"
 SYNTHETIC: Category = "sintetico con verita nota"
 
+_INPUTS = INPUTS.relative_to(ROOT).as_posix()
 SYNTHETIC_PROCESSES = ("Insurance_Claims", "Loan_Application", "Pharmacy", "Procure_to_Pay")
 SYNTHETIC_VARIANTS = ("", "_1_timer", "_3_timers", "_5_timers", "_5_timers_after")
 
@@ -268,15 +271,15 @@ class DevelopmentLog:
 def development_logs() -> tuple[DevelopmentLog, ...]:
     """Tutti i log di sviluppo del benchmark: nessuno escluso, nessun holdout."""
     real = tuple(
-        DevelopmentLog(key, COMPLETE, f"datasets/extraneous-delays/inputs/real-life/{key}_{{train,test}}.csv.gz", "train / test del paper")
-        for key in ("AcademicCredentials", "BPIC_2012_W", "BPIC_2017_W")
+        DevelopmentLog(key, COMPLETE, f"{_INPUTS}/real-life/{key}_{{train,test}}.csv.gz", "train / test del paper")
+        for key in REAL_LIFE
     )
     public = (
         DevelopmentLog("bpic2012", PARTIAL, "manifest bpic2012 (4TU)", "meta' dei casi per inizio"),
         DevelopmentLog("bpic2013_incidents", PARTIAL, "manifest bpic2013-incidents (4TU)", "meta' dei casi per inizio"),
     )
     synthetic = tuple(
-        DevelopmentLog(f"{process}{variant}", SYNTHETIC, f"datasets/extraneous-delays/inputs/synthetic/{process}{variant}.csv.gz", "meta' dei casi per inizio")
+        DevelopmentLog(f"{process}{variant}", SYNTHETIC, f"{_INPUTS}/synthetic/{process}{variant}.csv.gz", "meta' dei casi per inizio")
         for process in SYNTHETIC_PROCESSES
         for variant in SYNTHETIC_VARIANTS
     )

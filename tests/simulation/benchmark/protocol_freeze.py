@@ -13,7 +13,6 @@ richiede ``--refreeze``.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -22,7 +21,7 @@ if __package__ in (None, ""):  # lanciato come script
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from scripts import fetch_datasets
-from tests.simulation.benchmark.protocol import COMPLETE, LOCK_PATH, PARTIAL, SYNTHETIC
+from tests.simulation.benchmark.protocol import COMPLETE, LOCK_PATH, PARTIAL, SYNTHETIC, lock_digest, sha256_of
 
 FROZEN_ON = "2026-11-25"
 _CAMARGO = "camargo-2022-reproducibility"
@@ -128,14 +127,6 @@ CONTAINERS = (
 )
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
 def build(cache_root: Path) -> dict:
     manifest = fetch_datasets.load_manifest()
     holdouts = []
@@ -147,7 +138,7 @@ def build(cache_root: Path) -> dict:
             path = cache_root / dataset / relative
             if not path.is_file():
                 raise SystemExit(f"manca {path}: scaricalo con scripts/fetch_datasets.py fetch {dataset}")
-            files.append({"path": relative, "sha256": _sha256(path), "bytes": path.stat().st_size})
+            files.append({"path": relative, "sha256": sha256_of(path), "bytes": path.stat().st_size})
         holdouts.append(
             {
                 **{k: v for k, v in spec.items() if k != "files"},
@@ -178,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     lock = build(fetch_datasets.cache_dir())
     LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
     LOCK_PATH.write_text(json.dumps(lock, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"scritto {LOCK_PATH}, SHA-256 {hashlib.sha256(LOCK_PATH.read_bytes()).hexdigest()}")
+    print(f"scritto {LOCK_PATH}, SHA-256 {lock_digest()}")
     return 0
 
 
