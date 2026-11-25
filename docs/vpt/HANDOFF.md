@@ -17,8 +17,14 @@ candidato (AT-KDE, POWL, ProSiT, AgentSimulator) si implementa prima.
 Simulation Engine Interface fra l'IR e il motore; Prosimos diventa un adattatore.
 In parallelo: VAL-01 e PROTO-01 (non tocco la validazione dell'import nell'IR).
 
-- Stato: branch creato da `origin/main`, stack reale in avvio, misura "prima"
-  dell'harness B2 da prendere.
+- Misura "prima" (harness B2 su `main` 3cb2825, stack reale, 19 scenari): SHA-256
+  di `baseline.json` `4e4fce5d…`. Diverso dal file nel repo (`24809a7f…`) solo per
+  `import_notes` 4 → 5 sulle 4 Procure_to_Pay: la nota di IMP-01 arrivata dopo B2;
+  metriche identiche. Il "dopo" deve dare `4e4fce5d…`.
+- Interfaccia: `backend/simulation/engine/__init__.py` (verbi, tipi, registro),
+  adattatore `engine/prosimos.py`; regola `.ast-grep-rules/python-engine-outside-adapter.yml`
+  (prova a due vie fatta: 7/7 import vietati presi, 4/4 leciti no). Prima del
+  refactor 15 rilievi in `backend/`.
 
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
