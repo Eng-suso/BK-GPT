@@ -29,15 +29,10 @@ from backend.schemas.simulation import (
     ScenarioTemplateResponse,
     SimulationClaimsResponse,
 )
-from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
 from backend.simulation.provenance import build_scenario_provenance
-from backend.simulation.log_processor import (
-    activity_name_to_element_id,
-    parse_prosimos_log,
-    process_prosimos_log,
-)
-from backend.simulation.models import ProsimosScenario, ProsimosSimulationRequest
-from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
+from backend.schemas.simulation import BpmnCompatibilityResponse
+from backend.simulation.engine import EngineError, EngineRunRequest, EngineRunResult, get_engine
+from backend.simulation.models import ProsimosScenario
 from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, claim_next_run
 from backend.simulation.result_parser import with_output_files
 from backend.simulation.costs import add_fixed_costs
@@ -69,6 +64,14 @@ from backend.simulation.storage import (
 RunRequest = CreateSimulationRunRequest | CreateSimulationModelRunRequest
 
 logger = logging.getLogger(__name__)
+
+
+async def run_prosimos_simulation(request: EngineRunRequest) -> EngineRunResult:
+    """Esegue un run sul motore, tramite la Simulation Engine Interface (ENG-01).
+
+    Il nome e' quello storico: e' il punto in cui i test sostituiscono il motore.
+    """
+    return await get_engine().run(request)
 
 
 class SimulationCapacityError(RuntimeError):
@@ -125,7 +128,17 @@ def scenario_template_for_model(
     bpmn_xml = (current_bpmn_xml or bpmn_model.xml or "").strip()
     if not bpmn_xml:
         raise ValueError("Salva o genera un BPMN prima di configurare la simulazione.")
-    return describe_scenario_template(normalize_bpmn_for_prosimos(bpmn_xml), source_bpmn_xml=bpmn_xml)
+    return describe_scenario_template(get_engine().prepare_bpmn(bpmn_xml), source_bpmn_xml=bpmn_xml)
+
+
+def compatibility_report_for_model(
+    *, bpmn_model: BpmnModelResponse, current_bpmn_xml: str | None
+) -> BpmnCompatibilityResponse:
+    """Che cosa diventa ogni elemento del BPMN che il run userebbe: quello in modifica, o il salvato."""
+    bpmn_xml = (current_bpmn_xml or bpmn_model.xml or "").strip()
+    if not bpmn_xml:
+        raise ValueError("Salva o genera un BPMN prima di configurare la simulazione.")
+    return get_engine().compatibility_report(bpmn_xml)
 
 
 def claim_proposals_for_model(
@@ -263,7 +276,7 @@ def simulation_model_for_bpmn(
     bpmn_xml = (current_bpmn_xml or bpmn_model.xml or "").strip()
     if not bpmn_xml:
         raise ValueError("Salva o genera un BPMN prima di configurare la simulazione.")
-    return baseline_for_bpmn(normalize_bpmn_for_prosimos(bpmn_xml), source_bpmn_xml=bpmn_xml)
+    return baseline_for_bpmn(get_engine().prepare_bpmn(bpmn_xml), source_bpmn_xml=bpmn_xml)
 
 
 def prepare_simulation_model_run(
@@ -279,7 +292,7 @@ def prepare_simulation_model_run(
     source_xml = (request.current_bpmn_xml or bpmn_model.xml or "").strip()
     if not source_xml:
         raise ValueError("Salva o genera un BPMN prima di avviare Prosimos.")
-    bpmn_xml = normalize_bpmn_for_prosimos(source_xml)
+    bpmn_xml = get_engine().prepare_bpmn(source_xml)
 
     if request.model is not None:
         model = request.model
@@ -470,7 +483,7 @@ def _with_horizon(bpmn_model: BpmnModelResponse, request: CreateSimulationRunReq
     bpmn_xml = (request.current_bpmn_xml or bpmn_model.xml or "").strip()
     if not bpmn_xml:
         return request  # _plan_run lo rifiuta con il suo messaggio
-    scenario = build_prosimos_scenario(bpmn_xml=normalize_bpmn_for_prosimos(bpmn_xml), request=request)
+    scenario = build_prosimos_scenario(bpmn_xml=get_engine().prepare_bpmn(bpmn_xml), request=request)
     cases = horizon_cases(SimulationModel.model_validate(scenario.model), start, request.horizon_days)
     return request.model_copy(update={"start_date": start, "total_cases": cases})
 
@@ -485,9 +498,9 @@ def _plan_run(
     if not bpmn_xml:
         raise ValueError("Salva o genera un BPMN prima di avviare Prosimos.")
 
-    # Adapt the model to Prosimos' constraints (e.g. single end event) before it
+    # Adapt the model to the engine's constraints (e.g. single end event) before it
     # feeds both the scenario and the engine request.
-    bpmn_xml = normalize_bpmn_for_prosimos(bpmn_xml)
+    bpmn_xml = get_engine().prepare_bpmn(bpmn_xml)
     _check_claims(request, bpmn_model.process_id)
     _check_workspace_scenario(request, bpmn_model.id)
     if request.warmup_cases >= request.total_cases:
@@ -599,20 +612,17 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
 
 async def _execute_claimed_run(claimed: ClaimedRun, timer: _PhaseTimer) -> dict:
     set_current_tenant_id(claimed.tenant_id)
-    heart = asyncio.create_task(_keep_beating(claimed))
+    request = EngineRunRequest(
+        bpmn_xml=claimed.bpmn_xml,
+        scenario=claimed.scenario,
+        total_cases=claimed.total_cases,
+        start_date=claimed.start_date,
+        seed=claimed.seed,
+    )
+    heart = asyncio.create_task(_keep_beating(claimed, request))
     try:
-        result = with_output_files(
-            await run_prosimos_simulation(
-                ProsimosSimulationRequest(
-                    bpmn_xml=claimed.bpmn_xml,
-                    scenario=claimed.scenario,
-                    total_cases=claimed.total_cases,
-                    start_date=claimed.start_date,
-                    seed=claimed.seed,
-                )
-            )
-        )
-    except ProsimosError as exc:
+        result = with_output_files(await run_prosimos_simulation(request))
+    except EngineError as exc:
         return await asyncio.to_thread(fail_simulation_run, run_id=claimed.run_id, error=str(exc), worker_id=claimed.worker_id)
     except Exception as exc:  # noqa: BLE001 - never leave a run stuck in "pending"
         logger.exception("simulazione %s: errore inatteso", claimed.run_id)
@@ -705,7 +715,7 @@ class _PhaseTimer:
 
 
 
-async def _keep_beating(claimed: ClaimedRun) -> None:
+async def _keep_beating(claimed: ClaimedRun, request: EngineRunRequest) -> None:
     while True:
         await asyncio.sleep(settings.simulation_heartbeat_seconds)
         try:
@@ -714,7 +724,8 @@ async def _keep_beating(claimed: ClaimedRun) -> None:
             logger.warning("simulazione %s: battito non scritto", claimed.run_id, exc_info=True)
             continue
         if not alive:
-            # Il run non e' piu' nostro: l'esito, quando arriva, verra' scartato.
+            # Il run non e' piu' nostro: l'esito verrebbe scartato, il motore si ferma qui.
+            get_engine().cancel(request)
             return
 
 
@@ -731,14 +742,8 @@ def _process_event_log(
     Un errore qui e' un difetto da vedere: risale, e il chiamante fa fallire il
     run invece di chiuderlo "completato" senza KPI.
     """
-    return process_prosimos_log(
-        result.event_log_csv,
-        normalized_bpmn_xml=bpmn_xml,
-        scenario_payload=scenario.payload,
-        prosimos_stats=result.payload,
-        name_to_element_id=activity_name_to_element_id(bpmn_xml),
-        warmup_cases=warmup_cases,
-        horizon=horizon,
+    return get_engine().summarize_run(
+        result, bpmn_xml=bpmn_xml, scenario=scenario, warmup_cases=warmup_cases, horizon=horizon,
     )
 
 
@@ -776,7 +781,7 @@ def export_simulation_event_log(run_id: int, fmt: Literal["csv", "xes"]) -> Simu
     if request.get("horizon_days") and request.get("start_date"):
         # SIM-03: il log osservato nel periodo, come lo avrebbe un sistema reale a fine periodo.
         end = horizon_end(request["start_date"], int(request["horizon_days"]))
-        _, arrived, _ = within_horizon(parse_prosimos_log(csv_text), end, int(request["horizon_days"]))
+        _, arrived, _ = within_horizon(get_engine().read_log(csv_text), end, int(request["horizon_days"]))
         log = from_log_events([ev for ev in arrived if ev.end <= end], source_name=f"simulation-run-{run_id}")
     else:
         log = from_prosimos_csv(csv_text, source_name=f"simulation-run-{run_id}")
