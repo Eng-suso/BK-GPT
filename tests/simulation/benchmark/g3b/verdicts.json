@@ -1,86 +1,2370 @@
 {
   "Arrivi (AT-KDE) / validation": {
-    "verdict": "NOT VALIDATED",
+    "verdict": "INCOMPLETO",
     "reasons": [
-      "CAR identificabile in 1 log"
+      "contro naive: CAR vince su 6/22 log",
+      "contro naive: CAR perde su BPIC_2017_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Loan_Application, Loan_Application_1_timer, Loan_Application_3_timers, Loan_Application_5_timers, Loan_Application_5_timers_after, Pharmacy, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after",
+      "contro naive: guardia W1 perde su 21 log",
+      "contro naive: guardia NGD perde su 22 log",
+      "contro naive: guardia RED perde su 21 log",
+      "contro naive: guardia AED perde su 16 log",
+      "contro naive: guardia CED perde su 19 log",
+      "contro simod_extr: base mancante su BPIC_2017_W",
+      "contro simod_extr: CAR vince su 0/22 log",
+      "contro simod_extr: CAR perde su BPIC_2012_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Loan_Application, Loan_Application_1_timer, Loan_Application_3_timers, Loan_Application_5_timers, Loan_Application_5_timers_after, Pharmacy, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after",
+      "contro simod_extr: guardia W1 perde su 15 log",
+      "contro simod_extr: guardia NGD perde su 15 log",
+      "contro simod_extr: guardia RED perde su 15 log",
+      "contro simod_extr: guardia AED perde su 16 log",
+      "contro simod_extr: guardia CED perde su 15 log",
+      "candidato non misurato (mancante, fallito o fuori budget) su BPIC_2017_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Loan_Application, Loan_Application_1_timer, Loan_Application_3_timers, Loan_Application_5_timers, Loan_Application_5_timers_after, Pharmacy, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after"
     ],
-    "bases": {}
+    "bases": {
+      "naive": {
+        "wins": 6,
+        "logs": 22,
+        "losses": [
+          "BPIC_2017_W",
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers",
+          "Insurance_Claims_5_timers_after",
+          "Loan_Application",
+          "Loan_Application_1_timer",
+          "Loan_Application_3_timers",
+          "Loan_Application_5_timers",
+          "Loan_Application_5_timers_after",
+          "Pharmacy",
+          "Pharmacy_1_timer",
+          "Pharmacy_3_timers",
+          "Pharmacy_5_timers",
+          "Pharmacy_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "NGD": [
+            "BPIC_2012_W",
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "RED": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "AED": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "simod_extr": {
+        "wins": 0,
+        "logs": 22,
+        "losses": [
+          "BPIC_2012_W",
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers",
+          "Insurance_Claims_5_timers_after",
+          "Loan_Application",
+          "Loan_Application_1_timer",
+          "Loan_Application_3_timers",
+          "Loan_Application_5_timers",
+          "Loan_Application_5_timers_after",
+          "Pharmacy",
+          "Pharmacy_1_timer",
+          "Pharmacy_3_timers",
+          "Pharmacy_5_timers",
+          "Pharmacy_5_timers_after"
+        ],
+        "missing": [
+          "BPIC_2017_W"
+        ],
+        "guard_losses": {
+          "W1": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "NGD": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "RED": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "AED": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      }
+    }
   },
   "Arrivi (AT-KDE) / test": {
-    "verdict": "NOT VALIDATED",
+    "verdict": "NO-GO",
     "reasons": [
-      "CAR identificabile in 0 log"
+      "contro naive: CAR vince su 6/22 log",
+      "contro naive: CAR perde su AcademicCredentials, BPIC_2012_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Pharmacy, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after",
+      "contro naive: guardia W1 perde su 17 log",
+      "contro naive: guardia NGD perde su 22 log",
+      "contro naive: guardia RED perde su 17 log",
+      "contro naive: guardia AED perde su 17 log",
+      "contro naive: guardia CED perde su 21 log",
+      "contro simod_extr: CAR vince su 3/22 log",
+      "contro simod_extr: CAR perde su BPIC_2012_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Pharmacy, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after",
+      "contro simod_extr: guardia W1 perde su 10 log",
+      "contro simod_extr: guardia NGD perde su 10 log",
+      "contro simod_extr: guardia RED perde su 10 log",
+      "contro simod_extr: guardia AED perde su 11 log",
+      "contro simod_extr: guardia CED perde su 11 log",
+      "candidato non misurato (mancante, fallito o fuori budget) su AcademicCredentials, BPIC_2017_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Pharmacy, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after"
     ],
-    "bases": {}
+    "bases": {
+      "naive": {
+        "wins": 6,
+        "logs": 22,
+        "losses": [
+          "AcademicCredentials",
+          "BPIC_2012_W",
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers",
+          "Insurance_Claims_5_timers_after",
+          "Pharmacy",
+          "Pharmacy_1_timer",
+          "Pharmacy_3_timers",
+          "Pharmacy_5_timers",
+          "Pharmacy_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "NGD": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "RED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "simod_extr": {
+        "wins": 3,
+        "logs": 22,
+        "losses": [
+          "BPIC_2012_W",
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers",
+          "Insurance_Claims_5_timers_after",
+          "Pharmacy",
+          "Pharmacy_1_timer",
+          "Pharmacy_3_timers",
+          "Pharmacy_5_timers",
+          "Pharmacy_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "NGD": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "RED": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "AED": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      }
+    }
   },
   "Attese (ritardi estranei) / validation": {
-    "verdict": "NOT VALIDATED",
+    "verdict": "NO-GO",
     "reasons": [
-      "RED identificabile in 1 log"
+      "contro naive: RED vince su 4/22 log",
+      "contro naive: RED perde su BPIC_2017_W, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Pharmacy, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after, Procure_to_Pay, Procure_to_Pay_1_timer, Procure_to_Pay_3_timers, Procure_to_Pay_5_timers, Procure_to_Pay_5_timers_after",
+      "contro naive: guardia W1 perde su 15 log",
+      "contro naive: guardia NGD perde su 15 log",
+      "contro naive: guardia AED perde su 11 log",
+      "contro naive: guardia CED perde su 9 log",
+      "contro naive: guardia CAR perde su 10 log",
+      "contro simod: RED vince su 3/22 log",
+      "contro simod: RED perde su BPIC_2017_W, Insurance_Claims_1_timer, Insurance_Claims_5_timers, Pharmacy_3_timers",
+      "contro simod: guardia W1 perde su 5 log",
+      "contro simod: guardia NGD perde su 2 log",
+      "contro simod: guardia AED perde su 4 log",
+      "contro simod: guardia CED perde su 2 log",
+      "contro simod: tempo o memoria oltre il doppio su 1 log",
+      "candidato non misurato (mancante, fallito o fuori budget) su BPIC_2017_W"
     ],
-    "bases": {}
+    "bases": {
+      "naive": {
+        "wins": 4,
+        "logs": 22,
+        "losses": [
+          "BPIC_2017_W",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers",
+          "Insurance_Claims_5_timers_after",
+          "Pharmacy",
+          "Pharmacy_1_timer",
+          "Pharmacy_3_timers",
+          "Pharmacy_5_timers",
+          "Pharmacy_5_timers_after",
+          "Procure_to_Pay",
+          "Procure_to_Pay_1_timer",
+          "Procure_to_Pay_3_timers",
+          "Procure_to_Pay_5_timers",
+          "Procure_to_Pay_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "BPIC_2017_W",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "NGD": [
+            "BPIC_2012_W",
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "AED": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_5_timers_after"
+          ],
+          "CAR": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "simod": {
+        "wins": 3,
+        "logs": 22,
+        "losses": [
+          "BPIC_2017_W",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_5_timers",
+          "Pharmacy_3_timers"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "BPIC_2012_W",
+            "BPIC_2017_W",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_5_timers",
+            "Pharmacy_3_timers"
+          ],
+          "NGD": [
+            "BPIC_2017_W",
+            "Loan_Application"
+          ],
+          "AED": [
+            "BPIC_2017_W",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy_3_timers"
+          ],
+          "CED": [
+            "BPIC_2012_W",
+            "BPIC_2017_W"
+          ],
+          "CAR": [
+            "BPIC_2017_W"
+          ]
+        },
+        "costlier_than_double": [
+          "BPIC_2012_W"
+        ]
+      }
+    }
   },
   "Attese (ritardi estranei) / test": {
-    "verdict": "NOT VALIDATED",
+    "verdict": "NO-GO",
     "reasons": [
-      "RED identificabile in 0 log"
+      "contro naive: RED vince su 5/22 log",
+      "contro naive: RED perde su AcademicCredentials, BPIC_2012_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Pharmacy, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after, Procure_to_Pay, Procure_to_Pay_1_timer, Procure_to_Pay_3_timers, Procure_to_Pay_5_timers, Procure_to_Pay_5_timers_after",
+      "contro naive: guardia W1 perde su 17 log",
+      "contro naive: guardia NGD perde su 21 log",
+      "contro naive: guardia AED perde su 17 log",
+      "contro naive: guardia CED perde su 13 log",
+      "contro naive: guardia CAR perde su 12 log",
+      "contro simod: RED vince su 3/22 log",
+      "contro simod: RED perde su AcademicCredentials, Procure_to_Pay_5_timers, Procure_to_Pay_5_timers_after",
+      "contro simod: guardia W1 perde su 4 log",
+      "contro simod: guardia NGD perde su 2 log",
+      "contro simod: guardia AED perde su 5 log",
+      "contro simod: guardia CED perde su 4 log",
+      "contro simod: guardia CAR perde su 3 log",
+      "contro simod: tempo o memoria oltre il doppio su 3 log",
+      "candidato non misurato (mancante, fallito o fuori budget) su AcademicCredentials, BPIC_2017_W"
     ],
-    "bases": {}
+    "bases": {
+      "naive": {
+        "wins": 5,
+        "logs": 22,
+        "losses": [
+          "AcademicCredentials",
+          "BPIC_2012_W",
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers",
+          "Insurance_Claims_5_timers_after",
+          "Pharmacy",
+          "Pharmacy_1_timer",
+          "Pharmacy_3_timers",
+          "Pharmacy_5_timers",
+          "Pharmacy_5_timers_after",
+          "Procure_to_Pay",
+          "Procure_to_Pay_1_timer",
+          "Procure_to_Pay_3_timers",
+          "Procure_to_Pay_5_timers",
+          "Procure_to_Pay_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "NGD": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "CAR": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "simod": {
+        "wins": 3,
+        "logs": 22,
+        "losses": [
+          "AcademicCredentials",
+          "Procure_to_Pay_5_timers",
+          "Procure_to_Pay_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "AcademicCredentials",
+            "Insurance_Claims_5_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "NGD": [
+            "AcademicCredentials",
+            "Loan_Application_3_timers"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Loan_Application_5_timers_after",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "CAR": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Pharmacy_5_timers"
+          ]
+        },
+        "costlier_than_double": [
+          "BPIC_2012_W",
+          "Loan_Application_3_timers",
+          "Procure_to_Pay_5_timers_after"
+        ]
+      }
+    }
   },
   "Calendari delle risorse / validation": {
-    "verdict": "NOT VALIDATED",
+    "verdict": "INCOMPLETO",
     "reasons": [
-      "CED identificabile in 1 log"
+      "contro naive: CED vince su 6/23 log",
+      "contro naive: CED perde su AcademicCredentials, BPIC_2012_W, BPIC_2017_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers_after, Loan_Application, Loan_Application_5_timers_after",
+      "contro naive: guardia W1 perde su 15 log",
+      "contro naive: guardia NGD perde su 15 log",
+      "contro naive: guardia RED perde su 15 log",
+      "contro naive: guardia AED perde su 11 log",
+      "contro naive: guardia CAR perde su 10 log",
+      "contro simod_extr_247: base mancante su BPIC_2017_W",
+      "contro simod_extr_247: CED vince su 11/23 log",
+      "contro simod_extr_247: CED perde su AcademicCredentials, Insurance_Claims_5_timers, Pharmacy, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after",
+      "contro simod_extr_247: guardia W1 perde su 13 log",
+      "contro simod_extr_247: guardia RED perde su 10 log",
+      "contro simod_extr_247: guardia AED perde su 8 log",
+      "candidato non misurato (mancante, fallito o fuori budget) su BPIC_2017_W"
     ],
-    "bases": {}
+    "bases": {
+      "naive": {
+        "wins": 6,
+        "logs": 23,
+        "losses": [
+          "AcademicCredentials",
+          "BPIC_2012_W",
+          "BPIC_2017_W",
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers_after",
+          "Loan_Application",
+          "Loan_Application_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "BPIC_2017_W",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "NGD": [
+            "BPIC_2012_W",
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "RED": [
+            "BPIC_2017_W",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "AED": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CAR": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "simod_extr_247": {
+        "wins": 11,
+        "logs": 23,
+        "losses": [
+          "AcademicCredentials",
+          "Insurance_Claims_5_timers",
+          "Pharmacy",
+          "Pharmacy_1_timer",
+          "Pharmacy_3_timers",
+          "Pharmacy_5_timers",
+          "Pharmacy_5_timers_after"
+        ],
+        "missing": [
+          "BPIC_2017_W"
+        ],
+        "guard_losses": {
+          "W1": [
+            "BPIC_2012_W",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_5_timers",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "RED": [
+            "BPIC_2012_W",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_5_timers",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_3_timers"
+          ],
+          "AED": [
+            "Insurance_Claims_5_timers",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_3_timers"
+          ]
+        },
+        "costlier_than_double": []
+      }
+    }
   },
   "Calendari delle risorse / test": {
-    "verdict": "NOT VALIDATED",
+    "verdict": "NO-GO",
     "reasons": [
-      "CED identificabile in 0 log"
+      "contro naive: CED vince su 2/22 log",
+      "contro naive: CED perde su AcademicCredentials, BPIC_2012_W, Insurance_Claims_1_timer, Insurance_Claims_5_timers_after, Loan_Application, Loan_Application_3_timers, Loan_Application_5_timers, Loan_Application_5_timers_after, Procure_to_Pay, Procure_to_Pay_1_timer, Procure_to_Pay_3_timers, Procure_to_Pay_5_timers, Procure_to_Pay_5_timers_after",
+      "contro naive: guardia W1 perde su 17 log",
+      "contro naive: guardia NGD perde su 21 log",
+      "contro naive: guardia RED perde su 17 log",
+      "contro naive: guardia AED perde su 17 log",
+      "contro naive: guardia CAR perde su 12 log",
+      "contro simod_extr_247: CED vince su 11/22 log",
+      "contro simod_extr_247: CED perde su Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Pharmacy, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after",
+      "contro simod_extr_247: guardia W1 perde su 15 log",
+      "contro simod_extr_247: guardia RED perde su 15 log",
+      "contro simod_extr_247: guardia AED perde su 15 log",
+      "contro simod_extr_247: guardia CAR perde su 2 log",
+      "candidato non misurato (mancante, fallito o fuori budget) su AcademicCredentials, BPIC_2017_W"
     ],
-    "bases": {}
+    "bases": {
+      "naive": {
+        "wins": 2,
+        "logs": 22,
+        "losses": [
+          "AcademicCredentials",
+          "BPIC_2012_W",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_5_timers_after",
+          "Loan_Application",
+          "Loan_Application_3_timers",
+          "Loan_Application_5_timers",
+          "Loan_Application_5_timers_after",
+          "Procure_to_Pay",
+          "Procure_to_Pay_1_timer",
+          "Procure_to_Pay_3_timers",
+          "Procure_to_Pay_5_timers",
+          "Procure_to_Pay_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "NGD": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "RED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "CAR": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "simod_extr_247": {
+        "wins": 11,
+        "logs": 22,
+        "losses": [
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers",
+          "Insurance_Claims_5_timers_after",
+          "Pharmacy",
+          "Pharmacy_1_timer",
+          "Pharmacy_3_timers",
+          "Pharmacy_5_timers",
+          "Pharmacy_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "RED": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "AED": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "CAR": [
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      }
+    }
   },
   "Control flow e risorse condizionali / validation": {
-    "verdict": "NOT VALIDATED",
+    "verdict": "INCOMPLETO",
     "reasons": [
-      "NGD identificabile in 1 log"
+      "contro naive: NGD vince su 0/22 log",
+      "contro naive: NGD perde su BPIC_2017_W, Loan_Application, Loan_Application_1_timer, Loan_Application_3_timers, Loan_Application_5_timers, Loan_Application_5_timers_after",
+      "contro naive: guardia W1 perde su 11 log",
+      "contro naive: guardia RED perde su 12 log",
+      "contro naive: guardia AED perde su 11 log",
+      "contro naive: guardia CED perde su 3 log",
+      "contro naive: guardia CAR perde su 8 log",
+      "contro simod_extr: base mancante su BPIC_2017_W",
+      "contro simod_extr: NGD perde su Loan_Application, Loan_Application_1_timer, Loan_Application_3_timers, Loan_Application_5_timers, Loan_Application_5_timers_after",
+      "contro simod_extr: guardia W1 perde su 7 log",
+      "contro simod_extr: guardia RED perde su 7 log",
+      "contro simod_extr: guardia AED perde su 4 log",
+      "contro simod_extr: guardia CED perde su 3 log",
+      "contro prosit_norules: base mancante su BPIC_2017_W",
+      "contro prosit_norules: NGD vince su 4/22 log",
+      "contro prosit_norules: guardia AED perde su 2 log",
+      "contro prosit_norules: guardia CED perde su 3 log",
+      "contro prosit_norules: guardia CAR perde su 2 log",
+      "contro prosit_norules: tempo o memoria oltre il doppio su 3 log",
+      "candidato non misurato (mancante, fallito o fuori budget) su AcademicCredentials, BPIC_2017_W"
     ],
-    "bases": {}
+    "bases": {
+      "naive": {
+        "wins": 0,
+        "logs": 22,
+        "losses": [
+          "BPIC_2017_W",
+          "Loan_Application",
+          "Loan_Application_1_timer",
+          "Loan_Application_3_timers",
+          "Loan_Application_5_timers",
+          "Loan_Application_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "RED": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay_5_timers"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "BPIC_2017_W"
+          ],
+          "CAR": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "simod_extr": {
+        "wins": 13,
+        "logs": 22,
+        "losses": [
+          "Loan_Application",
+          "Loan_Application_1_timer",
+          "Loan_Application_3_timers",
+          "Loan_Application_5_timers",
+          "Loan_Application_5_timers_after"
+        ],
+        "missing": [
+          "BPIC_2017_W"
+        ],
+        "guard_losses": {
+          "W1": [
+            "Insurance_Claims",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "RED": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_5_timers_after",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "Loan_Application_5_timers_after",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims_5_timers"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "prosit_norules": {
+        "wins": 4,
+        "logs": 22,
+        "losses": [],
+        "missing": [
+          "BPIC_2017_W"
+        ],
+        "guard_losses": {
+          "RED": [
+            "BPIC_2012_W"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "Insurance_Claims_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after"
+          ],
+          "CAR": [
+            "BPIC_2012_W",
+            "Insurance_Claims_5_timers_after"
+          ]
+        },
+        "costlier_than_double": [
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_5_timers"
+        ]
+      }
+    }
   },
   "Control flow e risorse condizionali / test": {
-    "verdict": "NOT VALIDATED",
+    "verdict": "NO-GO",
     "reasons": [
-      "NGD identificabile in 0 log"
+      "contro naive: NGD vince su 0/22 log",
+      "contro naive: NGD perde su AcademicCredentials, Loan_Application, Loan_Application_1_timer, Loan_Application_3_timers, Loan_Application_5_timers, Loan_Application_5_timers_after",
+      "contro naive: guardia W1 perde su 15 log",
+      "contro naive: guardia RED perde su 13 log",
+      "contro naive: guardia AED perde su 12 log",
+      "contro naive: guardia CED perde su 8 log",
+      "contro naive: guardia CAR perde su 11 log",
+      "contro simod_extr: NGD perde su Loan_Application, Loan_Application_1_timer, Loan_Application_3_timers, Loan_Application_5_timers, Loan_Application_5_timers_after",
+      "contro simod_extr: guardia W1 perde su 12 log",
+      "contro simod_extr: guardia RED perde su 12 log",
+      "contro simod_extr: guardia AED perde su 5 log",
+      "contro simod_extr: guardia CED perde su 6 log",
+      "contro prosit_norules: NGD vince su 11/22 log",
+      "contro prosit_norules: guardia W1 perde su 3 log",
+      "contro prosit_norules: guardia AED perde su 2 log",
+      "contro prosit_norules: guardia CED perde su 3 log",
+      "contro prosit_norules: guardia CAR perde su 2 log",
+      "contro prosit_norules: tempo o memoria oltre il doppio su 4 log",
+      "candidato non misurato (mancante, fallito o fuori budget) su BPIC_2017_W"
     ],
-    "bases": {}
+    "bases": {
+      "naive": {
+        "wins": 0,
+        "logs": 22,
+        "losses": [
+          "AcademicCredentials",
+          "Loan_Application",
+          "Loan_Application_1_timer",
+          "Loan_Application_3_timers",
+          "Loan_Application_5_timers",
+          "Loan_Application_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "AcademicCredentials",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers"
+          ],
+          "RED": [
+            "AcademicCredentials",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Procure_to_Pay_5_timers"
+          ],
+          "CAR": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "simod_extr": {
+        "wins": 17,
+        "logs": 22,
+        "losses": [
+          "Loan_Application",
+          "Loan_Application_1_timer",
+          "Loan_Application_3_timers",
+          "Loan_Application_5_timers",
+          "Loan_Application_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "RED": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers"
+          ],
+          "AED": [
+            "Loan_Application",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers"
+          ],
+          "CED": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after"
+          ],
+          "CAR": [
+            "BPIC_2012_W"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "prosit_norules": {
+        "wins": 11,
+        "logs": 22,
+        "losses": [],
+        "missing": [],
+        "guard_losses": {
+          "W1": [
+            "AcademicCredentials",
+            "Pharmacy_3_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "RED": [
+            "Pharmacy_3_timers"
+          ],
+          "AED": [
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after"
+          ],
+          "CED": [
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy_1_timer"
+          ],
+          "CAR": [
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after"
+          ]
+        },
+        "costlier_than_double": [
+          "Insurance_Claims",
+          "Insurance_Claims_5_timers",
+          "Loan_Application",
+          "Pharmacy"
+        ]
+      }
+    }
   },
   "Approccio intero: ProSiT / validation": {
-    "verdict": "NOT VALIDATED",
+    "verdict": "INCOMPLETO",
     "reasons": [
-      "W1 identificabile in 1 log"
+      "contro naive: W1 vince su 4/22 log",
+      "contro naive: W1 perde su BPIC_2017_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Pharmacy, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after",
+      "contro naive: guardia NGD perde su 6 log",
+      "contro naive: guardia RED perde su 12 log",
+      "contro naive: guardia AED perde su 11 log",
+      "contro naive: guardia CED perde su 3 log",
+      "contro naive: guardia CAR perde su 8 log",
+      "contro simod_extr: base mancante su BPIC_2017_W",
+      "contro simod_extr: W1 vince su 7/22 log",
+      "contro simod_extr: W1 perde su Insurance_Claims, Insurance_Claims_3_timers, Insurance_Claims_5_timers_after, Loan_Application_5_timers, Loan_Application_5_timers_after, Pharmacy_5_timers, Pharmacy_5_timers_after",
+      "contro simod_extr: guardia NGD perde su 5 log",
+      "contro simod_extr: guardia RED perde su 7 log",
+      "contro simod_extr: guardia AED perde su 4 log",
+      "contro simod_extr: guardia CED perde su 3 log",
+      "candidato non misurato (mancante, fallito o fuori budget) su AcademicCredentials, BPIC_2017_W"
     ],
-    "bases": {}
+    "bases": {
+      "naive": {
+        "wins": 4,
+        "logs": 22,
+        "losses": [
+          "BPIC_2017_W",
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers",
+          "Insurance_Claims_5_timers_after",
+          "Pharmacy",
+          "Pharmacy_1_timer",
+          "Pharmacy_3_timers",
+          "Pharmacy_5_timers",
+          "Pharmacy_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "NGD": [
+            "BPIC_2017_W",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after"
+          ],
+          "RED": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay_5_timers"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "BPIC_2017_W"
+          ],
+          "CAR": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "simod_extr": {
+        "wins": 7,
+        "logs": 22,
+        "losses": [
+          "Insurance_Claims",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers_after",
+          "Loan_Application_5_timers",
+          "Loan_Application_5_timers_after",
+          "Pharmacy_5_timers",
+          "Pharmacy_5_timers_after"
+        ],
+        "missing": [
+          "BPIC_2017_W"
+        ],
+        "guard_losses": {
+          "NGD": [
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after"
+          ],
+          "RED": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_5_timers_after",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "Loan_Application_5_timers_after",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims_5_timers"
+          ]
+        },
+        "costlier_than_double": []
+      }
+    }
   },
   "Approccio intero: ProSiT / test": {
-    "verdict": "NOT VALIDATED",
+    "verdict": "NO-GO",
     "reasons": [
-      "W1 identificabile in 0 log"
+      "contro naive: W1 vince su 0/22 log",
+      "contro naive: W1 perde su AcademicCredentials, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Loan_Application_5_timers_after, Pharmacy, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after, Procure_to_Pay, Procure_to_Pay_3_timers, Procure_to_Pay_5_timers",
+      "contro naive: guardia NGD perde su 6 log",
+      "contro naive: guardia RED perde su 13 log",
+      "contro naive: guardia AED perde su 12 log",
+      "contro naive: guardia CED perde su 8 log",
+      "contro naive: guardia CAR perde su 11 log",
+      "contro simod_extr: W1 vince su 7/22 log",
+      "contro simod_extr: W1 perde su Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers_after, Loan_Application_1_timer, Loan_Application_3_timers, Loan_Application_5_timers, Loan_Application_5_timers_after, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after",
+      "contro simod_extr: guardia NGD perde su 5 log",
+      "contro simod_extr: guardia RED perde su 12 log",
+      "contro simod_extr: guardia AED perde su 5 log",
+      "contro simod_extr: guardia CED perde su 6 log",
+      "candidato non misurato (mancante, fallito o fuori budget) su BPIC_2017_W"
     ],
-    "bases": {}
+    "bases": {
+      "naive": {
+        "wins": 0,
+        "logs": 22,
+        "losses": [
+          "AcademicCredentials",
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers",
+          "Insurance_Claims_5_timers_after",
+          "Loan_Application_5_timers_after",
+          "Pharmacy",
+          "Pharmacy_1_timer",
+          "Pharmacy_3_timers",
+          "Pharmacy_5_timers",
+          "Pharmacy_5_timers_after",
+          "Procure_to_Pay",
+          "Procure_to_Pay_3_timers",
+          "Procure_to_Pay_5_timers"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "NGD": [
+            "AcademicCredentials",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after"
+          ],
+          "RED": [
+            "AcademicCredentials",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Procure_to_Pay_5_timers"
+          ],
+          "CAR": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "simod_extr": {
+        "wins": 7,
+        "logs": 22,
+        "losses": [
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers_after",
+          "Loan_Application_1_timer",
+          "Loan_Application_3_timers",
+          "Loan_Application_5_timers",
+          "Loan_Application_5_timers_after",
+          "Pharmacy_1_timer",
+          "Pharmacy_3_timers",
+          "Pharmacy_5_timers",
+          "Pharmacy_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "NGD": [
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after"
+          ],
+          "RED": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers"
+          ],
+          "AED": [
+            "Loan_Application",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers"
+          ],
+          "CED": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after"
+          ],
+          "CAR": [
+            "BPIC_2012_W"
+          ]
+        },
+        "costlier_than_double": []
+      }
+    }
   },
   "Approccio intero: AgentSimulator / validation": {
-    "verdict": "NOT VALIDATED",
+    "verdict": "INCOMPLETO",
     "reasons": [
-      "W1 identificabile in 1 log"
+      "contro naive: W1 vince su 4/22 log",
+      "contro naive: W1 perde su BPIC_2017_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Loan_Application, Loan_Application_5_timers, Loan_Application_5_timers_after, Procure_to_Pay, Procure_to_Pay_3_timers, Procure_to_Pay_5_timers",
+      "contro naive: guardia NGD perde su 10 log",
+      "contro naive: guardia RED perde su 13 log",
+      "contro naive: guardia AED perde su 13 log",
+      "contro naive: guardia CED perde su 14 log",
+      "contro naive: guardia CAR perde su 12 log",
+      "contro simod_extr: base mancante su BPIC_2017_W",
+      "contro simod_extr: W1 vince su 11/22 log",
+      "contro simod_extr: W1 perde su Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Loan_Application, Loan_Application_3_timers, Loan_Application_5_timers, Loan_Application_5_timers_after",
+      "contro simod_extr: guardia NGD perde su 10 log",
+      "contro simod_extr: guardia RED perde su 9 log",
+      "contro simod_extr: guardia AED perde su 14 log",
+      "contro simod_extr: guardia CED perde su 12 log",
+      "contro simod_extr: guardia CAR perde su 15 log",
+      "candidato non misurato (mancante, fallito o fuori budget) su AcademicCredentials, BPIC_2017_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Loan_Application_5_timers",
+      "VAL-01 non verificabile: nessun modello di processo"
     ],
-    "bases": {}
+    "bases": {
+      "naive": {
+        "wins": 4,
+        "logs": 22,
+        "losses": [
+          "BPIC_2017_W",
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers",
+          "Insurance_Claims_5_timers_after",
+          "Loan_Application",
+          "Loan_Application_5_timers",
+          "Loan_Application_5_timers_after",
+          "Procure_to_Pay",
+          "Procure_to_Pay_3_timers",
+          "Procure_to_Pay_5_timers"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "NGD": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_5_timers",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers"
+          ],
+          "RED": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_5_timers",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "CAR": [
+            "BPIC_2017_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_5_timers",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "simod_extr": {
+        "wins": 11,
+        "logs": 22,
+        "losses": [
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers",
+          "Insurance_Claims_5_timers_after",
+          "Loan_Application",
+          "Loan_Application_3_timers",
+          "Loan_Application_5_timers",
+          "Loan_Application_5_timers_after"
+        ],
+        "missing": [
+          "BPIC_2017_W"
+        ],
+        "guard_losses": {
+          "NGD": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_1_timer",
+            "Loan_Application_5_timers",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers"
+          ],
+          "RED": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "CAR": [
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      }
+    }
   },
   "Approccio intero: AgentSimulator / test": {
-    "verdict": "NOT VALIDATED",
+    "verdict": "NO-GO",
     "reasons": [
-      "W1 identificabile in 0 log"
+      "contro naive: W1 vince su 0/22 log",
+      "contro naive: W1 perde su AcademicCredentials, BPIC_2012_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Loan_Application, Loan_Application_1_timer, Loan_Application_5_timers, Loan_Application_5_timers_after, Pharmacy_1_timer, Pharmacy_3_timers, Pharmacy_5_timers, Pharmacy_5_timers_after, Procure_to_Pay, Procure_to_Pay_1_timer, Procure_to_Pay_3_timers, Procure_to_Pay_5_timers, Procure_to_Pay_5_timers_after",
+      "contro naive: guardia NGD perde su 18 log",
+      "contro naive: guardia RED perde su 18 log",
+      "contro naive: guardia AED perde su 13 log",
+      "contro naive: guardia CED perde su 16 log",
+      "contro naive: guardia CAR perde su 17 log",
+      "contro simod_extr: W1 vince su 10/22 log",
+      "contro simod_extr: W1 perde su BPIC_2012_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Loan_Application, Loan_Application_1_timer, Loan_Application_3_timers, Loan_Application_5_timers, Loan_Application_5_timers_after",
+      "contro simod_extr: guardia NGD perde su 10 log",
+      "contro simod_extr: guardia RED perde su 10 log",
+      "contro simod_extr: guardia AED perde su 14 log",
+      "contro simod_extr: guardia CED perde su 15 log",
+      "contro simod_extr: guardia CAR perde su 16 log",
+      "candidato non misurato (mancante, fallito o fuori budget) su AcademicCredentials, BPIC_2012_W, BPIC_2017_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers, Insurance_Claims_5_timers_after, Loan_Application_5_timers",
+      "VAL-01 non verificabile: nessun modello di processo"
     ],
-    "bases": {}
+    "bases": {
+      "naive": {
+        "wins": 0,
+        "logs": 22,
+        "losses": [
+          "AcademicCredentials",
+          "BPIC_2012_W",
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers",
+          "Insurance_Claims_5_timers_after",
+          "Loan_Application",
+          "Loan_Application_1_timer",
+          "Loan_Application_5_timers",
+          "Loan_Application_5_timers_after",
+          "Pharmacy_1_timer",
+          "Pharmacy_3_timers",
+          "Pharmacy_5_timers",
+          "Pharmacy_5_timers_after",
+          "Procure_to_Pay",
+          "Procure_to_Pay_1_timer",
+          "Procure_to_Pay_3_timers",
+          "Procure_to_Pay_5_timers",
+          "Procure_to_Pay_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "NGD": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_5_timers",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "RED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "AED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_5_timers",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "CAR": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      },
+      "simod_extr": {
+        "wins": 10,
+        "logs": 22,
+        "losses": [
+          "BPIC_2012_W",
+          "Insurance_Claims",
+          "Insurance_Claims_1_timer",
+          "Insurance_Claims_3_timers",
+          "Insurance_Claims_5_timers",
+          "Insurance_Claims_5_timers_after",
+          "Loan_Application",
+          "Loan_Application_1_timer",
+          "Loan_Application_3_timers",
+          "Loan_Application_5_timers",
+          "Loan_Application_5_timers_after"
+        ],
+        "missing": [],
+        "guard_losses": {
+          "NGD": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_5_timers",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "RED": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after"
+          ],
+          "AED": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ],
+          "CED": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Procure_to_Pay",
+            "Procure_to_Pay_1_timer",
+            "Procure_to_Pay_3_timers",
+            "Procure_to_Pay_5_timers",
+            "Procure_to_Pay_5_timers_after"
+          ],
+          "CAR": [
+            "BPIC_2012_W",
+            "Insurance_Claims",
+            "Insurance_Claims_1_timer",
+            "Insurance_Claims_3_timers",
+            "Insurance_Claims_5_timers",
+            "Insurance_Claims_5_timers_after",
+            "Loan_Application",
+            "Loan_Application_1_timer",
+            "Loan_Application_3_timers",
+            "Loan_Application_5_timers",
+            "Loan_Application_5_timers_after",
+            "Pharmacy",
+            "Pharmacy_1_timer",
+            "Pharmacy_3_timers",
+            "Pharmacy_5_timers",
+            "Pharmacy_5_timers_after"
+          ]
+        },
+        "costlier_than_double": []
+      }
+    }
   }
 }
