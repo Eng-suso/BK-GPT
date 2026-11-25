@@ -117,7 +117,10 @@ class UnsoundProcessError(ProsimosImportError):
     def __init__(self, problems: tuple[SoundnessProblem, ...]) -> None:
         self.problems = problems
         # Cosa non torna e cosa fare, per il consulente.
-        super().__init__(" ".join(f"{p.message} Cosa fare: {p.action[:1].lower()}{p.action[1:]}" for p in problems))
+        # Un paragrafo per cosa non torna, uno per cosa fare: la UI li tiene separati.
+        super().__init__(
+            "\n\n".join(f"{p.message}\nCosa fare: {p.action[:1].lower()}{p.action[1:]}" for p in problems)
+        )
 
     @property
     def detail(self) -> str:

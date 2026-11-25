@@ -372,7 +372,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
           </div>
           {importError && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
             <p className="font-medium text-destructive">{t(cannotFinishReason ? "simulation.scenario.cannotFinish" : "simulation.scenario.importNotApplied")}</p>
-            {cannotFinishReason && <p className="mt-1 break-words">{cannotFinishReason}</p>}
+            {cannotFinishReason && <p className="mt-1 whitespace-pre-line break-words">{cannotFinishReason}</p>}
             <p className="mt-1 text-muted-foreground">{t("simulation.scenario.importNotAppliedHint", { name: importName })}</p>
             <details className="mt-2"><summary className="cursor-pointer text-foreground">{t("simulation.scenario.importTechnicalReason")}</summary><p className="mt-2 break-words text-muted-foreground">{importError}</p></details>
           </div>}
