@@ -5,7 +5,11 @@ Aggiornato: 2026-11-25, dopo VAL-01 (PR #189), PROTO-01 (PR #190), ENG-01 (PR #1
 
 ## Punti attivi
 
-Nessuno in corso: ENG-01 è fatto (PR #191). Liberi, con dipendenze chiuse: **G3b** (P0,
+**G3b in corso** (dal 2026-11-25, branch `spike/sim-g3b-ablation`). Schede di go/no-go
+scritte in `LOG.md` prima di ogni misura. Stato e come riprendere nella sezione `## G3b`
+qui sotto.
+
+Prima di G3b: ENG-01 è fatto (PR #191). Liberi, con dipendenze chiuse: **G3b** (P0,
 percorso critico), **LIC-01** (P0), **RAD-01** → **PROTO-02** (radar), **ANA-01**. Poi
 B3.1-B3.3 e B3; ENG-02 dopo LIC-01. Nessun candidato (AT-KDE, POWL, ProSiT,
 AgentSimulator) si implementa prima di G3b. I due prompt qui sotto avviano G3b e RAD-01.
@@ -69,6 +73,13 @@ test_protocol.py. Le mete marcate proposta vanno confermate da Sohayb prima di c
 Chiusura: HANDOFF.md aggiornato dopo ogni misura, voce in LOG.md, code review, simplify, CI
 verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Authored-By.
 ```
+
+## G3b (in corso)
+
+- Schede §7 in `LOG.md` (voce G3b in cima). Nessuna misura ancora.
+- Ambienti di ricerca: `/var/tmp/delir-g3b/envs/{simod,prosit,agentsim,atkde}`, creati da
+  `tests/simulation/benchmark/g3b/setup_envs.sh` (codice esterno da `fetch_datasets.py fetch
+  at-kde prosit agentsimulator simod`). Mai importati dal prodotto.
 
 ## Ultima misura
 

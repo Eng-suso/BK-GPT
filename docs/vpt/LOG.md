@@ -18,6 +18,50 @@ Modello:
 
 ---
 
+## 2026-11-25 — G3b benchmark dei motori scientifici — in corso
+
+- Branch: `spike/sim-g3b-ablation`. Dipendenze chiuse: PROTO-01 (#190).
+- Schede di go/no-go (PROTOCOL.md §7), scritte **prima di ogni misura** di G3b. Valgono per
+  ogni componente, prima sulla validazione (scoperta sul fit, confronto con l'ultimo 20% del
+  train) e poi sul test dei log di sviluppo (scoperta sull'intero train); holdout chiusi.
+
+  | Componente | Ipotesi | Candidato | Base da battere | Metrica primaria | Guardia | Log |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | Arrivi | AT-KDE coglie andamento globale, giorno della settimana e ora: gli arrivi simulati somigliano di più a quelli veri della distribuzione dei tempi fra arrivi di SIMOD | SIMOD con ritardi estranei + arrivi AT-KDE | "B = A"; SIMOD con ritardi estranei | CAR | W1, NGD, RED, AED, CED; tempo e memoria | dove CAR è identificabile (§4, ricalcolato anche per la validazione) |
+  | Attese (ritardi estranei) | modellare i ritardi estranei avvicina la posizione degli eventi nel caso | SIMOD con ritardi estranei | "B = A"; SIMOD senza ritardi (calendari fissi) | RED | W1, NGD, AED, CED, CAR; tempo e memoria | dove RED è identificabile |
+  | Calendari delle risorse | i calendari scoperti spiegano quando si lavora: senza, gli eventi cadono a tutte le ore | SIMOD con ritardi estranei (calendari scoperti) | "B = A"; lo stesso scenario con calendari 24/7 | CED | W1, NGD, RED, AED, CAR; tempo e memoria | dove CED è identificabile |
+  | Control flow e risorse condizionali | regole che dipendono dal caso (alberi di decisione di ProSiT) prevedono meglio i percorsi delle probabilità fisse | ProSiT con regole (profondità 3) | "B = A"; SIMOD con ritardi estranei; ProSiT senza regole (profondità 0) | NGD | W1, RED, AED, CED, CAR; tempo e memoria | dove NGD è identificabile |
+  | Approccio intero: ProSiT | un twin a regole batte il twin di processo con arrivi parametrici | ProSiT con regole | "B = A"; SIMOD con ritardi estranei | W1 | NGD, RED, AED, CED, CAR; tempo e memoria | dove W1 è identificabile |
+  | Approccio intero: AgentSimulator | un twin ad agenti (passaggi di mano fra risorse) batte il twin di processo | AgentSimulator, architettura e ritardi scelti da lui sul 20% finale del suo input (default del paper) | "B = A"; SIMOD con ritardi estranei | W1 | NGD, RED, AED, CED, CAR; tempo e memoria | dove W1 è identificabile |
+
+  - **GO** solo se vale contro **ogni** base della riga: primaria vince (IC 95% separati) sulla
+    maggioranza dei log dove è identificabile e non perde su nessuno; nessuna guardia perde su
+    più di un log; discovery e simulazione entro il budget del §6 e al massimo il doppio della
+    base; il modello prodotto supera VAL-01 (`require_sound`). AgentSimulator non produce un
+    modello di processo da verificare: per lui la condizione VAL-01 è "non verificabile" e
+    conta come non soddisfatta. ProSiT usa una rete di Petri dell'Inductive Miner (sound per
+    costruzione): si dichiara così, senza `require_sound`.
+  - **NO-GO** se manca una condizione; **NOT VALIDATED** se la primaria è identificabile in
+    meno di 2 log. Metriche NOT VALIDATED nel log: calcolate, marcate, non contano.
+  - **Diagnosi, non schede:** SIMOD con ritardi estranei + arrivi di A rigiocati (quelli del
+    gemello ingenuo) separa l'effetto del modello degli arrivi dal resto del twin; Prosimos
+    diretto contro percorso del prodotto su uno scenario di G3 dice se il simulatore della
+    ricerca è lo stesso del prodotto.
+  - **Budget (§6), uguale per tutti:** discovery ≤ 2 h e ≤ 12 GB per configurazione e log;
+    ≤ 20 valutazioni sulla validazione (qui 1 per configurazione: nessuna griglia, gli
+    strumenti girano con i default pubblicati; la ricerca interna di SIMOD e di
+    AgentSimulator usa solo il loro input, mai la nostra validazione); simulazione ≤ 10 minuti
+    per replica; G3b ≤ 120 h. Fuori budget = sconfitta su tutte le metriche, con tempo e
+    memoria misurati. Il tempo di "SIMOD con ritardi estranei" è scoperta senza ritardi +
+    ritardi (riusa il BPMN, come in G3).
+  - **Misura:** 10 repliche, seed `20261124 + replica`, tanti casi quanti il periodo da
+    prevedere a partire dal suo primo inizio; le sei distanze di B2 con IC 95% (t); tempo di
+    discovery, tempo di simulazione e picco di memoria (somma della memoria residente
+    dell'albero dei processi, campionata). Codice esterno (SIMOD 5.2.1, ProSiT 1.0.5,
+    AgentSimulator, AT-KDE) solo in venv di ricerca, mai importato dal prodotto.
+
+---
+
 ## 2026-11-25 — Code review di RAD-00: login Supabase e host di Mannheim — fatto
 
 - Branch / PR: `claude/delir-dataset-research-1a7xd5`.
