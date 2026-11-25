@@ -468,6 +468,8 @@ def test_counterfactual_metrics_reject_bad_input():
         protocol.counterfactual_metrics([_outcome(1, 1, 2, 0)])
     with pytest.raises(ValueError):
         protocol.counterfactual_metrics([_outcome(1, 1, 0, 2, baseline=0)])
+    with pytest.raises(ValueError):
+        protocol.CounterfactualOutcome(100.0, 1, 1, 0, 2, true_low=0.5)
 
 
 # --------------------------------------------------------------------------- PROTO-02: due set di holdout

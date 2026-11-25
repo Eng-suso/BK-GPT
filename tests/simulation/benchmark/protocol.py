@@ -634,6 +634,10 @@ class CounterfactualOutcome:
     true_high: float | None = None
     absolute_margin: float | None = None  # δ in unita' del KPI (SESOI del KPI, o KPI di partenza nullo)
 
+    def __post_init__(self) -> None:
+        if (self.true_low is None) != (self.true_high is None):
+            raise ValueError("l'intervallo della verita' vuole tutti e due gli estremi, o nessuno")
+
     def margin(self, relative: float) -> float:
         if self.absolute_margin is not None:
             return self.absolute_margin
