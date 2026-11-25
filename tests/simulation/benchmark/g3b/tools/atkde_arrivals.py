@@ -34,6 +34,9 @@ import pandas
 from source.iat_approaches.kde import KDEIATGenerator
 
 MAX_DOUBLINGS = 6
+# ``tune_sensitivity`` confronta due finestre di 7 giorni con arrivi: con meno giorni
+# AT-KDE si ferma dentro numpy (percentile di una lista vuota). Lo si dice prima.
+MIN_DAYS = 14
 
 
 def case_starts(path: Path) -> list[pandas.Timestamp]:
@@ -54,6 +57,9 @@ def main() -> int:
     logging.disable(logging.INFO)
 
     train = case_starts(args.input)
+    days = len({t.date() for t in train})
+    if days < MIN_DAYS:
+        raise SystemExit(f"AT-KDE non applicabile: {days} giorni con arrivi nell'input, ne servono almeno {MIN_DAYS}")
     start = pandas.Timestamp(args.start).tz_convert("UTC")
     rate = len(train) / max((train[-1] - train[0]).total_seconds(), 1.0)
     first_window = pandas.Timedelta(seconds=1.25 * args.cases / rate) + pandas.Timedelta(days=1)

@@ -1,0 +1,86 @@
+{
+  "Arrivi (AT-KDE) / validation": {
+    "verdict": "NOT VALIDATED",
+    "reasons": [
+      "CAR identificabile in 1 log"
+    ],
+    "bases": {}
+  },
+  "Arrivi (AT-KDE) / test": {
+    "verdict": "NOT VALIDATED",
+    "reasons": [
+      "CAR identificabile in 0 log"
+    ],
+    "bases": {}
+  },
+  "Attese (ritardi estranei) / validation": {
+    "verdict": "NOT VALIDATED",
+    "reasons": [
+      "RED identificabile in 1 log"
+    ],
+    "bases": {}
+  },
+  "Attese (ritardi estranei) / test": {
+    "verdict": "NOT VALIDATED",
+    "reasons": [
+      "RED identificabile in 0 log"
+    ],
+    "bases": {}
+  },
+  "Calendari delle risorse / validation": {
+    "verdict": "NOT VALIDATED",
+    "reasons": [
+      "CED identificabile in 1 log"
+    ],
+    "bases": {}
+  },
+  "Calendari delle risorse / test": {
+    "verdict": "NOT VALIDATED",
+    "reasons": [
+      "CED identificabile in 0 log"
+    ],
+    "bases": {}
+  },
+  "Control flow e risorse condizionali / validation": {
+    "verdict": "NOT VALIDATED",
+    "reasons": [
+      "NGD identificabile in 1 log"
+    ],
+    "bases": {}
+  },
+  "Control flow e risorse condizionali / test": {
+    "verdict": "NOT VALIDATED",
+    "reasons": [
+      "NGD identificabile in 0 log"
+    ],
+    "bases": {}
+  },
+  "Approccio intero: ProSiT / validation": {
+    "verdict": "NOT VALIDATED",
+    "reasons": [
+      "W1 identificabile in 1 log"
+    ],
+    "bases": {}
+  },
+  "Approccio intero: ProSiT / test": {
+    "verdict": "NOT VALIDATED",
+    "reasons": [
+      "W1 identificabile in 0 log"
+    ],
+    "bases": {}
+  },
+  "Approccio intero: AgentSimulator / validation": {
+    "verdict": "NOT VALIDATED",
+    "reasons": [
+      "W1 identificabile in 1 log"
+    ],
+    "bases": {}
+  },
+  "Approccio intero: AgentSimulator / test": {
+    "verdict": "NOT VALIDATED",
+    "reasons": [
+      "W1 identificabile in 0 log"
+    ],
+    "bases": {}
+  }
+}

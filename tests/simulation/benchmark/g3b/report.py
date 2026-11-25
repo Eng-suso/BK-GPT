@@ -162,7 +162,7 @@ def _cell(result: dict | None, metric: str) -> str:
     if result is None:
         return "—"
     if result["status"] != "measured":
-        return "fuori budget" if result["status"] == "out_of_budget" else "fallito"
+        return {"out_of_budget": "fuori budget", "not_applicable": "non applicabile"}.get(result["status"], "fallito")
     m = result["metrics"][metric]
     text = f"{m['mean']:.3g} ± {m['ci95']:.2g}"
     return text if result["identifiability"].get(metric) == protocol.IDENTIFIABLE else f"{text} (NV)"

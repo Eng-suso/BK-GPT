@@ -20,7 +20,9 @@ venv di ricerca (``/var/tmp/delir-g3b/envs``) e riceve solo percorsi di log di s
 
 Un risultato per file in ``results/<log>/<fase>/<configurazione>.json``, senza orari
 nelle metriche: una misura gia' scritta non si rifa' (``--force`` per rifarla).
-Fuori budget (PROTOCOL.md §6) = ``status: out_of_budget`` con tempo e memoria misurati.
+Fuori budget (PROTOCOL.md §6) = ``status: out_of_budget`` con tempo e memoria misurati;
+uno strumento che non si applica al log (AT-KDE con meno di 14 giorni di arrivi) =
+``not_applicable``. Per le schede entrambi contano come sconfitta del candidato.
 """
 
 from __future__ import annotations
@@ -446,7 +448,9 @@ def evaluate(config: str, prepared: Prepared, *, seed: int, replicas: int) -> di
     except OutOfBudget as exc:
         return {**base, "status": "out_of_budget", "reason": str(exc), "cost": {"seconds": exc.run.seconds, "peak_mb": exc.run.peak_mb}}
     except (RuntimeError, OSError, StopIteration) as exc:
-        return {**base, "status": "failed", "reason": str(exc)[:2000]}
+        # Uno strumento che dichiara di non potersi applicare al log non si riprova.
+        status = "not_applicable" if "non applicabile" in str(exc) else "failed"
+        return {**base, "status": status, "reason": str(exc)[:2000]}
     if any(not log for log in logs):
         return {**base, "status": "failed", "reason": "una replica senza eventi", "cost": cost}
     if any(s > REPLICA_SECONDS for s in cost.get("simulation_seconds", [])):
@@ -464,7 +468,7 @@ def evaluate(config: str, prepared: Prepared, *, seed: int, replicas: int) -> di
 
 def _done(path: Path) -> bool:
     """Misurato o fuori budget: non si rifa'. Un errore si riprova al giro dopo."""
-    return path.is_file() and json.loads(path.read_text(encoding="utf-8"))["status"] in ("measured", "out_of_budget")
+    return path.is_file() and json.loads(path.read_text(encoding="utf-8"))["status"] in ("measured", "out_of_budget", "not_applicable")
 
 
 def main(argv: list[str] | None = None) -> int:
