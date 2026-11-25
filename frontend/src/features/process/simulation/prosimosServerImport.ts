@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { http } from "@/lib/http";
+import { HttpError, http, httpErrorCode } from "@/lib/http";
 
 import { flowMappingKey, type ProsimosIdMapping } from "./prosimosJson";
 import { simulationRunSchema, type SimulationRun } from "./simulationTypes";
@@ -106,6 +106,29 @@ export async function importProsimosOnServer(
     body: { scenario, current_bpmn_xml: currentBpmnXml },
   });
   return prosimosImportSchema.parse(raw);
+}
+
+/** VAL-01: il server rifiuta uno scenario in cui qualche caso non arriverebbe mai alla fine. */
+export type CannotFinish = { message: string; detail: string };
+
+export function cannotFinish(error: unknown): CannotFinish | null {
+  if (!(error instanceof HttpError) || httpErrorCode(error) !== "process_cannot_finish") return null;
+  const body = (error.body as { error?: { message?: unknown; detail?: unknown } } | null)?.error;
+  return { message: String(body?.message ?? error.message), detail: String(body?.detail ?? "") };
+}
+
+/**
+ * Anche uno scenario che l'editor sa rappresentare passa dalla verifica di VAL-01 sul server.
+ * Conta solo quel rifiuto: il file l'ha gia' letto l'editor, e un altro errore del server
+ * (o il server non raggiungibile) non deve impedire di applicarlo.
+ */
+export async function checkCanFinish(bpmnModelId: string, scenario: Record<string, unknown>, currentBpmnXml: string | null): Promise<CannotFinish | null> {
+  try {
+    await importProsimosOnServer(bpmnModelId, scenario, currentBpmnXml);
+    return null;
+  } catch (cause) {
+    return cannotFinish(cause);
+  }
 }
 
 export async function runImportedModel(
