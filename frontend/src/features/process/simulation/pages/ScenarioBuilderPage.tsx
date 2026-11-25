@@ -29,7 +29,7 @@ import { useSourceConflicts } from "../useSourceConflicts";
 import { WhatIfComposer } from "../WhatIfComposer";
 import { ServerScenarioImport } from "../ServerScenarioImport";
 import { draftArrivalsRunFaster, type ScenarioDraft } from "../simulationScenario";
-import { cannotFinish, checkCanFinish, importProsimosOnServer, remapProsimosIds, runImportedModel, type ProsimosImport } from "../prosimosServerImport";
+import { cannotFinish, checkCanFinish, importProsimosOnServer, remapProsimosIds, runImportedModel, type CannotFinish, type ProsimosImport } from "../prosimosServerImport";
 import { HttpError, httpErrorMessage } from "@/lib/http";
 import type { NodeDecoration } from "../canvas/SimulationCanvas";
 
@@ -95,6 +95,10 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
       toast.warning(t("simulation.config.arrivalsFaster.title"), { description: t("simulation.config.arrivalsFaster.toast") });
     }
   };
+  const showCannotFinish = (blocked: CannotFinish) => {
+    setCannotFinishReason(blocked.message);
+    setImportError(blocked.detail || blocked.message);
+  };
   const checkOnServer = async (name: string, source: Record<string, unknown>, localCause: unknown) => {
     const request = ++serverRequest.current;
     setServerChecking(true);
@@ -107,8 +111,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
       // allora resta la spiegazione dell'editor.
       const blocked = cannotFinish(serverCause);
       if (blocked) {
-        setCannotFinishReason(blocked.message);
-        setImportError(blocked.detail || blocked.message);
+        showCannotFinish(blocked);
         return;
       }
       const local = localCause instanceof Error ? localCause.message : t("simulation.scenario.jsonInvalid");
@@ -125,8 +128,7 @@ export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embed
     if (request !== serverRequest.current) return true;
     setServerChecking(false);
     if (!blocked) return false;
-    setCannotFinishReason(blocked.message);
-    setImportError(blocked.detail || blocked.message);
+    showCannotFinish(blocked);
     return true;
   };
   const runServerImport = async () => {
