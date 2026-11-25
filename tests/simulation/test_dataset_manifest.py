@@ -152,9 +152,13 @@ def test_fetch_all_leaves_the_radar_collection_out(monkeypatch) -> None:
     assert radar, "la collezione radar e' vuota"
     core = _fetched_ids(monkeypatch, ["fetch", "--all"])
     assert core and not radar & set(core)
-    assert set(_fetched_ids(monkeypatch, ["fetch", "--collection", "radar"])) == {
-        i for i in radar if MANIFEST[i]["mode"] == "fetch"
-    }
+    radar_fetch = {i for i in radar if MANIFEST[i]["mode"] == "fetch"}
+    assert (
+        set(_fetched_ids(monkeypatch, ["fetch", "--collection", "radar"]))
+        == radar_fetch
+    )
+    both = _fetched_ids(monkeypatch, ["fetch", "--all", "--collection", "radar"])
+    assert set(both) == set(core) | radar_fetch
 
 
 def test_radar_entries_declare_kind_and_plan_use() -> None:

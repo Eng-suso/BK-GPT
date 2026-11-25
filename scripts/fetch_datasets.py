@@ -194,10 +194,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.all or args.collection:
         wanted = {"fetch", "academic"} if args.allow_noncommercial else {"fetch"}
+        collections = {args.collection} if args.collection else set()
+        if args.all:
+            collections.add(None)  # il nucleo: voci senza collezione
         ids = [
             i
             for i, e in manifest.items()
-            if e["mode"] in wanted and e.get("collection") == args.collection
+            if e["mode"] in wanted and e.get("collection") in collections
         ]
         ids += args.ids
     else:
