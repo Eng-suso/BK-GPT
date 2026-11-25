@@ -19,7 +19,14 @@ raggiungibile da ogni stato, uscita da ogni ciclo con probabilità > 0. Lavora u
 sessione Claude per Sohayb; in parallelo altre due su PROTO-01 ed ENG-01 (VAL-01 non
 tocca `prosimos_adapter.py` né la coda dei run).
 
-- Stato: branch creato da `origin/main`, nessuna misura ancora.
+- Misura 1 (2026-11-25, `uv run pytest --noconftest -q tests/simulation/test_soundness.py`):
+  19/19 scenari del dataset passano, 8/8 scenari SIMOD validi di G3 passano,
+  AcademicCredentials `_diff` e `_fuzz` (ciclo a uscita 0) rifiutati con il gateway
+  `node_59fc62b1…`; < 0,1 s per scenario, al massimo 72 stati.
+- Fatto: `backend/simulation/ir/soundness.py` (gioco dei gettoni + catena assorbente),
+  chiamato da `import_prosimos`; `UnsoundProcessError` → 400 `process_cannot_finish`
+  (`backend/api/errors.py`). Da fare: UI (messaggio visibile, non solo nel motivo
+  tecnico; verifica anche per gli scenari che l'editor importa da solo), e2e, gate UX.
 
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
