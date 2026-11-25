@@ -149,6 +149,8 @@ def test_selection_modules_import_without_touching_holdouts():
         for module in modules:
             try:
                 importlib.import_module(module)
+            except ModuleNotFoundError:  # libreria del solo venv di riferimento (log_distance_reference)
+                continue
             except RuntimeError as exc:  # serve lo stack reale (database): fuori da questo test
                 assert "non configurata" in str(exc), exc
                 continue
@@ -288,3 +290,27 @@ def test_a_synthetic_log_validates_the_truth_and_the_counterfactual():
 def test_too_few_cases_validate_nothing():
     verdicts = protocol.identifiability(_props(_log(20), _log(20, start=20)), synthetic=True)
     assert all(v[0] == protocol.NOT_VALIDATED for v in verdicts.values())
+
+
+def test_rare_end_activities_are_not_counted_as_cut_cases():
+    """Un log completo con il 6% di casi che finiscono in un'attivita' rara: nessun taglio."""
+    def rare(n: int, start: int) -> list[Event]:
+        out = []
+        for e in _log(n, start=start):
+            rare_case = int(e.case_id[1:]) % 16 == 0  # ~6% dei casi
+            out.append(Event(e.case_id, "Archivia", e.start, e.end) if rare_case and e.activity == "Chiudi" else e)
+        return out
+
+    props = _props(rare(200, 0), rare(200, 200))
+    assert props["censored_right_test"] == 0.0
+    assert protocol.identifiability(props, synthetic=False)["cycle_time_w1"][0] == protocol.IDENTIFIABLE
+
+
+def test_a_test_period_with_a_different_arrival_flow_does_not_validate_arrivals():
+    """Come BPIC 2013 incidents (arrivi di B 200 volte quelli di A): CAR non validato."""
+    train = _log(100)
+    burst = [Event(e.case_id, e.activity, T0 + timedelta(days=60, minutes=(e.start - T0).total_seconds() / 3600), e.end)
+             for e in _log(100, start=100)]
+    burst = [Event(e.case_id, e.activity, e.start, e.start + timedelta(minutes=10)) for e in burst]
+    verdict, why = protocol.identifiability(_props(train, burst), synthetic=False)["case_arrival"]
+    assert verdict == protocol.NOT_VALIDATED and "non sono lo stesso flusso" in why
