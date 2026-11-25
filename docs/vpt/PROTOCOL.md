@@ -21,6 +21,43 @@ scritta in [`LOG.md`](./LOG.md) con data e motivo.
   (`test_the_second_lock_digest_is_written_in_the_protocol`). Il primo lucchetto e il benchmark
   congelato non cambiano.
 
+## 0. Cosa si potrà affermare (PROTO-02)
+
+La validità di un simulatore si giudica rispetto al suo scopo (Sargent 2013). Superare una
+verifica non implica superare le altre, per questo il protocollo le tiene distinte e ogni
+risultato dichiara quale ha dimostrato:
+
+| Capacità | Domanda | Dove si misura | Cosa non dimostra |
+| --- | --- | --- | --- |
+| correttezza formale | il modello è matematicamente corretto? | VAL-01 (soundness), ANA-01 (formule delle code) | che somigli al processo |
+| validità descrittiva | riproduce il passato? | fit e validazione dei log di sviluppo (§5) | che preveda il futuro |
+| validità predittiva | prevede il futuro dello stesso processo? | test temporale dei log di sviluppo (§5) | che funzioni su processi mai visti |
+| generalizzazione fra processi | funziona su organizzazioni e processi mai usati nello sviluppo? | i due set di holdout (§3, §10), una volta ciascuno | che preveda l'effetto di una modifica |
+| validità controfattuale | prevede l'effetto di una modifica operativa? | CF-01 su verità nota (GT-01, SimBank), §11 | validità causale nel mondo reale: servono interventi reali o quasi-esperimenti identificati (pilot PV) |
+
+Sopra c'è l'ottimizzazione delle decisioni (quale intervento rende di più), che si costruisce su
+queste e non si dichiara prima di averle.
+
+**Due livelli di separazione dei dati.** DeliR non è un modello addestrato una volta: impara un
+modello nuovo dai dati di ogni azienda. Per questo i dati si separano su due livelli.
+
+1. **Fra processi** (selezione della tecnologia): i log di sviluppo servono a sviluppare e
+   scegliere algoritmi, configurazioni e soglie; ogni set di holdout è un esame finale, aperto
+   una volta alla fine del punto che lo usa (primo set: G3b; secondo set: RAD-02). Un holdout non
+   si usa come validazione ripetuta: la selezione si fa solo sulla validazione dei log di sviluppo.
+2. **Dentro ogni log** (il modello scoperto per quel processo): fit, validazione e test ordinati
+   nel tempo, passato prima del futuro, come nel §5 (test pubblicato o seconda metà dei casi per
+   inizio; validazione = ultimo 20% del train). Le quote dipendono dal log (numerosità, durata,
+   stagionalità, casi aperti) e si dichiarano per log; il benchmark congelato non cambia.
+
+**Un holdout si usa una volta** (Dwork et al. 2015). Prima di aprire un set si congelano e si
+scrivono in `LOG.md`: dati (impronte dei lucchetti), divisioni, commit del codice,
+configurazioni e iperparametri, regole di valutazione (questo documento al suo commit). Se dopo
+l'apertura si cambia un algoritmo sulla base di quei risultati, quel set diventa un **benchmark di
+regressione** e non è più un esame indipendente: lo si dichiara, e per un nuovo esame serve un
+nuovo set congelato. Due log della stessa famiglia (stessa fonte o un suo estratto) contano come
+un solo esame, non come due prove indipendenti (dipendenze nei dati: Roberts et al. 2017).
+
 ## 1. Cosa si misura
 
 Per ogni configurazione e ogni log:
@@ -46,6 +83,10 @@ code. Verdetto: «a meglio» o «b meglio» se l'intervallo della differenza sta
 dello zero, altrimenti «pari». Esempio nei test: un miglioramento costante di 0,5 su repliche
 con varianza alta è «pari» per gli intervalli e «a meglio» per il confronto appaiato. Il
 confronto appaiato non cambia nessuna meta già scritta; una meta nuova che lo usa lo dichiara.
+Le repliche delle due configurazioni usano gli stessi seed: è la forma più semplice di numeri
+casuali comuni (CRN, Glasserman e Yao 1992). Sincronizzare i flussi casuali per entità (arrivi,
+durate, risorse) può ridurre ancora la varianza dei confronti; si adotta solo dopo aver misurato
+che la riduce davvero (estensione di ricerca, non richiesta da questo punto).
 
 ## 2. Log e categorie
 
@@ -357,41 +398,105 @@ sviluppare; dimensioni nel budget del §6). Congelato il 2026-11-25 da
 
 | Holdout | Categoria | Organizzazione | Fonte | Divisione | Cosa conosciamo (RAD-01, prima del congelamento) |
 | --- | --- | --- | --- | --- | --- |
-| CallCenter | osservabilità completa | call center (origine non documentata nel pacchetto) | BPS Quality Framework, Zenodo 12126071, Apache-2.0 | train e test pubblicati (una settimana ciascuno) | 260.889 / 260.890 casi, ~450.000 eventi a parte, 19 attività, ~2.700 risorse, gennaio 2008 |
+| CallCenter | osservabilità completa | call center (origine non documentata: indipendenza organizzativa **non dichiarata**, sotto) | BPS Quality Framework, Zenodo 12126071, Apache-2.0 | train e test pubblicati (una settimana ciascuno) | 260.889 / 260.890 casi, ~450.000 eventi a parte, 19 attività, ~2.700 risorse, gennaio 2008 |
 | Road Traffic Fines | osservabilità parziale | polizia locale italiana | 4TU, General Terms | metà dei casi per inizio | 150.370 casi, 561.470 eventi, 11 attività, 2000-2013, nessun inizio |
 
 - **Chiusi con loro:** i simulati, i modelli e le misure di CallCenter nel pacchetto (per nome,
   `CallCenter_*`) e i quattro archivi del pacchetto che li contengono; l'estratto CSV di Road
   Traffic Fines in DAS-RP (`Trafic`). Il resto dei due pacchetti resta di sviluppo
   (`closes_dataset: false` nel lucchetto): la guardia chiude i file, non la cartella.
+- **Una famiglia, un esame:** Road Traffic Fines e il suo estratto in DAS-RP sono la stessa fonte
+  (stessi casi): contano come un solo holdout, non come due prove indipendenti. L'estratto serve
+  solo a misurare la robustezza alla preparazione dei dati.
+- **CallCenter, provenienza da verificare:** con ogni probabilità è il log CALL degli articoli
+  di SIMOD (Chapela-Campa et al. 2023 e 2024; Camargo et al. 2025): stesso gruppo e stesso
+  pacchetto, casi brevi (circa 1,7 eventi per caso all'inventario, «due attività in media» negli
+  articoli), pochi ritardi estranei. Nessuna fonte pubblica dice da quale organizzazione venga.
+  Resta congelato e chiuso, ma è indipendente come processo e settore, **non** dichiarato
+  indipendente come organizzazione finché non c'è una prova. Gli autori di SIMOD lo hanno già
+  usato: un risultato di SIMOD su CallCenter può beneficiare di scelte fatte guardandolo, e lo si
+  riporta con questa nota. Non è necessariamente un esame difficile (casi brevi, poche attese):
+  completa i log dominati dalle attese di G3, non li sostituisce.
 - **Sintetico con verità nota:** nessun sintetico pubblicato del radar è indipendente dai
   processi di sviluppo (quello di DAS-RP è Loan_Application; i drift sono di DRIFT-01). La
-  categoria nel secondo set la coprono le aziende di GT-01 con il To-Be nascosto.
+  categoria nel secondo set la coprono le aziende di GT-01 con il To-Be nascosto. GT-01 separa
+  gli scenari sintetici di sviluppo da quelli riservati alla validazione finale, congelati per
+  hash prima dell'uso come gli altri holdout, e il generatore di riferimento non dipende solo
+  dal motore che si valuta (SimPy, SimBank, Declare, non solo Prosimos).
 - **Cosa è stato letto per sceglierli:** nomi, dimensioni, licenze, metadati 4TU e i conteggi
   dell'inventario qui sopra (casi, eventi, attività, periodo, risorse), calcolati da RAD-01 su
   tutto il radar prima del congelamento. Nessun modello, configurazione o soglia è stato scelto
   su questi log; dopo il congelamento l'inventario non li apre più.
-- **Limiti dichiarati:** l'origine di CallCenter non è documentata nel pacchetto: indipendente
-  come processo e come settore, organizzazione non verificabile. Le aziende del radar dichiarate
+- **Limiti dichiarati:** l'origine di CallCenter (sopra). Le aziende del radar dichiarate
   di sviluppo restano un rischio se un holdout futuro venisse da una di loro: si controlla qui
   prima di aggiungerlo.
 - **Guardia e apertura:** la stessa del §3. `final_evaluation(<impronta>)` apre solo il set
   di quell'impronta: aprire il primo set non apre il secondo, e viceversa. Il secondo set si apre
-  una volta, alla fine del punto che lo usa (RAD-02), a selezione chiusa.
+  una volta, alla fine del punto che lo usa (RAD-02), a selezione chiusa e congelata (§0).
+- **Decisione:** set confermato da Sohayb il 2026-11-25 con le precisazioni di questa sezione
+  e del §0.
 
 ## 11. Metriche di CF-01 (PROTO-02)
 
-Una copertura del 90% si ottiene anche con intervalli enormi. Per ogni insieme di interventi con
-verità nota (`protocol.counterfactual_metrics`) si riportano insieme:
+Una copertura del 90% si ottiene anche con intervalli enormi, e indovinare la direzione non
+basta: due modelli che riproducono lo stesso passato possono prevedere per «+30% di risorse» un
+−28% e un −3%, con la direzione giusta tutti e due e decisioni economiche molto diverse. Per ogni
+insieme di interventi con verità nota (`protocol.counterfactual_metrics`) si riportano insieme:
 
-- **copertura**: quota di Δ KPI veri dentro l'intervallo al 95% (la meta di CF-01);
-- **ampiezza**: media dell'intervallo, in unità del KPI e relativa al KPI di partenza;
-- **errore puntuale**: media di |Δ previsto − Δ vero|, assoluta e relativa al KPI di partenza;
-- **direzione**: quota di interventi con il segno del Δ previsto giusto, contata solo dove
-  l'effetto vero è almeno l'**1%** del KPI di partenza (`DIRECTION_MIN_EFFECT`, *proposta*):
-  sotto, la direzione è rumore.
+| Metrica | Cosa misura | Soglia |
+| --- | --- | --- |
+| copertura | quota di Δ KPI veri dentro l'intervallo al 95% (la meta di CF-01: almeno 90%) | nessuna |
+| ampiezza | media dell'intervallo, in unità del KPI e relativa al KPI di partenza | nessuna |
+| errore sulla grandezza | media di \|Δ previsto − Δ vero\|, assoluta e relativa | nessuna |
+| bias | media di Δ previsto − Δ vero: sovrastima o sottostima sistematica | nessuna |
+| classi della verità | INCREASE, DECREASE, NEGLIGIBLE, INCONCLUSIVE, con numero e quota degli inconclusivi | margine δ |
+| direzione | quota con il segno del Δ previsto giusto, sulle verità INCREASE o DECREASE | margine δ |
+| accordo di classe | classe dell'intervallo previsto uguale a quella vera, sulle verità decise | margine δ |
 
-Nei test: due modelli con la stessa copertura del 100%, uno con intervalli larghi 1.000 e la
-direzione sbagliata, l'altro largo 5 con la direzione giusta, si distinguono su ampiezza,
-errore e direzione. La validità sotto le ipotesi del generatore non è validità reale: per quella
-servono i pilot PV (`RESEARCH_RADAR.md`).
+**Tre domande distinte.** Direzione (il segno è giusto?), confidenza statistica (l'intervallo
+basta a decidere il segno?) e rilevanza pratica (l'effetto è abbastanza grande da contare per la
+decisione?) non si comprimono in una soglia. Le metriche continue si riportano sempre senza
+soglia, così nessun margine nasconde gli errori piccoli del motore.
+
+**Classi dell'effetto** (`protocol.classify_effect`), dall'intervallo della verità (stimata da
+repliche del generatore; esatta se il generatore la dà) e da un margine δ in unità del KPI:
+DECREASE se l'intervallo è tutto sotto −δ; INCREASE se tutto sopra +δ; NEGLIGIBLE se tutto
+dentro ±δ; altrimenti INCONCLUSIVE. È una regola ingegneristica conservativa ispirata ai test
+di equivalenza (Lakens 2017), non il TOST.
+
+**Il margine δ.** Il margine corretto è il più piccolo effetto rilevante per quella decisione
+(SESOI), e dipende dal KPI: l'1% di un costo di 100 milioni non è l'1% di un tempo di 5 minuti.
+
+| Livello | Margine |
+| --- | --- |
+| benchmark comparativo (configurazione primaria) | 1% del KPI di partenza (`EQUIVALENCE_MARGIN`), standardizzato e **provvisorio** |
+| analisi di sensibilità, sempre riportata | 0,5%, 1%, 2%, 5% (`counterfactual_sensitivity`) |
+| KPI con un SESOI giustificato | margine assoluto per intervento (`absolute_margin`) |
+| KPI di partenza nullo o quasi | margine assoluto, obbligatorio |
+| validazione industriale | specifico per KPI e processo, deciso con il cliente |
+
+Confermato da Sohayb il 2026-11-25 come margine standardizzato provvisorio, non come soglia
+universale di rilevanza pratica.
+
+**Estensioni di ricerca, non richieste per chiudere PROTO-02:** tasso di interventi consigliati
+a torto e *decision regret* (valore perso scegliendo l'intervento indicato dal simulatore invece
+di quello davvero migliore), quando c'è una funzione obiettivo verificabile; numeri casuali comuni
+sincronizzati per entità (§1); ProCause (De Moor et al. 2025) come metodo per generare esiti
+controfattuali di riferimento, nel radar di GT-01 e CF-01.
+
+**Validità causale.** La validità sotto le ipotesi del generatore non è validità reale: per
+dichiarare una validità causale industriale servono interventi reali o quasi-esperimenti con
+l'identificazione dichiarata (pilot PV, `RESEARCH_RADAR.md`).
+
+## 12. Riferimenti metodologici
+
+| Riferimento | Dove serve |
+| --- | --- |
+| R. G. Sargent, *Verification and validation of simulation models*, Journal of Simulation, 2013 | validità rispetto allo scopo (§0) |
+| C. Dwork et al., *The reusable holdout: preserving validity in adaptive data analysis*, Science, 2015 | un holdout si usa una volta (§0, §3) |
+| D. R. Roberts et al., *Cross-validation strategies for data with temporal, spatial, hierarchical, or phylogenetic structure*, Ecography, 2017 | famiglie di log, divisioni temporali (§0, §10) |
+| D. Lakens, *Equivalence tests*, Social Psychological and Personality Science, 2017 | margine δ, classi dell'effetto (§11) |
+| D. Chapela-Campa et al., *A framework for measuring the quality of business process simulation models*, 2024 (e *Can I trust my simulation model?*, BPM 2023) | metriche di B2, CallCenter (§1, §10) |
+| P. Glasserman, D. D. Yao, *Some guidelines and guarantees for common random numbers*, Management Science, 1992 | confronti appaiati (§1) |
+| *Doubly robust impact evaluation of interventions* (process mining), 2023: indicato da Sohayb, autori e sede da verificare prima di citarlo | validazione causale da event log (§11, estensione) |
+| J. De Moor et al., *ProCause: generating counterfactual outcomes to evaluate prescriptive process monitoring methods*, 2025, [arXiv:2509.00797](https://arxiv.org/abs/2509.00797) | verità controfattuale (§11, radar di GT-01) |
