@@ -221,8 +221,10 @@ def _python(env: str) -> str:
 
 
 def _failed(step: str, run: Measured, log_path: Path) -> RuntimeError:
-    tail = log_path.read_text(encoding="utf-8", errors="replace").strip().splitlines()[-5:]
-    return RuntimeError(f"{step}: uscita {run.returncode}; " + " | ".join(tail))
+    lines = log_path.read_text(encoding="utf-8", errors="replace").strip().splitlines()
+    # Gli strumenti stampano molto: il motivo e' l'ultima riga d'errore, poi la coda.
+    errors = [line for line in lines if "Error" in line or "non applicabile" in line][-2:]
+    return RuntimeError(f"{step}: uscita {run.returncode}; " + " | ".join(line[:400] for line in errors + lines[-3:]))
 
 
 class OutOfBudget(Exception):

@@ -95,8 +95,10 @@ def main() -> int:
             determine_automatically=True, central_orchestration=False, discover_extr_delays=False,
         )
     except ValueError as exc:
-        # Es. un input che dura meno di un giorno: la media degli arrivi per giorno e' NaN.
-        raise SystemExit(f"AgentSimulator non applicabile: la discovery si ferma ({type(exc).__name__}: {exc})") from exc
+        # Un input che dura meno di un giorno: la media degli arrivi per giorno e' NaN.
+        if "NaN" in str(exc) and train["start_timestamp"].dt.date.nunique() < 2:
+            raise SystemExit(f"AgentSimulator non applicabile: input di un solo giorno ({exc})") from exc
+        raise
     discovery = round(time.perf_counter() - began, 3)
     arrivals = list(parameters["case_arrival_times"])
 
