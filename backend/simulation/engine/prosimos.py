@@ -35,7 +35,6 @@ from backend.simulation.validation import validate_simulation_bpmn
 
 if TYPE_CHECKING:
     from backend.schemas.simulation import BpmnCompatibilityResponse
-    from backend.simulation.ir.model import SimulationModel
 
 
 class ProsimosEngine:
@@ -52,9 +51,9 @@ class ProsimosEngine:
     summarize_events = staticmethod(summarize_log_events)
 
     def __init__(self) -> None:
-        # I run in volo in questo processo, per chiave, e quelli annullati.
-        self._running: dict[str, asyncio.Task[EngineRunResult]] = {}
-        self._cancelled: set[str] = set()
+        # I run in volo in questo processo, per richiesta (``id``), e quelli annullati.
+        self._running: dict[int, asyncio.Task[EngineRunResult]] = {}
+        self._cancelled: set[int] = set()
 
     def validate(self, bpmn_xml: str) -> None:
         try:
@@ -65,29 +64,29 @@ class ProsimosEngine:
     def compatibility_report(self, bpmn_xml: str) -> BpmnCompatibilityResponse:
         return bpmn_compatibility_report(bpmn_xml)
 
-    async def run(self, request: EngineRunRequest, *, run_key: str | None = None) -> EngineRunResult:
-        if run_key is None:
-            return await run_prosimos_simulation(request)
-        if run_key in self._running:
-            raise EngineError(f"Il run {run_key} sta gia' girando su questo motore.")
+    async def run(self, request: EngineRunRequest) -> EngineRunResult:
+        key = id(request)
+        if key in self._running:
+            raise EngineError("Questa richiesta sta gia' girando sul motore.")
         task = asyncio.ensure_future(run_prosimos_simulation(request))
-        self._running[run_key] = task
+        self._running[key] = task
         try:
             return await task
         except asyncio.CancelledError:
-            if run_key in self._cancelled:
-                # Il runner HTTP non si ferma a meta': la risposta, se arriva, si scarta.
+            if key in self._cancelled:
+                # Il runner chiude comunque il suo run: la risposta, se arriva, si scarta.
                 raise EngineCancelled("La simulazione e' stata annullata prima della fine.") from None
             raise
         finally:
-            self._running.pop(run_key, None)
-            self._cancelled.discard(run_key)
+            self._running.pop(key, None)
+            self._cancelled.discard(key)
 
-    def cancel(self, run_key: str) -> bool:
-        task = self._running.get(run_key)
+    def cancel(self, request: EngineRunRequest) -> bool:
+        key = id(request)
+        task = self._running.get(key)
         if task is None or task.done():
             return False
-        self._cancelled.add(run_key)
+        self._cancelled.add(key)
         task.cancel()
         return True
 

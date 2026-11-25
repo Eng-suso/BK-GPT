@@ -123,17 +123,14 @@ class SimulationEngine(Protocol):
         ...
 
     # --- esegue e annulla ------------------------------------------------ #
-    async def run(self, request: EngineRunRequest, *, run_key: str | None = None) -> EngineRunResult:
-        """Esegue il run e restituisce statistiche e log; ``EngineError`` se non riesce.
-
-        Con ``run_key`` il run si puo' annullare con ``cancel`` finche' gira.
-        """
+    async def run(self, request: EngineRunRequest) -> EngineRunResult:
+        """Esegue il run e restituisce statistiche e log; ``EngineError`` se non riesce."""
         ...
 
-    def cancel(self, run_key: str) -> bool:
-        """Annulla il run in volo con questa chiave: ``run`` alza ``EngineCancelled``.
+    def cancel(self, request: EngineRunRequest) -> bool:
+        """Annulla il run in volo di questa richiesta: ``run`` alza ``EngineCancelled``.
 
-        ``False`` se nessun run con quella chiave sta girando qui.
+        ``False`` se quella richiesta non sta girando su questo motore.
         """
         ...
 
