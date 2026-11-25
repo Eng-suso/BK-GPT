@@ -47,7 +47,7 @@ from backend.simulation.ir.model import (
     Uniform,
     Wait,
 )
-from backend.simulation.ir.soundness import UnsoundProcessError, require_sound
+from backend.simulation.ir.soundness import require_sound
 
 # Sezioni di uno scenario Prosimos che l'import sa leggere.
 _SECTIONS = {
@@ -138,11 +138,13 @@ class _Bpmn:
 def import_prosimos(scenario: dict, bpmn_xml: str) -> ImportResult:
     """Il modello IR equivalente a ``scenario``, con le note per il consulente.
 
-    Solleva sempre ``ProsimosImportError`` con il motivo, mai un errore grezzo.
+    Solleva sempre ``ProsimosImportError`` con il motivo, mai un errore grezzo; uno
+    scenario che si legge ma in cui qualche caso non finirebbe solleva
+    ``UnsoundProcessError`` (VAL-01), con un codice suo nell'API.
     """
     try:
         return _import(scenario, bpmn_xml)
-    except (ProsimosImportError, UnsoundProcessError):
+    except ProsimosImportError:
         raise
     except ValidationError as exc:
         raise ProsimosImportError(_explain(exc)) from exc
