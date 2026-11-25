@@ -266,3 +266,13 @@ def test_how_to_log_in_is_readable_even_with_a_wrong_tenant_in_the_session(clien
 
     assert response.status_code == 200
     assert response.json()["provider"] == "supabase"
+
+
+@pytest.mark.parametrize("raw", ["Supabase", " supabase ", "SUPABASE"])
+def test_the_provider_is_read_in_one_form_everywhere(monkeypatch, raw):
+    """Avvio, /v1/auth/config, verifica delle richieste ed egress leggono lo stesso valore."""
+    from backend.settings import Settings
+
+    monkeypatch.setenv("DELIR_AUTH_PROVIDER", raw)
+
+    assert Settings(_env_file=None).delir_auth_provider == "supabase"

@@ -119,7 +119,7 @@ def auth_configuration_problems() -> list[str]:
     """
     environment = current_environment()
     api_token = (settings.delir_api_token or "").strip()
-    provider = settings.delir_auth_provider.strip().lower()
+    provider = settings.delir_auth_provider
 
     if settings.delir_auth_enabled and provider not in AUTH_PROVIDERS:
         return [f"DELIR_AUTH_PROVIDER deve essere uno fra {', '.join(AUTH_PROVIDERS)}."]
