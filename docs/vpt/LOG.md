@@ -52,6 +52,8 @@ Modello:
   Protocol al confine, dataclass per gli eventi, nessun `Any` nuovo; ast-grep 5 regole
   a 0 sui file toccati; ruff e mypy puliti (mypy ora copre `backend/simulation/engine`).
   Nessuna modifica ad autenticazione o isolamento: niente `security-review`.
+- Decisioni: meta (*proposta*) confermata da Sohayb il 2026-11-25 ("procedi") con la
+  misura sopra, compreso `cancel` presente nell'interfaccia ma non usato dal worker.
 - Skill: `code-review`, `simplify` (backend: nessuna skill di frontend).
 - Trovato per strada: `tests/simulation/benchmark/b2/baseline.json` nel repo è
   precedente a IMP-01 (`import_notes` 4 invece di 5 sulle Procure_to_Pay), metriche
