@@ -712,6 +712,8 @@ def compare(a: Signature, b: Signature) -> str | None:
     if a.distinctive and b.distinctive:
         # Stessi casi anche con le attivita' ricodificate (es. numeri al posto dei nomi).
         shared = len(a.cases & b.cases)
+        if min(shared / len(a.cases), shared / len(b.cases)) >= CONTAINED_CASES:
+            return f"stessi casi di {b.label} ({shared / len(b.cases):.0%})"
         if shared / len(b.cases) >= CONTAINED_CASES:
             return f"contiene i casi di {b.label} ({shared / len(b.cases):.0%})"
         if shared / len(a.cases) >= CONTAINED_CASES:
