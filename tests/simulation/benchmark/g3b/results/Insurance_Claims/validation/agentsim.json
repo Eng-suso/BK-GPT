@@ -1,0 +1,29 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "Insurance_Claims",
+  "category": "sintetico con verita nota",
+  "phase": "validation",
+  "config": "agentsim",
+  "label": "AgentSimulator (scelta automatica)",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 400,
+    "target": 100
+  },
+  "identifiability": {
+    "cycle_time_w1": "identificabile",
+    "ngram": "identificabile",
+    "relative_event": "identificabile",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "identificabile",
+    "true_parameters": "identificabile",
+    "counterfactual": "identificabile"
+  },
+  "status": "failed",
+  "reason": "agentsim_run.py: uscita 1;   File \"/root/.cache/delir-datasets/agentsimulator/source/discovery.py\", line 55, in discover_simulation_parameters |     case_arrival_times, train_params = get_case_arrival_times(df_train, start_timestamp=START_TIME, num_cases_to_simulate=num_cases_to_simulate, train=True) |   File \"/root/.cache/delir-datasets/agentsimulator/source/arrival_times.py\", line 25, in get_case_arrival_times |     x = round(average_occurrences_by_day[day_of_current_timestamp][0]) | ValueError: cannot convert float NaN to integer"
+}
