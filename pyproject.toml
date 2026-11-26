@@ -36,6 +36,7 @@ dependencies = [
     "pypdfium2>=5.13.0",
     "defusedxml>=0.7.1",
     "pyjwt[crypto]>=2.10",
+    "mcp>=2,<3",
 ]
 
 [dependency-groups]
