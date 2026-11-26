@@ -22,8 +22,8 @@ import json
 import logging
 import os
 import random
-import signal
 import sys
+import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -55,18 +55,25 @@ def stop(code: int, message: str) -> NoReturn:
 
 @contextmanager
 def budget(seconds: int, what: str) -> Iterator[None]:
-    """Oltre ``seconds`` di tempo reale lo strumento esce con ``EXIT_OUT_OF_BUDGET``."""
+    """Oltre ``seconds`` di tempo reale lo strumento esce con ``EXIT_OUT_OF_BUDGET``.
 
-    def expired(_signum, _frame):
-        stop(EXIT_OUT_OF_BUDGET, f"fuori budget: {what} oltre {seconds} s")
+    Un timer su un thread, non ``SIGALRM``: il gestore di un segnale gira solo quando il
+    thread principale torna al bytecode, e uno strumento che aspetta i suoi worker
+    (joblib in ProSiT) non ci torna mai. ``os._exit`` chiude subito; i figli rimasti li
+    ferma il driver.
+    """
 
-    previous = signal.signal(signal.SIGALRM, expired)
-    signal.alarm(seconds)
+    def expired() -> None:
+        print(f"fuori budget: {what} oltre {seconds} s", file=sys.stderr, flush=True)
+        os._exit(EXIT_OUT_OF_BUDGET)
+
+    timer = threading.Timer(seconds, expired)
+    timer.daemon = True
+    timer.start()
     try:
         yield
     finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, previous)
+        timer.cancel()
 
 
 def common_arguments(parser: argparse.ArgumentParser) -> None:

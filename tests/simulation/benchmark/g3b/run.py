@@ -188,12 +188,13 @@ def measured(cmd: list[str], *, cwd: Path, log_path: Path, timeout: float) -> Me
     began = time.perf_counter()
     peak = 0
     reason = None
+    children: list[psutil.Process] = []
     with open(log_path, "w", encoding="utf-8") as out:
         process = psutil.Popen(cmd, cwd=cwd, stdout=out, stderr=subprocess.STDOUT)
         while process.poll() is None:
             try:
-                tree = [process, *process.children(recursive=True)]
-                peak = max(peak, sum(p.memory_info().rss for p in tree if p.is_running()))
+                children = process.children(recursive=True)
+                peak = max(peak, sum(p.memory_info().rss for p in [process, *children] if p.is_running()))
             except psutil.Error:
                 pass
             if time.perf_counter() - began > timeout:
@@ -209,6 +210,12 @@ def measured(cmd: list[str], *, cwd: Path, log_path: Path, timeout: float) -> Me
                 process.wait()
                 break
             time.sleep(0.2)
+    # Uno strumento uscito per budget (``os._exit``) puo' lasciare worker orfani.
+    for child in children:
+        try:
+            child.kill()
+        except psutil.Error:
+            pass
     return Measured(round(time.perf_counter() - began, 1), round(peak / 2**20, 1), process.returncode, reason)
 
 
