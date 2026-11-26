@@ -18,16 +18,29 @@ Nessun prompt aperto: G3b e RAD-01 + PROTO-02 sono chiusi. Il prossimo punto par
 
 ## B3.2 (in corso dal 2026-11-26, `claude/discovery-attese-b3-2-goeah3`)
 
-Discovery delle attese. Passo 1: ablazione pulita dei ritardi estranei (scheda 1 nella voce
-B3.2 di [`LOG.md`](./LOG.md)); passo 2: attribuzione delle attese per causa; passo 3 solo se GO.
+Discovery delle attese. Tre schede nella voce B3.2 di [`LOG.md`](./LOG.md): 1 ablazione dei
+ritardi di SIMOD a scenario fissato; 2 attribuzione delle attese sui sintetici; 3 attese
+attribuite nel simulatore contro SIMOD con ritardi estranei sui reali. Passo 3 (prodotto) solo
+se 2 e 3 sono GO.
 
 ```bash
 tests/simulation/benchmark/g3b/setup_envs.sh        # basta il venv simod
-uv run python tests/simulation/benchmark/b3_2/run.py --phases validation   # base `simod` e candidato `simod_fixed_extr`
+uv run python tests/simulation/benchmark/b3_2/run.py --phases validation          # scheda 1: simod, simod_fixed_extr
+uv run python tests/simulation/benchmark/b3_2/run.py --phases validation --logs AcademicCredentials BPIC_2012_W BPIC_2017_W --configs simod_extr simod_attr_extr   # scheda 3
+uv run python tests/simulation/benchmark/b3_2/report.py                            # results.md, verdicts.json
+# scheda 2: verità rigenerata (26 s), poi l'attribuzione (secondi)
+/var/tmp/delir-g3b/envs/simod/bin/python tests/simulation/benchmark/b3_2/tools/truth_logs.py --inputs datasets/extraneous-delays/inputs/synthetic --out /var/tmp/delir-b32/truth/validation --seed 20261124 <i 20 nomi>
+uv run python tests/simulation/benchmark/b3_2/attribution_eval.py --phase validation
 ```
 
-- **Stato:** banco pronto (`b3_2/run.py`, `b3_2/tools/simod_delays.py`), misura di validazione
-  in corso sui 23 log con RED identificabile. Cache in `/var/tmp/delir-g3b/work`.
+- **Scheda 2: GO sui sintetici.** Validazione 95,0%, test 95,65% delle attese con la causa giusta
+  (16 log con timer); 4 log senza timer 99,6-99,7%. Valutazioni in validazione: 3 su 20.
+- **Scheda 1:** misura di validazione in corso (2 processi: sintetici e reali). Parziale: su
+  AcademicCredentials i ritardi di SIMOD a scenario fissato peggiorano AED e W1/RED (NV).
+- **Scheda 3:** AcademicCredentials validazione misurato (W1 e RED NV in validazione: decidono
+  BPIC 2012 W e 2017 W, che devono vincere entrambi); `simod_extr` va rifatto qui dopo la scheda 1.
+- Cache in `/var/tmp/delir-g3b/work` (discovery senza ritardi rifatta in questo container) e
+  verità in `/var/tmp/delir-b32/truth/{validation,test}`; log dei giri in `/var/tmp/b32logs/`.
 - `g3b/run.py::evaluate` accetta `simulate_fn` e `label` (opzionali): le configurazioni di G3b
   non cambiano.
 
