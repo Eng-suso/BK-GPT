@@ -16,6 +16,21 @@ Ognuno in una sessione nuova sul repository `eng-suso/bk-gpt`, dal `main` aggior
 Nessun prompt aperto: G3b e RAD-01 + PROTO-02 sono chiusi. Il prossimo punto parte da
 `PLAN.md` e dalla sezione `## G3b` qui sotto.
 
+## B3.2 (in corso dal 2026-11-26, `claude/discovery-attese-b3-2-goeah3`)
+
+Discovery delle attese. Passo 1: ablazione pulita dei ritardi estranei (scheda 1 nella voce
+B3.2 di [`LOG.md`](./LOG.md)); passo 2: attribuzione delle attese per causa; passo 3 solo se GO.
+
+```bash
+tests/simulation/benchmark/g3b/setup_envs.sh        # basta il venv simod
+uv run python tests/simulation/benchmark/b3_2/run.py --phases validation   # base `simod` e candidato `simod_fixed_extr`
+```
+
+- **Stato:** banco pronto (`b3_2/run.py`, `b3_2/tools/simod_delays.py`), misura di validazione
+  in corso sui 23 log con RED identificabile. Cache in `/var/tmp/delir-g3b/work`.
+- `g3b/run.py::evaluate` accetta `simulate_fn` e `label` (opzionali): le configurazioni di G3b
+  non cambiano.
+
 ## G3b (fatto il 2026-11-26, `spike/sim-g3b-ablation`)
 
 Benchmark dei motori scientifici sui 25 log di sviluppo × 2 fasi × 9 configurazioni (450

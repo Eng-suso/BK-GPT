@@ -18,6 +18,43 @@ Modello:
 
 ---
 
+## 2026-11-26 — B3.2 discovery delle attese — in corso
+
+- Branch: `claude/discovery-attese-b3-2-goeah3` (il branch assegnato alla sessione cloud, al posto
+  di `feat/sim-discovery-waiting`). Dipendenze chiuse: G3b (#195).
+- Branch aperti rispetto a `main` (2026-11-26): `claude/vpt-g3b-ablation-3eh6xa`,
+  `spike/sim-g3b-ablation`, `claude/nice-newton-3kmoj9` solo indietro (già fusi);
+  `feat/canvas-agent-architecture` (26), `feat/mcp-server` (3), `claude/charming-hawking-0bmoev`
+  (3), `fix/sim-zero-fixed-durations` (1) fuori dal VPT, come nella review di RAD-00: non fusi.
+- **Scheda 1 — ablazione dei ritardi estranei** (PROTOCOL.md §7), scritta prima della misura:
+
+  | Campo | Contenuto |
+  | --- | --- |
+  | Ipotesi | i ritardi estranei di SIMOD, aggiunti a uno scenario con BPMN, risorse, calendari, durate e arrivi fissati, avvicinano la posizione degli eventi nel caso |
+  | Candidato | `simod_fixed_extr`: lo scenario di `simod` (SIMOD senza ritardi) più solo i timer della fase dei ritardi di SIMOD 5.2.1 (`ExtraneousDelaysOptimizer`, eclipse-aware, `relative_emd`, 20 iterazioni, 3 simulazioni, gli stessi parametri di `simod_extr`) scoperti sopra di esso |
+  | Base | `simod`, lo stesso scenario della stessa discovery senza timer: l'unica differenza sono i ritardi |
+  | Metrica primaria | RED |
+  | Guardie | W1, NGD, AED, CED, CAR; tempo e memoria (al massimo il doppio della base, budget del §6) |
+  | Log | i 23 log di sviluppo dove RED è identificabile (esclusi BPIC 2012 e BPIC 2013 incidents, NOT VALIDATED su RED dal §4); le guardie sugli stessi log |
+
+  - **GO** se, prima in validazione e poi in test: RED vince (IC 95% separati) sulla maggioranza
+    dei 23 log e non perde su nessuno; nessuna guardia perde su più di un log; costo entro il
+    budget e al massimo il doppio della base; lo scenario supera VAL-01. Fallito o fuori budget =
+    sconfitta. **NO-GO** altrimenti. Una valutazione per log e fase (nessuna griglia).
+  - **Metodo:** SIMOD 5.2.1 non ha un comando per la sola fase dei ritardi, ma la sua classe sì:
+    `b3_2/tools/simod_delays.py` legge il log come la CLI (`EventLog.from_path`, stesso
+    preprocessing) e chiama `ExtraneousDelaysOptimizer` con lo scenario dato come modello, poi
+    aggiunge i timer al BPMN e allo scenario come fa la pipeline (`add_timers_to_bpmn_model`,
+    `event_distribution`). A differenza di SIMOD la ricerca ha un seed (`random`, `numpy`,
+    `HYPEROPT_FMIN_SEED`). La discovery senza ritardi non ha seed: base e candidato usano la
+    stessa, rifatta in questo container (la cache di G3b non c'è). Costo del candidato = discovery
+    senza ritardi + ritardi.
+  - Prova del banco prima della misura (non conta): Pharmacy_1_timer validazione in una cartella
+    temporanea, timer scoperto su «Pick-up» (media 74 s) come nel modello vero (timer prima di
+    «Pick-up», 330 s); risultato cancellato.
+
+---
+
 ## 2026-11-26 — G3b benchmark dei motori scientifici — fatto
 
 - Branch / PR: `spike/sim-g3b-ablation`, #195, CI verde. Dipendenze chiuse: PROTO-01 (#190).
