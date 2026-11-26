@@ -52,6 +52,23 @@ Modello:
   - Prova del banco prima della misura (non conta): Pharmacy_1_timer validazione in una cartella
     temporanea, timer scoperto su «Pick-up» (media 74 s) come nel modello vero (timer prima di
     «Pick-up», 330 s); risultato cancellato.
+- **Scheda 2 — attribuzione delle attese per causa sui sintetici** (scritta prima della misura,
+  dopo un solo giro di prova su Pharmacy_1_timer validazione, 95,3%, contato come valutazione 1 di 20):
+
+  | Campo | Contenuto |
+  | --- | --- |
+  | Ipotesi | dal solo log (caso, attività, inizio, fine, risorsa) si separa l'attesa di ogni esecuzione in congestione, indisponibilità, ritardo esterno e batching guardando la risorsa all'indietro dall'inizio (occupata o fuori orario senza buchi = aspettava la risorsa; prima = ritardo esterno) |
+  | Candidato | `b3_2/attribution.py` v1: abilitazione dall'ultima attività non concorrente (sovrapposizione ≥ 50% dei casi), orari scoperti per gruppo di risorse con le stesse attività (fasce di un'ora aperte in ≥ 10% delle settimane, giornata senza buchi), tolleranza 1 s; solo libreria standard |
+  | Verità | i 20 modelli veri del dataset di Chapela-Campa e Dumas rigenerati con Prosimos 2.1 (1000 casi, seed 20261124, eventi nel log): timer = ritardo esterno; dall'abilitazione vera all'inizio fuori orario vero = indisponibilità, risorsa occupata = congestione. Batching e sospensioni non ci sono nei modelli |
+  | Metrica primaria | quota di attese con la causa giusta (causa con più secondi uguale), sui 16 log con timer insieme; attese = esecuzioni non prime del caso con attesa vera o stimata > 1 s |
+  | Guardie | la stessa quota sui 4 log senza timer; quota dei secondi attribuiti alla causa giusta |
+  | Fasi | validazione = prima metà dei casi (si sceglie qui), test = seconda metà, una volta |
+
+  - **GO** se la primaria è ≥ 90% in validazione e poi in test e la guardia sui 4 log senza timer
+    è ≥ 90%. Al massimo 20 valutazioni in validazione; il test non sceglie.
+  - Limiti dichiarati: l'attesa della prima attività del caso (dall'arrivo) non è osservabile;
+    sospensioni non identificabili senza ciclo di vita; i modelli non hanno batching, quindi il
+    batching si verifica solo come "mai attribuito a torto".
 
 ---
 
