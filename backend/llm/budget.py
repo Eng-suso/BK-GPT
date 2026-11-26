@@ -13,9 +13,11 @@ l'inizio della sessione in corso (`workspace_usage_plans`).
 
 Due regole di comportamento, che contano piu' del codice:
 
-- **un lavoro iniziato finisce.** Il controllo si fa all'inizio di un turno di
-  chat o di un'azione chiesta dal consulente, non a meta': un turno che si ferma
-  a meta' butta la spesa gia' fatta e lascia il consulente senza risposta;
+- **un lavoro iniziato finisce.** Il controllo si fa una volta, al confine:
+  all'inizio di un turno di chat e, per le azioni dirette del consulente, nella
+  dipendenza della rotta (`require_usage_available`). Mai dentro il gateway,
+  a meta' di un lavoro: fermarlo li' butterebbe la spesa gia' fatta e
+  lascerebbe un risultato a meta';
 - **il lavoro in background non si ferma.** L'estrazione di un file gia' caricato,
   la proiezione della memoria, la ricostruzione del piano sono lavoro gia'
   accettato: si conta, non si blocca. Si blocca la prossima richiesta.
@@ -28,7 +30,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from backend.llm.operation import Operation, OperationKind
+from fastapi import Depends
+
+from backend.security import AuthPrincipal, require_principal
+
 from backend.settings import settings
 
 _MILLION = Decimal(1_000_000)
@@ -40,20 +45,6 @@ _FORECAST_MIN_SHARE = 0.25
 # Il controllo nel gateway gira a ogni chiamata: lo stato si tiene per pochi
 # secondi invece di rileggere il registro ogni volta.
 _CACHE_SECONDS = 10.0
-
-#: Le operazioni che un consulente chiede da un'azione diretta, oltre al turno di
-#: chat (che si controlla all'inizio, in `agent_runtime`). Tutto il resto e'
-#: lavoro in background gia' accettato.
-GATED_KINDS = frozenset(
-    {
-        OperationKind.BPMN_DRAFT,
-        OperationKind.CLAIM_MATCHING,
-        OperationKind.SIMULATION_WHAT_IF,
-        OperationKind.SIMULATION_NARRATIVE,
-        OperationKind.TRANSCRIPTION,
-    }
-)
-
 
 @dataclass(frozen=True, slots=True)
 class Window:
@@ -142,8 +133,9 @@ class UsageLimitReached(Exception):
 
     @classmethod
     def from_status(cls, status: UsageStatus) -> UsageLimitReached:
-        window = status.blocking
-        name = "trial_over" if status.trial_over else (window.name if window else "session")
+        blocking = status.blocking
+        assert blocking is not None, "from_status si chiama solo con una finestra che blocca"
+        name = "trial_over" if status.trial_over else blocking.name
         return cls(_MESSAGES[name], name)
 
 
@@ -188,60 +180,97 @@ def _limit(value: str | None, default: float) -> Decimal | None:
     return amount if amount > 0 else None
 
 
-def _spent_since(tenant_id: str, user_id: str, since: datetime, until: datetime) -> Decimal:
-    """La spesa stimata di un consulente in una finestra, nel suo tenant.
+def _session_length() -> timedelta:
+    return timedelta(hours=settings.usage_session_hours)
+
+
+def _live_session_start(plan, now: datetime) -> datetime | None:
+    """L'inizio della sessione in corso, o `None` se non ce n'e' una (mai aperta o scaduta)."""
+    started = _parse(plan.session_started_at)
+    return started if started is not None and now < started + _session_length() else None
+
+
+def _spent(tenant_id: str, user_id: str, starts: dict[str, datetime], now: datetime) -> dict[str, Decimal]:
+    """La spesa stimata di un consulente in piu' finestre, con una sola lettura del registro.
 
     Le righe senza prezzo (modello non nel listino) si contano al prezzo di
     ripiego, pessimista: un costo sconosciuto non deve far sforare il budget.
     """
     from backend.llm import ledger
 
-    total = ledger.totale(
-        since=since.isoformat(), until=until.isoformat(), tenant_id=tenant_id, user_id=user_id
+    totals = ledger.per_finestre(
+        {name: start.isoformat() for name, start in starts.items()},
+        fine=now.isoformat(),
+        tenant_id=tenant_id,
+        user_id=user_id,
     )
     unpriced_rate = Decimal(str(settings.usage_unpriced_usd_per_million_tokens))
-    return total.costo_noto + Decimal(total.token_senza_prezzo) * unpriced_rate / _MILLION
+    return {
+        name: total.costo_noto + Decimal(total.token_senza_prezzo) * unpriced_rate / _MILLION
+        for name, total in totals.items()
+    }
 
 
-def _plan(tenant_id: str, user_id: str, now: datetime, *, persist: bool, open_session: bool = False):
-    """Il piano del consulente.
+def _new_plan_values(tenant_id: str, user_id: str, now: datetime) -> dict:
+    return {
+        "tenant_id": tenant_id,
+        "user_id": user_id,
+        "trial_started_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+    }
 
-    Senza `persist` si legge soltanto: un consulente senza piano riceve un piano
-    provvisorio, che non si salva. Guardare il pannello - che lo chiede ogni
-    minuto, anche con i limiti spenti - non deve far partire la prova: sarebbe
-    gia' scaduta per tutti il giorno in cui i limiti si accendono.
 
-    Con `persist` il piano si crea al primo uso (`INSERT ... ON CONFLICT DO
-    NOTHING`: due richieste simultanee di un consulente nuovo non si scontrano
-    sulla chiave) e, con `open_session`, si apre la sessione se non ce n'e' una.
+def _locked_plan(session, tenant_id: str, user_id: str, now: datetime):
+    """Il piano, creato se manca, bloccato per la transazione in corso.
+
+    `INSERT ... ON CONFLICT DO NOTHING`: due prime richieste simultanee di un
+    consulente nuovo non si scontrano sulla chiave.
     """
     from sqlalchemy import select
     from sqlalchemy.dialects.postgresql import insert
 
+    from backend.workspace_storage import WorkspaceUsagePlan
+
+    session.execute(
+        insert(WorkspaceUsagePlan)
+        .values(**_new_plan_values(tenant_id, user_id, now))
+        .on_conflict_do_nothing(index_elements=["tenant_id", "user_id"])
+    )
+    return session.scalars(
+        select(WorkspaceUsagePlan)
+        .where(WorkspaceUsagePlan.tenant_id == tenant_id, WorkspaceUsagePlan.user_id == user_id)
+        .with_for_update()
+    ).one()
+
+
+def _plan(tenant_id: str, user_id: str, now: datetime, *, open_session: bool):
+    """Il piano del consulente.
+
+    Si legge prima, senza scrivere niente. Si scrive soltanto quando serve: con
+    `open_session` e senza una sessione in corso, il piano si crea (se manca) e
+    la sessione si apre. Guardare il pannello - che lo chiede ogni minuto - non
+    crea niente e non fa partire la prova: sarebbe gia' scaduta per tutti il
+    giorno in cui i limiti si accendono. Un consulente senza piano riceve un
+    piano provvisorio, che non si salva.
+    """
+    from sqlalchemy import select
+
     from backend.workspace_storage import WorkspaceUsagePlan, workspace_connection
 
-    key = (WorkspaceUsagePlan.tenant_id == tenant_id, WorkspaceUsagePlan.user_id == user_id)
     with workspace_connection() as session:
-        if not persist:
-            plan = session.scalars(select(WorkspaceUsagePlan).where(*key)).one_or_none()
-            if plan is not None:
-                session.expunge(plan)
-                return plan
-            return WorkspaceUsagePlan(
-                tenant_id=tenant_id, user_id=user_id, trial_started_at=now.isoformat(), updated_at=now.isoformat()
+        plan = session.scalars(
+            select(WorkspaceUsagePlan).where(
+                WorkspaceUsagePlan.tenant_id == tenant_id, WorkspaceUsagePlan.user_id == user_id
             )
-        session.execute(
-            insert(WorkspaceUsagePlan)
-            .values(tenant_id=tenant_id, user_id=user_id, trial_started_at=now.isoformat(), updated_at=now.isoformat())
-            .on_conflict_do_nothing(index_elements=["tenant_id", "user_id"])
-        )
-        plan = session.scalars(select(WorkspaceUsagePlan).where(*key).with_for_update()).one()
-        started = _parse(plan.session_started_at)
-        session_length = timedelta(hours=settings.usage_session_hours)
-        if open_session and (started is None or now >= started + session_length):
-            plan.session_started_at = now.isoformat()
-            plan.updated_at = now.isoformat()
-        session.flush()
+        ).one_or_none()
+        if open_session and (plan is None or _live_session_start(plan, now) is None):
+            plan = _locked_plan(session, tenant_id, user_id, now)
+            if _live_session_start(plan, now) is None:
+                plan.session_started_at = now.isoformat()
+                plan.updated_at = now.isoformat()
+            session.flush()
+        if plan is None:
+            return WorkspaceUsagePlan(**_new_plan_values(tenant_id, user_id, now))
         session.expunge(plan)
     return plan
 
@@ -250,16 +279,13 @@ def _forecast(windows: tuple[Window, ...], now: datetime) -> Forecast | None:
     """La finestra che, al ritmo attuale, finisce prima di azzerarsi; la piu' vicina."""
     best: Forecast | None = None
     for window in windows:
-        if (
-            window.limit_usd is None
-            or window.started_at is None
-            or window.resets_at is None
-            or window.exhausted
-            or window.used_share < _FORECAST_MIN_SHARE
-        ):
+        # Senza tetto la quota e' 0, e sotto la soglia minima non si prevede niente.
+        if window.exhausted or window.used_share < _FORECAST_MIN_SHARE:
+            continue
+        if window.started_at is None or window.resets_at is None or window.limit_usd is None:
             continue
         elapsed = now - window.started_at
-        if elapsed < _FORECAST_MIN_ELAPSED or window.used_usd <= 0:
+        if elapsed < _FORECAST_MIN_ELAPSED:
             continue
         rate_per_second = window.used_usd / Decimal(elapsed.total_seconds())
         remaining = window.limit_usd - window.used_usd
@@ -275,61 +301,39 @@ def _tenant(tenant_id: str | None) -> str:
     return tenant_id or get_current_tenant_id()
 
 
-def status(
-    user_id: str,
-    *,
-    tenant_id: str | None = None,
-    now: datetime | None = None,
-    persist: bool = False,
-    open_session: bool = False,
-) -> UsageStatus:
-    """Lo stato d'uso di un consulente.
-
-    Args:
-        user_id: Il consulente.
-        tenant_id: Il suo tenant; omesso, quello della richiesta. Piani e spesa
-            sono per tenant: lo stesso id in due tenant sono due persone.
-        now: L'istante di riferimento (i test lo fissano).
-        persist: Crea il piano se manca. Solo chi sta per spendere, o
-            l'amministratore: vedi `_plan`.
-        open_session: Apre una sessione nuova se non ce n'e' una in corso.
-    """
-    now = now or _now()
-    tenant = _tenant(tenant_id)
-    plan = _plan(tenant, user_id, now, persist=persist, open_session=open_session)
-
-    session_length = timedelta(hours=settings.usage_session_hours)
-    session_start = _parse(plan.session_started_at)
-    if session_start is not None and now >= session_start + session_length:
-        session_start = None
-    session = Window(
-        name="session",
-        used_usd=_spent_since(tenant, user_id, session_start, now) if session_start else Decimal(0),
-        limit_usd=_limit(plan.session_budget_usd, settings.usage_session_budget_usd),
-        started_at=session_start,
-        resets_at=session_start + session_length if session_start else None,
-    )
-
+def _status_of(plan, user_id: str, now: datetime) -> UsageStatus:
+    """Le tre finestre di un piano, con la spesa letta una volta sola."""
+    session_start = _live_session_start(plan, now)
     trial_start = _parse(plan.trial_started_at) or now
     trial_end = _parse(plan.trial_ends_at) or trial_start + timedelta(days=settings.usage_trial_days)
-    weeks_elapsed = max(0, int((now - trial_start) / _WEEK))
-    week_start = trial_start + weeks_elapsed * _WEEK
+    week_start = trial_start + max(0, int((now - trial_start) / _WEEK)) * _WEEK
+
+    starts = {"week": week_start, "trial": trial_start}
+    if session_start is not None:
+        starts["session"] = session_start
+    spent = _spent(plan.tenant_id, user_id, starts, now)
+
+    session = Window(
+        name="session",
+        used_usd=spent.get("session", Decimal(0)),
+        limit_usd=_limit(plan.session_budget_usd, settings.usage_session_budget_usd),
+        started_at=session_start,
+        resets_at=session_start + _session_length() if session_start else None,
+    )
     week = Window(
         name="week",
-        used_usd=_spent_since(tenant, user_id, week_start, now),
+        used_usd=spent["week"],
         limit_usd=_limit(plan.week_budget_usd, settings.usage_week_budget_usd),
         started_at=week_start,
         resets_at=week_start + _WEEK,
     )
-
     trial = Window(
         name="trial",
-        used_usd=_spent_since(tenant, user_id, trial_start, now),
+        used_usd=spent["trial"],
         limit_usd=_limit(plan.trial_budget_usd, settings.usage_trial_budget_usd),
         started_at=trial_start,
         resets_at=trial_end,
     )
-
     windows = (session, week, trial)
     return UsageStatus(
         enabled=settings.usage_limits_enabled,
@@ -342,11 +346,36 @@ def status(
     )
 
 
+def status(
+    user_id: str,
+    *,
+    tenant_id: str | None = None,
+    now: datetime | None = None,
+    open_session: bool = False,
+) -> UsageStatus:
+    """Lo stato d'uso di un consulente.
+
+    Args:
+        user_id: Il consulente.
+        tenant_id: Il suo tenant; omesso, quello della richiesta. Piani e spesa
+            sono per tenant: lo stesso id in due tenant sono due persone.
+        now: L'istante di riferimento (i test lo fissano).
+        open_session: Apre una sessione (creando il piano, se manca) quando non
+            ce n'e' una in corso. Solo chi sta per spendere: vedi `_plan`.
+    """
+    now = now or _now()
+    plan = _plan(_tenant(tenant_id), user_id, now, open_session=open_session)
+    return _status_of(plan, user_id, now)
+
+
 _cache: dict[tuple[str, str], tuple[float, UsageStatus]] = {}
 
 
 def check(user_id: str | None, *, tenant_id: str | None = None) -> None:
     """Ferma una richiesta nuova oltre il limite. Apre la sessione se non c'e'.
+
+    Lo stato si tiene per pochi secondi per processo: un turno di chat che apre
+    il pannello subito dopo non rilegge il registro.
 
     Raises:
         UsageLimitReached: Se una finestra e' esaurita o la prova e' finita.
@@ -354,26 +383,18 @@ def check(user_id: str | None, *, tenant_id: str | None = None) -> None:
     if not settings.usage_limits_enabled or not user_id:
         return
     tenant = _tenant(tenant_id)
+    now_mono = time.monotonic()
     cached = _cache.get((tenant, user_id))
-    if cached is not None and time.monotonic() - cached[0] < _CACHE_SECONDS:
+    if cached is not None and now_mono - cached[0] < _CACHE_SECONDS:
         current = cached[1]
     else:
-        current = status(user_id, tenant_id=tenant, persist=True, open_session=True)
-        _cache[(tenant, user_id)] = (time.monotonic(), current)
+        current = status(user_id, tenant_id=tenant, open_session=True)
+        # Le voci scadute si buttano qui: il dizionario non cresce per sempre.
+        for key in [k for k, (at, _) in _cache.items() if now_mono - at >= _CACHE_SECONDS]:
+            del _cache[key]
+        _cache[(tenant, user_id)] = (now_mono, current)
     if current.blocking is not None:
         raise UsageLimitReached.from_status(current)
-
-
-def enforce(operation: Operation) -> None:
-    """Il controllo del gateway: solo per le azioni dirette del consulente.
-
-    Un'operazione figlia (un «Genera BPMN» chiesto da un turno di chat) fa parte
-    di un lavoro gia' accettato, e il lavoro in background non si ferma: entrambi
-    passano. Vedi la docstring del modulo.
-    """
-    if operation.parent_id is not None or operation.kind not in GATED_KINDS:
-        return
-    check(operation.user_id, tenant_id=operation.tenant_id)
 
 
 def reset_cache() -> None:
@@ -395,20 +416,14 @@ def update_plan(
     Zero su una soglia vuol dire «nessun tetto». `reset_session` chiude la
     sessione in corso: la prossima richiesta ne apre una nuova, a contatore
     pieno. E' il «ripristino» che l'amministratore puo' concedere a mano.
+    Una transazione sola: creare, bloccare e cambiare il piano.
     """
-    from sqlalchemy import select
-
-    from backend.workspace_storage import WorkspaceUsagePlan, workspace_connection
+    from backend.workspace_storage import workspace_connection
 
     now = _now()
     tenant = _tenant(None)
-    _plan(tenant, user_id, now, persist=True)
     with workspace_connection() as session:
-        plan = session.scalars(
-            select(WorkspaceUsagePlan)
-            .where(WorkspaceUsagePlan.tenant_id == tenant, WorkspaceUsagePlan.user_id == user_id)
-            .with_for_update()
-        ).one()
+        plan = _locked_plan(session, tenant, user_id, now)
         if session_budget_usd is not None:
             plan.session_budget_usd = str(session_budget_usd)
         if week_budget_usd is not None:
@@ -420,5 +435,19 @@ def update_plan(
         if reset_session:
             plan.session_started_at = None
         plan.updated_at = now.isoformat()
+        session.flush()
+        session.expunge(plan)
+    # Solo questo processo: negli altri lo stato vecchio scade entro `_CACHE_SECONDS`.
     _cache.pop((tenant, user_id), None)
-    return status(user_id, tenant_id=tenant, now=now)
+    return _status_of(plan, user_id, now)
+
+
+def require_usage_available(principal: AuthPrincipal = Depends(require_principal)) -> None:
+    """Dipendenza FastAPI delle azioni dirette che spendono: il limite, prima di tutto.
+
+    Il controllo sta al confine della rotta, prima che il servizio apra i suoi
+    `try`: cosi' il 429 arriva al consulente col suo messaggio, e nessun
+    servizio deve ricordarsi di lasciarlo passare. `require_principal` e' in
+    cache per la richiesta: non si verifica il token due volte.
+    """
+    check(principal.user_id, tenant_id=principal.tenant_id)
