@@ -1,50 +1,19 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-25, dopo VAL-01 (PR #189), PROTO-01 (PR #190), ENG-01 (PR #191), RAD-00
-(PR #192) e la correzione di `DELIR_AUTH_PROVIDER`.
+Aggiornato: 2026-11-26, alla chiusura di G3b (dopo VAL-01, PROTO-01, ENG-01, RAD-00 e la
+correzione di `DELIR_AUTH_PROVIDER`).
 
 ## Punti attivi
 
-**G3b in corso** (dal 2026-11-25, branch `spike/sim-g3b-ablation`). Schede di go/no-go
-scritte in `LOG.md` prima di ogni misura. Stato e come riprendere nella sezione `## G3b`
-qui sotto.
-
-Prima di G3b: ENG-01 è fatto (PR #191). Liberi, con dipendenze chiuse: **G3b** (P0,
-percorso critico), **LIC-01** (P0), **RAD-01** → **PROTO-02** (radar), **ANA-01**. Poi
-B3.1-B3.3 e B3; ENG-02 dopo LIC-01. Nessun candidato (AT-KDE, POWL, ProSiT,
-AgentSimulator) si implementa prima di G3b. I due prompt qui sotto avviano G3b e RAD-01.
+Nessuno in corso: G3b è fatto (12 schede NO-GO, sezione `## G3b`). Liberi, con dipendenze
+chiuse: **B3.1**, **B3.2**, **B3.3** (dopo G3b), **PERF-01** (dopo G3b), **LIC-01** (P0),
+**RAD-01** → **PROTO-02**, **ANA-01**. ENG-02 dopo LIC-01.
 
 ## Prompt per i prossimi agenti
 
 Ognuno in una sessione nuova sul repository `eng-suso/bk-gpt`, dal `main` aggiornato.
 
-### Agente 1 — G3b benchmark dei motori scientifici
-
-```text
-Lavori sul Verified Process Twin di DeliR, punto G3b di docs/vpt/PLAN.md (P0, percorso
-critico). Segui docs/vpt/WORKFLOW.md e CLAUDE.md alla lettera: leggi HANDOFF.md, PLAN.md,
-PROTOCOL.md e le ultime tre voci di LOG.md; controlla i branch aperti rispetto a main; metti
-G3b "in corso" e lavora sul branch spike/sim-g3b-ablation.
-
-Obiettivo: sui log di sviluppo del protocollo (development_logs(), holdout esclusi) misura
-"B = A", SIMOD, SIMOD con ritardi estranei, ProSiT, AgentSimulator, SIMOD con arrivi AT-KDE e
-l'ablazione per componente, con le metriche di B2 e IC 95% più tempo di discovery, tempo di
-simulazione e picco di memoria. Ogni punto d'ingresso che sceglie qualcosa gira dentro
-protocol.selection_phase(); la scelta si fa sulla validazione (train_validation). Prima di
-misurare scrivi in LOG.md le schede di go/no-go (§7 di PROTOCOL.md) e rispetta il budget del §6.
-Il codice esterno (AT-KDE, ProSiT, AgentSimulator, Kronos) è già nel manifest, collezione
-radar: `uv run python scripts/fetch_datasets.py fetch at-kde prosit agentsimulator simod`;
-resta nell'ambiente di ricerca, mai importato dal prodotto. Non aprire gli holdout: si aprono
-una volta sola con final_evaluation(<impronta>) a selezione congelata, e solo se Sohayb lo
-conferma. Stack reale: scripts/vpt_stack.sh start.
-
-Chiusura: risultati in tests/simulation/benchmark/g3b/ con il comando per rifarli, decisione
-per componente in LOG.md, HANDOFF.md aggiornato dopo ogni misura. Code review, simplify, CI
-verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Authored-By.
-Non abbassare nessuna meta.
-```
-
-### Agente 2 — RAD-01 inventario e deduplica, poi PROTO-02
+### RAD-01 inventario e deduplica, poi PROTO-02
 
 ```text
 Lavori sul Verified Process Twin di DeliR, punti RAD-01 e poi PROTO-02 di docs/vpt/PLAN.md
@@ -74,47 +43,48 @@ Chiusura: HANDOFF.md aggiornato dopo ogni misura, voce in LOG.md, code review, s
 verde, merge su main, commit piccoli a nome di Sohayb Raqaq senza trailer Co-Authored-By.
 ```
 
-## G3b (in corso)
+## G3b (fatto il 2026-11-26, `spike/sim-g3b-ablation`)
 
-- Schede §7 in `LOG.md` (voce G3b in cima), scritte prima di ogni misura.
-- Codice: `tests/simulation/benchmark/g3b/` — `run.py` (driver, dentro `selection_phase()`,
-  risultati in `results/<log>/<fase>/<config>.json`, riprende da dove si è fermato),
-  `report.py` (tabelle e verdetti in `results.md`, `verdicts.json`), `tools/` (script che
-  girano nei venv di ricerca), `configs/` (SIMOD di G3 senza test), `test_g3b.py` (12).
-- Ambienti: `tests/simulation/benchmark/g3b/setup_envs.sh` → `/var/tmp/delir-g3b/envs`.
-  Lavoro e scenari scoperti in `/var/tmp/delir-g3b/work` (cache della discovery).
-- Prova su Loan_Application validazione: tutte le 9 configurazioni girano; SIMOD 137 s
-  (+99 s per i ritardi), ~1 GB; rilancio identico al bit nelle metriche. AT-KDE non si
-  applica con meno di 14 giorni di arrivi nell'input (sintetici brevi): `not_applicable`,
-  conta come sconfitta.
-- **Misura completa lanciata** il 2026-11-25 alle ~18:10 UTC in due processi:
-  log `/var/tmp/delir-g3b/logs/real.log` (5 log reali/parziali) e `synthetic.log` (20).
-  Se la sessione si interrompe basta rilanciare `run.py`: salta ciò che è già scritto
-  (`--retry-failed` riprova i falliti). Alle 19:01 UTC: 142/450 risultati.
-- Già visto: Prosimos della ricerca identico al percorso del prodotto (`engine_check.json`,
-  repliche uguali su BPIC 2012 W extr). SIMOD con ritardi crolla su AcademicCredentials
-  test (come in G3); ProSiT e AgentSimulator vanno in overflow di data su
-  AcademicCredentials validazione; AT-KDE non si applica ai sintetici con < 14 giorni di
-  arrivi, AgentSimulator agli Insurance_Claims (un solo giorno). Tutti contano come
-  sconfitta del candidato (o della base). Da rifare alla fine:
-  `run.py --configs agentsim --force` sui log dove ha fallito, per il motivo leggibile.
-- 20:35 UTC: AgentSimulator su BPIC 2012 W test fermato a mano dopo 88 minuti su una
-  replica (budget 10): ora gli strumenti hanno un allarme per replica (`fuori budget`).
-  Alla fine: `run.py --retry-failed` per riclassificarlo. Sintetici divisi in due
-  processi (`synthetic.log`, `synthetic2.log`); 348/450 risultati.
+Benchmark dei motori scientifici sui 25 log di sviluppo × 2 fasi × 9 configurazioni (450
+risultati), holdout chiusi. **12 schede su 12 NO-GO** (decisioni e motivi nella voce G3b di
+[`LOG.md`](./LOG.md); tabelle in `tests/simulation/benchmark/g3b/results.md`). Nessun
+componente esterno entra in B3 così com'è; "B = A" resta l'asticella più dura.
 
 ```bash
-tests/simulation/benchmark/g3b/setup_envs.sh
-uv run python tests/simulation/benchmark/g3b/run.py            # tutti i log, tutte le configurazioni
-uv run python tests/simulation/benchmark/g3b/report.py
+tests/simulation/benchmark/g3b/setup_envs.sh                  # venv di ricerca in /var/tmp/delir-g3b/envs
+uv run python tests/simulation/benchmark/g3b/run.py            # riprende da ciò che è scritto; ~9 h con 2-3 processi
+uv run python tests/simulation/benchmark/g3b/report.py         # results.md, verdicts.json
+uv run pytest --noconftest -q tests/simulation/benchmark/g3b/test_g3b.py
 ```
+
+Da sapere per i prossimi punti:
+
+- **B3.1 (arrivi):** AT-KDE NO-GO (non si applica sotto i 14 giorni di arrivi; dove gira
+  prolunga il ritmo di fine train). Gli arrivi di A **rigiocati** nello scenario SIMOD battono
+  gli arrivi di SIMOD in test su CAR (12-7-5) e AED (13-11-1): il candidato naturale di B3.1,
+  configurazione `simod_extr_replay` di `run.py`.
+- **B3.2 (attese):** i ritardi estranei di SIMOD sono quasi sempre pari a SIMOD senza ritardi
+  su RED; ma SIMOD riottimizza anche risorse e calendari, quindi l'ablazione non isola i
+  ritardi. Serve una variante con risorse e calendari fissati.
+- **B3.3 (control flow):** le regole di ProSiT migliorano NGD rispetto a ProSiT senza regole
+  (test 12-11-0) ma non battono "B = A" né SIMOD.
+- **AgentSimulator** batte "B = A" su W1, AED e CAR di BPIC 2017 W test (unico caso), ma non
+  produce un modello verificabile da VAL-01.
+- **Banco:** il Prosimos della ricerca dà repliche identiche al percorso del prodotto
+  (`g3b/engine_check.json`), quindi un candidato misurato qui si confronta con B2, G3 e
+  SIM-36b. ProSiT non è ripetibile al bit (ordine delle transizioni della rete di Petri);
+  SIMOD non ha seed (scenari in cache in `/var/tmp/delir-g3b/work`, non nel repo).
+- **Budget:** discovery 2 h e 12 GB, replica 10 minuti, fatti rispettare dagli strumenti
+  (codice 4); non applicabile = codice 3. Con tre processi grandi in parallelo il container
+  (15 GB) va fuori memoria: due processi pesanti al massimo.
+- **Holdout non aperti:** nessun GO da confermare. Aprirli è una decisione di Sohayb.
+- **Da confermare con Sohayb:** la regola del doppio del costo non si applica contro "B = A"
+  (`COST_EXEMPT_BASES` in `g3b/report.py`); nessun verdetto dipende da questa lettura.
 
 ## Ultima misura
 
-ENG-01: harness B2 sullo stack reale prima e dopo, `baseline.json` identico bit per bit
-(SHA-256 `4e4fce5d…`, 9/9 dentro), anche dopo il merge con VAL-01. G3: il "B = A" di
-SIM-36 resta migliore di ogni scenario SIMOD, salvo BPIC 2017 W con ritardi estranei su
-RED e W1. B6: what-if 10 × 1.000 casi in 11-26 s.
+G3b (2026-11-26): 450 risultati, 12/12 schede NO-GO; Prosimos della ricerca identico al
+percorso del prodotto; ~31 h di calcolo. ENG-01: `baseline.json` di B2 identico bit per bit.
 
 ## Research Radar (RAD-00 fatto il 2026-11-25)
 
