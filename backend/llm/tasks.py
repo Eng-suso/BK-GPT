@@ -43,6 +43,9 @@ class LlmTask(StrEnum):
     CLAIM_MATCHING = "claim_matching"
     SIMULATION_WHAT_IF = "simulation_what_if"
     SIMULATION_NARRATIVE = "simulation_narrative"
+    MEMORY_EXTRACTION = "memory_extraction"
+    MEMORY_EMBEDDING = "memory_embedding"
+    THREAD_SUMMARY = "thread_summary"
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,6 +218,30 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
     # un numero suo si rifiuta. E' redazione, non giudizio: niente ragionamento.
     LlmTask.SIMULATION_NARRATIVE: TaskProfile(
         LlmTask.SIMULATION_NARRATIVE, reasoning_effort="none", max_output_tokens=600, scales_with_input=False
+    ),
+    # Le chiamate che Mem0 fa da se' (`backend/llm/mem0_meter.py`). Il gateway non
+    # le esegue - la libreria ha i suoi client - ma il profilo serve lo stesso:
+    # dice quale modello scrivere nel registro quando la risposta non lo porta.
+    # Sono lavoro di memoria, che puo' aspettare.
+    LlmTask.MEMORY_EXTRACTION: TaskProfile(
+        LlmTask.MEMORY_EXTRACTION,
+        reasoning_effort="none",
+        deferrable=True,
+        scales_with_input=False,
+        model_setting="mem0_llm_model",
+    ),
+    LlmTask.MEMORY_EMBEDDING: TaskProfile(
+        LlmTask.MEMORY_EMBEDDING,
+        reasoning_effort="none",
+        deferrable=True,
+        scales_with_input=False,
+        model_setting="mem0_embedder_model",
+    ),
+    # Il riassunto del thread gira con il client della chat, ma non e' la
+    # risposta: e' manutenzione del contesto. Prima finiva dentro `chat_turn`, e
+    # "quanto costa riassumere" non aveva risposta. Stesso profilo della chat.
+    LlmTask.THREAD_SUMMARY: TaskProfile(
+        LlmTask.THREAD_SUMMARY, reasoning_effort="none", retry=True, scales_with_input=False
     ),
 }
 
