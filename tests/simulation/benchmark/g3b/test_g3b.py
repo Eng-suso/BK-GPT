@@ -89,6 +89,21 @@ def test_no_go_when_twice_as_expensive_as_a_model_base_but_not_against_b_equals_
     assert v["bases"]["base"]["costlier_than_double"] == ["a", "b"] and v["verdict"] == "NO-GO"
 
 
+def test_the_cost_rule_ignores_a_base_that_was_stopped() -> None:
+    cand = _result({"ngram": 0.1}, discovery_seconds=100.0)
+    stopped = _result({"ngram": 0.5}, status="out_of_budget", discovery_seconds=10.0)
+    results = _results({"a": cand, "b": cand}, {"a": stopped, "b": stopped})
+    assert report.verdict(CARD, "test", results, ["a", "b"])["bases"]["base"]["costlier_than_double"] == []
+
+
+def test_a_result_with_other_seed_or_replicas_is_redone(tmp_path: Path) -> None:
+    path = tmp_path / "x.json"
+    path.write_text(json.dumps({"status": "failed", "seed": 1, "replicas": 10}))
+    assert run._done(path, retry_failed=False, seed=1, replicas=10)
+    assert not run._done(path, retry_failed=True, seed=1, replicas=10)
+    assert not run._done(path, retry_failed=False, seed=1, replicas=3)
+
+
 def test_not_validated_when_the_primary_is_identifiable_in_fewer_than_two_logs() -> None:
     nv = _result({"ngram": 0.1}, nv=("ngram",))
     results = _results({"a": nv, "b": nv, "c": _result({"ngram": 0.1})}, {k: _result({"ngram": 0.5}) for k in "abc"})

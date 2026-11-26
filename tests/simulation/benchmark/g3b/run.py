@@ -220,11 +220,19 @@ def _python(env: str) -> str:
     return str(ENVS / env / "bin" / "python")
 
 
-def _failed(step: str, run: Measured, log_path: Path) -> RuntimeError:
+class ToolFailed(RuntimeError):
+    """Uno strumento esterno uscito con errore, con il tempo e la memoria che ha usato."""
+
+    def __init__(self, message: str, run: Measured):
+        super().__init__(message)
+        self.run = run
+
+
+def _failed(step: str, run: Measured, log_path: Path) -> ToolFailed:
     lines = log_path.read_text(encoding="utf-8", errors="replace").strip().splitlines()
     # Gli strumenti stampano molto: il motivo e' l'ultima riga d'errore, poi la coda.
     errors = [line for line in lines if "Error" in line or "non applicabile" in line][-2:]
-    return RuntimeError(f"{step}: uscita {run.returncode}; " + " | ".join(line[:400] for line in errors + lines[-3:]))
+    return ToolFailed(f"{step}: uscita {run.returncode}; " + " | ".join(line[:400] for line in errors + lines[-3:]), run)
 
 
 class OutOfBudget(Exception):
@@ -259,10 +267,11 @@ def _cached(prepared: Prepared, name: str, build) -> dict:
     try:
         result = build(folder)
     except OutOfBudget as exc:
-        shutil.rmtree(folder / "out", ignore_errors=True)
         over.write_text(json.dumps({"step": exc.step, "seconds": exc.run.seconds, "peak_mb": exc.run.peak_mb,
                                     "reason": exc.run.over_budget}), encoding="utf-8")
         raise
+    finally:
+        shutil.rmtree(folder / "out", ignore_errors=True)  # i file intermedi di SIMOD occupano GB
     meta.write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
 
@@ -280,10 +289,12 @@ def _simod(prepared: Prepared, variant: str, model: Path | None = None) -> dict:
             log_path,
         )
         best = folder / "out" / "best_result"
-        shutil.copy(next(best.glob("*.bpmn")), folder / "model.bpmn")
-        shutil.copy(next(p for p in best.glob("*.json") if p.name not in ("runtimes.json", "canonical_model.json")),
-                    folder / "scenario.json")
-        shutil.rmtree(folder / "out", ignore_errors=True)  # i file intermedi di SIMOD occupano GB
+        bpmn = next(best.glob("*.bpmn"), None)
+        scenario = next((p for p in best.glob("*.json") if p.name not in ("runtimes.json", "canonical_model.json")), None)
+        if bpmn is None or scenario is None:
+            raise RuntimeError(f"SIMOD {variant}: nessun BPMN o JSON in best_result")
+        shutil.copy(bpmn, folder / "model.bpmn")
+        shutil.copy(scenario, folder / "scenario.json")
         return {"seconds": run.seconds, "peak_mb": run.peak_mb}
 
     return _cached(prepared, f"simod_{variant}", build)
@@ -342,11 +353,14 @@ def val01(folder: Path) -> str:
 
     scenario = json.loads((folder / "scenario.json").read_text(encoding="utf-8"))
     try:
-        import_prosimos(scenario, (folder / "model.bpmn").read_text(encoding="utf-8"))
+        imported = import_prosimos(scenario, (folder / "model.bpmn").read_text(encoding="utf-8"))
     except UnsoundProcessError as exc:
         return f"non supera: {exc}"[:500]
     except ValueError as exc:
         return f"non importabile: {exc}"[:500]
+    # Oltre i limiti della verifica l'import riesce con un avviso: non e' un "supera".
+    if any(note.topic == "soundness_unverified" for note in imported.notes):
+        return "non verificato: verifica incompleta (limiti di VAL-01)"
     return "supera"
 
 
@@ -460,10 +474,14 @@ def evaluate(config: str, prepared: Prepared, *, seed: int, replicas: int) -> di
         logs, cost = simulate(config, prepared, out, seed, replicas)
     except OutOfBudget as exc:
         return {**base, "status": "out_of_budget", "reason": str(exc), "cost": {"seconds": exc.run.seconds, "peak_mb": exc.run.peak_mb}}
-    except (RuntimeError, OSError, StopIteration) as exc:
-        # Uno strumento che dichiara di non potersi applicare al log non si riprova.
-        status = "not_applicable" if "non applicabile" in str(exc) else "out_of_budget" if "fuori budget" in str(exc) else "failed"
-        return {**base, "status": status, "reason": str(exc)[:2000]}
+    except (RuntimeError, OSError, ValueError, KeyError) as exc:
+        # Un errore resta nel risultato: il giro continua con le altre configurazioni.
+        text = str(exc) or repr(exc)
+        status = "not_applicable" if "non applicabile" in text else "out_of_budget" if "fuori budget" in text else "failed"
+        result = {**base, "status": status, "reason": text[:2000]}
+        if isinstance(exc, ToolFailed):
+            result["cost"] = {"seconds": exc.run.seconds, "peak_mb": exc.run.peak_mb}
+        return result
     if any(not log for log in logs):
         return {**base, "status": "failed", "reason": "una replica senza eventi", "cost": cost}
     if any(s > REPLICA_SECONDS for s in cost.get("simulation_seconds", [])):
@@ -479,11 +497,30 @@ def evaluate(config: str, prepared: Prepared, *, seed: int, replicas: int) -> di
     }
 
 
-def _done(path: Path, retry_failed: bool) -> bool:
-    """Gia' scritto: non si rifa'. Con seed fissati un errore si ripete uguale; ``--retry-failed`` lo riprova."""
+def refresh_val01(keys: list[str]) -> int:
+    """VAL-01 di nuovo sugli scenari in cache, per i risultati SIMOD gia' scritti."""
+    for path in sorted(p for key in keys for p in (RESULTS / key).glob("*/simod*.json")):
+        result = json.loads(path.read_text(encoding="utf-8"))
+        if "val01" not in result.get("cost", {}):
+            continue
+        folder = WORK / result["log"] / result["phase"] / ("simod_diff" if result["config"] == "simod" else "simod_extr")
+        result["cost"]["val01"] = val01(folder)
+        path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        print(f"{result['log']} {result['phase']} {result['config']}: {result['cost']['val01'][:80]}")
+    return 0
+
+
+def _done(path: Path, *, retry_failed: bool, seed: int, replicas: int) -> bool:
+    """Gia' scritto con lo stesso seed e le stesse repliche: non si rifa'.
+
+    Con seed fissati un errore si ripete uguale; ``--retry-failed`` lo riprova.
+    """
     if not path.is_file():
         return False
-    return not (retry_failed and json.loads(path.read_text(encoding="utf-8"))["status"] == "failed")
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    if (saved.get("seed"), saved.get("replicas")) != (seed, replicas):
+        return False
+    return not (retry_failed and saved["status"] == "failed")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -495,13 +532,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--replicas", type=int, default=PAPER_REPLICAS)
     parser.add_argument("--force", action="store_true", help="rifa' anche le misure gia' scritte")
     parser.add_argument("--retry-failed", action="store_true", help="riprova le configurazioni fallite")
+    parser.add_argument("--refresh-val01", action="store_true", help="ricalcola solo VAL-01 sui risultati SIMOD scritti")
     args = parser.parse_args(argv)
 
     logs = [log for log in protocol.development_logs() if not args.logs or log.key in args.logs]
+    if args.refresh_val01:
+        return refresh_val01([log.key for log in logs])
     with protocol.selection_phase():
         for log in logs:
             for phase in args.phases:
-                todo = [c for c in args.configs if args.force or not _done(RESULTS / log.key / phase / f"{c}.json", args.retry_failed)]
+                todo = [c for c in args.configs if args.force or not _done(
+                    RESULTS / log.key / phase / f"{c}.json", retry_failed=args.retry_failed, seed=args.seed, replicas=args.replicas)]
                 if not todo:
                     continue
                 prepared = prepare(log, phase)

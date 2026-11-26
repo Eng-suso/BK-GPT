@@ -132,7 +132,10 @@ def verdict(card: Card, phase: str, results: dict, logs: list[str]) -> dict:
         costly = []
         if base != "naive":
             for log in logs:
-                mine, theirs = cost(rows[log]), cost(results.get((log, phase, base)))
+                other = results.get((log, phase, base))
+                if not (rows[log] and rows[log]["status"] == "measured" and other and other["status"] == "measured"):
+                    continue  # il costo di chi e' stato fermato non e' un costo da raddoppiare
+                mine, theirs = cost(rows[log]), cost(other)
                 if mine and theirs and (mine[0] > 2 * theirs[0] or mine[1] > 2 * theirs[1]):
                     costly.append(log)
         per_base[base] = {

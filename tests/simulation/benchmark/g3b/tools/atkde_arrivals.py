@@ -70,11 +70,12 @@ def main() -> int:
         numpy.random.seed(seed)
         began = time.perf_counter()
         window = first_window
-        for _ in range(MAX_DOUBLINGS):
+        for attempt in range(MAX_DOUBLINGS):
+            if attempt:
+                window *= 2
             arrivals = sorted(t for t in KDEIATGenerator(train, {}).generate_arrivals(start, start + window) if t >= start)
             if len(arrivals) >= args.cases:
                 break
-            window *= 2
         else:
             raise SystemExit(f"AT-KDE: {len(arrivals)} arrivi in {window}, ne servono {args.cases}")
         replicas.append([t.isoformat() for t in arrivals[: args.cases]])
