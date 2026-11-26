@@ -11,7 +11,7 @@ from backend.eventlog.readers import EventLogFileError, read_table
 from backend.eventlog.synthetic import from_log_events
 from backend.eventlog.validation import validate
 from backend.simulation.horizon import horizon_end, within_horizon
-from backend.simulation.log_processor import after_warmup, parse_prosimos_log
+from backend.simulation.engine import LogEvent, after_warmup, get_engine
 from backend.simulation.storage import get_simulation_log_csv, get_simulation_run
 from backend.eventlog.service import (
     EventLogNotFound,
@@ -46,6 +46,14 @@ router = APIRouter(
 _LOG_NOT_FOUND = "Event log non trovato."
 _PROCESS_NOT_FOUND = "Processo non trovato."
 _TEMPLATE_NOT_FOUND = "Template di mapping non trovato."
+
+
+def parse_prosimos_log(csv_text: str) -> list[LogEvent]:
+    """Il log salvato di un run, letto tramite la Simulation Engine Interface (ENG-01).
+
+    Il nome e' quello storico, rimasto perche' i test sostituiscono qui la lettura.
+    """
+    return get_engine().read_log(csv_text)
 
 
 @router.get("/event-logs/{event_log_id}/validation")

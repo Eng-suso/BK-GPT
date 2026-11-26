@@ -15,7 +15,8 @@ from backend.schemas.simulation import (
     SimCalendarPeriodConfig,
 )
 from backend.simulation.bpmn_resources import describe_bpmn_resources
-from backend.simulation.ir import compile_for_prosimos, model_from_request
+from backend.simulation.engine import get_engine
+from backend.simulation.ir import model_from_request
 from backend.simulation.ir.escalations import expand_escalations
 from backend.simulation.ir.flow_rules import expand_flow_rules
 from backend.simulation.ir.instances import expand_instances
@@ -26,6 +27,7 @@ from backend.simulation.ir.baseline import baseline_model
 from backend.simulation.ir.bpmn_check import check_model_against_bpmn
 from backend.simulation.ir.from_request import standard_calendar
 from backend.simulation.ir.model import SimulationModel, TimerEscalation
+from backend.simulation.ir.soundness import require_sound
 from backend.simulation.ir.patch import apply_patch
 from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, BpmnWait, ProsimosScenario
 from backend.simulation.timers import (
@@ -85,6 +87,8 @@ def build_prosimos_scenario(
     model = with_flow_rules(model, request)
     model = with_bpmn_waits(with_request_waits(model, request), parse_bpmn_waits(bpmn_xml))
     _require_timer_durations(model)
+    # VAL-01: anche una bozza dell'editor o una modifica what-if deve far finire ogni caso.
+    require_sound(model, bpmn_xml)
     return _scenario(bpmn_xml, model, tasks, gateways)
 
 
@@ -101,7 +105,7 @@ def _scenario(bpmn_xml: str, model: SimulationModel, tasks: list[BpmnTask], gate
     engine_bpmn, engine_model = expand_flow_rules(engine_bpmn, engine_model)
     engine_bpmn, engine_model = expand_duration_variants(engine_bpmn, engine_model)
     return ProsimosScenario(
-        payload=compile_for_prosimos(engine_model),
+        payload=get_engine().compile(engine_model),
         task_count=len(tasks),
         gateway_count=len(gateways),
         model=model.model_dump(mode="json"),
@@ -127,6 +131,7 @@ def build_prosimos_scenario_from_model(*, bpmn_xml: str, model: SimulationModel)
     check_model_against_bpmn(model, tasks, gateways)
     model = with_bpmn_waits(model, parse_bpmn_waits(bpmn_xml))
     _require_timer_durations(model)
+    require_sound(model, bpmn_xml)
     return _scenario(bpmn_xml, model, tasks, gateways)
 
 
@@ -137,8 +142,9 @@ def _require_timer_durations(model: SimulationModel) -> None:
 
 
 def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = None) -> ScenarioTemplateResponse:
-    tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
+    tasks, gateways, merges = _parse_bpmn_elements(bpmn_xml)
     return ScenarioTemplateResponse(
+        merges=merges,
         waits=[
             ScenarioTemplateWait(element_id=wait.id, name=wait.name or ("Timer" if wait.kind == "timer" else wait.id), kind=wait.kind, seconds=wait.seconds)
             for wait in parse_bpmn_waits(bpmn_xml)
@@ -223,6 +229,12 @@ def parse_bpmn_waits(bpmn_xml: str) -> list[BpmnWait]:
 
 
 def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnGateway]]:
+    tasks, gateways, _ = _parse_bpmn_elements(bpmn_xml)
+    return tasks, gateways
+
+
+def _parse_bpmn_elements(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnGateway], list[str]]:
+    """Attivita', porte con una scelta e porte di sola unione (un ramo in uscita)."""
     try:
         root = ElementTree.fromstring(bpmn_xml.encode("utf-8"))
     except ElementTree.ParseError as exc:
@@ -272,9 +284,11 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
             outgoing_by_source[source].append((flow_id, flow_name, target))
 
     gateways: list[BpmnGateway] = []
+    merges: list[str] = []
     for gateway_id, gateway_type in gateway_types.items():
         outgoing = outgoing_by_source.get(gateway_id, [])
         if len(outgoing) <= 1:
+            merges.append(gateway_id)
             continue
         gateways.append(
             BpmnGateway(
@@ -293,7 +307,7 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
             )
         )
 
-    return tasks, gateways
+    return tasks, gateways, merges
 
 
 def _local_name(tag: str) -> str:

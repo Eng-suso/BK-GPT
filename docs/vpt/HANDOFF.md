@@ -1,14 +1,231 @@
 # Dove siamo adesso
 
-Aggiornato: 2026-11-24, dopo la chiusura in parallelo di SIM-36 (baseline "B = A", PR
-#178), B6 (throughput, PR #179) e G3 (spike SIMOD). Ricomposto da chi ha chiuso l'ultimo
-dei tre (G3).
+Aggiornato: 2026-11-26, alla chiusura di G3b (dopo VAL-01, PROTO-01, ENG-01, RAD-00, la
+correzione di `DELIR_AUTH_PROVIDER` e RAD-01 + PROTO-02, PR #194).
 
 ## Punti attivi
 
-SIM-36, G3, B6 e SIM-36b sono chiusi. **IMP-01** (avviso sugli arrivi troncati) è in
-mano a un'altra sessione. Prossimo secondo [`PLAN.md`](./PLAN.md): **B3**, che parte
-dalla decisione G3 e si misura contro "B = A" di SIM-36b (sezioni sotto).
+Nessuno in corso: G3b è fatto (12 schede NO-GO, sezione `## G3b`). Liberi, con dipendenze
+chiuse: **B3.1**, **B3.2**, **B3.3**, **PERF-01**, **RAD-02** (tutti dopo G3b), **LIC-01**
+(P0), **ANA-01**, **GT-01**. ENG-02 dopo LIC-01.
+
+## Prompt per i prossimi agenti
+
+Ognuno in una sessione nuova sul repository `eng-suso/bk-gpt`, dal `main` aggiornato.
+
+Nessun prompt aperto: G3b e RAD-01 + PROTO-02 sono chiusi. Il prossimo punto parte da
+`PLAN.md` e dalla sezione `## G3b` qui sotto.
+
+## G3b (fatto il 2026-11-26, `spike/sim-g3b-ablation`)
+
+Benchmark dei motori scientifici sui 25 log di sviluppo × 2 fasi × 9 configurazioni (450
+risultati), holdout chiusi. **12 schede su 12 NO-GO** (decisioni e motivi nella voce G3b di
+[`LOG.md`](./LOG.md); tabelle in `tests/simulation/benchmark/g3b/results.md`). Nessun
+componente esterno entra in B3 così com'è; "B = A" resta l'asticella più dura.
+
+```bash
+tests/simulation/benchmark/g3b/setup_envs.sh                  # venv di ricerca in /var/tmp/delir-g3b/envs
+uv run python tests/simulation/benchmark/g3b/run.py            # riprende da ciò che è scritto; ~9 h con 2-3 processi
+uv run python tests/simulation/benchmark/g3b/report.py         # results.md, verdicts.json
+uv run pytest --noconftest -q tests/simulation/benchmark/g3b/test_g3b.py
+```
+
+Da sapere per i prossimi punti:
+
+- **B3.1 (arrivi):** AT-KDE NO-GO (non si applica sotto i 14 giorni di arrivi; dove gira
+  prolunga il ritmo di fine train). Gli arrivi di A **rigiocati** nello scenario SIMOD battono
+  gli arrivi di SIMOD in test su CAR (12-7-5) e AED (13-11-1): il candidato naturale di B3.1,
+  configurazione `simod_extr_replay` di `run.py`.
+- **B3.2 (attese):** i ritardi estranei di SIMOD sono quasi sempre pari a SIMOD senza ritardi
+  su RED; ma SIMOD riottimizza anche risorse e calendari, quindi l'ablazione non isola i
+  ritardi. Serve una variante con risorse e calendari fissati.
+- **B3.3 (control flow):** le regole di ProSiT migliorano NGD rispetto a ProSiT senza regole
+  (test 12-11-0) ma non battono "B = A" né SIMOD.
+- **AgentSimulator** batte "B = A" su W1, AED e CAR di BPIC 2017 W test (unico caso), ma non
+  produce un modello verificabile da VAL-01.
+- **Banco:** il Prosimos della ricerca dà repliche identiche al percorso del prodotto
+  (`g3b/engine_check.json`), quindi un candidato misurato qui si confronta con B2, G3 e
+  SIM-36b. ProSiT non è ripetibile al bit (ordine delle transizioni della rete di Petri);
+  SIMOD non ha seed (scenari in cache in `/var/tmp/delir-g3b/work`, non nel repo).
+- **Budget:** discovery 2 h e 12 GB, replica 10 minuti, fatti rispettare dagli strumenti
+  (codice 4); non applicabile = codice 3. Con tre processi grandi in parallelo il container
+  (15 GB) va fuori memoria: due processi pesanti al massimo.
+- **VAL-01:** gli scenari SIMOD di BPIC 2013 (unione bloccata) e AcademicCredentials test
+  (ciclo senza uscita) non superano la verifica: 11 su 100.
+- **Holdout non aperti:** nessun GO da confermare. Aprirli è una decisione di Sohayb.
+- **Da confermare con Sohayb:** la regola del doppio del costo non si applica contro "B = A"
+  (`COST_EXEMPT_BASES` in `g3b/report.py`); nessun verdetto dipende da questa lettura.
+
+## RAD-01 e PROTO-02 (fatti il 2026-11-25, PR #194)
+
+Il radar è inventariato e dichiarato; il secondo set di holdout è congelato. Dettagli in
+[`PROTOCOL.md`](./PROTOCOL.md) §0, §10, §11, §12.
+
+```bash
+uv run python scripts/fetch_datasets.py fetch --collection radar && uv run python scripts/fetch_datasets.py fetch bpic2012 bpic2013-incidents
+uv run --with ijson python tests/simulation/benchmark/radar_inventory.py      # 22 min → radar/inventory.{md,json}
+uv run pytest --noconftest -q tests/simulation/benchmark/test_protocol.py tests/simulation/benchmark/test_radar_inventory.py
+```
+
+- **Inventario:** 33/33 voci, 2.205 log, 42 file holdout marcati e mai aperti (8 con i nomi del
+  primo set in Kronos, 34 del secondo). Sovrapposizioni: ProCause senza file BPIC; Helpdesk con
+  BPIC 2012 W e 2013 (stessi casi) ed `env_permit` (escluso, CoSeLoG come BPIC 2015); BPS
+  Quality Framework con AcademicCredentials identico, BPIC 2012/2017 W e simulati; Sepsis e
+  Hospital Billing da un ospedale regionale, non quello accademico di BPIC 2011.
+- **Ruoli** (§10): sviluppo BPIC 2019, BPIC 2018, Sepsis, Hospital Billing, BPIC 2017 completo,
+  Helpdesk (solo ricerca), OCEL e drift; holdout 2 CallCenter e Road Traffic Fines (una famiglia
+  con l'estratto di DAS-RP); codice i repository senza log.
+- **Secondo set:** `protocol/holdout2.lock.json` `24974f9b…`. CallCenter è con ogni probabilità
+  CALL degli articoli di SIMOD: indipendenza organizzativa non dichiarata finché non c'è una prova.
+  La guardia chiude i due set; `final_evaluation(<impronta>)` ne apre uno. Si apre una volta, alla
+  fine di RAD-02, con dati, divisioni, commit, configurazioni e regole congelati e scritti in
+  `LOG.md`; dopo l'uso diventa un benchmark di regressione.
+- **Per G3b e RAD-02:** `protocol.paired_comparison` (bootstrap e Wilcoxon) si riporta accanto a
+  `within_intervals`, senza cambiare le mete. Per CF-01: `counterfactual_metrics(outcomes, margin)`
+  e `counterfactual_sensitivity` (classi INCREASE, DECREASE, NEGLIGIBLE, INCONCLUSIVE, bias,
+  inconclusivi; δ provvisorio dell'1%, margine assoluto per KPI con baseline nulla o SESOI).
+- **Per GT-01:** scenari di sviluppo separati da scenari riservati alla validazione finale,
+  congelati per hash; generatore non dipendente solo dal motore valutato.
+- **Estensioni di ricerca aperte:** decision regret e tasso di interventi sbagliati, CRN
+  sincronizzati per entità, ProCause come generatore di verità controfattuale; verifica della
+  provenienza di CallCenter; il riferimento «Doubly robust impact evaluation» da completare.
+
+## Ultima misura
+
+G3b (2026-11-26): 450 risultati, 12/12 schede NO-GO; Prosimos della ricerca identico al
+percorso del prodotto; ~34 h di calcolo; 11 scenari SIMOD su 100 non superano VAL-01. ENG-01: `baseline.json` di B2 identico bit per bit.
+
+## Research Radar (RAD-00 fatto il 2026-11-25)
+
+Decisione di Sohayb: servono più dati; tutti i dataset si usano per la ricerca. Dettagli e
+regole in [`RESEARCH_RADAR.md`](./RESEARCH_RADAR.md), punti nella sezione R di [`PLAN.md`](./PLAN.md).
+
+```bash
+uv run python scripts/fetch_datasets.py fetch --collection radar   # 33 voci, ~24 GB estratti, MD5 o commit
+uv run python scripts/fetch_datasets.py list                       # colonna "radar"
+uv run pytest --noconftest -q tests/simulation/test_dataset_manifest.py
+```
+
+- 21 dataset (BPIC 2017 completo, 2018, 2019; Sepsis; Hospital Billing; Road Traffic Fines;
+  Helpdesk; 9 pacchetti OCEL 2.0; drift con verità nota; SimBank, ProCause; BPS Quality
+  Framework) e 12 repository (AT-KDE, Kronos, AgentSimulator, ProSiT, DAS, POWL,
+  cdrift-evaluation, SimOC, generatore Declare, SimPy, salabim, QueueSim).
+- **Collezione separata:** non è sviluppo né holdout. Gli holdout di PROTO-01 restano chiusi.
+  Esclusi i BPIC 2015 del pacchetto OCEL. Prima di usare un log: RAD-01 (deduplica per hash e
+  nome; ProCause contiene BPIC 2012/2017, alcuni pacchetti possono contenere i log di Camargo)
+  e PROTO-02 (dichiarazione in `PROTOCOL.md`, secondo holdout congelato).
+- **Da verificare in RAD-01/PROTO-02:** che Sepsis e Hospital Billing non vengano dallo stesso
+  ospedale di BPIC 2011 (holdout).
+- **Non acquisiti:** CDLG e SSD. L'host `gitlab.uni-mannheim.de` ora è nell'ambiente BK-GPT,
+  ma il server risponde 404 a ogni richiesta dalla sessione cloud (anche alla home): vanno
+  scaricati dal computer di Sohayb e aggiunti al manifest con il commit. Anche Helpdesk
+  originale (Mendeley) e ProcessLog restano fuori.
+- **Corretto il 2026-11-25:** `DELIR_AUTH_PROVIDER` si normalizza una volta in `Settings`
+  (prima `Supabase` passava l'avvio e poi ogni token Supabase riceveva 401).
+
+## ENG-01 (fatto il 2026-11-25, `feat/sim-engine-interface`)
+
+Fra l'IR e il motore c'è una sola porta: `backend/simulation/engine/`. Prosimos 2.1
+è un adattatore dietro di essa e la CI blocca chi lo importa da fuori.
+
+```bash
+uvx --from ast-grep-cli==0.51.3 ast-grep scan --error --rule .ast-grep-rules/python-engine-outside-adapter.yml backend/   # 0 rilievi
+eval "$(scripts/vpt_stack.sh env)" && uv run pytest -q tests/simulation/test_engine_interface.py
+uv run python tests/simulation/benchmark/eval_harness.py --out /tmp/b2    # baseline.json identico a main
+```
+
+- **Interfaccia** (`engine/__init__.py`): `SimulationEngine` (Protocol) con i verbi
+  valida (`prepare_bpmn`, `validate`, `compatibility_report`), compila (`compile`),
+  esegue (`run`), annulla (`cancel`), risultati (`read_log`, `resource_pool`,
+  `summarize_run`, `summarize_events`); tipi neutri `LogEvent`, `after_warmup`,
+  `EngineError`/`EngineCancelled`/`EngineLogError`, alias `CompiledScenario`,
+  `EngineRunRequest`, `EngineRunResult` dei modelli (invariati); registro `get_engine()`,
+  un'istanza per nome.
+- **Adattatore**: `engine/prosimos.py` più i moduli che sanno di Prosimos
+  (`prosimos_adapter`, `bpmn_normalizer`, `compatibility`, `ir/compile`,
+  `log_processor`). All'import carica solo `ir.compile`: il test del contratto gira
+  nel venv del runner senza httpx (c'è un test che lo controlla).
+- **Regola** `python-engine-outside-adapter` (bloccante in CI): `prosimos`,
+  `pix_framework` e i moduli dell'adattatore, import assoluti e relativi. Provata nei
+  due sensi: 11/11 import vietati presi, 7/7 leciti no.
+- **Nomi storici rimasti** perché i test (non modificabili) li sostituiscono:
+  `service.run_prosimos_simulation`, `routes/eventlog.parse_prosimos_log`,
+  `ir.compile_for_prosimos` (risolto dal registro). Test e script in `scripts/`
+  importano ancora l'adattatore: sono fuori dalla regola (solo `backend/`).
+- **Annulla**: c'è nell'interfaccia e nei test, ma il worker non lo usa. Il runner
+  HTTP non sa fermare un calcolo: annullare libera il posto mentre il runner lavora
+  ancora (oltre `SIMULATION_MAX_CONCURRENT_RUNS`). Collegarlo richiede un endpoint di
+  stop nel runner (seguito per ENG-02).
+- **Misura**: harness B2 prima e dopo, `baseline.json` SHA-256 `4e4fce5d…` identico
+  bit per bit (9/9 dentro). Il file in `b2/baseline.json` del repo (`24809a7f…`) è
+  vecchio di IMP-01: differisce solo per `import_notes` 4 → 5 sulle 4 Procure_to_Pay.
+  Suite intera 3018 passati; `tests/simulation` + `tests/eventlog` 848; contratto nel
+  venv del runner 32/32.
+- **Per ENG-02**: un motore nuovo è una classe che rispetta `SimulationEngine`,
+  registrata in `_engine`; `simulation_runs.engine` salva già il nome.
+
+## PROTO-01 (fatto il 2026-11-25, PR #190)
+
+Il protocollo di G3b è in [`PROTOCOL.md`](./PROTOCOL.md); in codice
+`tests/simulation/benchmark/protocol.py`, test in `test_protocol.py` (124).
+
+```bash
+uv run python scripts/fetch_datasets.py fetch bpic2012 bpic2013-incidents
+uv run python tests/simulation/benchmark/protocol_properties.py     # identificabilità dei 25 log di sviluppo
+uv run pytest --noconftest -q tests/simulation/benchmark/test_protocol.py
+```
+
+- **Holdout congelati prima di ogni misura** (commit `476e705`): 6 log, lucchetto
+  `protocol/holdout.lock.json`, impronta `1cfaa147…` scritta in PROTOCOL.md. Production,
+  ConsultaDataMining, PurchasingExample, confidential_2000 (pacchetto Camargo 2022) e BPIC
+  2015 Municipality 1, BPIC 2011 Hospital (4TU). Nel repo solo gli hash.
+- **Guardia:** audit hook in `selection_phase()`, attivo per tutti i test del benchmark
+  (`conftest.py`): chiude per nome, file derivati, cartelle dei dataset holdout (715/715 file
+  del pacchetto Camargo), collegamenti; fase per thread. Il test sui nomi copre il codice
+  di `tests/simulation`, `backend/simulation`, `backend/eventlog`, `scripts`. Si apre solo
+  con `final_evaluation(<impronta>)`, una volta, alla fine di G3b.
+- **Identificabilità** (`protocol/identifiability.md`): i 3 log del paper e i 20 sintetici
+  validano tutte le metriche osservabili; BPIC 2012 no su W1, NGD, RED (6% tagliati) e durate
+  (inizio sul 43%); BPIC 2013 no su W1, NGD, RED, CAR e durate, sì su AED, CED e risorse.
+- **Per G3b:** punti d'ingresso in `selection_phase()`, log da `development_logs()`, scelta
+  sulla validazione (`train_validation`, ultimo 20% del train), schede di go/no-go (§7) in
+  `LOG.md` prima della misura, budget del §6.
+- **Confermati da Sohayb (2026-11-25):** soglie del §4 (5% tagliati, 95% coperture, arrivi
+  ×2, 30 casi), budget del §6, go/no-go del §7.
+
+## VAL-01 (fatto il 2026-11-25, `feat/sim-formal-validation`, PR #189)
+
+All'import e prima di ogni run DeliR verifica che ogni caso possa finire: niente
+deadlock né livelock, fine raggiungibile da ogni stato, uscita da ogni ciclo con
+probabilità > 0, ripetizioni attese finite. Meta confermata da Sohayb il 2026-11-25.
+
+```bash
+uv run pytest --noconftest -q tests/simulation/test_soundness.py          # 51 test, < 2 s
+eval "$(scripts/vpt_stack.sh env)" && uv run pytest -q tests/simulation/test_prosimos_import_api.py
+npx playwright test e2e/simulation-import-validation.spec.ts              # DELIR_UX_SHOTS=docs/vpt/ux/val-01
+PYTHONPATH=. uv run python e2e/fixtures/val-01/generate.py                # risposte vere per l'e2e (serve lo stack)
+```
+
+- **Misura:** 19/19 scenari del dataset e 8/8 scenari SIMOD validi di G3 passano;
+  AcademicCredentials `_diff` e `_fuzz` rifiutati sul gateway `node_59fc62b1…`;
+  < 0,1 s e ≤ 119 stati per scenario. Suite `tests/simulation` sullo stack: 812 passati.
+- **Metodo** (`backend/simulation/ir/soundness.py`): gioco dei gettoni a passo
+  massimo (scattano insieme tutti gli elementi abilitati: il verdetto non dipende dai
+  nomi), rami a probabilità 0 esplorati come impossibili per nominare la decisione che
+  chiude il ciclo; `check_soundness(..., expected=True)` dà le esecuzioni attese per
+  attività (catena assorbente). Limiti: 8 gettoni per flusso, 50.000 stati, 4096
+  combinazioni per passo, 10 rami per inclusiva; oltre, verifica incompleta: l'import
+  avvisa (`soundness_unverified`) ma tiene i blocchi già provati.
+- **Dove si applica:** `import_prosimos` e `scenario_builder` (bozze, what-if) via
+  `require_sound`; `UnsoundProcessError` non è un `ValueError` e arriva al gestore comune
+  → 400 `process_cannot_finish` su import e run. Nella UI il motivo è in chiaro con
+  «Cosa fare» a capo; i file che l'editor legge da solo passano dalla verifica del server.
+- **Da sapere per B3.3:** «supera VAL-01» = `require_sound(model, bpmn)` senza eccezioni.
+  Regole e escalation: ogni ramo possibile (nessuna attesa calcolata). Inclusive: ogni
+  combinazione non vuota dei rami (Prosimos non documenta la sua semantica).
+- **Seguiti proposti (non fatti):** messaggi del server solo in italiano (come le note
+  di IMP-01); un solo parser BPMN con `flow_graph` (ingressi, nomi, eventi di bordo);
+  endpoint di sola verifica per l'editor invece dell'import completo.
 
 ## SIM-36b (fatto il 2026-11-24, `feat/sim-benchmark-train-test`)
 
@@ -30,6 +247,41 @@ uv run python tests/simulation/benchmark/run_baseline.py AcademicCredentials BPI
 - **Per G3:** `g3/evaluate.py::naive_metrics` rifà lo stesso gemello; dopo il merge di
   `main` può usare `run_baseline.measure(log, ...)["metrics"]`. `within_intervals` in
   `eval_harness.py` è identica a quella di G3 (stesso hunk): il merge non confligge.
+
+## IMP-01 (fatto il 2026-11-24, `feat/sim-import-expon-warning`)
+
+L'import avvisa quando Prosimos 2.1 renderà gli arrivi più fitti del file. Meta
+raggiunta: avvisano le 4 varianti di Procure_to_Pay, nessuno dei 15 altri scenari;
+lo scenario resta com'era (arrivi identici nell'IR e nel JSON ricompilato).
+
+```bash
+uv run pytest --noconftest -q tests/simulation/test_prosimos_import.py      # 19 scenari + golden
+eval "$(scripts/vpt_stack.sh env)" && uv run pytest -q tests/simulation/test_prosimos_import_api.py
+npx playwright test e2e/simulation-import-arrivals.spec.ts                  # DELIR_UX_SHOTS=docs/vpt/ux/imp-01 per gli screenshot
+```
+
+- **Regola:** pix_framework 0.15 estrae da `expon(loc=min, scale=mean-min)` e scarta
+  (ricampiona) i valori oltre il massimo: media prodotta
+  `min + s - R·e^(-R/s)/(1-e^(-R/s))`, `R = max-min`. Si avvisa se è più bassa di oltre
+  il 10% della media scritta. Procure_to_Pay: 1805 s scritti, 1240,5 s prodotti
+  (campionati: 1241,8), +45% di casi. Nessun avviso se gli arrivi li genera il runner
+  (fasce o ritmi per mese).
+- **Dove vive:** `prosimos_exponential_mean`/`_arrival_notes` in
+  `backend/simulation/ir/from_prosimos.py` (nota `warning`, topic `arrivals_faster`) e
+  `arrivalsRunFaster`/`draftArrivalsRunFaster` in `simulationScenario.ts` per l'editor.
+  Le due copie le tiene uguali `tests/fixtures/simulation/arrivals_truncation_golden.json`.
+- **UI:** nel pannello d'import "Da verificare" senza la parola "adattamenti"
+  (nuovo tipo di nota `warning`: lo scenario non cambia); nell'editor un avviso in
+  Arrivi dei casi con il bottone "Porta il massimo a …" (5 volte la media) e un toast
+  all'import.
+- **Trovato per strada:** col file vero il consulente veniva fermato prima dell'avviso
+  da una richiesta di associare 3 ID tecnici (porte di sola unione). Ora il template
+  del server elenca le porte di unione (`merges`) e il client non le chiede più.
+  Corretto anche `withArrival`, che perdeva i ritmi per mese a ogni modifica degli arrivi.
+- **Seguiti proposti (non fatti):** la frase sotto la media degli arrivi dice ancora
+  "segue una distribuzione esponenziale" e mostra "30.1" col punto; i dettagli delle
+  note del server sono solo in italiano; un run lanciato fuori dalla UI non riceve
+  l'avviso (servirebbe una nota a livello di run).
 
 ## B6 (fatto il 2026-11-24, `spike/sim-throughput`)
 
@@ -63,13 +315,6 @@ uv run python tests/simulation/benchmark/throughput.py --check   # 1, 2, 4 worke
   risveglio vale nello stesso processo: con piu' processi API un posto liberato da un
   altro processo aspetta ancora il giro (servirebbe `LISTEN/NOTIFY`). B7 puo' contare
   su ~50 run/min da 1.000 casi con 4 worker.
-
-## Ultima misura
-
-G3, seed 20261124, 10 repliche sullo stack reale: SIMOD 5.2.1 a calendari fissi batte lo
-scenario del paper su 4/4 metriche su BPIC 2012 W e 2017 W; il "B = A" di SIM-36 resta
-migliore di ogni scenario SIMOD, salvo BPIC 2017 W con ritardi estranei su RED e W1.
-B6: what-if 10 × 1.000 casi in 11-26 s. SIM-36: baseline in `tests/simulation/benchmark/sim36/`.
 
 ## G3 spike SIMOD (fatto il 2026-11-24)
 
@@ -143,12 +388,18 @@ test `event type selection…` cliccava. Il test ora tocca l'arco visibile.
 ## Decisioni aperte per Sohayb
 
 - Copiare comunque nel repo pubblico BPIC 2012/2013/2020 e Prosimos?
-- G3: aprire un punto Prod perché l'import rifiuti o segnali un gateway che torna indietro
-  con probabilità 1 e uscita 0 (SIMOD lo produce su AcademicCredentials e oggi passa).
-- G3: confermare le condizioni per SIMOD come motore di discovery (voce G3 di `LOG.md`),
-  prima che B3 ci costruisca sopra.
+- Confermare le mete marcate *proposta* dei punti P0, B3.1-B3.4, SEL-01, ENG-02, PERF-01
+  e CF-01 in `PLAN.md`.
 
 Decise da Sohayb il 2026-11-24 (motivi in `LOG.md`):
+
+- SIMOD resta un benchmark; la sostituzione dipende da G3b. Il motore di esecuzione non è
+  dato per scontato (ENG-01, ENG-02). Ogni componente entra solo con evidenza sperimentale.
+- Validazione formale all'import (VAL-01), che copre anche i cicli senza uscita di G3.
+- Prosimos (2026-11-25): resta il motore per l'MVP e i test del prodotto con le aziende;
+  dopo l'MVP si sostituisce (ENG-02). Nessun contatto con i titolari del codice.
+- Nessun log escluso dal benchmark: le metriche non identificabili si dichiarano NOT
+  VALIDATED (PROTO-01). Questo supera "BPIC 2013 non adatto" della decisione precedente.
 
 - Benchmark A→B: i 3 log reali train/test del paper sono il banco principale
   (SIM-36b); BPIC 2012 resta; BPIC 2013 incidents non serve a giudicare un twin.

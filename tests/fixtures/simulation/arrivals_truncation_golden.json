@@ -1,0 +1,9 @@
+{
+  "_comment": "IMP-01: la stessa regola in Python (prosimos_exponential_mean) e nell'editor (arrivalsRunFaster). Secondi; more e' null quando non si avvisa.",
+  "cases": [
+    { "name": "Procure_to_Pay", "mean": 1805, "minimum": 5, "maximum": 3600, "produced": 1240.508, "more": 45 },
+    { "name": "Insurance_Claims", "mean": 17, "minimum": 16, "maximum": 3600, "produced": 17.0, "more": null },
+    { "name": "suggested maximum", "mean": 1805, "minimum": 5, "maximum": 9025, "produced": 1744.492, "more": null },
+    { "name": "maximum at 1.5 times the mean", "mean": 600, "minimum": 0, "maximum": 900, "produced": 341.505, "more": 75 }
+  ]
+}

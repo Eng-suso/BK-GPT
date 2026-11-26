@@ -11,7 +11,7 @@ export const identityKeys = {
   current: ["identity", "me"] as const,
 };
 
-const apiIdentitySchema = z.object({
+export const apiIdentitySchema = z.object({
   tenant_id: z.string(),
   auth_mode: z.string(),
   auth_enabled: z.boolean(),

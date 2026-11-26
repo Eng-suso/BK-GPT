@@ -23,6 +23,7 @@ import {
   newResourceId,
   resourceParametersValid,
   arrivalDuration,
+  draftArrivalsRunFaster,
   scenarioParameterIssues,
   roleLabel,
   scenarioResourceIssues,
@@ -285,6 +286,7 @@ export function SimulationConfigRail({
                 taskName={t("simulation.config.arrivals")}
                 kind="arrival"
                 task={arrivalDuration(draft)}
+                faster={draftArrivalsRunFaster(draft)}
                 onChange={(next) => onDraftChange(withArrival(draft, next))}
               />
               <label className="grid gap-1">

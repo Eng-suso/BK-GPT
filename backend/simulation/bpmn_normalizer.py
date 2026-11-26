@@ -16,8 +16,8 @@ from backend.simulation.timers import (
     duration_seconds,
     timer_split_id,
 )
+from backend.simulation.validation import BPMN_MODEL_NS
 
-BPMN_MODEL_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 BPMN_DI_NS = "http://www.omg.org/spec/BPMN/20100524/DI"
 DC_NS = "http://www.omg.org/spec/DD/20100524/DC"
 DI_NS = "http://www.omg.org/spec/DD/20100524/DI"

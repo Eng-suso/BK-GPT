@@ -1,0 +1,29 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "AcademicCredentials",
+  "category": "osservabilita completa",
+  "phase": "validation",
+  "config": "prosit",
+  "label": "ProSiT con regole (profondita' 3)",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 318,
+    "target": 80
+  },
+  "identifiability": {
+    "cycle_time_w1": "NOT VALIDATED",
+    "ngram": "NOT VALIDATED",
+    "relative_event": "NOT VALIDATED",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "NOT VALIDATED",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "NOT VALIDATED",
+    "true_parameters": "NOT VALIDATED",
+    "counterfactual": "NOT VALIDATED"
+  },
+  "status": "failed",
+  "reason": "prosit_run.py: uscita 1;     current_time = current_time + timedelta(weeks=full_weeks) |                    ~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ | OverflowError: date value out of range |  | Simulating Cases:  98%|█████████▊| 78/80 [01:44<00:02,  1.34s/it]"
+}

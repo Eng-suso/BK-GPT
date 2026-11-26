@@ -1,8 +1,9 @@
 # ast-grep rules
 
 Deterministic AST checks for the anti-patterns in `backend/CODE_QUALITY.md`.
-Same output on every PR. `python-bare-except` and
-`python-llm-client-outside-gateway` block CI (0 findings on 2026-11-23).
+Same output on every PR. `python-bare-except`,
+`python-llm-client-outside-gateway` (0 findings on 2026-11-23) and
+`python-engine-outside-adapter` (0 findings on 2026-11-25) block CI.
 `python-broad-except-fake-success` (28 findings) and
 `python-unbounded-while-true` (7 findings) are part of the review checklist in
 `docs/vpt/WORKFLOW.md` until the existing cases are triaged; then they join CI.
@@ -13,6 +14,7 @@ Same output on every PR. `python-bare-except` and
 | `python-broad-except-fake-success` | `except Exception` returning `None`/`[]`/`{}`/`False` |
 | `python-unbounded-while-true` | `while True:` with no `break`/`return`/`raise` |
 | `python-llm-client-outside-gateway` | A provider client built outside `backend/llm/` — spend with no ledger row |
+| `python-engine-outside-adapter` | A Prosimos module (or the `prosimos` package) imported outside the engine adapter — go through `backend.simulation.engine` (ENG-01) |
 
 ## Verify a rule locally
 

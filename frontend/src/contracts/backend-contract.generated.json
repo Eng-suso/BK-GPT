@@ -356,6 +356,33 @@
         "segments": "object[]",
         "text": "string"
       }
+    },
+    "AuthConfig": {
+      "required": [
+        "provider"
+      ],
+      "properties": {
+        "provider": "enum:local|token|supabase",
+        "supabase_publishable_key": "string",
+        "supabase_url": "string"
+      }
+    },
+    "CurrentIdentity": {
+      "required": [
+        "auth_enabled",
+        "auth_mode",
+        "caller_id",
+        "is_admin",
+        "tenant_id"
+      ],
+      "properties": {
+        "auth_enabled": "boolean",
+        "auth_mode": "string",
+        "caller_id": "string",
+        "has_user_identity": "boolean",
+        "is_admin": "boolean",
+        "tenant_id": "string"
+      }
     }
   }
 }

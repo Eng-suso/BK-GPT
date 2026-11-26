@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 from backend.schemas.simulation import SimSlaSegment
 from backend.simulation.horizon import within_horizon
-from backend.simulation.log_processor import after_warmup, parse_prosimos_log
+from backend.simulation.engine import after_warmup, get_engine
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,7 +106,7 @@ def _cases(log_csv: str, warmup_cases: int, horizon: tuple[float, int] | None) -
     first_enable: dict[str, float] = {}
     last_end: dict[str, float] = {}
     attributes: dict[str, dict[str, str]] = {}
-    events = parse_prosimos_log(log_csv)
+    events = get_engine().read_log(log_csv)
     if horizon is not None:
         # Con un periodo, i casi completati entro la fine (SIM-03).
         events, _, _ = within_horizon(events, *horizon)

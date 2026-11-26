@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Building2, CircleUserRound, Settings, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Building2, CircleUserRound, LogOut, Settings, ShieldCheck, ShieldAlert } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
+import { signOutOfSupabase } from "@/lib/supabaseSession";
 import { cn } from "@/lib/utils";
 import { useIdentityQuery } from "./api";
 
@@ -35,10 +36,13 @@ export function AccountMenu({ compact = false, onOpenSettings }: AccountMenuProp
   const workspace = data?.tenantId ?? t(identity.isError ? "identity.unknown" : "identity.loading");
   // Quando l'identita' non si legge, "Non disponibile" si dice una volta sola:
   // ripeterlo sotto il nome dello spazio di lavoro non aggiunge niente.
+  const personal = Boolean(data?.hasUserIdentity);
   const accessLabel = data
-    ? data.authEnabled
-      ? t("identity.access.shared")
-      : t("identity.access.open")
+    ? personal
+      ? t("identity.access.personal")
+      : data.authEnabled
+        ? t("identity.access.shared")
+        : t("identity.access.open")
     : identity.isError
       ? null
       : t("identity.loading");
@@ -93,7 +97,7 @@ export function AccountMenu({ compact = false, onOpenSettings }: AccountMenuProp
               {accessLabel ?? t("identity.unknown")}
             </span>
             <span className="block text-micro text-muted-foreground">
-              {t("identity.noPersonYet")}
+              {t(personal ? "identity.personalHint" : "identity.noPersonYet")}
             </span>
           </span>
         </div>
@@ -104,6 +108,18 @@ export function AccountMenu({ compact = false, onOpenSettings }: AccountMenuProp
           <Settings />
           {t("nav.profile")}
         </DropdownMenuItem>
+        {personal ? (
+          <DropdownMenuItem
+            onClick={() => {
+              // Ricaricare riparte dal cancello di accesso, con la cache vuota:
+              // nessun dato della sessione precedente resta in pagina.
+              void signOutOfSupabase().finally(() => window.location.reload());
+            }}
+          >
+            <LogOut />
+            {t("identity.signOut")}
+          </DropdownMenuItem>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -1,0 +1,55 @@
+{
+ "resources": [],
+ "tasks": [
+  {
+   "element_id": "T_check",
+   "name": "Controlla documenti",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  },
+  {
+   "element_id": "T_archive",
+   "name": "Archivia pratica",
+   "type": "task",
+   "multi_instance": null,
+   "instances": null
+  }
+ ],
+ "gateways": [
+  {
+   "element_id": "G_complete",
+   "name": "Documenti completi?",
+   "type": "exclusiveGateway",
+   "branches": [
+    {
+     "flow_id": "F_again",
+     "flow_name": "No",
+     "target_name": ""
+    },
+    {
+     "flow_id": "F_done",
+     "flow_name": "Sì",
+     "target_name": "Archivia pratica"
+    }
+   ],
+   "escalation": null
+  }
+ ],
+ "waits": [],
+ "merges": [
+  "G_merge"
+ ],
+ "standard_calendar": {
+  "id": "delir-calendar-standard",
+  "name": "Standard office calendar",
+  "periods": [
+   {
+    "from_day": "MONDAY",
+    "to_day": "FRIDAY",
+    "begin": "09:00",
+    "end": "17:00"
+   }
+  ]
+ }
+}

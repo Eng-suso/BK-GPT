@@ -56,10 +56,12 @@ def _riga(
     project_id: str | None = "proj",
     process_id: str | None = "proc",
     created_at: str = OGGI,
+    user_id: str | None = None,
 ) -> WorkspaceLlmUsage:
     return WorkspaceLlmUsage(
         id=uuid.uuid4().hex,
         tenant_id=tenant,
+        user_id=user_id,
         operation_kind=operation_kind,
         operation_id=uuid.uuid4().hex,
         parent_operation_id=None,
@@ -496,3 +498,39 @@ class TestValorizzareCioCheEraNatoSenzaPrezzo:
         r = ledger.ricalcola_costi_mancanti(since=DA, until=A, tenant_id=tenant, prova=False)
 
         assert r.esaminate == 0
+
+
+class TestPerConsulente:
+    """Il limite d'uso e' per persona: il registro deve rispondere per persona."""
+
+    def test_il_totale_di_un_consulente_non_conta_gli_altri(self, tenant):
+        _scrivi(
+            _riga(tenant, user_id="anna", input_tokens=100, output_tokens=10),
+            _riga(tenant, user_id="anna", input_tokens=50, output_tokens=5),
+            _riga(tenant, user_id="marco", input_tokens=999, output_tokens=99),
+        )
+
+        anna = ledger.totale(since=DA, until=A, tenant_id=tenant, user_id="anna")
+
+        assert (anna.input, anna.output, anna.righe) == (150, 15, 2)
+
+    def test_per_consulente_e_una_dimensione(self, tenant):
+        _scrivi(
+            _riga(tenant, user_id="anna", cost_estimate="0.0100"),
+            _riga(tenant, user_id="marco", cost_estimate="0.0500"),
+            _riga(tenant, user_id=None, cost_estimate="0.0010"),
+        )
+
+        voci = {v.chiave: v.totale.righe for v in ledger.per("user_id", since=DA, until=A, tenant_id=tenant)}
+
+        assert voci == {"marco": 1, "anna": 1, "(nessuno)": 1}
+
+
+class TestQuotaInCache:
+    def test_la_quota_e_sull_input(self, tenant):
+        _scrivi(_riga(tenant, input_tokens=1000, cached_input_tokens=750))
+
+        assert ledger.totale(since=DA, until=A, tenant_id=tenant).quota_in_cache == 0.75
+
+    def test_senza_input_la_quota_non_si_inventa(self):
+        assert ledger.Totale().quota_in_cache is None

@@ -1,0 +1,156 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "Loan_Application_5_timers",
+  "category": "sintetico con verita nota",
+  "phase": "test",
+  "config": "simod_extr_atkde",
+  "label": "SIMOD con ritardi estranei + arrivi AT-KDE",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 500,
+    "target": 500
+  },
+  "identifiability": {
+    "cycle_time_w1": "identificabile",
+    "ngram": "identificabile",
+    "relative_event": "identificabile",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "identificabile",
+    "true_parameters": "identificabile",
+    "counterfactual": "identificabile"
+  },
+  "status": "measured",
+  "simulated_cases": [
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500
+  ],
+  "metrics": {
+    "cycle_time_w1": {
+      "mean": 32.4964,
+      "ci95": 3.189396357306951,
+      "replicas": [
+        35.856,
+        27.848,
+        32.136,
+        31.518,
+        38.724,
+        36.482,
+        24.556,
+        32.16,
+        36.506,
+        29.178
+      ]
+    },
+    "ngram": {
+      "mean": 0.21341933559234075,
+      "ci95": 0.008201230266570481,
+      "replicas": [
+        0.20951106212109283,
+        0.1914353687549564,
+        0.21774572817055965,
+        0.21752812524585005,
+        0.21325084188268462,
+        0.19911574293383863,
+        0.2216418492242925,
+        0.22734326505276226,
+        0.22652020400156925,
+        0.2101011685358011
+      ]
+    },
+    "relative_event": {
+      "mean": 25.910104148362194,
+      "ci95": 1.7029992869104247,
+      "replicas": [
+        28.173118733470464,
+        23.204688999114655,
+        24.87556334768601,
+        26.41184431577672,
+        28.343683410072785,
+        27.212957980173744,
+        22.142714257545556,
+        25.938750537940194,
+        29.13313056605156,
+        23.664589335790275
+      ]
+    },
+    "absolute_event": {
+      "mean": 17.57284773404141,
+      "ci95": 2.678141384360067,
+      "replicas": [
+        16.66951033906305,
+        17.9618903416375,
+        10.133784417498493,
+        20.22480555797084,
+        20.11270044873777,
+        17.490629170101386,
+        23.37791578898768,
+        19.833392309268046,
+        16.358883570754138,
+        13.564965396395182
+      ]
+    },
+    "circadian_event": {
+      "mean": 0.36127940049051066,
+      "ci95": 0.019735637182076875,
+      "replicas": [
+        0.3980456667042468,
+        0.3559826470410445,
+        0.339711853277124,
+        0.37369890758958185,
+        0.3674287566948658,
+        0.35620917406902247,
+        0.3163553976413964,
+        0.3923672135242261,
+        0.32685734735524996,
+        0.38613704100834867
+      ]
+    },
+    "case_arrival": {
+      "mean": 3.7898000000000005,
+      "ci95": 0.7994268247793282,
+      "replicas": [
+        3.454,
+        3.722,
+        5.17,
+        2.372,
+        3.856,
+        3.07,
+        4.988,
+        1.926,
+        5.006,
+        4.334
+      ]
+    }
+  },
+  "cost": {
+    "discovery_seconds": 303.1,
+    "discovery_peak_mb": 1086.8,
+    "simulation_seconds": [
+      0.642,
+      0.787,
+      0.71,
+      0.728,
+      0.581,
+      0.629,
+      0.552,
+      0.723,
+      0.73,
+      0.676
+    ],
+    "simulation_peak_mb": 172.5,
+    "val01": "supera"
+  }
+}
