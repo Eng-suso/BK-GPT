@@ -825,6 +825,32 @@ class WorkspaceLlmUsage(WorkspaceBase):
     context_fingerprint: Mapped[str | None] = mapped_column(String, index=True)
 
 
+class WorkspaceUsagePlan(WorkspaceBase):
+    """Il piano d'uso di un consulente in prova: soglie, durata, sessione in corso.
+
+    Una riga per consulente, creata al primo uso. Le soglie `NULL` valgono i
+    default dei settings: si scrive un numero solo quando a un consulente si da'
+    qualcosa di diverso dagli altri. La settimana non ha stato suo: e' agganciata
+    all'inizio della prova, a blocchi di sette giorni.
+    """
+
+    __tablename__ = "workspace_usage_plans"
+
+    # Per tenant: lo stesso id in due tenant sono due persone, con due piani.
+    tenant_id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, primary_key=True)
+    # Dollari stimati, come stringa decimale (e' denaro). NULL = default, 0 = nessun tetto.
+    session_budget_usd: Mapped[str | None] = mapped_column(String)
+    week_budget_usd: Mapped[str | None] = mapped_column(String)
+    trial_budget_usd: Mapped[str | None] = mapped_column(String)
+    trial_started_at: Mapped[str] = mapped_column(String, nullable=False)
+    # NULL = inizio della prova + `usage_trial_days`.
+    trial_ends_at: Mapped[str | None] = mapped_column(String)
+    # L'inizio della sessione di cinque ore in corso; NULL = nessuna sessione aperta.
+    session_started_at: Mapped[str | None] = mapped_column(String)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
 def build_workspace_engine():
     return local_engine()
 

@@ -361,5 +361,58 @@
     "quarter": "Questo trimestre",
     "year": "Quest’anno",
     "scoped": "{{period}}"
+  },
+  "usage": {
+    "label": "Utilizzo: {{percent}}% del limite più vicino",
+    "title": "Utilizzo",
+    "refresh": "Aggiorna",
+    "used": "{{percent}}% utilizzato",
+    "limitsHeading": "Limiti della prova",
+    "session": {
+      "title": "Sessione corrente",
+      "resets": "Si ripristina {{when}}",
+      "notStarted_one": "Parte con la prossima richiesta e dura {{count}} ora",
+      "notStarted_other": "Parte con la prossima richiesta e dura {{count}} ore"
+    },
+    "week": {
+      "title": "Limite settimanale",
+      "resets": "Si rinnova {{when}}"
+    },
+    "trial": {
+      "title": "Prova",
+      "ends_one": "Termina il {{day}} · manca {{count}} giorno",
+      "ends_other": "Termina il {{day}} · mancano {{count}} giorni",
+      "over": "La prova è terminata"
+    },
+    "when": {
+      "today": "alle {{time}}",
+      "tomorrow": "domani alle {{time}}",
+      "weekday": "{{day}} alle {{time}}"
+    },
+    "forecast": {
+      "title": "Attenzione al ritmo",
+      "session": "A questo ritmo esaurirai la sessione {{when}}, prima che si ripristini {{reset}}.",
+      "week": "A questo ritmo esaurirai il limite settimanale {{when}}, prima che si rinnovi {{reset}}.",
+      "trial": "A questo ritmo esaurirai il credito della prova {{when}}, prima della sua fine."
+    },
+    "blocked": {
+      "session": {
+        "title": "Sessione esaurita",
+        "body": "Il lavoro fatto è salvato. Puoi riprendere {{when}}."
+      },
+      "week": {
+        "title": "Limite settimanale raggiunto",
+        "body": "Il lavoro fatto è salvato. Riprendi {{when}}, quando la settimana si rinnova."
+      },
+      "trial": {
+        "title": "Credito della prova esaurito",
+        "body": "Il lavoro fatto resta consultabile. Per continuare contatta il team DeliR."
+      },
+      "trialOver": {
+        "title": "Prova terminata",
+        "body": "Il lavoro fatto resta consultabile. Per continuare contatta il team DeliR."
+      }
+    },
+    "explainer": "Il conteggio comprende la chat, la lettura dei documenti, la mappa delle conoscenze e le simulazioni. Un lavoro iniziato arriva sempre in fondo: il limite ferma solo la richiesta successiva."
   }
 }

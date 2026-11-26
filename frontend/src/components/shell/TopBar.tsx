@@ -5,6 +5,7 @@ import { DelirLogo } from "@/components/brand/DelirLogo";
 import { AccountMenu } from "@/features/identity/AccountMenu";
 import { PeriodMenu } from "@/features/period/PeriodMenu";
 import { NotificationsMenu } from "@/features/notifications/NotificationsMenu";
+import { UsageMenu } from "@/features/usage/UsageMenu";
 import { LanguageMenu } from "./LanguageMenu";
 import { searchShortcutLabel } from "./shortcuts";
 import { cn } from "@/lib/utils";
@@ -66,6 +67,9 @@ export function TopBar({ compact = false, embedded = false, navigationExpanded, 
       <div className="flex-1" />
 
       {periodApplies ? <PeriodMenu compact={compact} /> : null}
+
+      {/* Il contatore d'uso della prova: c'e' solo quando i limiti sono accesi. */}
+      <UsageMenu />
 
       <NotificationsMenu onNavigate={onNavigate ?? (() => {})} />
 

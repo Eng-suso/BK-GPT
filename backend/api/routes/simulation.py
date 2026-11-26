@@ -25,6 +25,7 @@ from backend.schemas.simulation_model import (
     SimulationRunModelResponse,
 )
 from backend.schemas.workspace import BpmnModelResponse
+from backend.llm.budget import require_usage_available
 from backend.security import require_principal
 from backend.simulation.advisor import ExperimentReport, suggest_experiments
 from backend.simulation.ir.from_prosimos import ProsimosImportError, import_prosimos
@@ -184,7 +185,7 @@ def get_workspace_simulation_claims(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/bpmn-models/{bpmn_model_id}/simulation-what-if")
+@router.post("/bpmn-models/{bpmn_model_id}/simulation-what-if", dependencies=[Depends(require_usage_available)])
 def translate_workspace_simulation_what_if(
     bpmn_model_id: str,
     request: SimulationWhatIfRequest,
@@ -201,7 +202,7 @@ def translate_workspace_simulation_what_if(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@router.post("/bpmn-models/{bpmn_model_id}/simulation-narrative")
+@router.post("/bpmn-models/{bpmn_model_id}/simulation-narrative", dependencies=[Depends(require_usage_available)])
 def write_workspace_simulation_narrative(
     bpmn_model_id: str,
     request: SimulationNarrativeRequest,

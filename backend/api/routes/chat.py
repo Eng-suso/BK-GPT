@@ -28,6 +28,7 @@ from backend.schemas.chat_api import (
     CreateSessionResponse,
     SendMessageRequest,
 )
+from backend.llm.budget import require_usage_available
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
 from backend.services import degradation_counters
 from backend.services.agent_runtime import (
@@ -166,7 +167,7 @@ def ndjson_event(event_type: str, **payload) -> str:
     return json.dumps({"type": event_type, **payload}, ensure_ascii=False) + "\n"
 
 
-@router.post("/chat")
+@router.post("/chat", dependencies=[Depends(require_usage_available)])
 def chat(request: ChatRequest) -> ChatResponse:
     """Generate a chat response for the requested thread and conversation context.
     
@@ -283,7 +284,7 @@ def remove_consultant_chat_session(
     return {"status": "ok"}
 
 
-@router.post("/v1/consultant-chat/sessions/{thread_id}/messages")
+@router.post("/v1/consultant-chat/sessions/{thread_id}/messages", dependencies=[Depends(require_usage_available)])
 def send_consultant_chat_message(
     thread_id: str,
     request: SendMessageRequest,

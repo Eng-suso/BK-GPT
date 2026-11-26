@@ -19,6 +19,7 @@ from backend.api.routes.identity import public_router as auth_config_router
 from backend.api.routes.identity import router as identity_router
 from backend.api.routes.chat import router as chat_router
 from backend.api.routes.memory import router as memory_router
+from backend.api.routes.usage import router as usage_router
 from backend.api.routes.observability import router as observability_router
 from backend.api.routes.simulation import router as simulation_router
 from backend.api.routes.simulation_scenarios import router as simulation_scenarios_router
@@ -365,6 +366,7 @@ app.include_router(simulation_router)
 app.include_router(simulation_scenarios_router)
 app.include_router(eventlog_router)
 app.include_router(memory_router)
+app.include_router(usage_router)
 app.include_router(observability_router)
 app.include_router(auth_config_router)
 app.include_router(identity_router)
