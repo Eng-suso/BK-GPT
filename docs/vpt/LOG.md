@@ -18,6 +18,143 @@ Modello:
 
 ---
 
+## 2026-11-26 — G3b benchmark dei motori scientifici — fatto
+
+- Branch / PR: `spike/sim-g3b-ablation`, #195, CI verde. Dipendenze chiuse: PROTO-01 (#190).
+- Schede di go/no-go (PROTOCOL.md §7), scritte **prima di ogni misura** di G3b. Valgono per
+  ogni componente, prima sulla validazione (scoperta sul fit, confronto con l'ultimo 20% del
+  train) e poi sul test dei log di sviluppo (scoperta sull'intero train); holdout chiusi.
+
+  | Componente | Ipotesi | Candidato | Base da battere | Metrica primaria | Guardia | Log |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | Arrivi | AT-KDE coglie andamento globale, giorno della settimana e ora: gli arrivi simulati somigliano di più a quelli veri della distribuzione dei tempi fra arrivi di SIMOD | SIMOD con ritardi estranei + arrivi AT-KDE | "B = A"; SIMOD con ritardi estranei | CAR | W1, NGD, RED, AED, CED; tempo e memoria | dove CAR è identificabile (§4, ricalcolato anche per la validazione) |
+  | Attese (ritardi estranei) | modellare i ritardi estranei avvicina la posizione degli eventi nel caso | SIMOD con ritardi estranei | "B = A"; SIMOD senza ritardi (calendari fissi) | RED | W1, NGD, AED, CED, CAR; tempo e memoria | dove RED è identificabile |
+  | Calendari delle risorse | i calendari scoperti spiegano quando si lavora: senza, gli eventi cadono a tutte le ore | SIMOD con ritardi estranei (calendari scoperti) | "B = A"; lo stesso scenario con calendari 24/7 | CED | W1, NGD, RED, AED, CAR; tempo e memoria | dove CED è identificabile |
+  | Control flow e risorse condizionali | regole che dipendono dal caso (alberi di decisione di ProSiT) prevedono meglio i percorsi delle probabilità fisse | ProSiT con regole (profondità 3) | "B = A"; SIMOD con ritardi estranei; ProSiT senza regole (profondità 0) | NGD | W1, RED, AED, CED, CAR; tempo e memoria | dove NGD è identificabile |
+  | Approccio intero: ProSiT | un twin a regole batte il twin di processo con arrivi parametrici | ProSiT con regole | "B = A"; SIMOD con ritardi estranei | W1 | NGD, RED, AED, CED, CAR; tempo e memoria | dove W1 è identificabile |
+  | Approccio intero: AgentSimulator | un twin ad agenti (passaggi di mano fra risorse) batte il twin di processo | AgentSimulator, architettura e ritardi scelti da lui sul 20% finale del suo input (default del paper) | "B = A"; SIMOD con ritardi estranei | W1 | NGD, RED, AED, CED, CAR; tempo e memoria | dove W1 è identificabile |
+
+  - **GO** solo se vale contro **ogni** base della riga: primaria vince (IC 95% separati) sulla
+    maggioranza dei log dove è identificabile e non perde su nessuno; nessuna guardia perde su
+    più di un log; discovery e simulazione entro il budget del §6 e al massimo il doppio della
+    base; il modello prodotto supera VAL-01 (`require_sound`). AgentSimulator non produce un
+    modello di processo da verificare: per lui la condizione VAL-01 è "non verificabile" e
+    conta come non soddisfatta. ProSiT usa una rete di Petri dell'Inductive Miner (sound per
+    costruzione): si dichiara così, senza `require_sound`.
+  - **NO-GO** se manca una condizione; **NOT VALIDATED** se la primaria è identificabile in
+    meno di 2 log. Metriche NOT VALIDATED nel log: calcolate, marcate, non contano.
+  - **Diagnosi, non schede:** SIMOD con ritardi estranei + arrivi di A rigiocati (quelli del
+    gemello ingenuo) separa l'effetto del modello degli arrivi dal resto del twin; Prosimos
+    diretto contro percorso del prodotto su uno scenario di G3 dice se il simulatore della
+    ricerca è lo stesso del prodotto.
+  - **Budget (§6), uguale per tutti:** discovery ≤ 2 h e ≤ 12 GB per configurazione e log;
+    ≤ 20 valutazioni sulla validazione (qui 1 per configurazione: nessuna griglia, gli
+    strumenti girano con i default pubblicati; la ricerca interna di SIMOD e di
+    AgentSimulator usa solo il loro input, mai la nostra validazione); simulazione ≤ 10 minuti
+    per replica; G3b ≤ 120 h. Fuori budget = sconfitta su tutte le metriche, con tempo e
+    memoria misurati. Il tempo di "SIMOD con ritardi estranei" è scoperta senza ritardi +
+    ritardi (riusa il BPMN, come in G3).
+  - **Misura:** 10 repliche, seed `20261124 + replica`, tanti casi quanti il periodo da
+    prevedere a partire dal suo primo inizio; le sei distanze di B2 con IC 95% (t); tempo di
+    discovery, tempo di simulazione e picco di memoria (somma della memoria residente
+    dell'albero dei processi, campionata). Codice esterno (SIMOD 5.2.1, ProSiT 1.0.5,
+    AgentSimulator, AT-KDE) solo in venv di ricerca, mai importato dal prodotto.
+- **Esito (2026-11-26).** Misurati i 25 log di sviluppo × 2 fasi × 9 configurazioni (450
+  risultati, holdout chiusi): **12 schede su 12 NO-GO**, in validazione e in test. Nessun
+  componente esterno entra in B3 così com'è. "B = A" resta l'asticella più dura, anche sui
+  sintetici. Tabelle e verdetti in `tests/simulation/benchmark/g3b/results.md`, comando in
+  `tests/simulation/benchmark/g3b/README.md`. Esiti: 389 misurati, 17 fuori budget, 35 non
+  applicabili, 9 falliti. Calcolo speso ~34 h (budget 120 h).
+
+  | Componente | Primaria | Contro "B = A" (val / test) | Contro la base senza il componente (val / test) | Decisione |
+  | --- | --- | --- | --- | --- |
+  | Arrivi AT-KDE | CAR | 7-0-16 / 6-4-14 | SIMOD con ritardi: 0-6-17 / 3-9-12 | **NO-GO** |
+  | Attese (ritardi estranei) | RED | 5-2-16 / 6-0-17 | SIMOD senza ritardi: 4-13-6 / 4-16-3 | **NO-GO** |
+  | Calendari delle risorse | CED | 6-8-11 / 2-7-16 | calendari 24/7: 13-5-7 / 12-2-11 | **NO-GO** |
+  | Control flow condizionale (ProSiT) | NGD | 0-16-7 / 0-16-7 | ProSiT senza regole: 6-17-0 / 12-11-0 | **NO-GO** |
+  | Approccio intero ProSiT | W1 | 4-7-12 / 0-7-16 | SIMOD con ritardi: 8-7-8 / 7-3-13 | **NO-GO** |
+  | Approccio intero AgentSimulator | W1 | 5-6-12 / 1-2-20 | SIMOD con ritardi: 12-2-9 / 11-1-11 | **NO-GO** (anche VAL-01 non verificabile) |
+
+  Vince-pari-perde sui log dove la primaria è identificabile (fino a 25). Fallito, fuori
+  budget o non applicabile = sconfitta (§6), per il candidato e per la base. Il confronto
+  appaiato di PROTO-02 (`protocol.paired_comparison`, riportato accanto in `results.md`, non
+  decide) dà sconfitte della primaria in ogni scheda come gli IC: nessun verdetto cambierebbe.
+
+- **Decisione per componente** (da scheda, nessuna meta cambiata):
+  - **Arrivi — NO-GO per AT-KDE.** Non si applica a 15 log su 25 (meno di 14 giorni con arrivi
+    nell'input: i 5 Insurance_Claims e i 5 Pharmacy in entrambe le fasi, i 5 Loan_Application
+    in validazione).
+    Dove gira, prolunga il ritmo di fine train: su BPIC 2017 W test genera 7.376 casi in 57
+    giorni invece di 83 (CAR 281 contro 117 di SIMOD). **Diagnosi:** gli arrivi di A rigiocati
+    dentro lo stesso scenario SIMOD battono gli arrivi di SIMOD in test su CAR 12-7-5 e AED
+    13-11-1 (BPIC 2017 W: CAR 30,2 contro 117, AED 39 contro 68): il modello degli arrivi conta
+    e quello empirico è il migliore provato. Candidato per B3.1, con scheda propria.
+  - **Attese — NO-GO per i ritardi estranei di SIMOD.** Contro SIMOD senza ritardi RED è quasi
+    sempre pari (13 e 16 log), vince su 4, perde su 3-6; contro "B = A" perde su 16-17. Vince
+    dove G3 l'aveva visto: BPIC 2017 W test RED 8,1 contro 11,4. Limite: SIMOD con ritardi
+    riottimizza anche risorse e calendari (40 iterazioni senza seed), quindi il confronto non
+    isola solo i ritardi. Per B3.2 serve un'ablazione con il resto fissato.
+  - **Calendari — NO-GO.** Contro i calendari 24/7 CED vince su 12-13 log ma perde su 7-11
+    (Pharmacy e Insurance_Claims, sintetici di 1-2 giorni, dove 24/7 è più vicino al vero);
+    contro "B = A" perde su 11-16. Su BPIC 2017 W test i calendari 24/7 danno W1 10,3 contro
+    18,8: il calendario scoperto allunga i casi.
+  - **Control flow condizionale — NO-GO.** NGD non vince mai contro "B = A" (0 log, 7 perse).
+    Le regole aiutano ProSiT (contro ProSiT senza regole 12-11-0 in test, 0 sconfitte), ma
+    restano sotto "B = A" e perdono su 5-6 log contro SIMOD.
+  - **ProSiT intero — NO-GO.** W1 perde contro "B = A" su 12-16 log. Fallisce su
+    AcademicCredentials validazione (overflow di data in una replica); su BPIC 2013 la
+    discovery (allineamenti) supera le 2 ore. Non ripetibile al bit: i parametri del control
+    flow seguono l'ordine in cui Python itera le transizioni della rete di Petri; due passate
+    su Loan_Application cambiano le medie dentro gli IC.
+  - **AgentSimulator — NO-GO.** VAL-01 non verificabile (nessun modello di processo) e W1 perde
+    contro "B = A" su 12-20 log. È però l'unica configurazione che batte "B = A" su W1, AED e
+    CAR di un log del paper in test: BPIC 2017 W, W1 12,3 contro 30,6, AED 22,1 contro 42,8,
+    CAR 25,6 contro 35,9 (perde su NGD, RED, CED). Fuori budget su BPIC 2012 W test (una
+    replica oltre 10 minuti) e BPIC 2012 (discovery oltre 2 ore); overflow di date su
+    AcademicCredentials e Loan_Application_5_timers; non applicabile agli Insurance_Claims (un
+    giorno solo).
+- **VAL-01 sugli scenari scoperti:** 11 scenari SIMOD su 100 non supererebbero l'import del
+  prodotto: tutti quelli di BPIC 2013 (casi bloccati a un'unione dopo «Completed», in
+  entrambe le fasi) e quello senza ritardi di AcademicCredentials test (ciclo senza uscita,
+  come in G3). Conta già nelle schede come condizione mancata; per B3.3 è la prova che la
+  discovery deve produrre modelli sound.
+- **Holdout: non aperti.** Nessun GO: la conferma sugli holdout del §7 non serve a nessuna
+  decisione. Aprirli resta una decisione di Sohayb (una volta, `final_evaluation(1cfaa147…)`).
+- **Iterazioni del banco** (nessuna sulle mete): 1) strumenti esterni come sottoprocessi nei
+  venv di ricerca, solo percorsi di log di sviluppo; 2) Prosimos della ricerca contro percorso
+  del prodotto su BPIC 2012 W extr di G3: repliche identiche al bit (`engine_check.json`);
+  3) AT-KDE e AgentSimulator dichiarano quando non si applicano (codice d'uscita 3);
+  4) budget del §6 fatti rispettare negli strumenti (codice 4): prima un AgentSimulator su
+  BPIC 2012 W ha tenuto una replica 88 minuti; l'allarme `SIGALRM` non scattava mentre ProSiT
+  aspettava i worker di joblib, ora è un timer su thread e il driver ferma i figli rimasti;
+  5) una discovery fuori budget resta in cache per le varianti che la usano; 6) con tre
+  processi in parallelo il container è andato fuori memoria su ProSiT (BPIC 2013 validazione):
+  rifatto da solo, fuori budget per memoria (oltre 12 GB); 7) metriche ripetibili al bit su due passate (Loan_Application) per "B = A",
+  SIMOD simulato, AT-KDE e AgentSimulator.
+- **Code review:** `code-review` 10 rilievi, tutti corretti o motivati: VAL-01 "non
+  verificato" distinto da "supera"; errori imprevisti non fermano il giro; regola del doppio
+  del costo solo fra misurati; costo salvato anche negli esiti fuori budget degli strumenti;
+  pulizia dei file intermedi di SIMOD a ogni errore; seed e repliche controllati prima di
+  riusare un risultato; motivo leggibile. Motivati: l'ablazione dei ritardi non isola le risorse
+  (scritto sopra); `int(n·0,2)` di AgentSimulator copiato dall'originale (tutti i log hanno
+  più di 5 casi). `simplify` (4 revisori): applicati la regola "pari" di B2 (`within_intervals`)
+  invece di una seconda, esiti per codice d'uscita invece che per testo, budget passati dal
+  driver, controllo preventivo di AgentSimulator, repliche validate (`replicas_error`),
+  argomenti comuni in `tool_args`, log letto una volta per le due fasi, VAL-01 una volta per
+  scenario, repliche lette una alla volta, report con ricerche uniche. Saltati: riuso dei
+  lettori di `protocol_properties` e precalcolo delle distanze (moduli del protocollo e di B2
+  fuori dal diff), formato unico dei CSV degli strumenti (contratto cambiato a misure in corso),
+  un modulo comune per gli strumenti (restano script autonomi). ruff pulito; nessun codice del
+  prodotto toccato (niente ast-grep di backend, niente `security-review`).
+- **Da confermare con Sohayb:** la regola "al massimo il doppio del costo della base" non si
+  applica contro "B = A" (non ha discovery; ogni modello costerebbe infinite volte di più);
+  `COST_EXEMPT_BASES` in `report.py`. Nessun verdetto dipende da questa lettura.
+- Skill: `code-review`, `simplify`. Nessuna UI: gate UX non applicabile.
+- Prossimo passo: B3.1 con gli arrivi empirici (rigiocati) come candidato e scheda propria;
+  B3.2 con l'ablazione dei ritardi a risorse fissate; PERF-01 ha già tempi e memoria di G3b.
+
+---
+
 ## 2026-11-25 — RAD-01 inventario del radar e PROTO-02 secondo set — fatto
 
 - Branch / PR: `claude/vpt-radar-inventory-j14bbw` (il branch assegnato alla sessione cloud, al
@@ -76,6 +213,7 @@ Modello:
 - Seconda code review sulle modifiche di CF-01: 1 rilievo (intervallo della verità con un solo
   estremo), corretto. Test: `test_protocol.py` 124 → 144, `test_radar_inventory.py` 22.
 - Prossimo passo: G3b (percorso critico), poi RAD-02 sui log di sviluppo del §10; GT-01 è libero.
+
 
 ## 2026-11-25 — Code review di RAD-00: login Supabase e host di Mannheim — fatto
 

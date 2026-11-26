@@ -1,0 +1,29 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "Insurance_Claims_3_timers",
+  "category": "sintetico con verita nota",
+  "phase": "validation",
+  "config": "agentsim",
+  "label": "AgentSimulator (scelta automatica)",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 400,
+    "target": 100
+  },
+  "identifiability": {
+    "cycle_time_w1": "identificabile",
+    "ngram": "identificabile",
+    "relative_event": "identificabile",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "identificabile",
+    "true_parameters": "identificabile",
+    "counterfactual": "identificabile"
+  },
+  "status": "not_applicable",
+  "reason": "agentsim_run.py: uscita 1; AgentSimulator non applicabile: input di un solo giorno (cannot convert float NaN to integer) | transition_probabilities: {0: {'Check if customer has all required information': {1: {'Register Claim': 0.05555555555555555}, 23: {'Register Claim': 0.05555555555555555}, 11: {'Register Claim': 0.16666666666666666}, 57: {'Register Claim': 0.1111111111111111}, 52: {'Register Claim': 0.05555555555555555}, 14: {'Register Claim': 0.05555555555555555}, 17: {'Register Claim': 0.1111111111111111}, 68: {' | preceding_activities_dict: {'Register Claim': ['Check if customer has all required information'], 'Determine likelihood of the claim': ['Check if customer has all required information', 'Register Claim'], 'Assess Claim': ['Determine likelihood of the claim', 'Check if customer has all required information', 'Register Claim'], 'Advise Claimant on Reimbursement': ['Determine likelihood of the claim' | AgentSimulator non applicabile: input di un solo giorno (cannot convert float NaN to integer)"
+}

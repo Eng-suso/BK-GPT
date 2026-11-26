@@ -1,0 +1,33 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "bpic2012",
+  "category": "osservabilita parziale",
+  "phase": "validation",
+  "config": "simod_extr",
+  "label": "SIMOD con ritardi estranei",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 5234,
+    "target": 1309
+  },
+  "identifiability": {
+    "cycle_time_w1": "identificabile",
+    "ngram": "identificabile",
+    "relative_event": "identificabile",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "NOT VALIDATED",
+    "resources": "NOT VALIDATED",
+    "waiting_causes": "NOT VALIDATED",
+    "true_parameters": "NOT VALIDATED",
+    "counterfactual": "NOT VALIDATED"
+  },
+  "status": "out_of_budget",
+  "reason": "SIMOD diff: oltre 12288 MB",
+  "cost": {
+    "seconds": 1048.5,
+    "peak_mb": 12421.1
+  }
+}

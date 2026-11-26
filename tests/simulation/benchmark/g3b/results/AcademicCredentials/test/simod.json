@@ -1,0 +1,156 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "AcademicCredentials",
+  "category": "osservabilita completa",
+  "phase": "test",
+  "config": "simod",
+  "label": "SIMOD, calendari fissi",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 398,
+    "target": 398
+  },
+  "identifiability": {
+    "cycle_time_w1": "identificabile",
+    "ngram": "identificabile",
+    "relative_event": "identificabile",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "NOT VALIDATED",
+    "true_parameters": "NOT VALIDATED",
+    "counterfactual": "NOT VALIDATED"
+  },
+  "status": "measured",
+  "simulated_cases": [
+    398,
+    398,
+    398,
+    398,
+    398,
+    398,
+    398,
+    398,
+    398,
+    398
+  ],
+  "metrics": {
+    "cycle_time_w1": {
+      "mean": 282.0399497487437,
+      "ci95": 40.01206892682674,
+      "replicas": [
+        307.8743718592965,
+        308.2035175879397,
+        310.84170854271355,
+        309.14824120603015,
+        307.57035175879395,
+        176.11557788944722,
+        307.8718592964824,
+        175.7462311557789,
+        309.2286432160804,
+        307.79899497487435
+      ]
+    },
+    "ngram": {
+      "mean": 0.3783676273111477,
+      "ci95": 0.055879721594315715,
+      "replicas": [
+        0.35119047619047616,
+        0.3410840534171249,
+        0.34014782198458876,
+        0.433469387755102,
+        0.43861546782044347,
+        0.22620152161811097,
+        0.5006551518761168,
+        0.3442313737818296,
+        0.35893416927899685,
+        0.4491468493886874
+      ]
+    },
+    "relative_event": {
+      "mean": 6377.552268081782,
+      "ci95": 2565.046775599036,
+      "replicas": [
+        9280.164224360064,
+        9353.650132373275,
+        9376.46366934312,
+        7033.49825438552,
+        6890.802898027577,
+        77.06531528145716,
+        5544.540924486049,
+        77.54212354664902,
+        9281.25936017897,
+        6860.535778835137
+      ]
+    },
+    "absolute_event": {
+      "mean": 6591.23874297155,
+      "ci95": 2611.3010366713183,
+      "replicas": [
+        9511.544338719143,
+        9819.362383224849,
+        9767.616467678672,
+        7335.6614670149165,
+        6903.353251702363,
+        132.08607226652325,
+        6068.442652300369,
+        176.80840580395122,
+        9228.198951901566,
+        6969.313439103141
+      ]
+    },
+    "circadian_event": {
+      "mean": 4.3386892360489275,
+      "ci95": 0.08472152123510046,
+      "replicas": [
+        4.225645526998805,
+        4.289455748179255,
+        4.292233314427056,
+        4.4657651540530505,
+        4.417634404338213,
+        4.155343534064132,
+        4.494171853530758,
+        4.4847988525331655,
+        4.262453934923841,
+        4.299390037440999
+      ]
+    },
+    "case_arrival": {
+      "mean": 131.8751256281407,
+      "ci95": 15.760780962645612,
+      "replicas": [
+        112.92964824120602,
+        149.91959798994975,
+        176.81155778894473,
+        148.30402010050253,
+        129.28643216080403,
+        124.56281407035176,
+        121.31658291457286,
+        115.44723618090453,
+        101.70854271356784,
+        138.46482412060303
+      ]
+    }
+  },
+  "cost": {
+    "discovery_seconds": 128.5,
+    "discovery_peak_mb": 1097.4,
+    "simulation_seconds": [
+      0.363,
+      0.341,
+      0.379,
+      0.406,
+      0.486,
+      0.297,
+      0.536,
+      0.354,
+      0.378,
+      0.589
+    ],
+    "simulation_peak_mb": 172.3,
+    "val01": "non supera: I casi che arrivano a «Avanzar recepcion documentos» non escono più da quel tratto: dopo quell'attività il processo li rimanda indietro ogni volta, perché la strada per proseguire ha probabilità 0. La simulazione ripeterebbe quel tratto all'infinito e i risultati non avrebbero senso.\nCosa fare: dai a quella strada una probabilità maggiore di zero (per esempio la quota di casi che nella realtà va avanti dopo quell'attività) oppure ricalcola il modello dai dati storici del processo, po"
+  }
+}
