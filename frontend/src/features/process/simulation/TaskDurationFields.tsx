@@ -1,10 +1,13 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { InlineNotice } from "@/components/feedback";
+import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
 
+import { formatDuration } from "./simulationResults";
 import { DISTRIBUTIONS, type DistributionName } from "./simulationTypes";
-import { DISTRIBUTION_PARAMETERS, taskDurationIssue, type DurationDraft } from "./simulationScenario";
+import { DISTRIBUTION_PARAMETERS, taskDurationIssue, type ArrivalsFaster, type DurationDraft } from "./simulationScenario";
 
 const NATIVE_SELECT = "h-8 w-full min-w-0 ui-field rounded-xl px-2 text-sm";
 
@@ -19,6 +22,7 @@ export function TaskDurationFields<T extends DurationDraft>({
   task,
   onChange,
   kind = "duration",
+  faster = null,
 }: {
   elementId: string;
   taskName: string;
@@ -26,17 +30,23 @@ export function TaskDurationFields<T extends DurationDraft>({
   onChange: (next: T) => void;
   /** ``arrival``: il tempo fra due arrivi dei casi, con le sue etichette (A2-3). */
   kind?: "duration" | "arrival";
+  /** IMP-01: gli arrivi che il motore rende piu' fitti (``draftArrivalsRunFaster``). */
+  faster?: ArrivalsFaster | null;
 }): React.JSX.Element {
-  const { t } = useTranslation("process");
+  const { t, i18n } = useTranslation("process");
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const parameters = DISTRIBUTION_PARAMETERS[task.distribution];
   const issue = taskDurationIssue(task);
   const issueId = `sim-duration-issue-${elementId}`;
   const explanationId = `sim-duration-explanation-${elementId}`;
   const isArrival = kind === "arrival";
+  const lang = i18n.language?.startsWith("it") ? "it" : "en";
+  // Al minuto, come le altre durate del pannello: "21 min", non "20 min 40 s".
+  const readable = (seconds: number) => formatDuration(seconds >= 60 ? Math.round(seconds / 60) * 60 : seconds, lang);
   const interpretation = task.distribution === "uniform"
     ? t(isArrival ? "simulation.config.durationGuide.uniformArrival" : "simulation.config.durationGuide.uniformTask", { min: task.minMinutes ?? "—", max: task.maxMinutes ?? "—" })
-    : t(`simulation.config.durationGuide.${task.distribution}${isArrival ? "Arrival" : "Task"}`, { mean: task.meanMinutes });
+    // Nella frase tre cifre significative: 1805 s non diventa "30.0833… minuti", 2 s resta 0.0333.
+    : t(`simulation.config.durationGuide.${task.distribution}${isArrival ? "Arrival" : "Task"}`, { mean: Number(task.meanMinutes.toPrecision(3)) });
   const meanLabel = t(kind === "arrival" ? "simulation.config.arrivalMeanMin" : "simulation.config.durationMin");
   const hint = task.distribution === "uniform"
     ? kind === "arrival" ? "simulation.config.arrivalUniformHint" : "simulation.config.uniformHint"
@@ -99,6 +109,23 @@ export function TaskDurationFields<T extends DurationDraft>({
         {optional("maxMinutes", t("simulation.config.maxMin"))}
       </div>}
       <p id={explanationId} className="text-xs leading-relaxed text-muted-foreground">{interpretation}</p>
+      {faster && (
+        <InlineNotice
+          tone="warning"
+          title={t("simulation.config.arrivalsFaster.title")}
+        >
+          <p>{t("simulation.config.arrivalsFaster.body", {
+            max: readable(faster.maxSeconds),
+            produced: readable(faster.producedSeconds),
+            mean: readable(faster.meanSeconds),
+            more: faster.morePercent,
+          })}</p>
+          {/* Sotto il testo, non a fianco: nel pannello stretto il testo resta leggibile. */}
+          <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => onChange({ ...task, maxMinutes: faster.suggestedMaxMinutes })}>
+            {t("simulation.config.arrivalsFaster.action", { suggested: readable(faster.suggestedMaxMinutes * 60) })}
+          </Button>
+        </InlineNotice>
+      )}
       <details className="sim-duration-details rounded-md border border-border px-3 py-2" open={advancedOpen || issue !== null} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
           <summary className="cursor-pointer text-xs font-medium text-foreground">{t("simulation.config.durationGuide.technicalDetails")}</summary>
           {task.distribution !== "fixed" && task.distribution !== "uniform" && <>

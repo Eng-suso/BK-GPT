@@ -73,3 +73,10 @@ def test_the_image_carries_no_secrets():
     assert "**/.env" in ignored
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert not re.search(r"(?i)(api_key|token|password)\s*=", dockerfile)
+
+
+def test_production_does_not_start_without_an_admin_token():
+    """Senza chiave admin Compose si ferma prima ancora che l'app rifiuti di partire."""
+    prod = yaml.safe_load(PROD.read_text(encoding="utf-8"))["services"]["app"]["environment"]
+    assert prod["DELIR_ADMIN_TOKEN"].startswith("${DELIR_ADMIN_TOKEN:?")
+    assert prod["DELIR_CORS_ORIGINS"].startswith("${DELIR_PUBLIC_ORIGIN:?")

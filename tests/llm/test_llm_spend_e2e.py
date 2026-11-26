@@ -21,6 +21,7 @@ import uuid
 import pytest
 from sqlalchemy import create_engine, select, text
 
+from backend.llm_streaming import TURN_METERED_TAG  # noqa: E402
 from backend.settings import settings
 
 _NEEDED = (
@@ -379,8 +380,8 @@ def test_un_turno_stremato_lascia_due_righe_turno_e_instradamento(monkeypatch, w
     class _AgenteFinto:
         def stream(self, *_args, **_kwargs):
             # Prima instrada, poi risponde: due nodi, due compiti.
-            yield (_Pezzo("", 40, 5), {"langgraph_node": CONTEXT_ROUTER_NODE})
-            yield (_Pezzo("ecco", 300, 120), {"langgraph_node": "consulting_subgraph"})
+            yield (_Pezzo("", 40, 5), {"langgraph_node": CONTEXT_ROUTER_NODE, "tags": [TURN_METERED_TAG]})
+            yield (_Pezzo("ecco", 300, 120), {"langgraph_node": "consulting_subgraph", "tags": [TURN_METERED_TAG]})
 
     monkeypatch.setattr(agent_runtime, "get_agent", lambda *_a, **_k: _AgenteFinto())
 
@@ -429,7 +430,7 @@ def test_un_turno_che_fallisce_a_meta_ha_speso_lo_stesso(monkeypatch, ws):
 
     class _AgenteCheSiRompe:
         def stream(self, *_args, **_kwargs):
-            yield (_Pezzo(), {"langgraph_node": "consulting_subgraph"})
+            yield (_Pezzo(), {"langgraph_node": "consulting_subgraph", "tags": [TURN_METERED_TAG]})
             raise RuntimeError("il grafo si e' rotto a meta'")
 
     monkeypatch.setattr(agent_runtime, "get_agent", lambda *_a, **_k: _AgenteCheSiRompe())
@@ -478,7 +479,7 @@ def test_il_registro_dice_il_modello_che_ha_girato(monkeypatch, ws):
 
     class _AgenteFinto:
         def stream(self, *_args, **_kwargs):
-            yield (_Pezzo(), {"langgraph_node": "consulting_subgraph"})
+            yield (_Pezzo(), {"langgraph_node": "consulting_subgraph", "tags": [TURN_METERED_TAG]})
 
     monkeypatch.setattr(agent_runtime, "get_agent", lambda *_a, **_k: _AgenteFinto())
 

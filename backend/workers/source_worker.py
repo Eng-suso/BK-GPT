@@ -148,6 +148,7 @@ def _extract_one(row: dict) -> bool:
                 tenant_id=row["tenant_id"],
                 project_id=row["project_id"],
                 process_id=row["process_id"],
+                user_id=row.get("uploaded_by"),
             ):
                 result = extract_claims(segments, source_name=row["name"])
         except Exception as exc:  # noqa: BLE001 - un'estrazione storta non ferma la coda
@@ -194,6 +195,7 @@ def _reconcile_one(row: dict) -> bool:
                 tenant_id=row["tenant_id"],
                 project_id=row["project_id"],
                 process_id=row["process_id"],
+                user_id=row.get("uploaded_by"),
             ):
                 result = reconcile_claims(new, existing)
         except Exception as exc:  # noqa: BLE001 - un confronto storto non ferma la coda

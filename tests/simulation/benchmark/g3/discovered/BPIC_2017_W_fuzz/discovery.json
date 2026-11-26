@@ -1,0 +1,7 @@
+{
+  "simod_version": "5.2.1",
+  "configuration": "configs/BPIC_2017_W_fuzz.yml",
+  "discovery_seconds": 1155,
+  "python": "3.12.3",
+  "java": "openjdk version \"21.0.13.1\" 2026-11-17"
+}

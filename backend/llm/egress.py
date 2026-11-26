@@ -62,6 +62,9 @@ class DataCategory(StrEnum):
     SEARCH_QUERY = "search_query"
     #: Modelli BPMN e scenari di simulazione: nomi di attivita' e ruoli.
     PROCESS_MODEL = "process_model"
+    #: Chi usa DeliR: email e identificativo del consulente presso il fornitore
+    #: di autenticazione. Non contenuti del cliente.
+    USER_IDENTITY = "user_identity"
 
 
 class Destination(StrEnum):
@@ -77,6 +80,7 @@ class Destination(StrEnum):
     WEB_SEARCH = "web_search"
     DOCUMENT_READER = "document_reader"
     SIMULATION_ENGINE = "simulation_engine"
+    IDENTITY_PROVIDER = "identity_provider"
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +123,10 @@ class EgressBlocked(MissingProviderKey):
 
 
 _NON_CHAT_TASKS = {LlmTask.EMBEDDING, LlmTask.TRANSCRIPTION}
+# I compiti di Mem0 non passano dal client della chat: li esegue la libreria con
+# i suoi client, verso le sue destinazioni (`MEMORY_EXTRACTION`,
+# `MEMORY_EMBEDDING`). Elencarli sotto `llm_chat` direbbe un fornitore sbagliato.
+_MEM0_TASKS = {LlmTask.MEMORY_EXTRACTION, LlmTask.MEMORY_EMBEDDING}
 
 
 def is_internal_host(host: str) -> bool:
@@ -155,7 +163,9 @@ def _tasks_for(url: str, *, chat: bool) -> tuple[LlmTask, ...]:
     return tuple(
         task
         for task in LlmTask
-        if (task not in _NON_CHAT_TASKS) == chat and _llm_url_for(task) == url
+        if task not in _MEM0_TASKS
+        and (task not in _NON_CHAT_TASKS) == chat
+        and _llm_url_for(task) == url
     )
 
 
@@ -202,6 +212,7 @@ def routes() -> list[EgressRoute]:
             (settings.mem0_llm_base_url or OPENAI_API_URL).rstrip("/"),
             (DataCategory.CUSTOMER_CONTENT,),
             mem0_on,
+            (LlmTask.MEMORY_EXTRACTION,),
         ),
         EgressRoute(
             Destination.MEMORY_EMBEDDING,
@@ -209,6 +220,7 @@ def routes() -> list[EgressRoute]:
             OPENAI_API_URL,
             (DataCategory.CUSTOMER_CONTENT,),
             mem0_on,
+            (LlmTask.MEMORY_EMBEDDING,),
         ),
         EgressRoute(
             Destination.TRACING,
@@ -237,6 +249,13 @@ def routes() -> list[EgressRoute]:
             settings.prosimos_base_url,
             (DataCategory.PROCESS_MODEL,),
             True,
+        ),
+        EgressRoute(
+            Destination.IDENTITY_PROVIDER,
+            "Autenticazione dei consulenti (Supabase Auth): login e chiavi pubbliche delle sessioni",
+            settings.supabase_url or "https://supabase.invalid",
+            (DataCategory.USER_IDENTITY,),
+            settings.delir_auth_enabled and settings.delir_auth_provider == "supabase",
         ),
     ]
 

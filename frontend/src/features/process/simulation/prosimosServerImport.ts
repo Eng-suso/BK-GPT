@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { http } from "@/lib/http";
+import { HttpError, http, httpErrorCode, httpErrorMessage } from "@/lib/http";
 
 import { flowMappingKey, type ProsimosIdMapping } from "./prosimosJson";
 import { simulationRunSchema, type SimulationRun } from "./simulationTypes";
@@ -10,7 +10,7 @@ const SCENARIO_NAME_MAX = 200;
 
 /** B1b: uno scenario Prosimos o SIMOD che l'editor non sa rappresentare, letto dal server. */
 const noteSchema = z.object({
-  kind: z.enum(["info", "approximated"]),
+  kind: z.enum(["info", "approximated", "warning"]),
   topic: z.string(),
   message: z.string(),
   element_id: z.string().nullable().optional(),
@@ -46,16 +46,19 @@ export function importSummary(result: ProsimosImport): ImportSummary {
 
 export type NoteGroup = { topic: string; kind: ProsimosImportNote["kind"]; notes: ProsimosImportNote[] };
 
+// Un gruppo prende il tipo piu' serio fra le sue note; i gruppi piu' seri vengono prima.
+const SEVERITY: Record<ProsimosImportNote["kind"], number> = { info: 0, warning: 1, approximated: 2 };
+
 /** Le note per argomento, prima quelle da verificare: 16 attivita' istantanee sono una riga, non sedici. */
 export function groupNotes(notes: ProsimosImportNote[]): NoteGroup[] {
   const groups = new Map<string, NoteGroup>();
   for (const note of notes) {
     const group = groups.get(note.topic) ?? { topic: note.topic, kind: note.kind, notes: [] };
-    if (note.kind === "approximated") group.kind = "approximated";
+    if (SEVERITY[note.kind] > SEVERITY[group.kind]) group.kind = note.kind;
     group.notes.push(note);
     groups.set(note.topic, group);
   }
-  return [...groups.values()].sort((a, b) => Number(b.kind === "approximated") - Number(a.kind === "approximated"));
+  return [...groups.values()].sort((a, b) => SEVERITY[b.kind] - SEVERITY[a.kind]);
 }
 
 type Json = Record<string, unknown>;
@@ -103,6 +106,33 @@ export async function importProsimosOnServer(
     body: { scenario, current_bpmn_xml: currentBpmnXml },
   });
   return prosimosImportSchema.parse(raw);
+}
+
+/** VAL-01: il server rifiuta uno scenario in cui qualche caso non arriverebbe mai alla fine. */
+export type CannotFinish = { message: string; detail: string };
+
+export function cannotFinish(error: unknown): CannotFinish | null {
+  if (!(error instanceof HttpError) || httpErrorCode(error) !== "process_cannot_finish") return null;
+  const detail = (error.body as { error?: { detail?: unknown } } | null)?.error?.detail;
+  return { message: httpErrorMessage(error, error.message), detail: typeof detail === "string" ? detail : "" };
+}
+
+/**
+ * Anche uno scenario che l'editor sa rappresentare passa dalla verifica di VAL-01 sul server.
+ * Conta solo quel rifiuto: il file l'ha gia' letto l'editor, e un altro errore del server
+ * (o il server non raggiungibile) non deve impedire di applicarlo.
+ */
+export async function checkCanFinish(bpmnModelId: string, scenario: Record<string, unknown>, currentBpmnXml: string | null): Promise<CannotFinish | null> {
+  try {
+    // Conta solo l'esito: la risposta (il modello) non serve all'editor.
+    await http<unknown>(`/v1/workspace/bpmn-models/${bpmnModelId}/prosimos-import`, {
+      method: "POST",
+      body: { scenario, current_bpmn_xml: currentBpmnXml },
+    });
+    return null;
+  } catch (cause) {
+    return cannotFinish(cause);
+  }
 }
 
 export async function runImportedModel(

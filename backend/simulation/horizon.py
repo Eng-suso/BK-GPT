@@ -32,7 +32,7 @@ from backend.simulation.ir.model import (
 )
 
 if TYPE_CHECKING:
-    from backend.simulation.log_processor import LogEvent
+    from backend.simulation.engine import LogEvent
 
 _DAYS = ("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY")
 _WEEK = 7 * 86_400

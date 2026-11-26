@@ -21,10 +21,11 @@ import io
 import math
 import re
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 from backend.settings import settings
+from backend.simulation.engine import EngineLogError, LogEvent, after_warmup
 from backend.simulation.horizon import within_horizon
 
 EXPECTED_LOG_HEADER = [
@@ -41,21 +42,8 @@ _QUEUE_EPSILON_SEC = 60.0
 _INSTANCE_SUFFIX = re.compile(r"_\d+$")
 
 
-class ProsimosLogError(ValueError):
+class ProsimosLogError(EngineLogError):
     """Raised when the event log can't be parsed into the expected shape."""
-
-
-@dataclass(slots=True)
-class LogEvent:
-    case_id: str
-    activity: str
-    enable: float  # epoch seconds
-    start: float
-    end: float
-    resource: str
-    # Gli attributi che il motore scrive dopo le sei colonne (case e event
-    # attribute): il valore del caso a quell'evento, come testo.
-    attributes: dict[str, str] = field(default_factory=dict)
 
 
 # --------------------------------------------------------------------------- #
@@ -322,22 +310,6 @@ def process_prosimos_log(
         buckets=buckets,
     )
     return summary, replay
-
-
-def after_warmup(events: list[LogEvent], warmup_cases: int) -> list[LogEvent]:
-    """Gli eventi dei casi arrivati dopo i primi ``warmup_cases`` (SIM-03).
-
-    Il sistema parte vuoto: i primi casi trovano code corte e risorse libere, e
-    i loro tempi non dicono com'e' il processo a regime. Senza riscaldamento,
-    gli stessi eventi.
-    """
-    if warmup_cases <= 0:
-        return events
-    arrival: dict[str, float] = {}
-    for ev in events:
-        arrival[ev.case_id] = min(arrival.get(ev.case_id, ev.enable), ev.enable)
-    warm = set(sorted(arrival, key=lambda case_id: (arrival[case_id], case_id))[:warmup_cases])
-    return [ev for ev in events if ev.case_id not in warm]
 
 
 def _warm_summary(

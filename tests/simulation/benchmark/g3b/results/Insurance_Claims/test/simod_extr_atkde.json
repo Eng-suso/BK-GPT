@@ -1,0 +1,29 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "Insurance_Claims",
+  "category": "sintetico con verita nota",
+  "phase": "test",
+  "config": "simod_extr_atkde",
+  "label": "SIMOD con ritardi estranei + arrivi AT-KDE",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 500,
+    "target": 500
+  },
+  "identifiability": {
+    "cycle_time_w1": "identificabile",
+    "ngram": "identificabile",
+    "relative_event": "identificabile",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "identificabile",
+    "true_parameters": "identificabile",
+    "counterfactual": "identificabile"
+  },
+  "status": "not_applicable",
+  "reason": "AT-KDE: uscita 1; AT-KDE non applicabile: 1 giorni con arrivi nell'input, ne servono almeno 14"
+}

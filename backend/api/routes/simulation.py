@@ -29,6 +29,7 @@ from backend.security import require_principal
 from backend.simulation.advisor import ExperimentReport, suggest_experiments
 from backend.simulation.ir.from_prosimos import ProsimosImportError, import_prosimos
 from backend.simulation.service import (
+    compatibility_report_for_model,
     claim_proposals_for_model,
     SimulationCapacityError,
     SimulationLogUnavailable,
@@ -52,7 +53,6 @@ from backend.schemas.simulation import (
     BpmnCompatibilityRequest,
     BpmnCompatibilityResponse,
 )
-from backend.simulation.compatibility import compatibility_report_for_model
 from backend.simulation.narrative import (
     NarrativeRejected,
     NarrativeUnavailable,
@@ -60,6 +60,7 @@ from backend.simulation.narrative import (
     SimulationNarrativeResponse,
     write,
 )
+from backend.workers.simulation_worker import wake_simulation_worker
 from backend.simulation.whatif import (
     SimulationWhatIfRequest,
     SimulationWhatIfResponse,
@@ -102,6 +103,8 @@ async def create_workspace_simulation_run(
     # Il run e' in coda (o ce n'era gia' uno identico in volo): chi ha posto lo
     # prende. Il drenaggio e' esclusivo, quindi lanciarlo anche a vuoto e' sicuro.
     background_tasks.add_task(drain_simulation_queue)
+    # B6: il giro della coda riempie subito gli altri posti liberi del motore.
+    wake_simulation_worker()
 
     return SimulationRunResponse(**run)
 
@@ -131,6 +134,8 @@ async def create_workspace_simulation_model_run(
     # Il run e' in coda (o ce n'era gia' uno identico in volo): chi ha posto lo
     # prende. Il drenaggio e' esclusivo, quindi lanciarlo anche a vuoto e' sicuro.
     background_tasks.add_task(drain_simulation_queue)
+    # B6: il giro della coda riempie subito gli altri posti liberi del motore.
+    wake_simulation_worker()
 
     return SimulationRunResponse(**run)
 
@@ -156,6 +161,8 @@ async def create_workspace_simulation_sensitivity(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     background_tasks.add_task(drain_simulation_queue)
+    # B6: il giro della coda riempie subito gli altri posti liberi del motore.
+    wake_simulation_worker()
     return [SimulationRunResponse(**run) for run, _, _ in planned]
 
 

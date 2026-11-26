@@ -342,6 +342,46 @@ export function horizonIssue(draft: ScenarioDraft): "range" | null {
   return Number.isInteger(days) && days >= 1 && days <= MAX_HORIZON_DAYS ? null : "range";
 }
 
+/** IMP-01: oltre questo scarto fra media scritta e media simulata il ritmo dei casi cambia. */
+const ARRIVAL_DRIFT = 0.1;
+
+export type ArrivalsFaster = { meanSeconds: number; maxSeconds: number; producedSeconds: number; morePercent: number; suggestedMaxMinutes: number };
+
+/**
+ * Gli arrivi esponenziali con il massimo vicino alla media arrivano piu' fitti di quanto
+ * scritto: Prosimos 2.1 scarta gli intervalli oltre il massimo e ne estrae altri
+ * (esponenziale troncata). Stessa regola di ``prosimos_exponential_mean`` nel backend.
+ */
+export function arrivalsRunFaster(arrival: DurationDraft): ArrivalsFaster | null {
+  if (arrival.distribution !== "expon" || arrival.maxMinutes === undefined) return null;
+  const mean = arrival.meanMinutes * 60;
+  const minimum = (arrival.minMinutes ?? 0) * 60;
+  const scale = mean - minimum;
+  const maximum = arrival.maxMinutes * 60;
+  const span = maximum - minimum;
+  if (!(scale > 0) || !(span > 0)) return null;
+  const tail = Math.exp(-span / scale);
+  const produced = minimum + scale - (span * tail) / (1 - tail);
+  if (produced >= mean * (1 - ARRIVAL_DRIFT)) return null;
+  return {
+    meanSeconds: mean,
+    maxSeconds: maximum,
+    producedSeconds: produced,
+    morePercent: Math.round(((mean / produced - 1) * 100) / 5) * 5,
+    suggestedMaxMinutes: arrival.meanMinutes * 5,
+  };
+}
+
+/**
+ * L'avviso per la bozza: con fasce o ritmi per mese gli arrivi li genera il runner dalla
+ * sola media (nessun taglio); con limiti non validi il pannello mostra prima l'errore.
+ */
+export function draftArrivalsRunFaster(draft: ScenarioDraft): ArrivalsFaster | null {
+  if (draft.arrival?.bands?.length || draft.arrival?.months?.length) return null;
+  const arrival = arrivalDuration(draft);
+  return taskDurationIssue(arrival) === null ? arrivalsRunFaster(arrival) : null;
+}
+
 /** Gli arrivi come una durata: la stessa forma, gli stessi controlli, gli stessi campi. */
 export function arrivalDuration(draft: ScenarioDraft): DurationDraft {
   const arrival = draft.arrival;
@@ -362,7 +402,11 @@ export function arrivalDuration(draft: ScenarioDraft): DurationDraft {
 export function withArrival(draft: ScenarioDraft, next: DurationDraft, ...calendar: [calendarId: string | undefined] | []): ScenarioDraft {
   const { meanMinutes, ...rest } = next;
   const calendarId = calendar.length ? calendar[0] : draft.arrival?.calendarId;
-  return { ...draft, arrivalIntervalMinutes: meanMinutes, arrival: { ...rest, calendarId, bands: draft.arrival?.bands } };
+  return {
+    ...draft,
+    arrivalIntervalMinutes: meanMinutes,
+    arrival: { ...rest, calendarId, bands: draft.arrival?.bands, bandAttribute: draft.arrival?.bandAttribute, months: draft.arrival?.months },
+  };
 }
 
 export function newCalendarId(existing: CalendarDraft[]): string {

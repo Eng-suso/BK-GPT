@@ -58,6 +58,7 @@ def api_error_response(
     message: str,
     detail: str | None = None,
     retryable: bool = False,
+    headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     request_id = _request_id(request)
     envelope = ApiEnvelope(
@@ -79,7 +80,9 @@ def api_error_response(
     return JSONResponse(
         status_code=status_code,
         content=envelope.model_dump(mode="json"),
-        headers={REQUEST_ID_HEADER: request_id},
+        # Gli header dell'eccezione (WWW-Authenticate sui 401, Retry-After)
+        # fanno parte della risposta: l'envelope non li deve perdere.
+        headers={**(headers or {}), REQUEST_ID_HEADER: request_id},
     )
 
 
@@ -103,6 +106,7 @@ def setup_api_error_handlers(app: FastAPI) -> None:
             code=_error_code(exc.status_code),
             message=message,
             retryable=exc.status_code in {429, 503},
+            headers=dict(exc.headers or {}),
         )
 
     @app.exception_handler(RequestValidationError)
@@ -116,7 +120,22 @@ def setup_api_error_handlers(app: FastAPI) -> None:
         )
 
     from backend.eventlog.service import ConformanceUnavailable
+    from backend.simulation.ir.soundness import UnsoundProcessError
     from backend.workspace_database import UnreadableReviewError
+
+    @app.exception_handler(UnsoundProcessError)
+    async def unsound_process_handler(request: Request, exc: UnsoundProcessError):
+        """VAL-01: lo scenario non si importa perche' qualche caso non finirebbe.
+
+        Il messaggio e' per il consulente; gli id del BPMN restano nel dettaglio.
+        """
+        return api_error_response(
+            request,
+            status_code=400,
+            code="process_cannot_finish",
+            message=str(exc),
+            detail=exc.detail,
+        )
 
     @app.exception_handler(ConformanceUnavailable)
     async def conformance_unavailable_handler(request: Request, exc: ConformanceUnavailable):

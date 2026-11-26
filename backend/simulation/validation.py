@@ -3,7 +3,7 @@
 from collections import defaultdict
 from xml.etree import ElementTree
 
-from backend.simulation.bpmn_normalizer import BPMN_MODEL_NS
+BPMN_MODEL_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 
 
 _NODE_TYPES = {

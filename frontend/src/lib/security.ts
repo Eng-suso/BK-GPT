@@ -7,6 +7,12 @@ type RuntimeAuthConfig = {
 const TOKEN_KEY = "delir:session-api-token";
 const TENANT_KEY = "delir:session-tenant-id";
 let memoryCredentials: { token: string; tenant: string } | null = null;
+/**
+ * L'access token della sessione Supabase, solo in memoria. Lo aggiorna
+ * `supabaseSession.ts` a ogni login e refresh; ha la precedenza sul token
+ * condiviso, che con Supabase non apre piu' niente.
+ */
+let accessToken: string | null = null;
 
 function sessionValue(key: string): string {
   try { return window.sessionStorage.getItem(key) ?? ""; }
@@ -22,8 +28,23 @@ export function setSessionCredentials(token: string, tenant: string): void {
   } catch { /* In-memory credentials still work for this page. */ }
 }
 
+/** Il token della sessione Supabase corrente, o `null` dopo il logout. */
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+
+/** Il tenant scelto per questa sessione, senza un token condiviso (login Supabase). */
+export function setSessionTenant(tenant: string): void {
+  memoryCredentials = { token: "", tenant };
+  try {
+    window.sessionStorage.removeItem(TOKEN_KEY);
+    window.sessionStorage.setItem(TENANT_KEY, tenant);
+  } catch { /* In-memory tenant still works for this page. */ }
+}
+
 export function clearSessionCredentials(): void {
   memoryCredentials = null;
+  accessToken = null;
   try {
     window.sessionStorage.removeItem(TOKEN_KEY);
     window.sessionStorage.removeItem(TENANT_KEY);
@@ -40,7 +61,7 @@ function tenantId(): string {
 }
 
 function apiToken(): string {
-  return memoryCredentials?.token || sessionValue(TOKEN_KEY) || runtimeConfig().DELIR_API_TOKEN || import.meta.env.VITE_DELIR_API_TOKEN || "";
+  return accessToken || memoryCredentials?.token || sessionValue(TOKEN_KEY) || runtimeConfig().DELIR_API_TOKEN || import.meta.env.VITE_DELIR_API_TOKEN || "";
 }
 
 function adminToken(): string {

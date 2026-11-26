@@ -447,6 +447,8 @@ class ScenarioTemplateResponse(BaseModel):
     tasks: list[ScenarioTemplateTask] = Field(default_factory=list)
     gateways: list[ScenarioTemplateGateway] = Field(default_factory=list)
     waits: list[ScenarioTemplateWait] = Field(default_factory=list)
+    # Porte di sola unione: nessuna scelta da impostare, il consulente non le associa.
+    merges: list[str] = Field(default_factory=list)
     # Il calendario che usano gli arrivi e le risorse senza calendario proprio.
     standard_calendar: SimCalendarConfig | None = None
 
