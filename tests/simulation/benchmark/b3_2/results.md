@@ -7,7 +7,7 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 
 | Scheda | Componente | Fase | Verdetto | V / P / P | Motivi |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Ablazione dei ritardi estranei | validation | **NO-GO** | 4 / 14 / 4 | contro simod: RED vince su 4/22 log; contro simod: RED perde su Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers_after; contro simod: guardia W1 perde su 5 log; contro simod: guardia NGD perde su 5 log; contro simod: guardia CED perde su 5 log; contro simod: guardia CAR perde su 5 log |
+| 1 | Ablazione dei ritardi estranei | validation | **NO-GO** | 4 / 18 / 0 | contro simod: RED vince su 4/22 log; contro simod: guardia CED perde su 2 log |
 | 3 | Attese attribuite: W1 | validation | **INCOMPLETO** | 0 / 1 / 0 | contro simod_extr: base mancante su BPIC_2017_W; contro simod_extr: W1 vince su 0/2 log |
 | 3 | Attese attribuite: RED | validation | **INCOMPLETO** | 0 / 1 / 0 | contro simod_extr: base mancante su BPIC_2017_W; contro simod_extr: RED vince su 0/2 log |
 

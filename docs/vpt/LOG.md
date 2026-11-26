@@ -93,6 +93,22 @@ Modello:
     log e non perdono su nessuno; nessuna guardia perde su più di un log; costo entro budget e al
     massimo il doppio della base; VAL-01 superato. **NO-GO** altrimenti. Una valutazione per log e
     fase. Per informazione (non decide) si misurano anche i 20 sintetici.
+- **Esito scheda 1, validazione: NO-GO.** RED contro `simod` (stessa discovery) su 22 log
+  (AcademicCredentials NV in validazione): vince 4, pari 18, perde 0; guardia CED perde su 2 log
+  (`b3_2/results.md`). Dove la fase dei ritardi mette timer, RED migliora: BPIC 2017 W 130,4 → 66,2,
+  Loan_Application 3 timer 26,3 → 19,0 e 5 timer 28,5 → 17,3, BPIC 2012 W 73,0 → 61,3 (IC 7,3);
+  W1 migliora su BPIC 2017 W (199 → 97) e peggiora su BPIC 2012 W (55 → 116) e AcademicCredentials
+  (104 → 227). **Ma su 15 sintetici su 20 la ricerca di SIMOD sceglie "nessun timer"** (prova con
+  α = 0 di hyperopt, mai battuta), anche dove i timer veri sono 3 o 5 (Pharmacy, Procure_to_Pay,
+  Insurance_Claims): il candidato è identico alla base. In G3b "SIMOD con ritardi" vinceva o perdeva
+  su quei log per le risorse e i calendari riottimizzati, non per i ritardi. Test lanciato per
+  completezza (non sceglie).
+- **Difetto del banco di G3b, da correggere con Sohayb:** `within_intervals` usa `<`, quindi due
+  risultati identici con IC nullo (sintetici di un giorno) risultano diversi e `compare` dà
+  "perde". In G3b: 246 confronti identici; sulle primarie, 4 RED "persi" della scheda Attese in
+  validazione (Insurance_Claims, 3 e 5 timer dopo) sono pari. Nessun verdetto cambia (nessuna scheda
+  arrivava alla maggioranza). `g3b/report.py` non si tocca qui; `b3_2/report.py::compare` conta pari
+  i risultati identici. Correzione proposta: `<=` o uguaglianza esplicita in `within_intervals`.
 
 ---
 

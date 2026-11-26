@@ -146,3 +146,14 @@ def test_truth_calendars_read_the_model_json():
     calendars = attribution_eval.true_calendars("Loan_Application_5_timers_after")
     assert calendars  # le varianti _after usano il JSON di _5_timers
     assert any(not c.always for c in calendars.values())
+
+
+def test_identical_results_are_a_tie_and_g3b_is_left_alone():
+    from tests.simulation.benchmark.g3b import report as g3b_report
+
+    same = {"status": "measured", "metrics": {"relative_event": {"mean": 0.0, "ci95": 0.0}}}
+    assert report.compare(same, same, "relative_event") == "pari"
+    assert g3b_report.compare(same, same, "relative_event") == "perde"  # comportamento di G3b, invariato
+    with report._ties_for_identical():
+        assert g3b_report.compare is report.compare
+    assert g3b_report.compare is report._g3b_compare

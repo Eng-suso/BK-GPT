@@ -3,11 +3,7 @@
     "verdict": "NO-GO",
     "reasons": [
       "contro simod: RED vince su 4/22 log",
-      "contro simod: RED perde su Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers_after",
-      "contro simod: guardia W1 perde su 5 log",
-      "contro simod: guardia NGD perde su 5 log",
-      "contro simod: guardia CED perde su 5 log",
-      "contro simod: guardia CAR perde su 5 log"
+      "contro simod: guardia CED perde su 2 log"
     ],
     "bases": {
       "simod": {
@@ -17,43 +13,20 @@
           "perde": 0
         },
         "wins": 4,
-        "ties": 14,
+        "ties": 18,
         "logs": 22,
-        "losses": [
-          "Insurance_Claims",
-          "Insurance_Claims_1_timer",
-          "Insurance_Claims_3_timers",
-          "Insurance_Claims_5_timers_after"
-        ],
+        "losses": [],
         "missing": [],
         "guard_losses": {
           "W1": [
-            "BPIC_2012_W",
-            "Insurance_Claims",
-            "Insurance_Claims_1_timer",
-            "Insurance_Claims_3_timers",
-            "Insurance_Claims_5_timers_after"
+            "BPIC_2012_W"
           ],
           "NGD": [
-            "Insurance_Claims",
-            "Insurance_Claims_1_timer",
-            "Insurance_Claims_3_timers",
-            "Insurance_Claims_5_timers",
             "Loan_Application"
           ],
           "CED": [
             "BPIC_2012_W",
-            "BPIC_2017_W",
-            "Pharmacy_1_timer",
-            "Pharmacy_3_timers",
-            "Pharmacy_5_timers_after"
-          ],
-          "CAR": [
-            "Insurance_Claims_5_timers",
-            "Insurance_Claims_5_timers_after",
-            "Pharmacy_1_timer",
-            "Pharmacy_3_timers",
-            "Pharmacy_5_timers_after"
+            "BPIC_2017_W"
           ]
         },
         "costlier_than_double": []

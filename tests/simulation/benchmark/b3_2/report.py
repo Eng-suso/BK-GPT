@@ -18,7 +18,10 @@ if __package__ in (None, ""):  # lanciato come script
 
 from tests.simulation.benchmark import protocol
 from tests.simulation.benchmark.b3_2.run import CONFIGS, RESULTS
-from tests.simulation.benchmark.g3b.report import LABELS, Card, _cell, _cost_cell, verdict
+from contextlib import contextmanager
+
+from tests.simulation.benchmark.g3b import report as g3b_report
+from tests.simulation.benchmark.g3b.report import LABELS, Card, _cell, _cost_cell
 from tests.simulation.benchmark.g3b.run import PHASES
 from tests.simulation.benchmark.log_distance import METRICS
 
@@ -32,6 +35,37 @@ CARDS = (
     ("3", Card("Attese attribuite: W1", "simod_attr_extr", ("simod_extr",), "cycle_time_w1", "scenario"), REAL),
     ("3", Card("Attese attribuite: RED", "simod_attr_extr", ("simod_extr",), "relative_event", "scenario"), REAL),
 )
+
+
+def compare(candidate: dict | None, base: dict | None, metric: str) -> str:
+    """Come ``g3b/report.py::compare``, ma due risultati identici sono pari.
+
+    In G3b ``within_intervals`` usa ``<``: due medie uguali con intervalli nulli (sintetici di un
+    giorno, scenari identici) risultano "diverse" e il candidato perde. Qui il caso e' frequente
+    (la fase dei ritardi di SIMOD spesso non mette timer: scenario uguale alla base). ``g3b`` non
+    si tocca (vincolo di B3.2); la correzione e' proposta a Sohayb in LOG.md.
+    """
+    if g3b_report.measured(candidate) and g3b_report.measured(base) and candidate["metrics"][metric] == base["metrics"][metric]:
+        return "pari"
+    return _g3b_compare(candidate, base, metric)
+
+
+_g3b_compare = g3b_report.compare
+
+
+@contextmanager
+def _ties_for_identical():
+    """``g3b_report.verdict`` con il ``compare`` di qui, solo dentro questo blocco."""
+    g3b_report.compare = compare
+    try:
+        yield
+    finally:
+        g3b_report.compare = _g3b_compare
+
+
+def verdict(card: Card, phase: str, results: dict, logs: list[str]) -> dict:
+    with _ties_for_identical():
+        return g3b_report.verdict(card, phase, results, logs)
 
 
 def load_results() -> dict[tuple[str, str, str], dict]:
