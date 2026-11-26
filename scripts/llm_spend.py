@@ -68,9 +68,6 @@ def _stampa_totale(titolo: str, totale: ledger.Totale) -> None:
         f"  token: {_token(totale.input)} in ({_token(totale.cached)} da cache), "
         f"{_token(totale.output)} out ({_token(totale.reasoning)} di ragionamento)"
     )
-    quota = totale.quota_in_cache
-    if quota is not None:
-        print(f"  input servito dalla cache: {quota:.0%}")
     print(_copertura(totale))
 
 
@@ -83,9 +80,12 @@ def _stampa_voci(titolo: str, voci: list[ledger.Voce], limite: int = 15) -> None
     for voce in voci[:limite]:
         t = voce.totale
         nota = "" if t.righe_senza_prezzo == 0 else f"  [{t.righe_senza_prezzo} senza prezzo]"
+        # La quota in cache si legge per voce, non sul totale: embedding e
+        # trascrizione non vanno mai in cache e la abbasserebbero per tutti.
+        cache = "" if t.quota_in_cache is None else f"  cache {t.quota_in_cache:.0%}"
         print(
             f"  {voce.chiave.ljust(larghezza)}  {_soldi(t.costo_noto):>10}  "
-            f"{_token(t.token_totali):>12} tok  {t.righe:>5} righe{nota}"
+            f"{_token(t.token_totali):>12} tok  {t.righe:>5} righe{cache}{nota}"
         )
     if len(voci) > limite:
         print(f"  ... e altre {len(voci) - limite}")

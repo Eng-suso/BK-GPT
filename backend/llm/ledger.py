@@ -101,6 +101,9 @@ class Totale:
         di modellazione) e il contesto di scope, e il fornitore li fattura a una
         frazione del prezzo solo se il prefisso e' identico al passo prima. Una
         quota bassa su `chat_turn` vuol dire un prefisso che cambia fra i passi.
+
+        Si legge per compito: embedding e trascrizione non vanno mai in cache, e
+        su un totale che li comprende la quota direbbe un problema che non c'e'.
         """
         if self.input == 0:
             return None

@@ -5,7 +5,7 @@ Data: 2026-11-26. Branch `claude/nice-newton-3kmoj9`. Segue `PROPOSTA.md`.
 Metodo: lettura del codice, esperimenti riproducibili, misure nei test.
 Questo ambiente non ha una chiave del fornitore: **le misure contano chiamate,
 testi e token nei test, non euro reali**. Il prossimo passo è leggere il
-registro su una giornata vera (vedi §4).
+registro su una giornata vera (vedi §5).
 
 ## 1. Problemi trovati e corretti
 
@@ -69,7 +69,25 @@ sul **controllo** (limiti e blocco) e sull'**ingegneria del costo** (strumenti s
 richiesta, modello per compito, batch). Sono queste due cose, non la misura, a
 separare oggi DeliR da Claude e ChatGPT.
 
-## 4. Cosa fare adesso, in ordine
+## 4. Limiti noti di questa PR
+
+- **Identità con il token condiviso.** Con `DELIR_API_TOKEN` (senza Supabase) o con
+  l'autenticazione spenta, il consulente viene dall'header `X-DeliR-User-ID`, che
+  il client può scegliere. Per misurare va bene; per **far rispettare** un limite
+  per persona no. I limiti per persona vanno accesi solo con Supabase, dove
+  l'identità è il `sub` del token.
+- **Lavoro in background ancora senza consulente:** la proiezione in Mem0
+  (`mem0_worker`), la sintesi del piano (`plan_worker`) e l'audit di conformità
+  (`conformance_worker`). Le loro righe finiscono in «(nessuno)». Il prossimo
+  passo è portare l'utente nelle loro code, come fanno ora le fonti e
+  l'ingestione nel grafo.
+- **Mem0 e i thread.** Con mem0 2.0.17 embedding e chiamate al modello girano nel
+  thread di chi chiama (il pool interno fa solo ricerche vettoriali). Se una
+  versione futura le spostasse in un pool, le righe finirebbero sotto
+  un'operazione orfana: il contatore `llm_usage:mem0_call_without_operation` è
+  il segnale da guardare dopo un aggiornamento di Mem0.
+
+## 5. Cosa fare adesso, in ordine
 
 1. **Misura vera:** listino in `LLM_PRICES_JSON`, una giornata tipica di un
    consulente, poi `uv run python scripts/llm_spend.py --giorni 1`. Da guardare:
