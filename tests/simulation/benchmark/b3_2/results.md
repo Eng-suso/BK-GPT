@@ -7,7 +7,7 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 
 | Scheda | Componente | Fase | Verdetto | V / P / P | Motivi |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Ablazione dei ritardi estranei | validation | **NO-GO** | 0 / 1 / 4 | contro simod: RED vince su 0/5 log; contro simod: RED perde su BPIC_2012_W, Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers; contro simod: guardia W1 perde su 4 log; contro simod: guardia NGD perde su 5 log; contro simod: guardia CAR perde su 2 log; candidato non misurato (fallito, fuori budget o non applicabile) su BPIC_2012_W |
+| 1 | Ablazione dei ritardi estranei | validation | **NO-GO** | 1 / 2 / 4 | contro simod: RED vince su 1/7 log; contro simod: RED perde su Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, Insurance_Claims_5_timers_after; contro simod: guardia W1 perde su 5 log; contro simod: guardia NGD perde su 5 log; contro simod: guardia CAR perde su 2 log |
 | 3 | Attese attribuite: W1 | validation | **NOT VALIDATED** | — | W1 identificabile in 1 log |
 | 3 | Attese attribuite: RED | validation | **NOT VALIDATED** | — | RED identificabile in 1 log |
 
@@ -26,6 +26,8 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 | Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | simod | 54.9 ± 0.11 | 0.652 ± 0.0076 | 73 ± 0.15 | 130 ± 3.9 | 3.77 ± 0.058 | 96.1 ± 3.5 | 527 s, 1215 MB, 0.9 s/replica | — |
+| simod_fixed_extr | 116 ± 6.4 | 0.588 ± 0.0064 | 61.3 ± 7.3 | 68.3 ± 2.9 | 4.55 ± 0.038 | 93.9 ± 3.5 | 818 s, 1215 MB, 2.0 s/replica | W_Afhandelen leads: 648, W_Beoordelen fraude: 41875, W_Completeren aanvraag: 25621, W_Nabellen incomplete dossiers: 37975 … |
+| simod_attr_extr | 126 ± 6.3 | 0.582 ± 0.0041 | 61.9 ± 7.3 | 65.1 ± 2.9 | 4.67 ± 0.027 | 92.4 ± 3.5 | 533 s, 1215 MB, 2.0 s/replica | W_Nabellen offertes: 257375, W_Valideren aanvraag: 122892, W_Completeren aanvraag: 34884, W_Nabellen incomplete dossiers: 38640 … |
 
 ### Insurance_Claims
 
@@ -54,6 +56,20 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | simod | 53 ± 1.8 | 0.185 ± 0 | 17.5 ± 0.98 | 17.6 ± 0.99 | 0.0795 ± 0.0019 | 0 ± 0 | 147 s, 1058 MB, 0.2 s/replica | — |
 | simod_fixed_extr | 53 ± 1.8 | 0.185 ± 0 | 17.5 ± 0.98 | 17.6 ± 0.99 | 0.0795 ± 0.0019 | 0 ± 0 | 185 s, 1058 MB, 0.2 s/replica | — |
+
+### Insurance_Claims_5_timers_after
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 0.58 ± 0 | 0.213 ± 2.1e-17 | 0.113 ± 0 | 166 ± 0.0042 | 0.312 ± 0.00061 | 166 ± 0 | 113 s, 1058 MB, 0.1 s/replica | — |
+| simod_fixed_extr | 0.58 ± 0 | 0.213 ± 2.1e-17 | 0.113 ± 0 | 166 ± 0.0042 | 0.312 ± 0.00061 | 166 ± 0 | 145 s, 1058 MB, 0.1 s/replica | — |
+
+### Loan_Application
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 33.4 ± 2.5 | 0.117 ± 0.021 | 21 ± 2.2 | 15.6 ± 4.1 | 0.628 ± 0.081 | 4.83 ± 1.8 | 126 s, 1091 MB, 0.2 s/replica | — |
+| simod_fixed_extr | 33.2 ± 2.5 | 0.166 ± 0.013 | 23 ± 2.5 | 17.6 ± 2.9 | 0.67 ± 0.048 | 4.97 ± 1.7 | 180 s, 1091 MB, 0.2 s/replica | Approve application: 13635, Cancel application: 2671, Prepare home insurance quote: 929, Reject application: 220 |
 
 
 ## Metriche, fase test

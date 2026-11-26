@@ -1,0 +1,166 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "BPIC_2012_W",
+  "category": "osservabilita completa",
+  "phase": "validation",
+  "config": "simod_fixed_extr",
+  "label": "SIMOD senza ritardi + solo i ritardi estranei di SIMOD (risorse e calendari fissati)",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 2424,
+    "target": 606
+  },
+  "identifiability": {
+    "cycle_time_w1": "identificabile",
+    "ngram": "identificabile",
+    "relative_event": "identificabile",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "NOT VALIDATED",
+    "true_parameters": "NOT VALIDATED",
+    "counterfactual": "NOT VALIDATED"
+  },
+  "status": "measured",
+  "simulated_cases": [
+    606,
+    606,
+    606,
+    606,
+    606,
+    606,
+    606,
+    606,
+    606,
+    606
+  ],
+  "metrics": {
+    "cycle_time_w1": {
+      "mean": 116.26798679867986,
+      "ci95": 6.373651094544996,
+      "replicas": [
+        129.66336633663366,
+        114.63036303630363,
+        100.41914191419141,
+        110.76402640264027,
+        108.91749174917491,
+        128.04455445544554,
+        115.14191419141915,
+        123.68481848184818,
+        114.92244224422443,
+        116.49174917491749
+      ]
+    },
+    "ngram": {
+      "mean": 0.5884467010281993,
+      "ci95": 0.006408951748508685,
+      "replicas": [
+        0.5998758021113642,
+        0.5888396236617282,
+        0.5725141120277898,
+        0.592030156165859,
+        0.5962624945675793,
+        0.5960203129858016,
+        0.577259475218659,
+        0.5943732941423473,
+        0.5834214421653626,
+        0.583870297235502
+      ]
+    },
+    "relative_event": {
+      "mean": 61.260623936532646,
+      "ci95": 7.331072166432913,
+      "replicas": [
+        74.6244616173263,
+        58.53589478660462,
+        48.345944750220816,
+        47.8941283850281,
+        61.52413899947664,
+        77.26383910498517,
+        58.82657248756303,
+        59.707286417331,
+        54.46891964381504,
+        71.41505317297579
+      ]
+    },
+    "absolute_event": {
+      "mean": 68.25867207073901,
+      "ci95": 2.8763127698317335,
+      "replicas": [
+        70.68150854043648,
+        66.57710618778462,
+        63.634528902495894,
+        60.574349313700694,
+        75.0613871826985,
+        70.88679957897344,
+        69.84533544399578,
+        67.86146465885649,
+        68.91265830044343,
+        68.55158259800483
+      ]
+    },
+    "circadian_event": {
+      "mean": 4.5465768066804335,
+      "ci95": 0.03821815406405256,
+      "replicas": [
+        4.568503421152899,
+        4.588938252525872,
+        4.531621515712874,
+        4.4608902898837,
+        4.57381151822382,
+        4.523231456340623,
+        4.5218784007501975,
+        4.476746645653183,
+        4.5875938623248915,
+        4.632552704236276
+      ]
+    },
+    "case_arrival": {
+      "mean": 93.86897689768976,
+      "ci95": 3.4698470709718707,
+      "replicas": [
+        94.0924092409241,
+        86.56105610561056,
+        91.0940594059406,
+        94.0924092409241,
+        96.25412541254126,
+        95.75907590759076,
+        103.51815181518151,
+        94.77887788778878,
+        95.38283828382838,
+        87.15676567656766
+      ]
+    }
+  },
+  "cost": {
+    "discovery_seconds": 804.7,
+    "discovery_peak_mb": 1215.0,
+    "delays_seconds": 285.8,
+    "delays": {
+      "W_Afhandelen leads": 647.6,
+      "W_Beoordelen fraude": 41875.4,
+      "W_Completeren aanvraag": 25621.3,
+      "W_Nabellen incomplete dossiers": 37975.1,
+      "W_Nabellen offertes": 254779.0,
+      "W_Valideren aanvraag": 122567.1
+    },
+    "simulation_seconds": [
+      1.359,
+      1.254,
+      1.218,
+      1.252,
+      1.219,
+      2.046,
+      1.187,
+      1.348,
+      1.384,
+      1.409
+    ],
+    "simulation_peak_mb": 183.0,
+    "val01": "supera"
+  },
+  "b3_2": "tests/simulation/benchmark/b3_2/run.py"
+}
