@@ -26,6 +26,7 @@ from tests.simulation.benchmark.log_distance import Event, read_csv_log
 LOCK = protocol.load_lock()
 HOLDOUT_FILES = sorted({Path(f["path"]).name for h in LOCK["holdouts"] for f in h["files"]})
 HOLDOUT_DATASETS = sorted({h["dataset"] for h in LOCK["holdouts"]})
+LOCKS = [protocol.load_lock(path) for path in protocol.lock_paths()]  # PROTO-01 e il secondo set di PROTO-02
 
 # Il codice che sviluppa e sceglie: benchmark, simulazione, event log e script.
 SELECTION_ROOTS = ("tests/simulation", "backend/simulation", "backend/eventlog", "scripts")
@@ -33,6 +34,7 @@ SELECTION_ROOTS = ("tests/simulation", "backend/simulation", "backend/eventlog",
 ALLOWED = {
     "tests/simulation/benchmark/protocol_freeze.py",
     "tests/simulation/benchmark/protocol/holdout.lock.json",
+    "tests/simulation/benchmark/protocol/holdout2.lock.json",
     "tests/simulation/benchmark/test_protocol.py",
 }
 SCANNED_SUFFIXES = (".py", ".sh", ".yml", ".yaml", ".toml", ".json", ".md", ".txt", ".cfg", ".ini")
@@ -44,15 +46,16 @@ def _tracked_files(*roots: str) -> list[str]:
 
 
 def _holdout_patterns() -> list[re.Pattern[str]]:
-    blocked = protocol.blocked_names()
-    patterns = [re.compile(re.escape(name), re.IGNORECASE) for name in sorted(blocked.names)]
-    for holdout in LOCK["holdouts"]:
+    names = sorted(set().union(*(protocol.blocked_names(path).names for path in protocol.lock_paths())))
+    patterns = [re.compile(re.escape(name), re.IGNORECASE) for name in names]
+    for holdout in (h for lock in LOCKS for h in lock["holdouts"]):
         for stem in holdout["names"]:
             # il nome del log con un'estensione da log, o fra virgolette (un id costruito a mano)
             suffixes = "|".join(re.escape(s) for s in protocol.LOG_SUFFIXES)
             patterns.append(re.compile(rf"(?<![\w]){re.escape(stem)}(?:{suffixes})\b", re.IGNORECASE))
             patterns.append(re.compile(rf"[\"']{re.escape(stem)}(?:_(?:train|test))?[\"']"))
-    patterns += [re.compile(rf"[\"']{re.escape(dataset)}[\"']") for dataset in HOLDOUT_DATASETS]
+    closed = sorted({h["dataset"] for lock in LOCKS for h in lock["holdouts"] if h.get("closes_dataset", True)})
+    patterns += [re.compile(rf"[\"']{re.escape(dataset)}[\"']") for dataset in closed]
     return patterns
 
 
@@ -393,3 +396,211 @@ def test_every_development_log_is_listed_none_missing():
     for log in logs:
         if log.source.startswith("datasets/"):
             assert list(protocol.ROOT.glob(log.source.replace("{train,test}", "*"))), log.source
+
+
+# --------------------------------------------------------------------------- PROTO-02: confronti appaiati
+
+
+def test_paired_comparison_finds_a_consistent_small_improvement_that_intervals_miss():
+    """Repliche appaiate: a e' sempre un po' meglio di b. Gli IC si sovrappongono, il test appaiato no."""
+    base = [10.0, 14.0, 9.0, 16.0, 11.0, 13.0, 8.0, 15.0, 12.0, 10.5]
+    better = [v - 0.5 for v in base]
+    from tests.simulation.benchmark.eval_harness import summarize, within_intervals
+
+    assert within_intervals(summarize(better), summarize(base))  # per la regola degli IC: pari
+    result = protocol.paired_comparison(better, base)
+    assert result.verdict == "a meglio"
+    assert result.mean_difference == pytest.approx(-0.5)
+    assert result.ci_high < 0 and result.wilcoxon_p < protocol.PAIRED_ALPHA
+
+
+def test_paired_comparison_is_even_on_noise_and_symmetric():
+    a = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+    b = [1.2, 1.8, 3.1, 3.9, 5.2, 5.8, 7.1, 7.9, 9.0, 10.0]
+    assert protocol.paired_comparison(a, b).verdict == "pari"
+    forward, backward = protocol.paired_comparison(a, b), protocol.paired_comparison(b, a)
+    assert forward.mean_difference == pytest.approx(-backward.mean_difference)
+    assert forward.wilcoxon_p == backward.wilcoxon_p
+
+
+def test_paired_comparison_is_deterministic_and_needs_pairs():
+    a, b = [3.0, 4.0, 5.0], [3.5, 4.4, 5.1]
+    assert protocol.paired_comparison(a, b) == protocol.paired_comparison(a, b)
+    with pytest.raises(ValueError):
+        protocol.paired_comparison([1.0, 2.0], [1.0])
+
+
+def test_wilcoxon_p_matches_the_table():
+    # n = 10, un solo segno negativo sul rango 2: W+ = 53, p = 6/1024 (tavola esatta a due code).
+    assert protocol._wilcoxon_p([1, -2, 3, 4, 5, 6, 7, 8, 9, 10]) == pytest.approx(6 / 1024)
+    assert protocol._wilcoxon_p([0.0, 0.0]) == 1.0
+
+
+# --------------------------------------------------------------------------- PROTO-02: metriche di CF-01
+
+
+def _outcome(true_delta, predicted, low, high, baseline=100.0):
+    return protocol.CounterfactualOutcome(baseline, true_delta, predicted, low, high)
+
+
+def test_counterfactual_metrics_report_width_error_and_direction_not_only_coverage():
+    wide = [_outcome(-10, 5, -500, 500), _outcome(8, -3, -500, 500)]
+    narrow = [_outcome(-10, -9, -12, -7), _outcome(8, 7, 5, 10)]
+    w, n = protocol.counterfactual_metrics(wide), protocol.counterfactual_metrics(narrow)
+    assert w.coverage == n.coverage == 1.0  # la copertura da sola non li distingue
+    assert w.mean_width == 1000 and n.mean_width == 5
+    assert w.direction_accuracy == 0.0 and n.direction_accuracy == 1.0
+    assert w.mean_absolute_error == 13 and n.mean_absolute_error == 1
+    assert n.mean_relative_error == pytest.approx(0.01)
+
+
+def test_counterfactual_direction_ignores_effects_too_small_to_have_one():
+    tiny = _outcome(0.5, -0.4, -1, 1)  # 0,5% del KPI: dentro il margine δ dell'1%
+    metrics = protocol.counterfactual_metrics([tiny])
+    assert metrics.direction_cases == 0 and metrics.direction_accuracy is None
+    assert metrics.coverage == 1.0
+
+
+def test_counterfactual_metrics_reject_bad_input():
+    with pytest.raises(ValueError):
+        protocol.counterfactual_metrics([])
+    with pytest.raises(ValueError):
+        protocol.counterfactual_metrics([_outcome(1, 1, 2, 0)])
+    with pytest.raises(ValueError):
+        protocol.counterfactual_metrics([_outcome(1, 1, 0, 2, baseline=0)])
+    with pytest.raises(ValueError):
+        protocol.CounterfactualOutcome(100.0, 1, 1, 0, 2, true_low=0.5)
+
+
+# --------------------------------------------------------------------------- PROTO-02: due set di holdout
+
+
+def _second_lock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, closes_dataset: bool) -> Path:
+    """Un secondo lucchetto di prova accanto al primo, vero e invariato."""
+    lock = tmp_path / "holdout2.lock.json"
+    lock.write_text(json.dumps({
+        "protocol": "prova",
+        "holdouts": [{
+            "id": "secondo", "dataset": "pacchetto-misto", "closes_dataset": closes_dataset,
+            "names": ["SecondoSet"],
+            "files": [{"path": "logs/SecondoSet.csv.gz", "sha256": "0" * 64, "bytes": 1}],
+        }],
+    }), encoding="utf-8")
+    monkeypatch.setattr(protocol, "lock_paths", lambda: (protocol.LOCK_PATH, lock))
+    return lock
+
+
+def test_the_second_lock_closes_its_logs_and_derived_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _second_lock(tmp_path, monkeypatch, closes_dataset=False)
+    assert protocol.is_holdout("cache/altro/SecondoSet.csv.gz")
+    assert protocol.is_holdout("cache/altro/secondoset_simulato_3.csv")
+    assert not protocol.is_holdout("cache/pacchetto-misto/logs/sviluppo.csv.gz")  # il pacchetto resta di sviluppo
+    planted = _plant(tmp_path, "SecondoSet.csv")
+    with protocol.selection_phase(), pytest.raises(protocol.HoldoutAccessError):
+        planted.read_bytes()
+
+
+def test_a_second_lock_can_close_the_whole_dataset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _second_lock(tmp_path, monkeypatch, closes_dataset=True)
+    assert protocol.is_holdout("cache/pacchetto-misto/logs/sviluppo.csv.gz")
+
+
+def test_final_evaluation_opens_one_set_and_keeps_the_other_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    second = _second_lock(tmp_path, monkeypatch, closes_dataset=False)
+    first_log = _plant(tmp_path, HOLDOUT_FILES[0])
+    second_log = _plant(tmp_path, "SecondoSet.csv")
+    with protocol.final_evaluation(protocol.lock_digest()):
+        assert first_log.read_bytes()
+        with pytest.raises(protocol.HoldoutAccessError):
+            second_log.read_bytes()
+    with protocol.final_evaluation(protocol.lock_digest(second)):
+        assert second_log.read_bytes()
+        with pytest.raises(protocol.HoldoutAccessError):
+            first_log.read_bytes()
+    with protocol.selection_phase(), pytest.raises(protocol.HoldoutAccessError):
+        second_log.read_bytes()
+
+
+def test_the_second_lock_digest_is_written_in_the_protocol():
+    assert protocol.LOCK2_PATH in protocol.lock_paths(), "secondo set non congelato"
+    assert protocol.lock_digest(protocol.LOCK2_PATH) in protocol.PROTOCOL_DOC.read_text(encoding="utf-8")
+
+
+def test_the_second_set_is_independent_of_the_first_and_of_development():
+    first, second = (protocol.load_lock(path) for path in (protocol.LOCK_PATH, protocol.LOCK2_PATH))
+    assert second["independent_of"].endswith(protocol.lock_digest(protocol.LOCK_PATH))
+    hashes = lambda lock: {f["sha256"] for h in lock["holdouts"] for f in h["files"]}  # noqa: E731
+    assert not hashes(first) & hashes(second)
+    assert not {h["id"] for h in first["holdouts"]} & {h["id"] for h in second["holdouts"]}
+    for log in protocol.development_logs():
+        assert not protocol.is_holdout(log.source, [protocol.LOCK2_PATH]), log.source
+    assert {h["category"] for h in second["holdouts"]} == {protocol.COMPLETE, protocol.PARTIAL}
+
+
+def test_frozen_second_set_in_the_cache_matches_the_lock():
+    root = fetch_datasets.cache_dir()
+    datasets = sorted({h["dataset"] for h in protocol.load_lock(protocol.LOCK2_PATH)["holdouts"]})
+    if not all((root / d).is_dir() for d in datasets):
+        pytest.skip("secondo set non scaricato: scripts/fetch_datasets.py fetch " + " ".join(datasets))
+    assert protocol.verify_frozen(root, protocol.LOCK2_PATH) == []
+
+
+def test_every_radar_entry_has_a_declared_role():
+    """PROTO-02: ogni voce del radar ha un ruolo (sviluppo, holdout 2, escluso, codice) e un motivo."""
+    text = protocol.PROTOCOL_DOC.read_text(encoding="utf-8")
+    section = text[text.index("### Ruolo di ogni voce"):text.index("### Secondo set di holdout")]
+    roles: dict[str, str] = {}
+    for line in section.splitlines():
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) == 3 and cells[0].startswith("`"):
+            for ident in re.findall(r"`([^`]+)`", cells[0]):
+                roles[ident] = cells[1]
+            assert cells[2], f"{cells[0]}: manca il motivo"
+    radar = {i for i, e in fetch_datasets.load_manifest().items() if e.get("collection") == "radar"}
+    assert set(roles) == radar
+    assert all(re.match(r"(sviluppo|holdout 2|escluso|codice)", role) for role in roles.values()), roles
+    second = {h["dataset"] for h in protocol.load_lock(protocol.LOCK2_PATH)["holdouts"]}
+    assert all("holdout 2" in roles[dataset] for dataset in second)
+
+
+def test_paired_comparison_accepts_all_the_replicas_the_harness_allows():
+    a = [float(i) for i in range(31)]
+    b = [v + 1 + (i % 3) * 0.1 for i, v in enumerate(a)]
+    result = protocol.paired_comparison(a, b)
+    assert result.verdict == "a meglio" and result.wilcoxon_p < 1e-5  # approssimazione normale oltre 20
+
+
+def test_effects_are_classified_only_when_the_interval_is_on_one_side():
+    assert protocol.classify_effect(-5, -2, 1) == "DECREASE"
+    assert protocol.classify_effect(2, 5, 1) == "INCREASE"
+    assert protocol.classify_effect(-0.5, 0.8, 1) == "NEGLIGIBLE"
+    assert protocol.classify_effect(-0.5, 3, 1) == "INCONCLUSIVE"
+
+
+def test_an_uncertain_truth_is_inconclusive_and_counted():
+    sure = _outcome(-10, -9, -12, -7)
+    unsure = protocol.CounterfactualOutcome(100.0, 2.0, 1.5, -1, 4, true_low=-0.5, true_high=4.5)
+    metrics = protocol.counterfactual_metrics([sure, unsure])
+    assert metrics.truth_classes == {"INCREASE": 0, "DECREASE": 1, "NEGLIGIBLE": 0, "INCONCLUSIVE": 1}
+    assert metrics.inconclusive_share == 0.5
+    assert metrics.direction_cases == 1 and metrics.class_agreement == 1.0
+
+
+def test_signed_error_shows_a_systematic_overestimate():
+    over = [_outcome(-10, -14, -16, -12), _outcome(-20, -26, -28, -24)]
+    metrics = protocol.counterfactual_metrics(over)
+    assert metrics.mean_signed_error == -5.0  # previsto piu' negativo del vero: effetto sovrastimato
+    assert metrics.mean_absolute_error == 5.0
+
+
+def test_a_zero_baseline_needs_an_absolute_margin():
+    zero = protocol.CounterfactualOutcome(0.0, 3.0, 2.5, 1, 4, absolute_margin=1.0)
+    metrics = protocol.counterfactual_metrics([zero])
+    assert metrics.truth_classes["INCREASE"] == 1 and metrics.mean_relative_error is None
+
+
+def test_sensitivity_reports_every_margin():
+    outcome = _outcome(1.5, 1.2, 0.5, 2.5)  # 1,5% del KPI
+    table = protocol.counterfactual_sensitivity([outcome])
+    assert list(table) == list(protocol.SENSITIVITY_MARGINS)
+    assert table[0.01].direction_cases == 1 and table[0.02].direction_cases == 0

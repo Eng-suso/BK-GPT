@@ -1,9 +1,11 @@
-"""PROTO-01: congela per hash i log holdout, una volta sola, prima di qualsiasi misura.
+"""PROTO-01 e PROTO-02: congela per hash i log holdout, una volta sola, prima di qualsiasi misura.
 
     uv run python scripts/fetch_datasets.py fetch camargo-2022-reproducibility bpic2015-municipality1 bpic2011-hospital
-    uv run python tests/simulation/benchmark/protocol_freeze.py
+    uv run python tests/simulation/benchmark/protocol_freeze.py              # primo set (PROTO-01)
+    uv run python scripts/fetch_datasets.py fetch bps-quality-framework road-traffic-fines das-rp
+    uv run python tests/simulation/benchmark/protocol_freeze.py --set 2      # secondo set (PROTO-02)
 
-Scrive ``protocol/holdout.lock.json``: per ogni log holdout i file, il loro SHA-256
+Scrive ``protocol/holdout.lock.json`` (o ``holdout2.lock.json`` con ``--set 2``): per ogni log holdout i file, il loro SHA-256
 e la dimensione, la categoria, l'organizzazione e perche' e' indipendente dai log
 di sviluppo. Legge i file solo per l'impronta. Se il lucchetto esiste non lo
 riscrive: cambiare gli holdout e' una decisione di Sohayb, scritta in LOG.md, e
@@ -21,7 +23,16 @@ if __package__ in (None, ""):  # lanciato come script
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from scripts import fetch_datasets
-from tests.simulation.benchmark.protocol import COMPLETE, LOCK_PATH, PARTIAL, SYNTHETIC, lock_digest, sha256_of
+from tests.simulation.benchmark.protocol import (
+    COMPLETE,
+    LOCK2_PATH,
+    LOCK_PATH,
+    PARTIAL,
+    SYNTHETIC,
+    lock_digest,
+    register_lock,
+    sha256_of,
+)
 
 FROZEN_ON = "2026-11-25"
 _CAMARGO = "camargo-2022-reproducibility"
@@ -127,10 +138,77 @@ CONTAINERS = (
 )
 
 
-def build(cache_root: Path) -> dict:
+FROZEN_ON_2 = "2026-11-25"
+_BPSQF = "bps-quality-framework"
+
+# Il secondo set (PROTO-02), scelto dopo l'inventario del radar (RAD-01) e prima di ogni uso.
+# Criteri in PROTOCOL.md §10: indipendente dai log di sviluppo, dal primo set e dagli altri log
+# del radar dichiarati di sviluppo; licenza che permette di usarne i numeri.
+HOLDOUTS_2 = (
+    {
+        "id": "callcenter",
+        "title": "CallCenter (contatti di un call center, una settimana del 2008)",
+        "category": COMPLETE,
+        "dataset": _BPSQF,
+        "closes_dataset": False,
+        "organization": "call center (origine non documentata nel pacchetto BPS Quality Framework)",
+        "sector": "assistenza clienti",
+        "independent_because": (
+            "nessun log di sviluppo o holdout e' un call center; nessuna copia nelle altre voci del radar "
+            "(RAD-01, per impronta, nome e contenuto). Il resto del pacchetto resta di sviluppo"
+        ),
+        "split": "train / test pubblicati dal pacchetto (una settimana ciascuno)",
+        "names": ["CallCenter"],
+        "files": [
+            "CallCenter_train.csv.gz",
+            "CallCenter_test.csv.gz",
+            # modelli e misure ricavati dal log: chiusi con lui (i simulati CallCenter_* li chiude il nome)
+            "real-life/CallCenter_SIMOD.bpmn",
+            "real-life/CallCenter_SIMOD_parameters.json",
+            "real-life/CallCenter_SIMOD.csv",
+            "real-life/CallCenter_ServiceMiner.csv",
+        ],
+    },
+    {
+        "id": "road_traffic_fines",
+        "title": "Road Traffic Fine Management (multe stradali, 2000-2013)",
+        "category": PARTIAL,
+        "dataset": "road-traffic-fines",
+        "organization": "polizia locale italiana",
+        "sector": "pubblica amministrazione",
+        "independent_because": (
+            "nessun log di sviluppo o holdout viene da questa organizzazione o da una polizia; l'altro log "
+            "della PA nel radar (BPIC 2018) e' un'agenzia tedesca e resta di sviluppo"
+        ),
+        "split": "meta' dei casi per inizio",
+        "names": ["Road_Traffic_Fine_Management_Process", "Trafic"],
+        "files": ["Road_Traffic_Fine_Management_Process.xes.gz"],
+    },
+    {
+        "id": "road_traffic_fines_das",
+        "title": "Road Traffic Fines, estratto CSV del pacchetto DAS-RP",
+        "category": PARTIAL,
+        "dataset": "das-rp",
+        "closes_dataset": False,
+        "organization": "polizia locale italiana (stessi casi del log 4TU, RAD-01)",
+        "sector": "pubblica amministrazione",
+        "independent_because": "e' una copia dell'holdout road_traffic_fines: chiusa con lui",
+        "split": "come road_traffic_fines",
+        "names": ["Trafic"],
+        "files": ["assets/Trafic/Trafic.zip"],
+    },
+)
+CONTAINERS_2 = tuple(
+    {"dataset": _BPSQF, "file": name, "why": "contiene i file di CallCenter (log, simulati, modelli o misure)"}
+    for name in ("original-event-logs.zip", "simulated-logs.zip", "BPS-models.zip", "measures.zip")
+)
+
+
+def build(cache_root: Path, specs: tuple[dict, ...] = HOLDOUTS, containers: tuple[dict, ...] = CONTAINERS,
+          frozen_on: str = FROZEN_ON, protocol_name: str = "PROTO-01, docs/vpt/PROTOCOL.md") -> dict:
     manifest = fetch_datasets.load_manifest()
     holdouts = []
-    for spec in HOLDOUTS:
+    for spec in specs:
         dataset = str(spec["dataset"])
         entry = manifest[dataset]
         files = []
@@ -148,28 +226,38 @@ def build(cache_root: Path) -> dict:
             }
         )
     return {
-        "protocol": "PROTO-01, docs/vpt/PROTOCOL.md",
-        "frozen_on": FROZEN_ON,
+        "protocol": protocol_name,
+        "frozen_on": frozen_on,
         "rule": (
             "Questi log non si leggono per sviluppare, scegliere modelli, iperparametri o componenti. "
             "Si aprono una volta, in protocol.final_evaluation(), a selezione congelata."
         ),
         "holdouts": holdouts,
-        "containers": list(CONTAINERS),
+        "containers": list(containers),
     }
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--refreeze", action="store_true", help="riscrive un lucchetto esistente (decisione di Sohayb)")
+    parser.add_argument("--set", type=int, choices=(1, 2), default=1, help="1 = PROTO-01, 2 = secondo set di PROTO-02")
     args = parser.parse_args(argv)
-    if LOCK_PATH.exists() and not args.refreeze:
-        print(f"{LOCK_PATH} esiste gia': gli holdout sono congelati", file=sys.stderr)
+    path = LOCK_PATH if args.set == 1 else LOCK2_PATH
+    if path.exists() and not args.refreeze:
+        print(f"{path} esiste gia': gli holdout sono congelati", file=sys.stderr)
         return 1
-    lock = build(fetch_datasets.cache_dir())
-    LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
-    LOCK_PATH.write_text(json.dumps(lock, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"scritto {LOCK_PATH}, SHA-256 {lock_digest()}")
+    if args.set == 1:
+        lock = build(fetch_datasets.cache_dir())
+    else:
+        if not LOCK_PATH.exists():
+            print(f"manca {LOCK_PATH}: il secondo set si congela dopo il primo", file=sys.stderr)
+            return 1
+        lock = build(fetch_datasets.cache_dir(), HOLDOUTS_2, CONTAINERS_2, FROZEN_ON_2, "PROTO-02, docs/vpt/PROTOCOL.md §10")
+        lock["independent_of"] = f"primo set, lucchetto {lock_digest(LOCK_PATH)}"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(lock, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    register_lock(path)  # chiuso subito anche in questo processo
+    print(f"scritto {path}, SHA-256 {lock_digest(path)}")
     return 0
 
 

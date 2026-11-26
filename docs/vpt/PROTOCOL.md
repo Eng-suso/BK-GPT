@@ -1,4 +1,4 @@
-# Protocollo sperimentale del VPT (PROTO-01)
+# Protocollo sperimentale del VPT (PROTO-01, esteso da PROTO-02)
 
 Il protocollo che G3b, B3.1-B3.4, SEL-01, PERF-01 e CF-01 seguono per dire se un
 componente di discovery o di simulazione è migliore di un altro. È scritto e
@@ -15,6 +15,48 @@ scritta in [`LOG.md`](./LOG.md) con data e motivo.
   impronta SHA-256 **`1cfaa147a37187c1a319968f200c99d1cc5918ac0795c8a95e8ee70286c35cdb`**.
   Il test `test_the_lock_digest_is_written_in_the_protocol` lega questo numero al file:
   cambiare un holdout senza cambiare questa riga fa fallire la CI.
+- Secondo set di holdout (PROTO-02, §10):
+  [`protocol/holdout2.lock.json`](../../tests/simulation/benchmark/protocol/holdout2.lock.json),
+  impronta SHA-256 **`24974f9b11e3e66b4297105ff4684036f306a9f83351a7ad7ddae19801a7e576`**
+  (`test_the_second_lock_digest_is_written_in_the_protocol`). Il primo lucchetto e il benchmark
+  congelato non cambiano.
+
+## 0. Cosa si potrà affermare (PROTO-02)
+
+La validità di un simulatore si giudica rispetto al suo scopo (Sargent 2013). Superare una
+verifica non implica superare le altre, per questo il protocollo le tiene distinte e ogni
+risultato dichiara quale ha dimostrato:
+
+| Capacità | Domanda | Dove si misura | Cosa non dimostra |
+| --- | --- | --- | --- |
+| correttezza formale | il modello è matematicamente corretto? | VAL-01 (soundness), ANA-01 (formule delle code) | che somigli al processo |
+| validità descrittiva | riproduce il passato? | fit e validazione dei log di sviluppo (§5) | che preveda il futuro |
+| validità predittiva | prevede il futuro dello stesso processo? | test temporale dei log di sviluppo (§5) | che funzioni su processi mai visti |
+| generalizzazione fra processi | funziona su organizzazioni e processi mai usati nello sviluppo? | i due set di holdout (§3, §10), una volta ciascuno | che preveda l'effetto di una modifica |
+| validità controfattuale | prevede l'effetto di una modifica operativa? | CF-01 su verità nota (GT-01, SimBank), §11 | validità causale nel mondo reale: servono interventi reali o quasi-esperimenti identificati (pilot PV) |
+
+Sopra c'è l'ottimizzazione delle decisioni (quale intervento rende di più), che si costruisce su
+queste e non si dichiara prima di averle.
+
+**Due livelli di separazione dei dati.** DeliR non è un modello addestrato una volta: impara un
+modello nuovo dai dati di ogni azienda. Per questo i dati si separano su due livelli.
+
+1. **Fra processi** (selezione della tecnologia): i log di sviluppo servono a sviluppare e
+   scegliere algoritmi, configurazioni e soglie; ogni set di holdout è un esame finale, aperto
+   una volta alla fine del punto che lo usa (primo set: G3b; secondo set: RAD-02). Un holdout non
+   si usa come validazione ripetuta: la selezione si fa solo sulla validazione dei log di sviluppo.
+2. **Dentro ogni log** (il modello scoperto per quel processo): fit, validazione e test ordinati
+   nel tempo, passato prima del futuro, come nel §5 (test pubblicato o seconda metà dei casi per
+   inizio; validazione = ultimo 20% del train). Le quote dipendono dal log (numerosità, durata,
+   stagionalità, casi aperti) e si dichiarano per log; il benchmark congelato non cambia.
+
+**Un holdout si usa una volta** (Dwork et al. 2015). Prima di aprire un set si congelano e si
+scrivono in `LOG.md`: dati (impronte dei lucchetti), divisioni, commit del codice,
+configurazioni e iperparametri, regole di valutazione (questo documento al suo commit). Se dopo
+l'apertura si cambia un algoritmo sulla base di quei risultati, quel set diventa un **benchmark di
+regressione** e non è più un esame indipendente: lo si dichiara, e per un nuovo esame serve un
+nuovo set congelato. Due log della stessa famiglia (stessa fonte o un suo estratto) contano come
+un solo esame, non come due prove indipendenti (dipendenze nei dati: Roberts et al. 2017).
 
 ## 1. Cosa si misura
 
@@ -30,7 +72,21 @@ Per ogni configurazione e ogni log:
 
 Il confronto fra due configurazioni usa la regola comune di B2
 (`eval_harness.within_intervals`): una vince se i due intervalli al 95% non si
-sovrappongono; altrimenti sono pari.
+sovrappongono; altrimenti sono pari. Le mete già scritte restano decise da questa regola.
+
+**Confronto appaiato, accanto (PROTO-02).** Gli intervalli che non si sovrappongono sono un
+criterio conservativo, non un test sulla differenza. Dove le repliche sono appaiate (stesso log,
+stesso seed `20261124 + replica`) si riporta accanto anche `protocol.paired_comparison`:
+differenza media delle distanze, intervallo bootstrap al 95% della differenza (10.000
+ricampionamenti, seed `20261125`) e p del test dei ranghi con segno di Wilcoxon, esatto a due
+code. Verdetto: «a meglio» o «b meglio» se l'intervallo della differenza sta tutto da una parte
+dello zero, altrimenti «pari». Esempio nei test: un miglioramento costante di 0,5 su repliche
+con varianza alta è «pari» per gli intervalli e «a meglio» per il confronto appaiato. Il
+confronto appaiato non cambia nessuna meta già scritta; una meta nuova che lo usa lo dichiara.
+Le repliche delle due configurazioni usano gli stessi seed: è la forma più semplice di numeri
+casuali comuni (CRN, Glasserman e Yao 1992). Sincronizzare i flussi casuali per entità (arrivi,
+durate, risorse) può ridurre ancora la varianza dei confronti; si adotta solo dopo aver misurato
+che la riduce davvero (estensione di ricerca, non richiesta da questo punto).
 
 ## 2. Log e categorie
 
@@ -278,3 +334,169 @@ uv run pytest --noconftest -q tests/simulation/benchmark/test_protocol.py
   volta per configurazione scelta, gli holdout una volta alla fine.
 - Le schede del §7 si scrivono in `LOG.md` prima di lanciare le misure.
 - Le metriche NOT VALIDATED del §4 si riportano nelle tabelle, marcate, e non contano.
+
+## 10. La seconda collezione: il Research Radar (PROTO-02)
+
+Il radar (`collection: radar` nel manifest, [`RESEARCH_RADAR.md`](./RESEARCH_RADAR.md)) è una
+collezione separata. Qui ogni sua voce riceve un ruolo, una volta, dopo l'inventario di RAD-01 e
+prima di qualsiasi uso: **sviluppo** (si usa per sviluppare e scegliere), **holdout 2** (secondo
+set, chiuso come il primo), **escluso** (non si usa, con il motivo) o **codice** (repository senza
+log propri da valutare: si esegue come baseline o strumento). I log di sviluppo del §2 e i 6
+holdout del §2 non cambiano.
+
+**Inventario** (RAD-01): `tests/simulation/benchmark/radar_inventory.py`, report in
+[`radar/inventory.md`](../../tests/simulation/benchmark/radar/inventory.md). Per ogni file del radar,
+anche dentro gli archivi: SHA-256 confrontato con ogni file di `datasets/`, con i log di sviluppo
+in cache e con i due lucchetti; nome confrontato con i log di sviluppo e con gli holdout; contenuto
+(attività e id dei casi) confrontato con i log di sviluppo e con le altre voci. Gira dentro
+`selection_phase()`: un file con il nome di un holdout si marca e se ne calcola solo l'impronta
+(`protocol.fingerprint`), mai gli eventi.
+
+### Sovrapposizioni trovate (RAD-01)
+
+| Attesa | Verifica |
+| --- | --- |
+| BPIC 2012/2017 dentro ProCause | **No come file**: il repository ha solo `data/bpic2012/.gitkeep` e `data/bpic2017/.gitkeep`; il notebook di pulizia li legge da fuori. Gli esperimenti di ProCause su quei log sono esperimenti sui log di sviluppo. |
+| BPIC 2012 W e 2013 nella copia di Helpdesk | **Sì**: `bpi_12_w.csv` e `bpi_12_w_no_repeat.csv` hanno tutti i casi di BPIC 2012 W di sviluppo (attività ricodificate come numeri); `bpi_13_incidents.csv` ha gli stessi casi di BPIC 2013 incidents. In più `env_permit*.csv`: il permesso ambientale (WABO) del progetto CoSeLoG, lo stesso progetto dei comuni di BPIC 2015. |
+| Log di Camargo in AgentSimulator e nel BPS Quality Framework | **AgentSimulator**: solo `LoanApp` (processo Loan_Application di sviluppo) e i suoi simulati. **BPS Quality Framework**: AcademicCredentials train/test identici per hash a quelli di sviluppo; BPIC 2012 e 2017 (W) con gli stessi casi dello sviluppo; LoanApp e Procure2Pay sono i processi sintetici di sviluppo; i simulati di SIMOD e ServiceMiner di questi; in più **CallCenter**, che non è in nessun altro posto. Nessun holdout del primo set. |
+| Log di Camargo altrove | **Kronos** (`tests/assets`): 8 file con i nomi di Production e PurchasingExample (6 su disco, 2 dentro due zip): marcati, non aperti, esclusi. Nessuno coincide per impronta con il primo lucchetto (sono estratti diversi). |
+| Sepsis e Hospital Billing non dall'ospedale di BPIC 2011 | **Verificato sui metadati 4TU** (nessun holdout aperto): BPIC 2011 è il log di un *ospedale accademico* olandese (van Dongen, 2011); Sepsis viene dall'ERP di *un ospedale* e Hospital Billing dai moduli finanziari dell'ERP di *un ospedale regionale*, tutti e due di Mannhardt. Organizzazione diversa da BPIC 2011. Sepsis e Hospital Billing sono trattati come la stessa organizzazione (stesso autore, stesso ERP): stanno insieme dalla stessa parte (sviluppo). Limite: i metadati non nominano gli ospedali. |
+| Altre copie | DAS-RP contiene estratti CSV di BPIC 2019, Sepsis e Road Traffic Fines (stessi casi) e un sintetico (`data_attribute_log`) sul processo Loan_Application di sviluppo; `bpic-ocel2` contiene BPIC 2017 e 2019 in OCEL (stessi eventi di `bpic2017-full` e `bpic2019`). |
+
+### Ruolo di ogni voce
+
+| Voce | Ruolo | Motivo |
+| --- | --- | --- |
+| `bps-quality-framework` | sviluppo, tranne CallCenter (holdout 2) | copie e simulati dei log di sviluppo (stessi processi, stessi casi): riferimento esterno per le distanze, non log indipendenti; CallCenter è l'unico processo nuovo |
+| `simbank` | sviluppo | generatore con interventi e confondenti per CF-01 e B7 |
+| `procause` | codice | nessun log nel repository; i suoi esperimenti usano BPIC 2012/2017 (sviluppo) e SimBank |
+| `bpic2019` | sviluppo | procurement per RAD-02, scalabilità per PERF-01 (1,6 M eventi) |
+| `bpic2018` | sviluppo | pubblica amministrazione per RAD-02, cambi annuali per B8, PERF-01 |
+| `bpic2017-full` | sviluppo | stessi casi di BPIC 2017 W di sviluppo, stessa banca di BPIC 2012: non indipendente |
+| `sepsis-cases` | sviluppo | sanità per RAD-02; ospedale diverso da BPIC 2011 (sopra) |
+| `hospital-billing` | sviluppo | sanità per RAD-02; stessa organizzazione di Sepsis: non può fare da holdout contro di lui |
+| `road-traffic-fines` | holdout 2 | pubblica amministrazione indipendente da ogni log di sviluppo (polizia locale italiana); la copia di DAS-RP è chiusa con lui |
+| `helpdesk` | sviluppo per `helpdesk.csv` (solo ricerca); escluso il resto | `helpdesk.csv`: assistenza per RAD-02, ma senza licenza: i suoi numeri non sostengono affermazioni commerciali (H1) e non può essere holdout; `bpi_12_w*` e `bpi_13_incidents` sono copie dei log di sviluppo; `env_permit*` esclusi: stesso progetto (CoSeLoG) dei comuni di BPIC 2015, forse lo stesso comune dell'holdout Municipality 1, e non si può verificare senza aprirlo |
+| `ocel-container-logistics`, `ocel-order-management`, `ocel-procure-to-pay`, `ocel-state-aware`, `ocel-standard-collection`, `ocel-lrms-simulated` | sviluppo | object-centric per VPT-07 e OC-01; fuori dal benchmark piatto di G3b |
+| `ocel-steel-logistics` | sviluppo | unico OCEL reale (acciaieria) per VPT-07 e OC-01 |
+| `bpic-ocel2` | sviluppo | BPIC 2014 (Rabobank) e 2016 (UWV) per OC-01; BPIC 2017 e 2019 sono gli stessi log di `bpic2017-full` e `bpic2019`. I BPIC 2015 non sono nel manifest |
+| `existential-drifts`, `cdrift-set`, `cdlg-drift-val` | sviluppo | sintetici con drift noti per DRIFT-01 e B8 |
+| `at-kde` | sviluppo | il codice degli arrivi per B3.1; `LoanAppInflation` è il processo Loan_Application di sviluppo |
+| `kronos-waiting-time` | codice; esclusi i file con i nomi del primo set | log di prova del codice; quelli con il nome di un holdout non si aprono |
+| `agentsimulator` | sviluppo | baseline per G3b e B3.4; `LoanApp` è un processo di sviluppo |
+| `prosit` | codice | nessun log nel repository |
+| `das-rp` | sviluppo, tranne l'estratto di Road Traffic Fines (holdout 2) | baseline per B3.3; estratti di BPIC 2019 e Sepsis (sviluppo) e un sintetico sul processo Loan_Application |
+| `powl`, `cdrift-evaluation`, `simoc`, `declare-log-generator`, `simpy`, `salabim`, `queuesim` | codice | strumenti; i log di prova di `cdrift-evaluation` (Ceravolo, Ostovar) sono sintetici con drift per DRIFT-01 |
+
+### Secondo set di holdout
+
+Scelto dopo l'inventario e prima di ogni uso dei log del radar, con i criteri del §3 (pubblico
+con hash fisso e licenza che permette di usarne i numeri; organizzazione e processo diversi da
+ogni log di sviluppo, del primo set e del radar dichiarato di sviluppo; mai usato da DeliR per
+sviluppare; dimensioni nel budget del §6). Congelato il 2026-11-25 da
+`protocol_freeze.py --set 2`, prima di qualsiasi misura su questi log.
+
+| Holdout | Categoria | Organizzazione | Fonte | Divisione | Cosa conosciamo (RAD-01, prima del congelamento) |
+| --- | --- | --- | --- | --- | --- |
+| CallCenter | osservabilità completa | call center (origine non documentata: indipendenza organizzativa **non dichiarata**, sotto) | BPS Quality Framework, Zenodo 12126071, Apache-2.0 | train e test pubblicati (una settimana ciascuno) | 260.889 / 260.890 casi, ~450.000 eventi a parte, 19 attività, ~2.700 risorse, gennaio 2008 |
+| Road Traffic Fines | osservabilità parziale | polizia locale italiana | 4TU, General Terms | metà dei casi per inizio | 150.370 casi, 561.470 eventi, 11 attività, 2000-2013, nessun inizio |
+
+- **Chiusi con loro:** i simulati, i modelli e le misure di CallCenter nel pacchetto (per nome,
+  `CallCenter_*`) e i quattro archivi del pacchetto che li contengono; l'estratto CSV di Road
+  Traffic Fines in DAS-RP (`Trafic`). Il resto dei due pacchetti resta di sviluppo
+  (`closes_dataset: false` nel lucchetto): la guardia chiude i file, non la cartella.
+- **Una famiglia, un esame:** Road Traffic Fines e il suo estratto in DAS-RP sono la stessa fonte
+  (stessi casi): contano come un solo holdout, non come due prove indipendenti. L'estratto serve
+  solo a misurare la robustezza alla preparazione dei dati.
+- **CallCenter, provenienza da verificare:** con ogni probabilità è il log CALL degli articoli
+  di SIMOD (Chapela-Campa et al. 2023 e 2024; Camargo et al. 2025): stesso gruppo e stesso
+  pacchetto, casi brevi (circa 1,7 eventi per caso all'inventario, «due attività in media» negli
+  articoli), pochi ritardi estranei. Nessuna fonte pubblica dice da quale organizzazione venga.
+  Resta congelato e chiuso, ma è indipendente come processo e settore, **non** dichiarato
+  indipendente come organizzazione finché non c'è una prova. Gli autori di SIMOD lo hanno già
+  usato: un risultato di SIMOD su CallCenter può beneficiare di scelte fatte guardandolo, e lo si
+  riporta con questa nota. Non è necessariamente un esame difficile (casi brevi, poche attese):
+  completa i log dominati dalle attese di G3, non li sostituisce.
+- **Sintetico con verità nota:** nessun sintetico pubblicato del radar è indipendente dai
+  processi di sviluppo (quello di DAS-RP è Loan_Application; i drift sono di DRIFT-01). La
+  categoria nel secondo set la coprono le aziende di GT-01 con il To-Be nascosto. GT-01 separa
+  gli scenari sintetici di sviluppo da quelli riservati alla validazione finale, congelati per
+  hash prima dell'uso come gli altri holdout, e il generatore di riferimento non dipende solo
+  dal motore che si valuta (SimPy, SimBank, Declare, non solo Prosimos).
+- **Cosa è stato letto per sceglierli:** nomi, dimensioni, licenze, metadati 4TU e i conteggi
+  dell'inventario qui sopra (casi, eventi, attività, periodo, risorse), calcolati da RAD-01 su
+  tutto il radar prima del congelamento. Nessun modello, configurazione o soglia è stato scelto
+  su questi log; dopo il congelamento l'inventario non li apre più.
+- **Limiti dichiarati:** l'origine di CallCenter (sopra). Le aziende del radar dichiarate
+  di sviluppo restano un rischio se un holdout futuro venisse da una di loro: si controlla qui
+  prima di aggiungerlo.
+- **Guardia e apertura:** la stessa del §3. `final_evaluation(<impronta>)` apre solo il set
+  di quell'impronta: aprire il primo set non apre il secondo, e viceversa. Il secondo set si apre
+  una volta, alla fine del punto che lo usa (RAD-02), a selezione chiusa e congelata (§0).
+- **Decisione:** set confermato da Sohayb il 2026-11-25 con le precisazioni di questa sezione
+  e del §0.
+
+## 11. Metriche di CF-01 (PROTO-02)
+
+Una copertura del 90% si ottiene anche con intervalli enormi, e indovinare la direzione non
+basta: due modelli che riproducono lo stesso passato possono prevedere per «+30% di risorse» un
+−28% e un −3%, con la direzione giusta tutti e due e decisioni economiche molto diverse. Per ogni
+insieme di interventi con verità nota (`protocol.counterfactual_metrics`) si riportano insieme:
+
+| Metrica | Cosa misura | Soglia |
+| --- | --- | --- |
+| copertura | quota di Δ KPI veri dentro l'intervallo al 95% (la meta di CF-01: almeno 90%) | nessuna |
+| ampiezza | media dell'intervallo, in unità del KPI e relativa al KPI di partenza | nessuna |
+| errore sulla grandezza | media di \|Δ previsto − Δ vero\|, assoluta e relativa | nessuna |
+| bias | media di Δ previsto − Δ vero: sovrastima o sottostima sistematica | nessuna |
+| classi della verità | INCREASE, DECREASE, NEGLIGIBLE, INCONCLUSIVE, con numero e quota degli inconclusivi | margine δ |
+| direzione | quota con il segno del Δ previsto giusto, sulle verità INCREASE o DECREASE | margine δ |
+| accordo di classe | classe dell'intervallo previsto uguale a quella vera, sulle verità decise | margine δ |
+
+**Tre domande distinte.** Direzione (il segno è giusto?), confidenza statistica (l'intervallo
+basta a decidere il segno?) e rilevanza pratica (l'effetto è abbastanza grande da contare per la
+decisione?) non si comprimono in una soglia. Le metriche continue si riportano sempre senza
+soglia, così nessun margine nasconde gli errori piccoli del motore.
+
+**Classi dell'effetto** (`protocol.classify_effect`), dall'intervallo della verità (stimata da
+repliche del generatore; esatta se il generatore la dà) e da un margine δ in unità del KPI:
+DECREASE se l'intervallo è tutto sotto −δ; INCREASE se tutto sopra +δ; NEGLIGIBLE se tutto
+dentro ±δ; altrimenti INCONCLUSIVE. È una regola ingegneristica conservativa ispirata ai test
+di equivalenza (Lakens 2017), non il TOST.
+
+**Il margine δ.** Il margine corretto è il più piccolo effetto rilevante per quella decisione
+(SESOI), e dipende dal KPI: l'1% di un costo di 100 milioni non è l'1% di un tempo di 5 minuti.
+
+| Livello | Margine |
+| --- | --- |
+| benchmark comparativo (configurazione primaria) | 1% del KPI di partenza (`EQUIVALENCE_MARGIN`), standardizzato e **provvisorio** |
+| analisi di sensibilità, sempre riportata | 0,5%, 1%, 2%, 5% (`counterfactual_sensitivity`) |
+| KPI con un SESOI giustificato | margine assoluto per intervento (`absolute_margin`) |
+| KPI di partenza nullo o quasi | margine assoluto, obbligatorio |
+| validazione industriale | specifico per KPI e processo, deciso con il cliente |
+
+Confermato da Sohayb il 2026-11-25 come margine standardizzato provvisorio, non come soglia
+universale di rilevanza pratica.
+
+**Estensioni di ricerca, non richieste per chiudere PROTO-02:** tasso di interventi consigliati
+a torto e *decision regret* (valore perso scegliendo l'intervento indicato dal simulatore invece
+di quello davvero migliore), quando c'è una funzione obiettivo verificabile; numeri casuali comuni
+sincronizzati per entità (§1); ProCause (De Moor et al. 2025) come metodo per generare esiti
+controfattuali di riferimento, nel radar di GT-01 e CF-01.
+
+**Validità causale.** La validità sotto le ipotesi del generatore non è validità reale: per
+dichiarare una validità causale industriale servono interventi reali o quasi-esperimenti con
+l'identificazione dichiarata (pilot PV, `RESEARCH_RADAR.md`).
+
+## 12. Riferimenti metodologici
+
+| Riferimento | Dove serve |
+| --- | --- |
+| R. G. Sargent, *Verification and validation of simulation models*, Journal of Simulation, 2013 | validità rispetto allo scopo (§0) |
+| C. Dwork et al., *The reusable holdout: preserving validity in adaptive data analysis*, Science, 2015 | un holdout si usa una volta (§0, §3) |
+| D. R. Roberts et al., *Cross-validation strategies for data with temporal, spatial, hierarchical, or phylogenetic structure*, Ecography, 2017 | famiglie di log, divisioni temporali (§0, §10) |
+| D. Lakens, *Equivalence tests*, Social Psychological and Personality Science, 2017 | margine δ, classi dell'effetto (§11) |
+| D. Chapela-Campa et al., *A framework for measuring the quality of business process simulation models*, 2024 (e *Can I trust my simulation model?*, BPM 2023) | metriche di B2, CallCenter (§1, §10) |
+| P. Glasserman, D. D. Yao, *Some guidelines and guarantees for common random numbers*, Management Science, 1992 | confronti appaiati (§1) |
+| *Doubly robust impact evaluation of interventions* (process mining), 2023: indicato da Sohayb, autori e sede da verificare prima di citarlo | validazione causale da event log (§11, estensione) |
+| J. De Moor et al., *ProCause: generating counterfactual outcomes to evaluate prescriptive process monitoring methods*, 2025, [arXiv:2509.00797](https://arxiv.org/abs/2509.00797) | verità controfattuale (§11, radar di GT-01) |

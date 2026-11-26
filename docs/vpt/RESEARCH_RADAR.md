@@ -55,7 +55,7 @@ processo non sono processi indipendenti.
 | --- | --- | --- | --- |
 | `bps-quality-framework` | log originali, modelli BPS, log simulati e misure del framework di qualità (Zenodo 12126071) | Apache-2.0 | fedeltà multidimensionale, confronto delle metriche di B2 |
 | `simbank` | simulatore di un processo di credito con interventi e confondenti | CC BY 4.0 | CF-01, B7 |
-| `procause` | codice e dati degli esperimenti controfattuali (SimBank, BPIC 2012, 2017) | MIT | CF-01 |
+| `procause` | codice degli esperimenti controfattuali (SimBank, BPIC 2012, 2017; i log BPIC non sono nel repository, RAD-01); articolo: [arXiv:2509.00797](https://arxiv.org/abs/2509.00797) | MIT | CF-01, GT-01: metodo per generare esiti controfattuali di riferimento, da approfondire |
 | `bpic2019` | procure-to-pay, ~60 società, 251.734 righe d'ordine, 1,6 M eventi (729 MB XES) | CC BY 4.0 | PERF-01, RAD-02, demo di prodotto |
 | `bpic2018` | contributi agricoli UE, tre anni | CC0 | B8, VPT-10, PERF-01 |
 | `bpic2017-full` | prestiti, log completo (stessa banca di BPIC 2012) | 4TU | CF-01 con ProCause; non indipendente |
@@ -131,7 +131,12 @@ dal suo stesso motore, il benchmark misura la coerenza, non la verità.
 2. **CF-01 non solo copertura.** Una copertura del 90% si ottiene anche con intervalli enormi e
    inutili. Si misurano anche l'ampiezza dell'intervallo, l'errore puntuale sul Δ KPI e la
    direzione dell'effetto.
-3. **Il sintetico non basta per la causalità reale.** CF-01 su GT-01 dimostra la validità sotto
+3. **Fatto in PROTO-02** (`PROTOCOL.md` §0, §11, §12): le capacità che il protocollo distingue
+   (correttezza formale, validità descrittiva, predittiva, generalizzazione fra processi,
+   validità controfattuale), i due livelli di separazione dei dati, l'holdout usato una volta,
+   le classi dell'effetto con il margine δ provvisorio dell'1% e la sensibilità, bias e
+   inconclusivi; i riferimenti metodologici.
+4. **Il sintetico non basta per la causalità reale.** CF-01 su GT-01 dimostra la validità sotto
    le ipotesi del generatore; nel mondo reale servono pilot con interventi osservati, misure
    prima e dopo e controllo dei confondenti (PV).
 
