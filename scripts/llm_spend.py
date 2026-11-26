@@ -68,6 +68,9 @@ def _stampa_totale(titolo: str, totale: ledger.Totale) -> None:
         f"  token: {_token(totale.input)} in ({_token(totale.cached)} da cache), "
         f"{_token(totale.output)} out ({_token(totale.reasoning)} di ragionamento)"
     )
+    quota = totale.quota_in_cache
+    if quota is not None:
+        print(f"  input servito dalla cache: {quota:.0%}")
     print(_copertura(totale))
 
 
@@ -94,6 +97,7 @@ def _comando_riepilogo(args) -> None:
     _stampa_voci("Per compito", ledger.per("task", giorni=args.giorni))
     _stampa_voci("Per modello", ledger.per("model", giorni=args.giorni))
     _stampa_voci("Per tipo di lavoro", ledger.per("operation_kind", giorni=args.giorni))
+    _stampa_voci("Per consulente", ledger.per("user_id", giorni=args.giorni))
 
 
 def _comando_ieri(_args) -> None:
