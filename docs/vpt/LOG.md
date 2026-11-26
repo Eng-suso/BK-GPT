@@ -18,6 +18,60 @@ Modello:
 
 ---
 
+## 2026-11-26 — B3.1 arrivi non stazionari — in corso
+
+- Branch: `claude/sleepy-dijkstra-3m7c5n` (il branch assegnato alla sessione cloud, al posto di
+  `feat/sim-discovery-arrivals`). Dipendenze chiuse: G3b (#195). In parallelo B3.2 di un altro
+  agente sullo stesso banco: qui solo un driver nuovo in `tests/simulation/benchmark/b3_1/`,
+  che riusa `g3b/run.py` senza cambiarne il comportamento.
+- Meta (PLAN.md, non si abbassa): il componente degli arrivi batte gli arrivi di SIMOD su CAR e
+  AED, prima sulla validazione e poi sul test dei 25 log di sviluppo, con IC 95% separati.
+
+### Scheda B3.1-C1 (scritta il 2026-11-26, prima di ogni misura di B3.1)
+
+| Campo | Contenuto |
+| --- | --- |
+| Ipotesi | gli arrivi del log (i casi di A rigiocati come fa "B = A") seguono andamento, giorno e ora meglio della distribuzione dei tempi fra arrivi di SIMOD: arrivi simulati più vicini al vero (CAR) e, a parità del resto del twin, eventi più vicini nel tempo assoluto (AED) |
+| Candidato | `simod_extr_replay`: lo scenario SIMOD con ritardi estranei, arrivi sostituiti da quelli del gemello "B = A" (`g3b/run.py`, `_replay_arrivals`: casi del fit/train estratti con reinserimento, spostati di settimane intere sul periodo da prevedere, gli istanti prima del suo primo inizio portati al primo inizio) |
+| Basi | `simod_extr` (stesso scenario con gli arrivi di SIMOD: la base della meta); `naive` ("B = A") |
+| Metriche primarie | **CAR e AED, co-primarie**: ognuna sui log dove è identificabile (§4) |
+| Guardie | W1, NGD, RED, CED (ognuna sui log dove è identificabile); tempo e memoria |
+| Log | i 25 log di sviluppo, holdout chiusi; validazione (scoperta sul fit), poi test (scoperta sull'intero train) |
+
+- **GO** se vale, prima sulla validazione e poi sul test, contro ogni base: CAR **e** AED vincono
+  (IC 95% separati) sulla maggioranza dei log dove sono identificabili e non perdono su
+  nessuno; nessuna guardia perde su più di un log; discovery e simulazione entro il budget del
+  §6 e, contro `simod_extr`, al massimo il doppio del suo costo. **NO-GO** se manca una
+  condizione. **NOT VALIDATED** se CAR o AED sono identificabili in meno di 2 log.
+- **Letture dichiarate prima della misura** (da confermare con Sohayb, come
+  `COST_EXEMPT_BASES` di G3b):
+  - *VAL-01.* Il componente produce arrivi, non un modello di processo: il BPMN e lo scenario
+    sono quelli di `simod_extr`. La condizione è "VAL-01 sullo scenario simulato uguale a
+    quello della base"; gli scenari SIMOD che non superano VAL-01 (BPIC 2013 in G3b) si
+    riportano e restano un problema di B3.3, non del componente.
+  - *"B = A".* Contro `naive` si applica la regola intera e si scrive il verdetto. Le guardie
+    W1, NGD e RED misurano il resto del twin SIMOD (control flow, durate, attese: in G3b
+    `simod_extr` perde contro "B = A" su 16-17 log): un NO-GO contro "B = A" dovuto **solo**
+    alle guardie è un NO-GO del twin, scritto così, e non dice nulla sul componente. La meta
+    di B3.1 (PLAN.md) nomina gli arrivi di SIMOD: si chiude solo con il GO contro `simod_extr`.
+    Contro "B = A" il costo non conta (nessuna discovery, come in G3b).
+- **Limite di selezione, dichiarato.** Il candidato è stato scelto **dopo** aver visto il test di
+  G3b (diagnosi `simod_extr_replay`: test CAR 12-7-5, AED 13-11-1 contro SIMOD con ritardi) e la
+  sua validazione (CAR 9-2-12, AED 10-8-7: lì non reggeva). Il test dei 25 log di sviluppo è
+  già stato guardato (§5); una vittoria qui non è una generalizzazione finché gli holdout restano
+  chiusi, e aprirli è una decisione di Sohayb.
+- **Budget (§6).** Discovery ≤ 2 h e ≤ 12 GB per configurazione e log; simulazione ≤ 10 minuti
+  per replica; **≤ 20 valutazioni sulla validazione** per B3.1, contate qui: C1 è la n. 1. Le
+  varianti si scelgono solo sulla validazione, ognuna con scheda propria prima della misura; il
+  test si misura solo per la variante scelta, una volta.
+- **Misura.** Banco di G3b senza modifiche: 10 repliche, seed `20261124 + replica`, tanti casi
+  quanti il periodo da prevedere dal suo primo inizio, le sei distanze di B2 con IC 95% (t),
+  regola "pari" di B2 (`within_intervals`). Discovery SIMOD rifatta in questo container (non ha
+  seed: gli scenari non sono quelli di G3b, che restano il riferimento storico); risultati in
+  `tests/simulation/benchmark/b3_1/results/`. Al massimo due processi pesanti alla volta.
+
+---
+
 ## 2026-11-26 — G3b benchmark dei motori scientifici — fatto
 
 - Branch / PR: `spike/sim-g3b-ablation`, #195, CI verde. Dipendenze chiuse: PROTO-01 (#190).

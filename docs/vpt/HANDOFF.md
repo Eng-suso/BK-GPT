@@ -16,6 +16,16 @@ Ognuno in una sessione nuova sul repository `eng-suso/bk-gpt`, dal `main` aggior
 Nessun prompt aperto: G3b e RAD-01 + PROTO-02 sono chiusi. Il prossimo punto parte da
 `PLAN.md` e dalla sezione `## G3b` qui sotto.
 
+## B3.1 (in corso dal 2026-11-26, `claude/sleepy-dijkstra-3m7c5n`)
+
+Arrivi non stazionari: il componente degli arrivi deve battere gli arrivi di SIMOD su CAR e AED,
+prima in validazione e poi in test (meta in `PLAN.md`). Scheda C1 (arrivi di A rigiocati,
+`simod_extr_replay`) scritta in `LOG.md` prima della misura. Driver in
+`tests/simulation/benchmark/b3_1/` (riusa `g3b/run.py`, non lo cambia).
+
+- Stato: discovery SIMOD da rifare in questo container (cache in `/var/tmp/delir-b3_1/work`).
+- Valutazioni sulla validazione usate: 0 di 20.
+
 ## G3b (fatto il 2026-11-26, `spike/sim-g3b-ablation`)
 
 Benchmark dei motori scientifici sui 25 log di sviluppo × 2 fasi × 9 configurazioni (450
