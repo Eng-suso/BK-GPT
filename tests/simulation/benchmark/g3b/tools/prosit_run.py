@@ -36,10 +36,11 @@ COLUMNS = {
 
 
 REPLICA_SECONDS = 600  # PROTOCOL.md §6: al massimo 10 minuti per replica
+DISCOVERY_SECONDS = 7200  # e 2 ore di discovery
 
 
 def _over_budget(_signum, _frame):
-    raise SystemExit(f"fuori budget: una replica oltre {REPLICA_SECONDS} s")
+    raise SystemExit("fuori budget: discovery oltre 7200 s o una replica oltre 600 s")
 
 
 def read_log(path: Path):
@@ -64,12 +65,15 @@ def main() -> int:
     warnings.filterwarnings("ignore")
     args.out.mkdir(parents=True, exist_ok=True)
 
+    signal.signal(signal.SIGALRM, _over_budget)
+    signal.alarm(DISCOVERY_SECONDS)
     began = time.perf_counter()
     log = read_log(args.input)
     net, initial, final = pm4py.discover_petri_net_inductive(log)
     params = SimulatorParameters(net, initial, final)
     params.discover_from_eventlog(log, max_depth_tree=args.depth, verbose=False)
     discovery = round(time.perf_counter() - began, 3)
+    signal.alarm(0)
 
     start = pandas.Timestamp(args.start).tz_convert("UTC")
     timings = []

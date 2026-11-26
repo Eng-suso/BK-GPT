@@ -41,10 +41,11 @@ RENAME = {"activity": "activity_name", "start_time": "start_timestamp", "end_tim
 
 
 REPLICA_SECONDS = 600  # PROTOCOL.md §6: al massimo 10 minuti per replica
+DISCOVERY_SECONDS = 7200  # e 2 ore di discovery
 
 
 def _over_budget(_signum, _frame):
-    raise SystemExit(f"fuori budget: una replica oltre {REPLICA_SECONDS} s")
+    raise SystemExit("fuori budget: discovery oltre 7200 s o una replica oltre 600 s")
 
 
 def read_input(path: Path) -> pandas.DataFrame:
@@ -93,6 +94,8 @@ def main() -> int:
 
     random.seed(args.seed)
     numpy.random.seed(args.seed)
+    signal.signal(signal.SIGALRM, _over_budget)
+    signal.alarm(DISCOVERY_SECONDS)
     began = time.perf_counter()
     train = read_input(args.input)
     validation = validation_part(train)
@@ -108,6 +111,7 @@ def main() -> int:
             raise SystemExit(f"AgentSimulator non applicabile: input di un solo giorno ({exc})") from exc
         raise
     discovery = round(time.perf_counter() - began, 3)
+    signal.alarm(0)
     arrivals = list(parameters["case_arrival_times"])
 
     timings = []
