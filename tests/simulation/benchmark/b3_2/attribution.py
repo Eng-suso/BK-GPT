@@ -79,7 +79,7 @@ class Calendar:
         base = t - _week_offset(t)
         best = None
         for week in range(3):
-            for lo, hi in self.periods:
+            for _lo, hi in self.periods:
                 end = base - week * WEEK + hi
                 if end <= t and (best is None or end > best):
                     best = end
@@ -257,7 +257,7 @@ def attribute(executions: Sequence[Execution], *, gap: float = 1.0, concurrency:
     avviate insieme (batch) non la occupano.
     """
     enabled = enablements(executions, concurrent_pairs(executions, concurrency))
-    calendars = calendars or discover_calendars(executions)
+    calendars = discover_calendars(executions) if calendars is None else calendars
     work: dict[str, list[tuple[float, float]]] = defaultdict(list)
     for e in executions:
         work[e.resource].append((e.start, e.end))
