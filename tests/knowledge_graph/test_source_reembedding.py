@@ -127,3 +127,35 @@ def test_un_testo_nuovo_si_embedda_ancora(scope, embedder):
         )
 
     assert counts["chunks"] >= 1
+
+
+def test_una_sorgente_senza_vettori_non_dichiara_risparmi(scope, embedder, monkeypatch):
+    """Scritta quando l'embedding non c'era: non e' indicizzata, e niente cache_hit."""
+    project = f"ws-{uuid.uuid4().hex[:8]}"
+    monkeypatch.setattr(settings, "openai_api_key", "")
+    _ingest(scope, "Ufficio crediti", project)
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test-reembed")
+
+    assert not canonical.source_already_indexed(scope["consultant"], scope["client"], _INTERVISTA)
+    _ingest(scope, "Tesoreria", project)
+
+    with workspace_connection() as session:
+        rows = list(
+            session.scalars(select(WorkspaceLlmUsage).where(WorkspaceLlmUsage.project_id == project))
+        )
+    assert not [r for r in rows if r.outcome == "cache_hit"]
+
+
+def test_una_scrittura_singola_non_embedda_una_sorgente_che_c_e_gia(scope, embedder):
+    """Il percorso senza transazione del chiamante: controllo, poi (forse) embedding."""
+    project = f"ws-{uuid.uuid4().hex[:8]}"
+    _ingest(scope, "Ufficio crediti", project)
+    before = embedder["texts"]
+
+    with operation(OperationKind.KG_INGESTION, project_id=project):
+        source_id, n_chunks = canonical.write_source_chunks(
+            scope["consultant"], scope["client"], title="di nuovo", content=_INTERVISTA
+        )
+
+    assert source_id and n_chunks == 0
+    assert embedder["texts"] == before

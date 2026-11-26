@@ -807,7 +807,7 @@ def _content_hash(text_value: str) -> str:
 
 
 def _indexed_source(session: Session, consultant_id: str, client_id: str, content_hash: str) -> str | None:
-    """L'id della `kg_source` con questo contenuto, se c'e' gia'."""
+    """L'id della `kg_source` con questo contenuto, se c'e' gia' (con o senza vettori)."""
     row = session.execute(
         text(
             "SELECT id FROM kg_source "
@@ -831,7 +831,17 @@ def source_already_indexed(consultant_id: str, client_id: str, content: str) -> 
     if not text_value:
         return False
     with canonical_session(consultant_id, client_id) as session:
-        return _indexed_source(session, consultant_id, client_id, _content_hash(text_value)) is not None
+        source_id = _indexed_source(session, consultant_id, client_id, _content_hash(text_value))
+        if source_id is None:
+            return False
+        # Una sorgente scritta quando l'embedding non c'era ha i chunk senza
+        # vettori: non e' «indicizzata», e dichiarare un risparmio li' sarebbe
+        # falso. Si comporta come prima (si prepara, e la scrittura la ritrova).
+        missing = session.execute(
+            text("SELECT 1 FROM kg_chunk WHERE source_id = CAST(:s AS uuid) AND embedding IS NULL LIMIT 1"),
+            {"s": source_id},
+        ).first()
+        return missing is None
 
 
 def prepare_source(content: str) -> tuple[list[str], list[list[float]] | None]:
@@ -872,13 +882,24 @@ def write_source_chunks(
     kind = _enum(kind, _SOURCE_KINDS, "note")
     content_hash = _content_hash(text_value)
 
+    # Si embedda solo una sorgente nuova, e mai con una sessione aperta: la
+    # chiamata all'embedder e' di rete. Senza una transazione del chiamante il
+    # controllo si fa in una sessione breve, poi l'embedding, poi la scrittura.
+    if prepared is None and tx is None:
+        with canonical_session(consultant_id, client_id) as lookup:
+            existing = _indexed_source(lookup, consultant_id, client_id, content_hash)
+        if existing:
+            return existing, 0
+        prepared = prepare_source(text_value)
+
     with _open(consultant_id, client_id, tx) as session:
         existing = _indexed_source(session, consultant_id, client_id, content_hash)
         if existing:
             return existing, 0
-        # Si embedda solo una sorgente nuova. Prima i vettori si calcolavano qui
-        # sopra, prima del controllo: una sorgente gia' indicizzata si pagava di
-        # nuovo per intero e i vettori si buttavano.
+        # Resta un caso solo in cui si embedda qui dentro: `write_evidence` ha
+        # visto la sorgente gia' indicizzata e non ha preparato niente, e fra il
+        # controllo e questa transazione la sorgente e' sparita. E' raro, e meglio
+        # lento che con i chunk senza vettori.
         chunks, vectors = prepared if prepared is not None else prepare_source(text_value)
 
         inserted = session.execute(
@@ -1296,16 +1317,11 @@ def write_evidence(
     # chunk + embedding FUORI dalla transazione: la chiamata all'embedder e' di
     # rete e non deve tenere lock sul pacchetto di evidenza atomico.
     has_source = bool(source_text and source_text.strip())
-    prepared = None
-    if has_source and source_already_indexed(consultant_id, client_id, source_text or ""):
-        # Il testo c'e' gia': nessun embedding, e il risparmio si registra. Se la
-        # sorgente sparisse fra questo controllo e la scrittura, `write_source_chunks`
-        # la ricalcola da se': piu' lento, mai sbagliato. Senza chiave non si
-        # sarebbe speso niente, quindi non c'e' nessun risparmio da dichiarare.
-        if embeddings.available():
-            record_avoided_call(LlmTask.EMBEDDING)
-    elif has_source:
-        prepared = prepare_source(source_text or "")
+    # Il testo c'e' gia', con i suoi vettori: nessun embedding. Se la sorgente
+    # sparisse fra questo controllo e la scrittura, `write_source_chunks` la
+    # ricalcola da se': piu' lento, mai sbagliato.
+    already_indexed = has_source and source_already_indexed(consultant_id, client_id, source_text or "")
+    prepared = prepare_source(source_text or "") if has_source and not already_indexed else None
 
     # P2: entity resolution decisa FUORI dalla transazione. plan_resolution apre
     # la sua sessione read-only, fa i lookup + le chiamate LLM, la chiude. Il
@@ -1336,6 +1352,11 @@ def write_evidence(
             if source_id:
                 source_ids = [source_id]
                 counts["chunks"] = n_chunks
+            # Il risparmio si dichiara solo quando la scrittura ha confermato la
+            # sorgente esistente (nessun chunk nuovo). Senza chiave non si sarebbe
+            # speso niente, quindi non c'e' nessun risparmio da dichiarare.
+            if already_indexed and n_chunks == 0 and embeddings.available():
+                record_avoided_call(LlmTask.EMBEDDING)
 
         if process_id and process_name:
             write_process_node(
