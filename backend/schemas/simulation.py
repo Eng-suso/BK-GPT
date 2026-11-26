@@ -48,6 +48,14 @@ class SimResourceConfig(BaseModel):
     kind: Literal["person", "system"] = "person"
 
 
+def _positive_unless_fixed(config):
+    """Durata zero solo fissa: un passo istantaneo (comune nei log reali). Le
+    altre distribuzioni hanno bisogno di una media positiva."""
+    if config.distribution != "fixed" and config.mean_seconds <= 0:
+        raise ValueError("la durata media deve essere maggiore di zero (zero solo con durata fissa)")
+    return config
+
+
 class SimTaskAssignmentConfig(BaseModel):
     """Un'altra risorsa che puo' svolgere l'attivita', con la sua durata.
 
@@ -55,11 +63,15 @@ class SimTaskAssignmentConfig(BaseModel):
     """
 
     resource_id: str = Field(min_length=1, max_length=64)
-    mean_seconds: float = Field(gt=0)
+    mean_seconds: float = Field(ge=0)
     distribution: DistributionName = "norm"
     std_seconds: float | None = Field(default=None, gt=0)
     min_seconds: float | None = Field(default=None, ge=0)
     max_seconds: float | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def _zero_only_when_fixed(self):
+        return _positive_unless_fixed(self)
 
 
 class SimArrivalBandConfig(SimCalendarPeriodConfig):
@@ -209,13 +221,15 @@ class SimTaskConfig(BaseModel):
     """
 
     element_id: str = Field(min_length=1)
-    mean_seconds: float = Field(gt=0)
+    mean_seconds: float = Field(ge=0)
     distribution: DistributionName = "norm"
     resource_id: str | None = None
     std_seconds: float | None = Field(default=None, gt=0)
     min_seconds: float | None = Field(default=None, ge=0)
     max_seconds: float | None = Field(default=None, gt=0)
-    other_assignments: list[SimTaskAssignmentConfig] = Field(default_factory=list, max_length=20)
+    # I log reali (BPIC 2017: 78 persone su un'attivita') superano di molto la
+    # decina: il tetto ferma gli abusi, non i processi veri.
+    other_assignments: list[SimTaskAssignmentConfig] = Field(default_factory=list, max_length=500)
     # Le affermazioni confermate dal consulente (SIM-07): diventano la fonte
     # ``declared`` della durata. Il valore resta quello del pannello.
     claims: list[SimClaimRef] = Field(default_factory=list, max_length=10)
@@ -235,6 +249,10 @@ class SimTaskConfig(BaseModel):
     # SIM-22b: il consulente la segna come passo che non aggiunge valore; il
     # motore la esegue come le altre, l'advisor propone di toglierla.
     removable: bool = False
+
+    @model_validator(mode="after")
+    def _zero_only_when_fixed(self):
+        return _positive_unless_fixed(self)
 
 
 class SimGatewayBranchConfig(BaseModel):

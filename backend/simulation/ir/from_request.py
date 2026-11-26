@@ -172,10 +172,12 @@ def duration(
         ValueError: parametri incoerenti (limiti invertiti, media fuori dai limiti,
             uniforme senza minimo e massimo), con un messaggio per il consulente.
     """
+    if distribution == "fixed":
+        # Zero e' un passo istantaneo: alzarlo a un secondo cambiava gli scenari
+        # importati (AcademicCredentials ne ha centinaia) senza dirlo.
+        return Fixed(value=max(0.0, mean))
     mean = max(1.0, mean)
     try:
-        if distribution == "fixed":
-            return Fixed(value=mean)
         if distribution == "expon":
             return Exponential(
                 mean=mean,

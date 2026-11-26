@@ -162,3 +162,33 @@ def test_the_advisor_reads_the_mean_of_a_uniform_duration():
                          min_seconds=300, max_seconds=900)
 
     assert _service_rate(_scenario(task), "T_pay") == pytest.approx(1 / 600)
+
+
+# --- passi istantanei: durata fissa zero (scenari scoperti dai log) -----------
+
+def test_a_fixed_zero_duration_stays_zero_in_the_engine_scenario():
+    from backend.simulation.ir.from_request import duration
+    from backend.simulation.ir.model import Fixed
+
+    assert duration("fixed", 0.0) == Fixed(value=0.0)
+    assert duration("fixed", 0.4) == Fixed(value=0.4)
+
+
+def test_only_a_fixed_duration_may_be_zero():
+    from pydantic import ValidationError
+
+    from backend.schemas.simulation import SimTaskAssignmentConfig, SimTaskConfig
+
+    assert SimTaskConfig(element_id="T", mean_seconds=0, distribution="fixed").mean_seconds == 0
+    assert SimTaskAssignmentConfig(resource_id="R", mean_seconds=0, distribution="fixed").mean_seconds == 0
+    with pytest.raises(ValidationError, match="zero solo con durata fissa"):
+        SimTaskConfig(element_id="T", mean_seconds=0, distribution="norm")
+    with pytest.raises(ValidationError, match="zero solo con durata fissa"):
+        SimTaskAssignmentConfig(resource_id="R", mean_seconds=0, distribution="expon")
+
+
+def test_a_task_can_list_as_many_people_as_a_real_log_has():
+    from backend.schemas.simulation import SimTaskConfig
+
+    others = [{"resource_id": f"R{i}", "mean_seconds": 60, "distribution": "fixed"} for i in range(78)]
+    assert len(SimTaskConfig(element_id="T", mean_seconds=60, other_assignments=others).other_assignments) == 78
