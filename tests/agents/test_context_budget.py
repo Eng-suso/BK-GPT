@@ -100,6 +100,65 @@ def test_the_canvas_prompt_does_not_send_the_same_xml_twice():
     assert "effective_bpmn_xml: identico a current_bpmn_xml" in prompt
 
 
+def test_patch_prompt_reads_bpmn_details_through_tools():
+    from backend.agents.primary_scope import build_scope_system_prompt
+
+    prompt = build_scope_system_prompt(
+        {
+            "scope_type": "canvas",
+            "chat_mode": "edit",
+            "process_understanding": {"marker": "full_process_plan"},
+            "bpmn_semantic_model": {"marker": "full_semantic_model"},
+            "current_bpmn_xml": "<definitions>private_canvas_marker</definitions>",
+            "effective_bpmn_xml": "<definitions>private_canvas_marker</definitions>",
+        },
+        compact_canvas_patch=True,
+    )
+
+    assert "full_process_plan" not in prompt
+    assert "full_semantic_model" not in prompt
+    assert "private_canvas_marker" not in prompt
+    assert "mappa" in prompt
+
+
+def test_patch_prompt_inlines_current_canvas_map_without_raw_xml():
+    from pathlib import Path
+
+    from backend.agents.primary_scope import build_scope_system_prompt
+
+    fixture = Path(__file__).resolve().parents[1] / "fixtures" / "omg_valid_minimal.bpmn"
+    xml = fixture.read_text(encoding="utf-8")
+    prompt = build_scope_system_prompt(
+        {"scope_type": "canvas", "chat_mode": "edit", "effective_bpmn_xml": xml},
+        compact_canvas_patch=True,
+    )
+    assert "canvas-map 2" in prompt
+    assert "\tReview\t" in prompt
+    assert xml not in prompt
+
+
+def test_patch_prompt_never_exposes_partial_map(monkeypatch):
+    from pathlib import Path
+
+    from backend.agents.primary_scope import build_scope_system_prompt
+    from backend.settings import settings
+
+    xml = (Path(__file__).resolve().parents[1] / "fixtures" / "omg_valid_minimal.bpmn").read_text(
+        encoding="utf-8",
+    )
+    for budget in (1000, 1100, 1200, 1400):
+        monkeypatch.setattr(settings, "agent_scope_context_budget_tokens", budget)
+        prompt = build_scope_system_prompt(
+            {"scope_type": "canvas", "chat_mode": "edit", "effective_bpmn_xml": xml},
+            compact_canvas_patch=True,
+        )
+        if "canvas-map 2" in prompt:
+            assert "Flow_2" in prompt
+            assert "Mappa canvas non inclusa" not in prompt
+        else:
+            assert "usa il tool map" in prompt
+
+
 def test_the_scope_prompt_stays_inside_its_budget(monkeypatch):
     from backend.agents.primary_scope import build_scope_system_prompt
     from backend.settings import settings

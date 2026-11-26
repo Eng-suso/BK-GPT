@@ -21,7 +21,7 @@ import logging
 
 from langgraph.prebuilt.tool_node import ToolInvocationError
 
-from backend.agents.run_context import BpmnVersionConflict
+from backend.agents.run_context import BpmnSaveRejected, BpmnVersionConflict
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,16 @@ def report_tool_error(exc: Exception) -> str:
     if isinstance(exc, BpmnVersionConflict):
         logger.info("scrittura BPMN rifiutata per conflitto di versione: %s", exc)
         return f"Modifica non salvata: {exc}"
+    if isinstance(exc, BpmnSaveRejected):
+        # Il gate ha rifiutato prima di scrivere: niente traccia, non e' un
+        # difetto. Il modello riceve la frase per il consulente e il dettaglio
+        # tecnico (ID, path XSD) che gli serve per correggere.
+        logger.info("scrittura BPMN rifiutata dal gate %s: %s", exc.level, exc.technical_issues[:3])
+        return (
+            f"Modifica non salvata: {exc} "
+            f"Dettaglio tecnico per correggere il modello ({exc.level}), da non mostrare al "
+            f"consulente: {'; '.join(exc.technical_issues[:5])}"
+        )
     # Un ValueError puo' anche essere un difetto del codice: resta nel log con
     # la traccia, anche se il turno prosegue.
     logger.warning("tool fallito, esito restituito al modello: %s", exc, exc_info=True)

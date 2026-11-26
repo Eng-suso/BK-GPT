@@ -808,6 +808,13 @@ def approve_bpmn_review(bpmn_model_id: str, *, override: bool = False) -> dict:
         xml, _layout_report = optimize_bpmn_layout(bpmn_xml_from_review(
             bpmn_semantic_model_json=review.bpmn_semantic_model_json,
         ))
+        from backend.bpmn.omg_conformance import assert_agent_bpmn_xsd_transition
+
+        assert_agent_bpmn_xsd_transition(
+            previous_xml=model.xml,
+            proposed_xml=xml,
+            source="review_approval",
+        )
         model.xml = xml
         approved_version = int(getattr(review, "version", 1) or 1)
         approved_drawing = create_bpmn_version(
@@ -818,6 +825,7 @@ def approve_bpmn_review(bpmn_model_id: str, *, override: bool = False) -> dict:
             # back to the review it came from.
             change_summary=f"Generazione da review BPMN approvata (v{approved_version})",
             source="review_approval",
+            already_prepared=True,
         )
         review.status = "approved"
         review.updated_at = now_iso()
