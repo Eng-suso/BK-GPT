@@ -13,7 +13,7 @@ from decimal import Decimal
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.llm import OperationKind, budget, new_operation, operation
+from backend.llm import OperationKind, budget, operation
 from backend.security import get_current_tenant_id
 from backend.settings import settings
 from backend.workspace_storage import WorkspaceLlmUsage, WorkspaceUsagePlan, workspace_connection
@@ -168,23 +168,42 @@ class TestBlocco:
 
 
 class TestCosaSiFerma:
-    def test_un_azione_diretta_del_consulente_si_ferma(self, limits, user):
+    """Il limite si guarda al confine (rotta, inizio del turno), mai dentro il gateway."""
+
+    def test_il_gateway_non_ferma_un_lavoro_gia_accettato(self, limits, user, monkeypatch):
+        from backend.llm import gateway
+
         _start_trial(user, NOW - timedelta(days=15))
+        monkeypatch.setattr(settings, "openai_api_key", "sk-test-non-usata")
 
-        with operation(OperationKind.SIMULATION_NARRATIVE, user_id=user) as opened:
-            with pytest.raises(budget.UsageLimitReached):
-                budget.enforce(opened)
+        class _Client:
+            def stream(self, *_args, **_kwargs):
+                yield type("M", (), {"content": "ok", "usage_metadata": None})()
 
-    def test_il_lavoro_in_background_non_si_ferma(self, limits, user):
+        monkeypatch.setattr(gateway, "_client", lambda *_a, **_k: _Client())
+        monkeypatch.setattr(gateway, "record", lambda **_k: None)
+
+        with operation(OperationKind.SIMULATION_NARRATIVE, user_id=user):
+            assert gateway.run(task=gateway.LlmTask.SIMULATION_NARRATIVE, messages=[]) is not None
+
+    def test_la_dipendenza_della_rotta_ferma_prima_del_servizio(self, limits, user, monkeypatch):
+        from backend.app import app
+        from backend.simulation import whatif
+
+        monkeypatch.setattr(settings, "delir_auth_enabled", False)
         _start_trial(user, NOW - timedelta(days=15))
+        called = []
+        monkeypatch.setattr(whatif, "translate", lambda *a, **k: called.append(a))
 
-        budget.enforce(new_operation(OperationKind.KG_INGESTION, user_id=user))
+        response = TestClient(app).post(
+            "/v1/workspace/bpmn-models/qualunque/simulation-what-if",
+            headers={"X-DeliR-User-ID": user},
+            json={"text": "e se raddoppiassi gli arrivi?"},
+        )
 
-    def test_un_azione_dentro_un_turno_gia_accettato_non_si_ferma(self, limits, user):
-        _start_trial(user, NOW - timedelta(days=15))
-
-        with operation(OperationKind.CHAT_TURN, user_id=user):
-            budget.enforce(new_operation(OperationKind.BPMN_DRAFT))
+        assert response.status_code == 429
+        assert response.json()["error"]["code"] == "usage_limit_reached"
+        assert called == []
 
 
 class TestPrevisione:
@@ -383,17 +402,3 @@ class TestIlMessaggioArrivaAlConsulente:
 
         assert response.status_code == 429
         assert response.json()["error"]["code"] == "usage_limit_reached"
-
-    def test_il_what_if_non_trasforma_il_limite_in_riprova_fra_poco(self, limits, user, monkeypatch):
-        from backend.simulation import whatif
-
-        def blocked(**_kwargs):
-            raise budget.UsageLimitReached("limite", "session")
-
-        monkeypatch.setattr(settings, "openai_api_key", "sk-test-non-usata")
-        monkeypatch.setattr(settings, "delir_fake_llm", False)
-        monkeypatch.setattr("backend.llm.run", blocked)
-        monkeypatch.setattr(whatif, "render", lambda _request: "frase")
-
-        with pytest.raises(budget.UsageLimitReached):
-            whatif.translate("proc", object())

@@ -40,15 +40,24 @@ Note:
 | Settimana | a blocchi di 7 giorni dall'inizio della prova | 7 giorni |
 | Prova | alla prima richiesta del consulente | `USAGE_TRIAL_DAYS` (o la data scelta dall'amministratore) |
 
-Cosa si ferma quando una finestra è esaurita:
+Cosa si ferma quando una finestra è esaurita, sempre **all'ingresso** e mai a metà
+di un lavoro:
 
-- un **nuovo turno di chat**;
-- le **azioni dirette**: disegno BPMN, abbinamento delle affermazioni,
-  simulazione assistita, racconto della simulazione, trascrizione.
+- un **nuovo turno di chat**, all'inizio del turno;
+- le **azioni dirette**, con la dipendenza di rotta `require_usage_available`:
+  Genera BPMN e la sua riparazione dopo il confronto, what-if, racconto della
+  simulazione, trascrizione, chat non in streaming.
 
-Cosa non si ferma: il lavoro in background già accettato (lettura dei file,
-grafo, memoria, ricostruzione del piano) e tutto quello che gira dentro un turno
-già iniziato.
+Cosa non si ferma:
+
+- il lavoro in background già accettato: lettura dei file, grafo, memoria,
+  ricostruzione del piano;
+- tutto quello che gira dentro un'azione già accettata;
+- l'abbinamento delle affermazioni alle attività, che costa poco e ha già un
+  ripiego lessicale.
+
+Il gateway non controlla il limite: se lo facesse a ogni chiamata, potrebbe
+fermare a metà un lavoro già accettato.
 
 ## Come scegliere le soglie
 
