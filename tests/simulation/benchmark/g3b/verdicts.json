@@ -285,7 +285,7 @@
       "contro naive: guardia W1 perde su 17 log",
       "contro naive: guardia NGD perde su 23 log",
       "contro naive: guardia RED perde su 17 log",
-      "contro naive: guardia AED perde su 20 log",
+      "contro naive: guardia AED perde su 19 log",
       "contro naive: guardia CED perde su 24 log",
       "contro simod_extr: CAR vince su 3/24 log",
       "contro simod_extr: CAR perde su 12 log (BPIC_2012_W, BPIC_2017_W, Insurance_Claims, ...)",
@@ -294,7 +294,8 @@
       "contro simod_extr: guardia RED perde su 10 log",
       "contro simod_extr: guardia AED perde su 12 log",
       "contro simod_extr: guardia CED perde su 12 log",
-      "candidato non misurato (fallito, fuori budget o non applicabile) su 13 log (AcademicCredentials, bpic2012, bpic2013_incidents, ...)"
+      "candidato non misurato (fallito, fuori budget o non applicabile) su 12 log (AcademicCredentials, bpic2012, Insurance_Claims, ...)",
+      "VAL-01 non superato su bpic2013_incidents"
     ],
     "bases": {
       "naive": {
@@ -387,7 +388,6 @@
             "BPIC_2012_W",
             "BPIC_2017_W",
             "bpic2012",
-            "bpic2013_incidents",
             "Insurance_Claims",
             "Insurance_Claims_1_timer",
             "Insurance_Claims_3_timers",
@@ -707,18 +707,19 @@
       "contro naive: RED perde su 17 log (AcademicCredentials, BPIC_2012_W, Insurance_Claims, ...)",
       "contro naive: guardia W1 perde su 17 log",
       "contro naive: guardia NGD perde su 22 log",
-      "contro naive: guardia AED perde su 20 log",
+      "contro naive: guardia AED perde su 19 log",
       "contro naive: guardia CED perde su 16 log",
       "contro naive: guardia CAR perde su 14 log",
       "contro simod: RED vince su 4/23 log",
       "contro simod: RED perde su AcademicCredentials, Procure_to_Pay_5_timers, Procure_to_Pay_5_timers_after",
       "contro simod: guardia W1 perde su 4 log",
       "contro simod: guardia NGD perde su 6 log",
-      "contro simod: guardia AED perde su 6 log",
-      "contro simod: guardia CED perde su 6 log",
+      "contro simod: guardia AED perde su 5 log",
+      "contro simod: guardia CED perde su 5 log",
       "contro simod: guardia CAR perde su 4 log",
       "contro simod: tempo o memoria oltre il doppio su 3 log",
-      "candidato non misurato (fallito, fuori budget o non applicabile) su AcademicCredentials, bpic2012, bpic2013_incidents"
+      "candidato non misurato (fallito, fuori budget o non applicabile) su AcademicCredentials, bpic2012",
+      "VAL-01 non superato su bpic2013_incidents"
     ],
     "bases": {
       "naive": {
@@ -794,7 +795,6 @@
             "BPIC_2012_W",
             "BPIC_2017_W",
             "bpic2012",
-            "bpic2013_incidents",
             "Insurance_Claims",
             "Insurance_Claims_1_timer",
             "Insurance_Claims_3_timers",
@@ -875,7 +875,6 @@
           ],
           "AED": [
             "AcademicCredentials",
-            "bpic2013_incidents",
             "Insurance_Claims_3_timers",
             "Insurance_Claims_5_timers",
             "Procure_to_Pay_5_timers",
@@ -885,7 +884,6 @@
             "AcademicCredentials",
             "BPIC_2012_W",
             "BPIC_2017_W",
-            "bpic2013_incidents",
             "Loan_Application_5_timers_after",
             "Procure_to_Pay_5_timers_after"
           ],
@@ -1104,24 +1102,24 @@
     }
   },
   "Calendari delle risorse / test": {
-    "verdict": "INCOMPLETO",
+    "verdict": "NO-GO",
     "reasons": [
       "contro naive: CED vince su 2/25 log",
       "contro naive: CED perde su 16 log (AcademicCredentials, BPIC_2012_W, BPIC_2017_W, ...)",
       "contro naive: guardia W1 perde su 17 log",
       "contro naive: guardia NGD perde su 22 log",
       "contro naive: guardia RED perde su 17 log",
-      "contro naive: guardia AED perde su 20 log",
+      "contro naive: guardia AED perde su 19 log",
       "contro naive: guardia CAR perde su 14 log",
-      "contro simod_extr_247: base mancante su bpic2013_incidents",
       "contro simod_extr_247: CED vince su 12/25 log",
-      "contro simod_extr_247: CED perde su 10 log (Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, ...)",
+      "contro simod_extr_247: CED perde su 11 log (bpic2013_incidents, Insurance_Claims, Insurance_Claims_1_timer, ...)",
       "contro simod_extr_247: guardia W1 perde su 16 log",
       "contro simod_extr_247: guardia NGD perde su 4 log",
       "contro simod_extr_247: guardia RED perde su 15 log",
-      "contro simod_extr_247: guardia AED perde su 15 log",
+      "contro simod_extr_247: guardia AED perde su 16 log",
       "contro simod_extr_247: guardia CAR perde su 3 log",
-      "candidato non misurato (fallito, fuori budget o non applicabile) su AcademicCredentials, bpic2012, bpic2013_incidents"
+      "candidato non misurato (fallito, fuori budget o non applicabile) su AcademicCredentials, bpic2012",
+      "VAL-01 non superato su bpic2013_incidents"
     ],
     "bases": {
       "naive": {
@@ -1215,7 +1213,6 @@
             "BPIC_2012_W",
             "BPIC_2017_W",
             "bpic2012",
-            "bpic2013_incidents",
             "Insurance_Claims",
             "Insurance_Claims_1_timer",
             "Insurance_Claims_3_timers",
@@ -1256,6 +1253,7 @@
         "ties": 2,
         "logs": 25,
         "losses": [
+          "bpic2013_incidents",
           "Insurance_Claims",
           "Insurance_Claims_1_timer",
           "Insurance_Claims_3_timers",
@@ -1267,9 +1265,7 @@
           "Pharmacy_5_timers",
           "Pharmacy_5_timers_after"
         ],
-        "missing": [
-          "bpic2013_incidents"
-        ],
+        "missing": [],
         "guard_losses": {
           "W1": [
             "BPIC_2017_W",
@@ -1313,6 +1309,7 @@
             "Procure_to_Pay_5_timers_after"
           ],
           "AED": [
+            "bpic2013_incidents",
             "Insurance_Claims",
             "Insurance_Claims_1_timer",
             "Insurance_Claims_3_timers",
@@ -1543,8 +1540,8 @@
       "contro simod_extr: NGD perde su 6 log (BPIC_2017_W, Loan_Application, Loan_Application_1_timer, ...)",
       "contro simod_extr: guardia W1 perde su 13 log",
       "contro simod_extr: guardia RED perde su 13 log",
-      "contro simod_extr: guardia AED perde su 5 log",
-      "contro simod_extr: guardia CED perde su 7 log",
+      "contro simod_extr: guardia AED perde su 6 log",
+      "contro simod_extr: guardia CED perde su 8 log",
       "contro prosit_norules: guardia W1 perde su 4 log",
       "contro prosit_norules: guardia AED perde su 2 log",
       "contro prosit_norules: guardia CED perde su 3 log",
@@ -1693,6 +1690,7 @@
             "Pharmacy_5_timers"
           ],
           "AED": [
+            "bpic2013_incidents",
             "Loan_Application",
             "Loan_Application_3_timers",
             "Loan_Application_5_timers_after",
@@ -1702,6 +1700,7 @@
           "CED": [
             "BPIC_2012_W",
             "BPIC_2017_W",
+            "bpic2013_incidents",
             "Insurance_Claims",
             "Insurance_Claims_1_timer",
             "Insurance_Claims_3_timers",
@@ -1921,8 +1920,8 @@
       "contro simod_extr: W1 perde su 13 log (BPIC_2017_W, Insurance_Claims, Insurance_Claims_1_timer, ...)",
       "contro simod_extr: guardia NGD perde su 6 log",
       "contro simod_extr: guardia RED perde su 13 log",
-      "contro simod_extr: guardia AED perde su 5 log",
-      "contro simod_extr: guardia CED perde su 7 log",
+      "contro simod_extr: guardia AED perde su 6 log",
+      "contro simod_extr: guardia CED perde su 8 log",
       "candidato non misurato (fallito, fuori budget o non applicabile) su bpic2013_incidents"
     ],
     "bases": {
@@ -2066,6 +2065,7 @@
             "Pharmacy_5_timers"
           ],
           "AED": [
+            "bpic2013_incidents",
             "Loan_Application",
             "Loan_Application_3_timers",
             "Loan_Application_5_timers_after",
@@ -2075,6 +2075,7 @@
           "CED": [
             "BPIC_2012_W",
             "BPIC_2017_W",
+            "bpic2013_incidents",
             "Insurance_Claims",
             "Insurance_Claims_1_timer",
             "Insurance_Claims_3_timers",
@@ -2096,16 +2097,16 @@
       "contro naive: W1 perde su 12 log (bpic2012, Insurance_Claims, Insurance_Claims_1_timer, ...)",
       "contro naive: guardia NGD perde su 11 log",
       "contro naive: guardia RED perde su 13 log",
-      "contro naive: guardia AED perde su 14 log",
+      "contro naive: guardia AED perde su 13 log",
       "contro naive: guardia CED perde su 16 log",
       "contro naive: guardia CAR perde su 12 log",
       "contro simod_extr: W1 perde su 9 log (Insurance_Claims, Insurance_Claims_1_timer, Insurance_Claims_3_timers, ...)",
       "contro simod_extr: guardia NGD perde su 10 log",
       "contro simod_extr: guardia RED perde su 9 log",
-      "contro simod_extr: guardia AED perde su 15 log",
+      "contro simod_extr: guardia AED perde su 14 log",
       "contro simod_extr: guardia CED perde su 16 log",
       "contro simod_extr: guardia CAR perde su 15 log",
-      "candidato non misurato (fallito, fuori budget o non applicabile) su 9 log (AcademicCredentials, bpic2012, bpic2013_incidents, ...)",
+      "candidato non misurato (fallito, fuori budget o non applicabile) su 8 log (AcademicCredentials, bpic2012, Insurance_Claims, ...)",
       "VAL-01 non verificabile: nessun modello di processo"
     ],
     "bases": {
@@ -2160,7 +2161,6 @@
           "AED": [
             "AcademicCredentials",
             "bpic2012",
-            "bpic2013_incidents",
             "Insurance_Claims",
             "Insurance_Claims_1_timer",
             "Insurance_Claims_3_timers",
@@ -2250,7 +2250,6 @@
           ],
           "AED": [
             "AcademicCredentials",
-            "bpic2013_incidents",
             "Insurance_Claims",
             "Insurance_Claims_1_timer",
             "Insurance_Claims_3_timers",
@@ -2319,8 +2318,8 @@
       "contro simod_extr: W1 perde su 11 log (BPIC_2012_W, Insurance_Claims, Insurance_Claims_1_timer, ...)",
       "contro simod_extr: guardia NGD perde su 10 log",
       "contro simod_extr: guardia RED perde su 11 log",
-      "contro simod_extr: guardia AED perde su 14 log",
-      "contro simod_extr: guardia CED perde su 15 log",
+      "contro simod_extr: guardia AED perde su 15 log",
+      "contro simod_extr: guardia CED perde su 16 log",
       "contro simod_extr: guardia CAR perde su 16 log",
       "candidato non misurato (fallito, fuori budget o non applicabile) su 10 log (AcademicCredentials, BPIC_2012_W, bpic2012, ...)",
       "VAL-01 non verificabile: nessun modello di processo"
@@ -2503,6 +2502,7 @@
           ],
           "AED": [
             "BPIC_2012_W",
+            "bpic2013_incidents",
             "Insurance_Claims",
             "Insurance_Claims_1_timer",
             "Insurance_Claims_3_timers",
@@ -2519,6 +2519,7 @@
           ],
           "CED": [
             "BPIC_2012_W",
+            "bpic2013_incidents",
             "Insurance_Claims",
             "Insurance_Claims_1_timer",
             "Insurance_Claims_3_timers",

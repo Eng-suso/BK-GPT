@@ -24,7 +24,7 @@
     "true_parameters": "NOT VALIDATED",
     "counterfactual": "NOT VALIDATED"
   },
-  "status": "failed",
+  "status": "out_of_budget",
   "reason": "prosit_run.py: uscita 4; aligning log, completed variants ::  13%|█▎        | 234/1784 [1:28:48<9:48:17, 22.77s/it] |  | aligning log, completed variants :: 100%|██████████| 1784/1784 [1:59:58<00:00,  4.04s/it]",
   "cost": {
     "seconds": 7215.1,
