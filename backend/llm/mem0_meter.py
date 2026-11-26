@@ -117,7 +117,7 @@ def meter(memory: Any) -> Any:
         ("embedding_model", ("embeddings",), LlmTask.MEMORY_EMBEDDING),
     )
     for component, path, task in targets:
-        resource = getattr(getattr(memory, component, None), "client", None)
+        resource: Any = getattr(getattr(memory, component, None), "client", None)
         for name in path:
             resource = getattr(resource, name, None)
         create = getattr(resource, "create", None)
