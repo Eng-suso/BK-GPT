@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from backend.llm import budget
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
+from backend.settings import settings
 
 router = APIRouter(prefix="/v1/usage", tags=["usage"], dependencies=[Depends(require_principal)])
 
@@ -34,6 +35,9 @@ def _status(current: budget.UsageStatus) -> dict:
     forecast = current.forecast
     return {
         "enabled": current.enabled,
+        # La durata della sessione e' una configurazione: il pannello la dice
+        # invece di scriverla a mano.
+        "session_hours": settings.usage_session_hours,
         "session": _window(current.session),
         "week": _window(current.week),
         "trial": {**_window(current.trial), "over": current.trial_over},
@@ -57,7 +61,7 @@ def my_usage(principal: AuthPrincipal = Depends(require_principal)) -> dict:
 
 
 class PlanUpdate(BaseModel):
-    """Le soglie in dollari stimati. Un campo omesso resta com'e'."""
+    """Le soglie in dollari stimati. Un campo omesso resta com'e'; 0 = nessun tetto."""
 
     session_budget_usd: Decimal | None = Field(default=None, ge=0)
     week_budget_usd: Decimal | None = Field(default=None, ge=0)
@@ -79,6 +83,7 @@ def _admin_view(current: budget.UsageStatus) -> dict:
 
 @router.get("/plans/{user_id}")
 def get_plan(user_id: str, _admin: AuthPrincipal = Depends(require_admin_principal)) -> dict:
+    # Solo lettura: guardare il piano di un id non crea niente.
     return _admin_view(budget.status(user_id))
 
 

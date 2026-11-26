@@ -31,6 +31,7 @@ function window(overrides: Record<string, unknown> = {}) {
 function usage(overrides: Record<string, unknown> = {}) {
   return {
     enabled: true,
+    session_hours: 5,
     session: window({ used_share: 0.64 }),
     week: window({ used_share: 0.3, resets_at: inHours(72) }),
     trial: { ...window({ used_share: 0.1, resets_at: inHours(24 * 10) }), over: false },
@@ -127,6 +128,7 @@ describe("headlineShare e usageTone", () => {
   it("un limite raggiunto vale sempre il pieno", () => {
     const blocked = {
       enabled: true,
+      sessionHours: 5,
       session: { usedShare: 0.4, limited: true, exhausted: false, startedAt: null, resetsAt: null },
       week: { usedShare: 0.99, limited: true, exhausted: false, startedAt: null, resetsAt: null },
       trial: { usedShare: 0, limited: false, exhausted: false, startedAt: null, resetsAt: null, over: true },

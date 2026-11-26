@@ -169,7 +169,7 @@ function captionFor(name: UsageWindowName, usage: Usage, locale: string, t: (key
   if (name === "session") {
     return window.resetsAt
       ? t("usage.session.resets", { when: formatMoment(window.resetsAt, locale, t) })
-      : t("usage.session.notStarted");
+      : t("usage.session.notStarted", { count: usage.sessionHours });
   }
   if (name === "week") {
     return window.resetsAt ? t("usage.week.resets", { when: formatMoment(window.resetsAt, locale, t) }) : "";

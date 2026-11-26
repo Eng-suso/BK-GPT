@@ -23,6 +23,7 @@ function windowState(share: number, resetsInHours: number | null, exhausted = fa
 const STATES = {
   forecast: {
     enabled: true,
+    session_hours: 5,
     session: windowState(0.64, 3),
     week: windowState(0.42, 96),
     trial: { ...windowState(0.18, 24 * 10), over: false },
@@ -31,6 +32,7 @@ const STATES = {
   },
   nearLimit: {
     enabled: true,
+    session_hours: 5,
     session: windowState(0.35, 4),
     week: windowState(0.91, 30),
     trial: { ...windowState(0.6, 24 * 6), over: false },
@@ -39,6 +41,7 @@ const STATES = {
   },
   blocked: {
     enabled: true,
+    session_hours: 5,
     session: windowState(1, 2, true),
     week: windowState(0.7, 50),
     trial: { ...windowState(0.4, 24 * 8), over: false },

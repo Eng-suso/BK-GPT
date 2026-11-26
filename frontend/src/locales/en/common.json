@@ -371,7 +371,8 @@
     "session": {
       "title": "Current session",
       "resets": "Resets {{when}}",
-      "notStarted": "Starts with your next request and lasts 5 hours"
+      "notStarted_one": "Starts with your next request and lasts {{count}} hour",
+      "notStarted_other": "Starts with your next request and lasts {{count}} hours"
     },
     "week": {
       "title": "Weekly limit",

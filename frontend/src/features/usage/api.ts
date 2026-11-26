@@ -24,6 +24,7 @@ const windowSchema = z.object({
 
 const usageSchema = z.object({
   enabled: z.boolean(),
+  session_hours: z.number().positive(),
   session: windowSchema,
   week: windowSchema,
   trial: windowSchema.extend({ over: z.boolean() }),
@@ -49,6 +50,8 @@ export type UsageWindow = {
 
 export type Usage = {
   enabled: boolean;
+  /** Quanto dura una sessione: e' configurazione del server, non un 5 scritto a mano. */
+  sessionHours: number;
   session: UsageWindow;
   week: UsageWindow;
   trial: UsageWindow & { over: boolean };
@@ -70,6 +73,7 @@ export async function fetchUsage(): Promise<Usage> {
   const raw = usageSchema.parse(await http<unknown>("/v1/usage/me"));
   return {
     enabled: raw.enabled,
+    sessionHours: raw.session_hours,
     session: toWindow(raw.session),
     week: toWindow(raw.week),
     trial: { ...toWindow(raw.trial), over: raw.trial.over },
@@ -108,7 +112,8 @@ export function useUsageQuery(): UseQueryResult<Usage> {
     queryFn: fetchUsage,
     // Il consumo cresce mentre il consulente lavora: un giro al minuto basta a
     // tenere l'anello vero senza pesare sul backend.
-    refetchInterval: 60_000,
+    // Con i limiti spenti non c'e' niente da tenere aggiornato: si smette di chiedere.
+    refetchInterval: (query) => (query.state.data?.enabled === false ? false : 60_000),
     staleTime: 20_000,
     retry: false,
   });

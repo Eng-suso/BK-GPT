@@ -371,7 +371,8 @@
     "session": {
       "title": "Sessione corrente",
       "resets": "Si ripristina {{when}}",
-      "notStarted": "Parte con la prossima richiesta e dura 5 ore"
+      "notStarted_one": "Parte con la prossima richiesta e dura {{count}} ora",
+      "notStarted_other": "Parte con la prossima richiesta e dura {{count}} ore"
     },
     "week": {
       "title": "Limite settimanale",
