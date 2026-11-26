@@ -24,6 +24,7 @@ from functools import lru_cache
 
 from sqlalchemy import create_engine, text
 
+from backend.llm import OperationKind, operation
 from backend.memory import mem0_client
 from backend.memory.mem0_client import Mem0Disabled
 from backend.settings import settings
@@ -122,7 +123,10 @@ def drain_once(limit: int = 200) -> int:
             # sarebbe una riproiezione dello stesso fatto.
             savepoint = conn.begin_nested()
             try:
-                mem0_id = _apply(memory, row.op, row.mem0_payload)
+                # `memory.add()` passa da un LLM e da un embedding: l'operazione
+                # e' il lavoro a cui il registro dei consumi li attribuisce.
+                with operation(OperationKind.MEMORY_PROJECTION):
+                    mem0_id = _apply(memory, row.op, row.mem0_payload)
                 conn.execute(
                     text(
                         "UPDATE mem0_projection_log "

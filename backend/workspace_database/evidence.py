@@ -76,6 +76,7 @@ def due_source_claims(limit: int = 1, *, only_tenant_id: str | None = None) -> l
                     "project_id": row.project_id,
                     "process_id": row.process_id,
                     "content_hash": row.content_hash,
+                    "uploaded_by": row.uploaded_by,
                 }
             )
         session.flush()
@@ -200,6 +201,7 @@ def due_source_reconcile(limit: int = 1, *, only_tenant_id: str | None = None) -
                     "tenant_id": row.tenant_id,
                     "project_id": row.project_id,
                     "process_id": row.process_id,
+                    "uploaded_by": row.uploaded_by,
                 }
             )
         session.flush()

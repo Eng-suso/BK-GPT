@@ -9,7 +9,7 @@ from threading import Thread
 from typing import Any, Iterator
 from uuid import UUID
 
-from backend.agent import CONTEXT_ROUTER_NODE, get_agent, normalize_model_name
+from backend.agent import CONTEXT_ROUTER_NODE, NODE_TASKS, SUMMARY_NODE, get_agent, normalize_model_name
 from backend.agents.context_budget import collect_context_fingerprints, latest_context_fingerprint
 from backend.agents.chat_mode import bind_active_mode
 from backend.agents.primary_scope import agent_scope_state
@@ -19,6 +19,7 @@ from backend.llm import LlmTask, OperationKind, adopt, new_operation, record_str
 from backend.llm_streaming import (
     INTERNAL_STREAM_METADATA_KEY,
     INTERNAL_STREAM_METADATA_VALUE,
+    TURN_METERED_TAG,
 )
 from backend.schemas.api import AgentStreamEvent, ApiError, TraceContext
 from backend.services.agent_progress import (
@@ -68,7 +69,7 @@ KEEPALIVE_SECONDS = 15.0
 # Nodes whose work is plumbing, not the agent's answer: context loaders, routers,
 # loop evaluators. They emit nothing.
 INTERNAL_AGENT_NODES = {
-    "summarize",
+    SUMMARY_NODE,
     CONTEXT_ROUTER_NODE,
     "load_process_context",
     "load_canvas_context",
@@ -166,7 +167,7 @@ def task_for_node(node_name: str) -> LlmTask:
     ragionare. Il nome del nodo arriva da `backend.agent`, cosi' un rename non
     puo' far ricadere l'instradamento dentro il turno senza che niente si rompa.
     """
-    return LlmTask.CONTEXT_ROUTING if node_name == CONTEXT_ROUTER_NODE else LlmTask.CHAT_TURN
+    return NODE_TASKS.get(node_name, LlmTask.CHAT_TURN)
 
 
 def prompt_version_for(task: LlmTask) -> str | None:
@@ -189,6 +190,10 @@ def prompt_version_for(task: LlmTask) -> str | None:
             from backend.memory.consultant_context_classifier import SISTEMA_CLASSIFICAZIONE
 
             return prompt_version(task.value, SISTEMA_CLASSIFICAZIONE)
+        if task is LlmTask.THREAD_SUMMARY:
+            # Il riassunto non legge la memoria procedurale: dargli la sua
+            # versione direbbe che un prompt mai mandato ha cambiato la spesa.
+            return None
 
         from backend.agent import load_procedural_memory
 
@@ -283,8 +288,23 @@ def is_internal_stream_metadata(metadata: dict[str, Any]) -> bool:
     if isinstance(nested, dict) and nested.get(INTERNAL_STREAM_METADATA_KEY) == INTERNAL_STREAM_METADATA_VALUE:
         return True
 
+    return _has_tag(metadata, INTERNAL_STREAM_METADATA_VALUE)
+
+
+def is_turn_metered(metadata: dict[str, Any]) -> bool:
+    """Se il pezzo viene da un client della chat, la cui spesa la scrive il turno.
+
+    Un tool della chat che chiama `llm.run()` gira dentro il grafo, e LangGraph
+    ne inoltra i pezzi nello stream del turno con i loro `usage_metadata`; il
+    gateway pero' ha gia' scritto la riga del suo compito. Il turno somma solo i
+    client che non registrano da se', e li riconosce dal tag.
+    """
+    return _has_tag(metadata, TURN_METERED_TAG)
+
+
+def _has_tag(metadata: dict[str, Any], tag: str) -> bool:
     tags = metadata.get("tags")
-    return isinstance(tags, list) and INTERNAL_STREAM_METADATA_VALUE in tags
+    return isinstance(tags, list) and tag in tags
 
 
 def progress_event(
@@ -852,7 +872,11 @@ def stream_agent_events(
                     # scartarlo qui lo rendeva spesa invisibile - proprio il
                     # compito che si vorrebbe misurare per decidere se pagargli
                     # del ragionamento.
-                    if chunk_usage:
+                    #
+                    # Si sommano solo i client della chat: le chiamate del gateway
+                    # fatte dentro un tool passano di qui, ma la loro riga l'ha gia'
+                    # scritta il gateway.
+                    if chunk_usage and is_turn_metered(metadata):
                         merge_usage_metadata(
                             usage_by_node.setdefault(node_name or "", {}),
                             dict(chunk_usage),

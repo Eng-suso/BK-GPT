@@ -13,6 +13,7 @@ from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from backend.llm_streaming import TURN_METERED_TAG
 from backend.agents.context_budget import collect_context_fingerprints, note_context_fingerprint
 from backend.agents.primary_scope import build_scope_system_prompt
 
@@ -82,10 +83,10 @@ def test_the_turn_ledger_row_carries_the_last_context_fingerprint(monkeypatch):
         def stream(self, _input, *, config, stream_mode):
             usage = {"input_tokens": 5, "output_tokens": 1, "total_tokens": 6}
             note_context_fingerprint("1" * 64)
-            yield _Chunk(usage), {"langgraph_node": "consult_macro_agent"}
+            yield _Chunk(usage), {"langgraph_node": "consult_macro_agent", "tags": [TURN_METERED_TAG]}
             note_context_fingerprint("2" * 64)
-            yield _Chunk(usage), {"langgraph_node": "consult_macro_agent"}
-            yield _Chunk(usage), {"langgraph_node": "classify_and_select_context"}
+            yield _Chunk(usage), {"langgraph_node": "consult_macro_agent", "tags": [TURN_METERED_TAG]}
+            yield _Chunk(usage), {"langgraph_node": "classify_and_select_context", "tags": [TURN_METERED_TAG]}
 
     recorded: dict = {}
 

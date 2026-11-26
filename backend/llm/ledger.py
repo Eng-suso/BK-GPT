@@ -92,6 +92,23 @@ class Totale:
             return None
         return 1.0 - (self.token_senza_prezzo / self.token_totali)
 
+    @property
+    def quota_in_cache(self) -> float | None:
+        """Quota dell'input servita dalla cache del fornitore, fra 0 e 1.
+
+        E' la leva piu' grossa sulla spesa della chat: ogni passo dell'agente
+        rimanda le definizioni dei tool (fino a ~14.000 token per lo specialista
+        di modellazione) e il contesto di scope, e il fornitore li fattura a una
+        frazione del prezzo solo se il prefisso e' identico al passo prima. Una
+        quota bassa su `chat_turn` vuol dire un prefisso che cambia fra i passi.
+
+        Si legge per compito: embedding e trascrizione non vanno mai in cache, e
+        su un totale che li comprende la quota direbbe un problema che non c'e'.
+        """
+        if self.input == 0:
+            return None
+        return self.cached / self.input
+
 
 @dataclass(frozen=True, slots=True)
 class Voce:
@@ -115,10 +132,13 @@ def _finestra(giorni: int | None, since: str | None, until: str | None) -> tuple
     return inizio, fine
 
 
-def _condizioni(inizio: str, fine: str, tenant_id: str | None):
+def _condizioni(inizio: str, fine: str, tenant_id: str | None, user_id: str | None = None):
     where = [WorkspaceLlmUsage.created_at >= inizio, WorkspaceLlmUsage.created_at < fine]
     if tenant_id is not None:
         where.append(WorkspaceLlmUsage.tenant_id == tenant_id)
+    if user_id is not None:
+        # E' la domanda del limite d'uso: «quanto ha speso lui da quell'ora».
+        where.append(WorkspaceLlmUsage.user_id == user_id)
     return where
 
 
@@ -184,6 +204,7 @@ DIMENSIONI = {
     "project_id": WorkspaceLlmUsage.project_id,
     "process_id": WorkspaceLlmUsage.process_id,
     "prompt_version": WorkspaceLlmUsage.prompt_version,
+    "user_id": WorkspaceLlmUsage.user_id,
 }
 
 
@@ -193,12 +214,13 @@ def totale(
     since: str | None = None,
     until: str | None = None,
     tenant_id: str | None = None,
+    user_id: str | None = None,
 ) -> Totale:
-    """Il consumo complessivo di una finestra."""
+    """Il consumo complessivo di una finestra, di tutti o di un solo consulente."""
     inizio, fine = _finestra(giorni, since, until)
     with workspace_connection() as session:
         righe = session.execute(
-            select(*_COLONNE).where(*_condizioni(inizio, fine, tenant_id))
+            select(*_COLONNE).where(*_condizioni(inizio, fine, tenant_id, user_id))
         ).all()
     return _somma(righe)
 
@@ -210,6 +232,7 @@ def per(
     since: str | None = None,
     until: str | None = None,
     tenant_id: str | None = None,
+    user_id: str | None = None,
 ) -> list[Voce]:
     """Lo stesso consumo, spezzato per una dimensione, dal piu' caro al meno.
 
@@ -217,7 +240,8 @@ def per(
         dimensione: Una chiave di `DIMENSIONI`. Sono le colonne con cui ha senso
             leggere la spesa: il compito, il modello, il tipo di lavoro, l'esito,
             il ragionamento chiesto, il progetto, il processo, la versione del
-            prompt.
+            prompt, il consulente.
+        user_id: Solo la spesa di questo consulente.
 
     Raises:
         KeyError: Se la dimensione non esiste. Meglio un errore che un
@@ -228,7 +252,9 @@ def per(
 
     with workspace_connection() as session:
         righe = session.execute(
-            select(colonna.label("chiave"), *_COLONNE).where(*_condizioni(inizio, fine, tenant_id))
+            select(colonna.label("chiave"), *_COLONNE).where(
+                *_condizioni(inizio, fine, tenant_id, user_id)
+            )
         ).all()
 
     gruppi: dict[str, list] = {}

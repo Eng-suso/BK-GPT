@@ -57,6 +57,17 @@ class TestIlRegistro:
         assert egress.route(Destination.TRANSCRIPTION).host == "api.openai.com"
         assert egress.route(Destination.TRANSCRIPTION_LIVE).host == "api.openai.com"
 
+    def test_i_compiti_di_mem0_stanno_sulle_destinazioni_di_mem0(self, monkeypatch):
+        """Mem0 ha i suoi client: con la chat su un altro fornitore, i suoi compiti
+        non devono comparire sotto `llm_chat` ne' seguirne l'host."""
+        monkeypatch.setattr(settings, "openai_base_url", "https://generativelanguage.googleapis.com/v1beta/openai/")
+
+        chat = egress.route(Destination.LLM_CHAT).tasks
+        assert LlmTask.MEMORY_EXTRACTION not in chat
+        assert LlmTask.MEMORY_EMBEDDING not in chat
+        assert egress.route(Destination.MEMORY_EXTRACTION).tasks == (LlmTask.MEMORY_EXTRACTION,)
+        assert egress.route(Destination.MEMORY_EMBEDDING).tasks == (LlmTask.MEMORY_EMBEDDING,)
+
     def test_audio_e_contenuti_del_cliente_sono_dichiarati(self):
         assert DataCategory.AUDIO in egress.route(Destination.TRANSCRIPTION).data
         assert DataCategory.PROMPT_TRACE in egress.route(Destination.TRACING).data

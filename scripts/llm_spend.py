@@ -80,9 +80,12 @@ def _stampa_voci(titolo: str, voci: list[ledger.Voce], limite: int = 15) -> None
     for voce in voci[:limite]:
         t = voce.totale
         nota = "" if t.righe_senza_prezzo == 0 else f"  [{t.righe_senza_prezzo} senza prezzo]"
+        # La quota in cache si legge per voce, non sul totale: embedding e
+        # trascrizione non vanno mai in cache e la abbasserebbero per tutti.
+        cache = "" if t.quota_in_cache is None else f"  cache {t.quota_in_cache:.0%}"
         print(
             f"  {voce.chiave.ljust(larghezza)}  {_soldi(t.costo_noto):>10}  "
-            f"{_token(t.token_totali):>12} tok  {t.righe:>5} righe{nota}"
+            f"{_token(t.token_totali):>12} tok  {t.righe:>5} righe{cache}{nota}"
         )
     if len(voci) > limite:
         print(f"  ... e altre {len(voci) - limite}")
@@ -94,6 +97,7 @@ def _comando_riepilogo(args) -> None:
     _stampa_voci("Per compito", ledger.per("task", giorni=args.giorni))
     _stampa_voci("Per modello", ledger.per("model", giorni=args.giorni))
     _stampa_voci("Per tipo di lavoro", ledger.per("operation_kind", giorni=args.giorni))
+    _stampa_voci("Per consulente", ledger.per("user_id", giorni=args.giorni))
 
 
 def _comando_ieri(_args) -> None:

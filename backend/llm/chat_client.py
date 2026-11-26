@@ -30,6 +30,7 @@ from langchain_openai import ChatOpenAI
 from backend.llm.egress import Destination, require
 from backend.llm.local_tracer import local_callbacks
 from backend.llm.tasks import LlmTask, profile_for
+from backend.llm_streaming import TURN_METERED_TAG
 from backend.llm_config import MissingProviderKey, timeout_for_input
 from backend.settings import (
     effective_langsmith_model_name,
@@ -102,7 +103,9 @@ def chat_client(
         "langsmith_provider": settings.langsmith_provider,
         "langsmith_model_name": effective_langsmith_model_name(model_name),
         "metadata": langsmith_metadata(model_name, delir_model_name=model_name),
-        "tags": langsmith_tags("llm", tag),
+        # Il runtime somma nel registro solo i pezzi di questi client: sono gli
+        # unici che non scrivono la loro riga da se'.
+        "tags": [*langsmith_tags("llm", tag), TURN_METERED_TAG],
         "reasoning_effort": reasoning_effort or profile.reasoning_effort,
     }
     if settings.openai_base_url:

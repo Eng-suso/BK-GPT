@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import and_, delete, func, or_, select
 
+from backend.security import get_current_user_id
 from backend.workspace_database import plans
 from backend.workspace_database._common import now_iso, slugify, tenant_id, tenant_row, unique_id
 from backend.workspace_storage import (
@@ -223,6 +224,7 @@ def create_project_source(
             type=type.strip() or "Fonte",
             meta=meta.strip(),
             content_hash=content_hash.strip() or None,
+            uploaded_by=get_current_user_id(),
         )
         session.add(source)
         session.flush()
@@ -363,6 +365,7 @@ def create_ingested_source(
             scopes_json=scopes_json,
             status="extracted",
             content_hash=content_hash,
+            uploaded_by=get_current_user_id(),
             byte_size=byte_size,
             mime_type=mime_type,
             storage_key=storage_key,
