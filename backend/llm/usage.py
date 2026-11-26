@@ -111,6 +111,7 @@ def record(
                 WorkspaceLlmUsage(
                     id=uuid.uuid4().hex,
                     tenant_id=operation.tenant_id,
+                    user_id=operation.user_id,
                     operation_kind=operation.kind,
                     operation_id=operation.id,
                     parent_operation_id=operation.parent_id,

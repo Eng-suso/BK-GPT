@@ -27,7 +27,12 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Any, TypeVar
 
-from backend.security import get_current_tenant_id, reset_current_tenant_id, set_current_tenant_id
+from backend.security import (
+    get_current_tenant_id,
+    get_current_user_id,
+    reset_current_tenant_id,
+    set_current_tenant_id,
+)
 
 _T = TypeVar("_T")
 
@@ -50,6 +55,10 @@ class Operation:
         parent_id: L'operazione dentro cui questa e' stata aperta, se c'era. Un
             «Genera BPMN» chiesto da una chat e' figlio di quel turno: cosi' si
             legge sia da solo sia dentro il turno che l'ha causato.
+        user_id: Il consulente che ha causato il lavoro, quando si sa. Il limite
+            d'uso e' per persona, non per tenant. Un'operazione annidata eredita
+            quello del padre: la spesa di un «Genera BPMN» e' di chi l'ha chiesto.
+            `None` per il lavoro che nessuno ha chiesto direttamente.
     """
 
     kind: str
@@ -58,6 +67,7 @@ class Operation:
     project_id: str | None = None
     process_id: str | None = None
     parent_id: str | None = None
+    user_id: str | None = None
 
 
 class OperationKind:
@@ -97,6 +107,7 @@ def new_operation(
     tenant_id: str | None = None,
     project_id: str | None = None,
     process_id: str | None = None,
+    user_id: str | None = None,
 ) -> Operation:
     """Costruisce un'operazione **senza** legarla al contesto corrente.
 
@@ -120,6 +131,7 @@ def new_operation(
         project_id=project_id,
         process_id=process_id,
         parent_id=parent.id if parent else None,
+        user_id=user_id or (parent.user_id if parent else None) or get_current_user_id(),
     )
 
 
@@ -130,6 +142,7 @@ def operation(
     tenant_id: str | None = None,
     project_id: str | None = None,
     process_id: str | None = None,
+    user_id: str | None = None,
 ) -> Iterator[Operation]:
     """Apre un'operazione per la durata del blocco.
 
@@ -139,6 +152,8 @@ def operation(
             che e' il caso normale dentro una richiesta HTTP.
         project_id: Il progetto, quando il lavoro ne ha uno.
         process_id: Il processo, quando il lavoro ne ha uno.
+        user_id: Il consulente. Omesso, si eredita dal padre o dalla richiesta;
+            un worker lo passa esplicito, leggendolo dal job.
 
     Yields:
         L'operazione aperta, se serve leggerne l'id (per esempio per scriverlo
@@ -149,6 +164,7 @@ def operation(
         tenant_id=tenant_id,
         project_id=project_id,
         process_id=process_id,
+        user_id=user_id,
     )
     token = _current.set(opened)
     # Il tenant dell'operazione **e'** il tenant del lavoro: si vincola anche il

@@ -8,6 +8,7 @@ from hmac import compare_digest
 
 from fastapi import Depends, Header, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from backend.settings import environment_is_open, settings
@@ -16,6 +17,9 @@ from backend.settings import environment_is_open, settings
 TENANT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")
 DEFAULT_LOCAL_TENANT_ID = "local"
 _tenant_id: ContextVar[str | None] = ContextVar("delir_tenant_id", default=None)
+# Il consulente della richiesta. Lo legge solo il registro dei consumi (tramite
+# l'operazione): non e' un'autorizzazione, e niente decide accessi su questo.
+_user_id: ContextVar[str | None] = ContextVar("delir_user_id", default=None)
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -36,6 +40,20 @@ def set_current_tenant_id(tenant_id: str) -> Token[str | None]:
 
 def reset_current_tenant_id(token: Token[str | None]) -> None:
     _tenant_id.reset(token)
+
+
+def get_current_user_id() -> str | None:
+    return _user_id.get()
+
+
+def set_current_user_id(user_id: str | None) -> Token[str | None]:
+    return _user_id.set(user_id)
+
+
+def _bind_principal(principal: AuthPrincipal) -> None:
+    """Il tenant e il consulente della richiesta, nel contesto corrente."""
+    set_current_tenant_id(principal.tenant_id)
+    set_current_user_id(principal.user_id)
 
 
 def normalize_tenant_id(value: str | None) -> str:
@@ -132,35 +150,51 @@ def _authenticate_bearer(supplied_token: str | None) -> tuple[str | None, str]:
     return None, "bearer"
 
 
-def require_principal(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    x_delir_tenant_id: str | None = Header(default=None),
-    x_delir_user_id: str | None = Header(default=None),
+def _resolve_principal(
+    credentials: HTTPAuthorizationCredentials | None,
+    x_delir_tenant_id: str | None,
+    x_delir_user_id: str | None,
 ) -> AuthPrincipal:
     tenant_id = normalize_tenant_id(x_delir_tenant_id)
     assert_allowed_tenant(tenant_id)
 
     if not settings.delir_auth_enabled:
-        principal = AuthPrincipal(
+        return AuthPrincipal(
             user_id=x_delir_user_id or "local-dev",
             tenant_id=tenant_id,
             is_admin=True,
             auth_mode="local",
         )
-        set_current_tenant_id(tenant_id)
-        request.state.auth_principal = principal
-        return principal
 
     subject, auth_mode = _authenticate_bearer(_token_from_credentials(credentials))
 
-    principal = AuthPrincipal(
+    return AuthPrincipal(
         user_id=subject or x_delir_user_id or "api-client",
         tenant_id=tenant_id,
         is_admin=not (settings.delir_admin_token or "").strip() and _admin_without_token(),
         auth_mode=auth_mode,
     )
-    set_current_tenant_id(tenant_id)
+
+
+async def require_principal(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    x_delir_tenant_id: str | None = Header(default=None),
+    x_delir_user_id: str | None = Header(default=None),
+) -> AuthPrincipal:
+    """Chi chiama, verificato. Lega tenant e consulente al contesto della richiesta.
+
+    E' `async` per una ragione precisa: una dipendenza sincrona gira in un thread
+    del pool, con una **copia** del contesto, e quello che imposta li' non arriva
+    alla rotta. Il consulente non arrivava al registro dei consumi proprio per
+    questo. La verifica del token resta nel pool (puo' leggere le chiavi
+    pubbliche dalla rete); il legame col contesto si fa qui, nel task della
+    richiesta, da cui la rotta lo eredita.
+    """
+    principal = await run_in_threadpool(
+        _resolve_principal, credentials, x_delir_tenant_id, x_delir_user_id
+    )
+    _bind_principal(principal)
     request.state.auth_principal = principal
     return principal
 
@@ -220,7 +254,7 @@ async def authenticate_websocket(websocket: WebSocket) -> AuthPrincipal | None:
 
     if not settings.delir_auth_enabled:
         principal = AuthPrincipal(user_id="local-dev", tenant_id=tenant_id, is_admin=True)
-        set_current_tenant_id(tenant_id)
+        _bind_principal(principal)
         return principal
 
     try:
@@ -233,5 +267,5 @@ async def authenticate_websocket(websocket: WebSocket) -> AuthPrincipal | None:
     principal = AuthPrincipal(
         user_id=subject or "api-client", tenant_id=tenant_id, auth_mode=auth_mode
     )
-    set_current_tenant_id(tenant_id)
+    _bind_principal(principal)
     return principal
