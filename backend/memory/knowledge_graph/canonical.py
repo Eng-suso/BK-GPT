@@ -1503,6 +1503,10 @@ def enqueue_evidence(
         "source_kind": source_kind,
         "workspace_project_id": str(workspace_project_id) if workspace_project_id else None,
         "workspace_process_id": str(workspace_process_id) if workspace_process_id else None,
+        # Chi ha causato l'ingestione: il worker che la esegue non ha una
+        # richiesta, e senza questo la spesa dell'embedding e del giudizio delle
+        # entita' non apparterrebbe a nessun consulente.
+        "user_id": _requesting_user(),
     }
     with canonical_session(consultant_id, client_id) as session:
         row = session.execute(
@@ -1523,6 +1527,15 @@ def enqueue_evidence(
 
 
 # --- helpers ---------------------------------------------------------------
+
+def _requesting_user() -> str | None:
+    """Il consulente del lavoro in corso: quello dell'operazione, o della richiesta."""
+    from backend.llm import current_operation
+    from backend.security import get_current_user_id
+
+    current = current_operation()
+    return (current.user_id if current else None) or get_current_user_id()
+
 
 def _float(value: Any, default: float = 0.5) -> float:
     try:

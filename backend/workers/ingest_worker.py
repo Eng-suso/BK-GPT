@@ -139,6 +139,7 @@ def drain_once(limit: int = 20) -> int:
                 OperationKind.KG_INGESTION,
                 project_id=raw.get("workspace_project_id") or payload.get("project_id"),
                 process_id=raw.get("workspace_process_id") or payload.get("process_id"),
+                user_id=raw.get("user_id"),
             ):
                 counts = canonical.write_evidence(**payload)
         except Exception as exc:  # noqa: BLE001 — un job storto non ferma il worker
