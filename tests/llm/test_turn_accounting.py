@@ -18,8 +18,8 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langgraph.graph import END, START, StateGraph
 
 from backend.llm import LlmTask, profile_for
-from backend.llm_streaming import LEDGER_RECORDED_TAG, stream_to_final
-from backend.services.agent_runtime import is_ledger_recorded
+from backend.llm_streaming import TURN_METERED_TAG, stream_to_final
+from backend.services.agent_runtime import is_turn_metered
 from backend.settings import settings
 
 
@@ -47,7 +47,8 @@ class _State(TypedDict):
 
 def _usage_seen_by_the_turn(tool_model: _Model) -> dict[str, int]:
     """Gira un turno minimo e somma i token come fa il runtime della chat."""
-    agent_model = _Model(input_tokens=10)
+    # Il modello dell'agente e' un client della chat: porta il tag del turno.
+    agent_model = _Model(input_tokens=10, tags=[TURN_METERED_TAG])
 
     def agent(_state):
         agent_model.invoke("domanda")
@@ -71,24 +72,25 @@ def _usage_seen_by_the_turn(tool_model: _Model) -> dict[str, int]:
             continue
         chunk, metadata = payload
         usage = getattr(chunk, "usage_metadata", None)
-        if usage and not is_ledger_recorded(metadata):
+        if usage and is_turn_metered(metadata):
             node = metadata.get("langgraph_node") or ""
             seen[node] = seen.get(node, 0) + usage["input_tokens"]
     return seen
 
 
 def test_una_chiamata_del_gateway_dentro_un_tool_non_si_somma_al_turno():
-    gateway_model = _Model(input_tokens=1000, tags=[LEDGER_RECORDED_TAG])
+    # Un client del gateway non porta il tag del turno: la sua riga la scrive lui.
+    gateway_model = _Model(input_tokens=1000)
 
     assert _usage_seen_by_the_turn(gateway_model) == {"agent": 10}
 
 
-def test_una_chiamata_non_registrata_altrove_resta_nel_turno():
+def test_un_client_della_chat_dentro_un_nodo_resta_nel_turno():
     # Il riassunto del thread e l'instradamento girano con i client della chat,
     # che non scrivono righe da soli: se il runtime li saltasse, sparirebbero.
-    unrecorded_model = _Model(input_tokens=1000)
+    chat_model = _Model(input_tokens=1000, tags=[TURN_METERED_TAG])
 
-    assert _usage_seen_by_the_turn(unrecorded_model) == {"agent": 10, "tools": 1000}
+    assert _usage_seen_by_the_turn(chat_model) == {"agent": 10, "tools": 1000}
 
 
 @pytest.fixture()
@@ -107,18 +109,19 @@ def costruito(monkeypatch):
 
 
 @pytest.mark.parametrize("task", [LlmTask.PLAN_EXTRACTION, LlmTask.RETRIEVAL_RERANK, LlmTask.ENTITY_RESOLUTION])
-def test_ogni_client_del_gateway_porta_il_tag(costruito, task):
+def test_i_client_del_gateway_non_portano_il_tag_del_turno(costruito, task):
     from backend.llm.gateway import _client
 
     _client(profile_for(task), None)
 
-    assert LEDGER_RECORDED_TAG in costruito["tags"]
+    assert TURN_METERED_TAG not in (costruito.get("tags") or [])
 
 
-def test_i_client_della_chat_non_portano_il_tag(monkeypatch):
+@pytest.mark.parametrize("task", [LlmTask.CHAT_TURN, LlmTask.CONTEXT_ROUTING, LlmTask.THREAD_SUMMARY])
+def test_i_client_della_chat_portano_il_tag_del_turno(monkeypatch, task):
     monkeypatch.setattr(settings, "openai_api_key", "sk-test-non-usata")
     from backend.llm import chat_client
 
-    client = chat_client(LlmTask.CHAT_TURN, model_name=settings.openai_model, streaming=True, tag="t")
+    client = chat_client(task, model_name=settings.openai_model, streaming=True, tag="t")
 
-    assert LEDGER_RECORDED_TAG not in (client.tags or [])
+    assert TURN_METERED_TAG in (client.tags or [])

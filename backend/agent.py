@@ -54,6 +54,13 @@ CONTEXT_ROUTER_NODE = "classify_and_select_context"
 # Il nodo del riassunto del thread: il runtime lo conta come compito suo
 # (`THREAD_SUMMARY`), non dentro il turno.
 SUMMARY_NODE = "summarize"
+# I nodi che spendono per un compito che non e' il turno. Un nodo nuovo che
+# chiama il modello per un lavoro suo si aggiunge qui; tutti gli altri nodi
+# contano come `CHAT_TURN`.
+NODE_TASKS = {
+    CONTEXT_ROUTER_NODE: LlmTask.CONTEXT_ROUTING,
+    SUMMARY_NODE: LlmTask.THREAD_SUMMARY,
+}
 
 PROCEDURAL_MEMORY_PATH = Path(__file__).parent / "memory" / "procedural" / "how_to_act.md"
 RECENT_MESSAGE_LIMIT = 8

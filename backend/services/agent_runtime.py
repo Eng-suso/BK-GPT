@@ -9,7 +9,7 @@ from threading import Thread
 from typing import Any, Iterator
 from uuid import UUID
 
-from backend.agent import CONTEXT_ROUTER_NODE, SUMMARY_NODE, get_agent, normalize_model_name
+from backend.agent import CONTEXT_ROUTER_NODE, NODE_TASKS, SUMMARY_NODE, get_agent, normalize_model_name
 from backend.agents.context_budget import collect_context_fingerprints, latest_context_fingerprint
 from backend.agents.chat_mode import bind_active_mode
 from backend.agents.primary_scope import agent_scope_state
@@ -19,7 +19,7 @@ from backend.llm import LlmTask, OperationKind, adopt, new_operation, record_str
 from backend.llm_streaming import (
     INTERNAL_STREAM_METADATA_KEY,
     INTERNAL_STREAM_METADATA_VALUE,
-    LEDGER_RECORDED_TAG,
+    TURN_METERED_TAG,
 )
 from backend.schemas.api import AgentStreamEvent, ApiError, TraceContext
 from backend.services.agent_progress import (
@@ -167,11 +167,7 @@ def task_for_node(node_name: str) -> LlmTask:
     ragionare. Il nome del nodo arriva da `backend.agent`, cosi' un rename non
     puo' far ricadere l'instradamento dentro il turno senza che niente si rompa.
     """
-    if node_name == CONTEXT_ROUTER_NODE:
-        return LlmTask.CONTEXT_ROUTING
-    if node_name == SUMMARY_NODE:
-        return LlmTask.THREAD_SUMMARY
-    return LlmTask.CHAT_TURN
+    return NODE_TASKS.get(node_name, LlmTask.CHAT_TURN)
 
 
 def prompt_version_for(task: LlmTask) -> str | None:
@@ -292,20 +288,23 @@ def is_internal_stream_metadata(metadata: dict[str, Any]) -> bool:
     if isinstance(nested, dict) and nested.get(INTERNAL_STREAM_METADATA_KEY) == INTERNAL_STREAM_METADATA_VALUE:
         return True
 
-    tags = metadata.get("tags")
-    return isinstance(tags, list) and INTERNAL_STREAM_METADATA_VALUE in tags
+    return _has_tag(metadata, INTERNAL_STREAM_METADATA_VALUE)
 
 
-def is_ledger_recorded(metadata: dict[str, Any]) -> bool:
-    """Se il pezzo viene da un client del gateway, che la sua riga l'ha gia' scritta.
+def is_turn_metered(metadata: dict[str, Any]) -> bool:
+    """Se il pezzo viene da un client della chat, la cui spesa la scrive il turno.
 
     Un tool della chat che chiama `llm.run()` gira dentro il grafo, e LangGraph
-    ne inoltra i pezzi nello stream del turno con i loro `usage_metadata`.
-    Sommarli anche qui contava la stessa spesa due volte: una riga del compito
-    vero (estrazione, rerank, giudizio) e la stessa cifra dentro `chat_turn`.
+    ne inoltra i pezzi nello stream del turno con i loro `usage_metadata`; il
+    gateway pero' ha gia' scritto la riga del suo compito. Il turno somma solo i
+    client che non registrano da se', e li riconosce dal tag.
     """
+    return _has_tag(metadata, TURN_METERED_TAG)
+
+
+def _has_tag(metadata: dict[str, Any], tag: str) -> bool:
     tags = metadata.get("tags")
-    return isinstance(tags, list) and LEDGER_RECORDED_TAG in tags
+    return isinstance(tags, list) and tag in tags
 
 
 def progress_event(
@@ -874,9 +873,10 @@ def stream_agent_events(
                     # compito che si vorrebbe misurare per decidere se pagargli
                     # del ragionamento.
                     #
-                    # Le chiamate del gateway fatte dentro un tool sono l'eccezione:
-                    # passano di qui, ma la loro riga l'ha gia' scritta il gateway.
-                    if chunk_usage and not is_ledger_recorded(metadata):
+                    # Si sommano solo i client della chat: le chiamate del gateway
+                    # fatte dentro un tool passano di qui, ma la loro riga l'ha gia'
+                    # scritta il gateway.
+                    if chunk_usage and is_turn_metered(metadata):
                         merge_usage_metadata(
                             usage_by_node.setdefault(node_name or "", {}),
                             dict(chunk_usage),
