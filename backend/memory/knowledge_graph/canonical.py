@@ -27,6 +27,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.db import canonical_session
+from backend.llm import LlmTask, record_avoided_call
 from backend.memory import embeddings, provenance
 from backend.memory.knowledge_graph import catalog
 from backend.memory.knowledge_graph import entity_resolution
@@ -801,6 +802,38 @@ def _chunk_text(content: str) -> list[str]:
     return chunks
 
 
+def _content_hash(text_value: str) -> str:
+    return hashlib.sha256(text_value.encode("utf-8")).hexdigest()
+
+
+def _indexed_source(session: Session, consultant_id: str, client_id: str, content_hash: str) -> str | None:
+    """L'id della `kg_source` con questo contenuto, se c'e' gia'."""
+    row = session.execute(
+        text(
+            "SELECT id FROM kg_source "
+            "WHERE consultant_id = :c AND client_id = :cl AND content_hash = :h "
+            "  AND workspace_source_id IS NULL"
+        ),
+        {"c": str(consultant_id), "cl": str(client_id), "h": content_hash},
+    ).first()
+    return str(row.id) if row else None
+
+
+def source_already_indexed(consultant_id: str, client_id: str, content: str) -> bool:
+    """Se questo testo e' gia' nel grafo, con i suoi chunk e i suoi vettori.
+
+    Lo stesso testo torna spesso: ogni pacchetto di evidenza che l'agente estrae
+    da un'intervista porta con se' l'intervista intera. Rilevarlo **prima**
+    dell'embedding e' la differenza fra pagare l'intervista una volta e pagarla
+    a ogni pacchetto.
+    """
+    text_value = (content or "").strip()
+    if not text_value:
+        return False
+    with canonical_session(consultant_id, client_id) as session:
+        return _indexed_source(session, consultant_id, client_id, _content_hash(text_value)) is not None
+
+
 def prepare_source(content: str) -> tuple[list[str], list[list[float]] | None]:
     """Chunk + embed del testo, SENZA toccare il DB. Da chiamare fuori dalla
     transazione (la chiamata all'embedder e' di rete): `write_evidence` lo fa
@@ -837,20 +870,16 @@ def write_source_chunks(
     if not text_value:
         return None, 0
     kind = _enum(kind, _SOURCE_KINDS, "note")
-    content_hash = hashlib.sha256(text_value.encode("utf-8")).hexdigest()
-    chunks, vectors = prepared if prepared is not None else prepare_source(text_value)
+    content_hash = _content_hash(text_value)
 
     with _open(consultant_id, client_id, tx) as session:
-        existing = session.execute(
-            text(
-                "SELECT id FROM kg_source "
-                "WHERE consultant_id = :c AND client_id = :cl AND content_hash = :h "
-                "  AND workspace_source_id IS NULL"
-            ),
-            {"c": str(consultant_id), "cl": str(client_id), "h": content_hash},
-        ).first()
+        existing = _indexed_source(session, consultant_id, client_id, content_hash)
         if existing:
-            return str(existing.id), 0
+            return existing, 0
+        # Si embedda solo una sorgente nuova. Prima i vettori si calcolavano qui
+        # sopra, prima del controllo: una sorgente gia' indicizzata si pagava di
+        # nuovo per intero e i vettori si buttavano.
+        chunks, vectors = prepared if prepared is not None else prepare_source(text_value)
 
         inserted = session.execute(
             text(
@@ -1267,7 +1296,16 @@ def write_evidence(
     # chunk + embedding FUORI dalla transazione: la chiamata all'embedder e' di
     # rete e non deve tenere lock sul pacchetto di evidenza atomico.
     has_source = bool(source_text and source_text.strip())
-    prepared = prepare_source(source_text) if has_source else None
+    prepared = None
+    if has_source and source_already_indexed(consultant_id, client_id, source_text or ""):
+        # Il testo c'e' gia': nessun embedding, e il risparmio si registra. Se la
+        # sorgente sparisse fra questo controllo e la scrittura, `write_source_chunks`
+        # la ricalcola da se': piu' lento, mai sbagliato. Senza chiave non si
+        # sarebbe speso niente, quindi non c'e' nessun risparmio da dichiarare.
+        if embeddings.available():
+            record_avoided_call(LlmTask.EMBEDDING)
+    elif has_source:
+        prepared = prepare_source(source_text or "")
 
     # P2: entity resolution decisa FUORI dalla transazione. plan_resolution apre
     # la sua sessione read-only, fa i lookup + le chiamate LLM, la chiude. Il
