@@ -269,6 +269,10 @@ def clear_bpmn_process(xml: str) -> tuple[str, dict]:
     root = _parse_bpmn_xml(xml)
     process = _find_process(root)
     removed = []
+    visible_types = FLOW_NODE_TYPES | DATA_ARTIFACT_TYPES | ANNOTATION_TYPES | {
+        "sequenceFlow", "laneSet", "association", "dataInputAssociation",
+        "dataOutputAssociation", "dataStoreReference",
+    }
 
     for element in list(process):
         if _namespace(element.tag) != BPMN_NS:
@@ -277,7 +281,7 @@ def clear_bpmn_process(xml: str) -> tuple[str, dict]:
         element_id = element.attrib.get("id", "")
         element_type = _local_name(element.tag)
 
-        if element_type == "process":
+        if element_type not in visible_types:
             continue
 
         if element_id:

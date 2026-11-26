@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import json
 import logging
+import xml.etree.ElementTree as ET
 from typing import Literal
 
+from defusedxml.common import DefusedXmlException
 from pydantic import BaseModel
 
 from backend.agents.attachments import build_attachments_prompt, resolve_attachments
-from backend.agents.context_budget import ContextBlock, assemble, note_context_fingerprint
+from backend.agents.context_budget import ContextBlock, assemble, count_tokens, note_context_fingerprint
 from backend.agents.evidence_brief import evidence_prompt_block
 from backend.agents.product_language import PRODUCT_LANGUAGE_CONTRACT
+from backend.bpmn.compact_canvas_map import compact_canvas_map
 from backend.schemas.chat import (
     DEFAULT_CHAT_MODE,
     ChatAttachment,
@@ -20,6 +23,7 @@ from backend.schemas.chat import (
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
+MAX_INLINE_CANVAS_MAP_TOKENS = 2500
 
 
 AgentScopeType = Literal["consultant", "project", "process", "canvas"]
@@ -166,7 +170,7 @@ def agent_scope_state(
     }
 
 
-def build_scope_system_prompt(state: dict) -> str:
+def build_scope_system_prompt(state: dict, *, compact_canvas_patch: bool = False) -> str:
     """
     Build the localized system prompt for the active conversation scope.
     
@@ -188,6 +192,7 @@ def build_scope_system_prompt(state: dict) -> str:
     identifiers, and does not persist data or perform other side effects.
     """
     scope_type = str(state.get("scope_type") or "consultant")
+    compact_canvas_patch = compact_canvas_patch and scope_type == "canvas"
     chat_mode = str(state.get("chat_mode") or "conversation")
     lines: list[str | ContextBlock] = [
         "Contesto operativo del thread.",
@@ -439,7 +444,30 @@ def build_scope_system_prompt(state: dict) -> str:
         # Il consulente li ha mandati apposta con questo messaggio.
         lines.append(ContextBlock("allegati del messaggio", "\n".join(attachments), priority=88))
 
-    if state.get("process_understanding"):
+    if compact_canvas_patch and scope_type == "canvas":
+        lines.extend([
+            "",
+            "Modifica locale del canvas: usa solo id esatti dalla mappa completa. "
+            "Se la mappa manca o e' troncata, usa il tool map prima di modificare. "
+            "Inspect e il contesto semantico sono disponibili tramite tool se servono. "
+            "Non dedurre struttura o id da un riassunto parziale.",
+        ])
+        live_xml = state.get("effective_bpmn_xml") or state.get("current_bpmn_xml")
+        if live_xml:
+            try:
+                navigation_map = compact_canvas_map(str(live_xml))
+            except (ET.ParseError, DefusedXmlException):
+                lines.append("Mappa canvas indisponibile: XML non leggibile; non modificare senza verifica.")
+            else:
+                if count_tokens(navigation_map) <= MAX_INLINE_CANVAS_MAP_TOKENS:
+                    lines.append(ContextBlock(
+                        "mappa canvas locale", navigation_map, priority=100,
+                        header=("", "Mappa di navigazione del canvas corrente (non e' BPMN completo):"),
+                    ))
+                else:
+                    lines.append("Mappa canvas troppo grande per il prompt: usa il tool map.")
+
+    if state.get("process_understanding") and not compact_canvas_patch:
         lines.append(
             ContextBlock(
                 "ProcessUnderstanding",
@@ -448,7 +476,7 @@ def build_scope_system_prompt(state: dict) -> str:
                 header=("", "ProcessUnderstanding corrente nello state:"),
             )
         )
-    if state.get("process_understanding_diagnostics"):
+    if state.get("process_understanding_diagnostics") and not compact_canvas_patch:
         lines.append(
             ContextBlock(
                 "diagnostica del ProcessUnderstanding",
@@ -457,7 +485,7 @@ def build_scope_system_prompt(state: dict) -> str:
                 header=("", "Diagnostica ProcessUnderstanding corrente:"),
             )
         )
-    if state.get("process_quality_report"):
+    if state.get("process_quality_report") and not compact_canvas_patch:
         lines.append(
             ContextBlock(
                 "quality report",
@@ -467,7 +495,7 @@ def build_scope_system_prompt(state: dict) -> str:
             )
         )
 
-    if state.get("bpmn_semantic_model"):
+    if state.get("bpmn_semantic_model") and not compact_canvas_patch:
         lines.append(
             ContextBlock(
                 "BPMNSemanticModel",
@@ -479,7 +507,7 @@ def build_scope_system_prompt(state: dict) -> str:
 
     effective_bpmn_xml = state.get("effective_bpmn_xml")
     current_bpmn_xml = state.get("current_bpmn_xml")
-    if scope_type == "canvas" and effective_bpmn_xml:
+    if scope_type == "canvas" and effective_bpmn_xml and not compact_canvas_patch:
         xml = str(effective_bpmn_xml)
         source_line = (
             f"effective_bpmn_xml_source: {state.get('effective_bpmn_xml_source') or 'unknown'}"
@@ -527,7 +555,7 @@ def build_scope_system_prompt(state: dict) -> str:
             )
         )
 
-    if scope_type == "canvas" and current_bpmn_xml:
+    if scope_type == "canvas" and current_bpmn_xml and not compact_canvas_patch:
         xml = str(current_bpmn_xml)
         truncated = len(xml) > MAX_CURRENT_BPMN_XML_CHARS
         if truncated:
@@ -571,6 +599,16 @@ def build_scope_system_prompt(state: dict) -> str:
         ]
     )
     assembled = assemble(lines, settings.agent_scope_context_budget_tokens)
+    if compact_canvas_patch and any(
+        block.name == "mappa canvas locale" and block.fate != "included"
+        for block in assembled.report.blocks
+    ):
+        # A partial ID map can make an absent element look nonexistent. Remove
+        # it entirely and force an explicit tool read before any mutation.
+        lines = [part for part in lines
+                 if not (isinstance(part, ContextBlock) and part.name == "mappa canvas locale")]
+        lines.append("Mappa canvas non inclusa per intero nel budget: usa il tool map prima di modificare.")
+        assembled = assemble(lines, settings.agent_scope_context_budget_tokens)
     logger.info("contesto di scope %s: %s", scope_type, assembled.report.as_log())
     note_context_fingerprint(assembled.report.fingerprint)
     return assembled.text

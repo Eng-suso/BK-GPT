@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "delir-local": {
+      "type": "stdio",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "args": ["-m", "backend.mcp_server"],
+      "env": {
+        "DELIR_MCP_API_URL": "http://127.0.0.1:8000",
+        "DELIR_MCP_TENANT_ID": "local",
+        "DELIR_MCP_API_TOKEN": "${env:DELIR_API_TOKEN}"
+      }
+    }
+  }
+}

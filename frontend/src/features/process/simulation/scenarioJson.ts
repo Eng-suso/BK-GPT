@@ -1,6 +1,6 @@
 import { parseScenarioDraft, type ScenarioDraft } from "./simulationScenario";
 import type { ScenarioTemplate } from "./simulationTypes";
-import { importProsimosJson, type ProsimosIdMapping } from "./prosimosJson";
+import { importProsimosJson, type ProsimosIdMapping, type ProsimosImport } from "./prosimosJson";
 
 const FORMAT = "delir-scenario-draft";
 const VERSION = 1;
@@ -29,7 +29,7 @@ export function importScenarioJson(
   template: ScenarioTemplate | null,
   currentDraft: ScenarioDraft | null = null,
   idMapping: ProsimosIdMapping = {},
-): ScenarioDraft {
+): ProsimosImport {
   const file: unknown = JSON.parse(text);
   if (!file || typeof file !== "object" || Array.isArray(file)) throw new Error("Il file deve contenere un oggetto JSON.");
   const data = file as Record<string, unknown>;
@@ -58,5 +58,5 @@ export function importScenarioJson(
     ];
     if (mismatched.length) throw new Error(`Elementi non presenti nel BPMN corrente: ${mismatched.join(", ")}.`);
   }
-  return parsed;
+  return { draft: parsed, warnings: [] };
 }
