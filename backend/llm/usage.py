@@ -141,6 +141,25 @@ def record(
         logger.warning("registro dei consumi: evento perso (%s)", type(exc).__name__, exc_info=True)
 
 
+def classify_failure(exc: BaseException) -> tuple[str, str]:
+    """Classifica un guasto in `(outcome, error_kind)`.
+
+    Il timeout ha un esito suo perche' e' l'unico guasto che si paga per intero:
+    il fornitore ha lavorato, noi abbiamo buttato il risultato. Tenerlo dentro
+    `error` renderebbe invisibile proprio la voce che va sorvegliata. Sta qui e
+    non nel gateway perche' anche le chiamate di Mem0 si classificano cosi'.
+    """
+    name = type(exc).__name__
+    if isinstance(exc, TimeoutError) or "timeout" in name.lower():
+        return Outcome.TIMEOUT, name
+    return Outcome.ERROR, name
+
+
+def _count(value: object) -> int:
+    """Un conteggio di token valido, o 0: mai negativo, mai un booleano."""
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+
 def extract_tokens(response: object) -> TokenUsage:
     """Legge i token da una risposta langchain.
 
@@ -167,9 +186,6 @@ def tokens_from_usage_metadata(metadata: object) -> TokenUsage:
     """
     if not isinstance(metadata, dict):
         return TokenUsage()
-
-    def _count(value: object) -> int:
-        return value if isinstance(value, int) and value >= 0 else 0
 
     input_details = metadata.get("input_token_details")
     output_details = metadata.get("output_token_details")
@@ -225,10 +241,27 @@ def extract_transcription_tokens(response: object) -> TokenUsage:
             return usage.get(nome)
         return getattr(usage, nome, None)
 
-    def _count(value: object) -> int:
-        return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
-
     return TokenUsage(
         input=_count(_campo("input_tokens")),
         output=_count(_campo("output_tokens")),
+    )
+
+
+def extract_openai_chat_tokens(response: object) -> TokenUsage:
+    """Legge i token da una risposta di chat dell'SDK OpenAI (non langchain).
+
+    E' la forma che vedono i client che DeliR non costruisce, come quelli di
+    Mem0: `usage.prompt_tokens` / `completion_tokens`, con i dettagli di cache e
+    ragionamento in due oggetti annidati.
+    """
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return TokenUsage()
+    prompt_details = getattr(usage, "prompt_tokens_details", None)
+    completion_details = getattr(usage, "completion_tokens_details", None)
+    return TokenUsage(
+        input=_count(getattr(usage, "prompt_tokens", 0)),
+        output=_count(getattr(usage, "completion_tokens", 0)),
+        reasoning=_count(getattr(completion_details, "reasoning_tokens", 0)),
+        cached_input=_count(getattr(prompt_details, "cached_tokens", 0)),
     )

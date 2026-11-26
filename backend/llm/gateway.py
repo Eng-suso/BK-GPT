@@ -40,6 +40,7 @@ from backend.llm.operation import current_operation
 from backend.llm.tasks import LlmTask, TaskProfile, profile_for
 from backend.llm.usage import (
     Outcome,
+    classify_failure,
     TokenUsage,
     extract_embedding_tokens,
     extract_tokens,
@@ -50,7 +51,6 @@ from backend.llm.usage import (
 from backend.llm.egress import Destination, EgressBlocked, require
 from backend.llm.local_tracer import local_callbacks
 from backend.llm_config import MissingProviderKey, chat_openai_kwargs, timeout_for_input
-from backend.llm_streaming import LEDGER_RECORDED_TAG
 from backend.services import degradation_counters
 from backend.settings import settings
 
@@ -121,9 +121,6 @@ def _client(profile: TaskProfile, input_characters: int | None):
         input_characters=input_characters if profile.scales_with_input else None,
     )
     kwargs["max_retries"] = _max_retries(profile)
-    # Il gateway registra da se' ogni chiamata: il tag dice al runtime della chat
-    # di non sommarla una seconda volta quando passa nello stream di un turno.
-    kwargs["tags"] = [LEDGER_RECORDED_TAG]
     # Quando LangSmith e' spento - nei test, sempre - la traccia la scriviamo
     # noi su file. Senza, «cosa e' stato mandato e cosa e' tornato» resterebbe
     # senza risposta proprio dove serve di piu': dentro un test che fallisce.
@@ -145,18 +142,8 @@ def _max_retries(profile: TaskProfile) -> int:
     return settings.agent_max_retries if profile.retry else settings.model_max_retries
 
 
-def _error_kind(exc: BaseException) -> tuple[str, str]:
-    """Classifica un guasto in `(outcome, error_kind)`.
-
-    Il timeout ha un esito suo perche' e' l'unico guasto che si paga per intero:
-    il fornitore ha lavorato, noi abbiamo buttato il risultato. Tenerlo dentro
-    `error` renderebbe invisibile proprio la voce che va sorvegliata.
-    """
-    name = type(exc).__name__
-    lowered = name.lower()
-    if isinstance(exc, TimeoutError) or "timeout" in lowered:
-        return Outcome.TIMEOUT, name
-    return Outcome.ERROR, name
+# Un solo modo di classificare un guasto, condiviso con le chiamate di Mem0.
+_error_kind = classify_failure
 
 
 @overload

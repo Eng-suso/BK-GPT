@@ -21,36 +21,18 @@ from typing import Any
 
 from backend.llm.operation import Operation, OperationKind, current_operation, new_operation
 from backend.llm.tasks import LlmTask, profile_for
-from backend.llm.usage import Outcome, TokenUsage, record
+from backend.llm.usage import (
+    Outcome,
+    classify_failure,
+    extract_embedding_tokens,
+    extract_openai_chat_tokens,
+    record,
+)
 from backend.services import degradation_counters
 
 #: Il segno lasciato su un metodo gia' avvolto: `get_memory()` e' in cache, ma un
 #: secondo `meter()` sulla stessa istanza non deve contare ogni chiamata due volte.
 _METERED = "_delir_metered"
-
-
-def _int(value: object) -> int:
-    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
-
-
-def _tokens(response: object) -> TokenUsage:
-    """I token di una risposta dell'SDK OpenAI, chat o embedding.
-
-    La forma non e' quella di langchain: qui stanno in `response.usage`, con
-    `prompt_tokens` e `completion_tokens`, e i dettagli in due oggetti annidati.
-    Un embedding ha solo `prompt_tokens`.
-    """
-    usage = getattr(response, "usage", None)
-    if usage is None:
-        return TokenUsage()
-    prompt_details = getattr(usage, "prompt_tokens_details", None)
-    completion_details = getattr(usage, "completion_tokens_details", None)
-    return TokenUsage(
-        input=_int(getattr(usage, "prompt_tokens", 0)),
-        output=_int(getattr(usage, "completion_tokens", 0)),
-        reasoning=_int(getattr(completion_details, "reasoning_tokens", 0)),
-        cached_input=_int(getattr(prompt_details, "cached_tokens", 0)),
-    )
 
 
 def _operation() -> Operation:
@@ -69,37 +51,43 @@ def _operation() -> Operation:
     return new_operation(OperationKind.MEMORY_PROJECTION)
 
 
+_TOKEN_READERS = {
+    LlmTask.MEMORY_EXTRACTION: extract_openai_chat_tokens,
+    LlmTask.MEMORY_EMBEDDING: extract_embedding_tokens,
+}
+
+
 def _wrap(method: Any, task: LlmTask) -> Any:
     if getattr(method, _METERED, False):
         return method
+    read_tokens = _TOKEN_READERS[task]
 
     @functools.wraps(method)
     def metered(*args: Any, **kwargs: Any) -> Any:
         operation = _operation()
-        model = str(kwargs.get("model") or profile_for(task).model)
         started = time.perf_counter()
+        response: Any = None
+        outcome, error_kind = Outcome.OK, None
         try:
             response = method(*args, **kwargs)
+            return response
         except BaseException as exc:
-            outcome = Outcome.TIMEOUT if "timeout" in type(exc).__name__.lower() else Outcome.ERROR
+            outcome, error_kind = classify_failure(exc)
+            raise
+        finally:
             record(
                 operation=operation,
                 task=task.value,
-                model=model,
+                # Il modello che ha risposto, se la risposta lo dice; altrimenti
+                # quello chiesto, e solo in ultima istanza quello del profilo.
+                model=str(
+                    getattr(response, "model", None) or kwargs.get("model") or profile_for(task).model
+                ),
                 outcome=outcome,
-                error_kind=type(exc).__name__,
+                tokens=read_tokens(response) if response is not None else None,
+                error_kind=error_kind,
                 duration_ms=int((time.perf_counter() - started) * 1000),
             )
-            raise
-        record(
-            operation=operation,
-            task=task.value,
-            model=str(getattr(response, "model", None) or model),
-            outcome=Outcome.OK,
-            tokens=_tokens(response),
-            duration_ms=int((time.perf_counter() - started) * 1000),
-        )
-        return response
 
     setattr(metered, _METERED, True)
     return metered
