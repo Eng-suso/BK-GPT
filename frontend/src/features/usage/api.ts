@@ -1,7 +1,7 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { z } from "zod";
 
-import type { MeterTone } from "@/components/data";
+import type { MeterTone } from "@/components/data/Meter";
 import { http } from "@/lib/http";
 
 /**

@@ -1,7 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 
-import { Meter, type MeterTone } from "@/components/data";
+// Dal suo file, non dall indice: l indice porta con se' le tabelle (react-table)
+// nel pacchetto d'ingresso, e la barra in alto e' nel pacchetto d'ingresso.
+import { Meter, type MeterTone } from "@/components/data/Meter";
 import { InlineNotice } from "@/components/feedback/InlineNotice";
 import { Button } from "@/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
