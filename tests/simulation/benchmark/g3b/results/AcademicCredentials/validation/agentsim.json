@@ -25,5 +25,5 @@
     "counterfactual": "NOT VALIDATED"
   },
   "status": "failed",
-  "reason": "agentsim_run.py: uscita 1;     self.perform_task(current_timestamp, activity_duration, activity, last_possible_agent, perform_multitask=perform_multitask) |   File \"/root/.cache/delir-datasets/agentsimulator/source/agents/resource.py\", line 54, in perform_task |     current_timestamp += pd.Timedelta(seconds=waiting_time) |   File \"timestamps.pyx\", line 458, in pandas._libs.tslibs.timestamps._Timestamp.__add__ | pandas._libs.tslibs.np_datetime.OutOfBoundsDatetime: Out of bounds nanosecond timestamp: 9223546144000000000"
+  "reason": "agentsim_run.py: uscita 1; OverflowError: value too large |     current_timestamp += pd.Timedelta(seconds=waiting_time) |   File \"timestamps.pyx\", line 458, in pandas._libs.tslibs.timestamps._Timestamp.__add__ | pandas._libs.tslibs.np_datetime.OutOfBoundsDatetime: Out of bounds nanosecond timestamp: 9223546144000000000"
 }

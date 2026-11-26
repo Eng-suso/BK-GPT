@@ -24,6 +24,6 @@
     "true_parameters": "NOT VALIDATED",
     "counterfactual": "NOT VALIDATED"
   },
-  "status": "failed",
-  "reason": "agentsim_run.py: uscita -15; CTD without extr + central: 55.915305571538006 | CTD extr + autonomous: 83.63039906610749 | CTD without extr + autonomous: 55.72627714568567 | number of simulated cases: 2976 | Simulated logs are stored in /var/tmp/delir-g3b/work/BPIC_2012_W/test/runs/agentsim/agentsim/simulated_log_0.csv"
+  "status": "out_of_budget",
+  "reason": "agentsim_run.py: uscita 1; number of simulated cases: 2976 | Simulated logs are stored in /var/tmp/delir-g3b/work/BPIC_2012_W/test/runs/agentsim/agentsim/simulated_log_0.csv | fuori budget: discovery oltre 7200 s o una replica oltre 600 s"
 }

@@ -24,6 +24,6 @@
     "true_parameters": "identificabile",
     "counterfactual": "identificabile"
   },
-  "status": "failed",
-  "reason": "agentsim_run.py: uscita 1;   File \"/root/.cache/delir-datasets/agentsimulator/source/discovery.py\", line 55, in discover_simulation_parameters |     case_arrival_times, train_params = get_case_arrival_times(df_train, start_timestamp=START_TIME, num_cases_to_simulate=num_cases_to_simulate, train=True) |   File \"/root/.cache/delir-datasets/agentsimulator/source/arrival_times.py\", line 25, in get_case_arrival_times |     x = round(average_occurrences_by_day[day_of_current_timestamp][0]) | ValueError: cannot convert float NaN to integer"
+  "status": "not_applicable",
+  "reason": "agentsim_run.py: uscita 1; AgentSimulator non applicabile: input di un solo giorno (cannot convert float NaN to integer) | transition_probabilities: {0: {'Check if customer has all required information': {1: {'Register Claim': 0.06666666666666667}, 0: {'Register Claim': 0.06666666666666667, 'zzz_end': 0.26666666666666666}, 70: {'Register Claim': 0.13333333333333333}, 84: {'Register Claim': 0.06666666666666667}, 35: {'Register Claim': 0.13333333333333333}, 90: {'Register Claim': 0.06666666666666667}, 69: {'Register Cla | preceding_activities_dict: {'Register Claim': ['Check if customer has all required information'], 'Determine likelihood of the claim': ['Check if customer has all required information', 'Register Claim'], 'Assess Claim': ['Check if customer has all required information', 'Register Claim', 'Determine likelihood of the claim'], 'Initiate Payment': ['Check if customer has all required information', ' | AgentSimulator non applicabile: input di un solo giorno (cannot convert float NaN to integer)"
 }
