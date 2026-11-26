@@ -18,11 +18,12 @@ from tests.simulation.benchmark.log_distance import METRICS
 
 
 def _result(means: dict[str, float], *, ci: float = 0.1, status: str = "measured", nv: tuple[str, ...] = (), **cost) -> dict:
+    replicas = lambda m: [means.get(m, 1.0) + d for d in (-0.01, 0.0, 0.01)]  # noqa: E731
     return {
         "status": status,
         "label": "x",
         "identifiability": {m: protocol.NOT_VALIDATED if m in nv else protocol.IDENTIFIABLE for m in METRICS},
-        "metrics": {m: {"mean": means.get(m, 1.0), "ci95": ci} for m in METRICS},
+        "metrics": {m: {"mean": means.get(m, 1.0), "ci95": ci, "replicas": replicas(m)} for m in METRICS},
         "cost": {"discovery_seconds": 10.0, "simulation_seconds": [1.0], "peak_mb": 100.0, **cost},
     }
 
@@ -39,6 +40,11 @@ def test_a_missing_candidate_loses_and_a_missing_base_is_incomplete() -> None:
     assert report.compare(None, measured, "ngram") == "perde"
     assert report.compare(_result({}, status="out_of_budget"), measured, "ngram") == "perde"
     assert report.compare(measured, None, "ngram") == "incompleto"
+
+
+def test_the_paired_comparison_is_reported_beside_the_intervals() -> None:
+    assert report.paired(_result({"ngram": 0.1}), _result({"ngram": 0.5}), "ngram") == "vince"
+    assert report.paired(_result({"ngram": 0.1}), _result({}, status="failed"), "ngram") is None
 
 
 def test_a_failed_base_loses_and_two_failures_tie() -> None:

@@ -21,6 +21,11 @@
     ],
     "bases": {
       "naive": {
+        "paired": {
+          "vince": 7,
+          "pari": 0,
+          "perde": 0
+        },
         "wins": 7,
         "ties": 0,
         "logs": 23,
@@ -160,6 +165,11 @@
         "costlier_than_double": []
       },
       "simod_extr": {
+        "paired": {
+          "vince": 0,
+          "pari": 5,
+          "perde": 2
+        },
         "wins": 0,
         "ties": 6,
         "logs": 23,
@@ -299,6 +309,11 @@
     ],
     "bases": {
       "naive": {
+        "paired": {
+          "vince": 6,
+          "pari": 4,
+          "perde": 2
+        },
         "wins": 6,
         "ties": 4,
         "logs": 24,
@@ -434,6 +449,11 @@
         "costlier_than_double": []
       },
       "simod_extr": {
+        "paired": {
+          "vince": 6,
+          "pari": 3,
+          "perde": 3
+        },
         "wins": 3,
         "ties": 9,
         "logs": 24,
@@ -545,6 +565,11 @@
     ],
     "bases": {
       "naive": {
+        "paired": {
+          "vince": 5,
+          "pari": 3,
+          "perde": 14
+        },
         "wins": 5,
         "ties": 2,
         "logs": 23,
@@ -646,6 +671,11 @@
         "costlier_than_double": []
       },
       "simod": {
+        "paired": {
+          "vince": 4,
+          "pari": 14,
+          "perde": 4
+        },
         "wins": 4,
         "ties": 13,
         "logs": 23,
@@ -723,6 +753,11 @@
     ],
     "bases": {
       "naive": {
+        "paired": {
+          "vince": 6,
+          "pari": 0,
+          "perde": 16
+        },
         "wins": 6,
         "ties": 0,
         "logs": 23,
@@ -849,6 +884,11 @@
         "costlier_than_double": []
       },
       "simod": {
+        "paired": {
+          "vince": 7,
+          "pari": 9,
+          "perde": 6
+        },
         "wins": 4,
         "ties": 16,
         "logs": 23,
@@ -923,6 +963,11 @@
     ],
     "bases": {
       "naive": {
+        "paired": {
+          "vince": 7,
+          "pari": 4,
+          "perde": 13
+        },
         "wins": 6,
         "ties": 8,
         "logs": 25,
@@ -1024,6 +1069,11 @@
         "costlier_than_double": []
       },
       "simod_extr_247": {
+        "paired": {
+          "vince": 13,
+          "pari": 3,
+          "perde": 8
+        },
         "wins": 13,
         "ties": 5,
         "logs": 25,
@@ -1123,6 +1173,11 @@
     ],
     "bases": {
       "naive": {
+        "paired": {
+          "vince": 3,
+          "pari": 6,
+          "perde": 14
+        },
         "wins": 2,
         "ties": 7,
         "logs": 25,
@@ -1249,6 +1304,11 @@
         "costlier_than_double": []
       },
       "simod_extr_247": {
+        "paired": {
+          "vince": 12,
+          "pari": 0,
+          "perde": 11
+        },
         "wins": 12,
         "ties": 2,
         "logs": 25,
@@ -1361,6 +1421,11 @@
     ],
     "bases": {
       "naive": {
+        "paired": {
+          "vince": 2,
+          "pari": 13,
+          "perde": 8
+        },
         "wins": 0,
         "ties": 16,
         "logs": 23,
@@ -1436,6 +1501,11 @@
         "costlier_than_double": []
       },
       "simod_extr": {
+        "paired": {
+          "vince": 13,
+          "pari": 4,
+          "perde": 5
+        },
         "wins": 14,
         "ties": 4,
         "logs": 23,
@@ -1490,6 +1560,11 @@
         "costlier_than_double": []
       },
       "prosit_norules": {
+        "paired": {
+          "vince": 11,
+          "pari": 12,
+          "perde": 0
+        },
         "wins": 6,
         "ties": 17,
         "logs": 23,
@@ -1551,6 +1626,11 @@
     ],
     "bases": {
       "naive": {
+        "paired": {
+          "vince": 2,
+          "pari": 13,
+          "perde": 8
+        },
         "wins": 0,
         "ties": 16,
         "logs": 23,
@@ -1646,6 +1726,11 @@
         "costlier_than_double": []
       },
       "simod_extr": {
+        "paired": {
+          "vince": 16,
+          "pari": 0,
+          "perde": 6
+        },
         "wins": 17,
         "ties": 0,
         "logs": 23,
@@ -1714,6 +1799,11 @@
         "costlier_than_double": []
       },
       "prosit_norules": {
+        "paired": {
+          "vince": 12,
+          "pari": 10,
+          "perde": 1
+        },
         "wins": 12,
         "ties": 11,
         "logs": 23,
@@ -1776,6 +1866,11 @@
     ],
     "bases": {
       "naive": {
+        "paired": {
+          "vince": 5,
+          "pari": 5,
+          "perde": 13
+        },
         "wins": 4,
         "ties": 7,
         "logs": 23,
@@ -1851,6 +1946,11 @@
         "costlier_than_double": []
       },
       "simod_extr": {
+        "paired": {
+          "vince": 9,
+          "pari": 4,
+          "perde": 9
+        },
         "wins": 8,
         "ties": 7,
         "logs": 23,
@@ -1926,6 +2026,11 @@
     ],
     "bases": {
       "naive": {
+        "paired": {
+          "vince": 0,
+          "pari": 4,
+          "perde": 19
+        },
         "wins": 0,
         "ties": 7,
         "logs": 23,
@@ -2021,6 +2126,11 @@
         "costlier_than_double": []
       },
       "simod_extr": {
+        "paired": {
+          "vince": 7,
+          "pari": 1,
+          "perde": 14
+        },
         "wins": 7,
         "ties": 3,
         "logs": 23,
@@ -2111,6 +2221,11 @@
     ],
     "bases": {
       "naive": {
+        "paired": {
+          "vince": 6,
+          "pari": 4,
+          "perde": 6
+        },
         "wins": 5,
         "ties": 6,
         "logs": 23,
@@ -2209,6 +2324,11 @@
         "costlier_than_double": []
       },
       "simod_extr": {
+        "paired": {
+          "vince": 12,
+          "pari": 1,
+          "perde": 3
+        },
         "wins": 12,
         "ties": 2,
         "logs": 23,
@@ -2326,6 +2446,11 @@
     ],
     "bases": {
       "naive": {
+        "paired": {
+          "vince": 1,
+          "pari": 1,
+          "perde": 13
+        },
         "wins": 1,
         "ties": 2,
         "logs": 23,
@@ -2457,6 +2582,11 @@
         "costlier_than_double": []
       },
       "simod_extr": {
+        "paired": {
+          "vince": 11,
+          "pari": 0,
+          "perde": 4
+        },
         "wins": 11,
         "ties": 1,
         "logs": 23,

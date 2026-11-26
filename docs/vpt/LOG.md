@@ -75,7 +75,9 @@ Modello:
   | Approccio intero AgentSimulator | W1 | 5-6-12 / 1-2-20 | SIMOD con ritardi: 12-2-9 / 11-1-11 | **NO-GO** (anche VAL-01 non verificabile) |
 
   Vince-pari-perde sui log dove la primaria è identificabile (fino a 25). Fallito, fuori
-  budget o non applicabile = sconfitta (§6), per il candidato e per la base.
+  budget o non applicabile = sconfitta (§6), per il candidato e per la base. Il confronto
+  appaiato di PROTO-02 (`protocol.paired_comparison`, riportato accanto in `results.md`, non
+  decide) dà sconfitte della primaria in ogni scheda come gli IC: nessun verdetto cambierebbe.
 
 - **Decisione per componente** (da scheda, nessuna meta cambiata):
   - **Arrivi — NO-GO per AT-KDE.** Non si applica a 15 log su 25 (meno di 14 giorni con arrivi

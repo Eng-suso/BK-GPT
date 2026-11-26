@@ -91,6 +91,17 @@ def compare(candidate: dict | None, base: dict | None, metric: str) -> str:
     return "vince" if c["mean"] < b["mean"] else "perde"
 
 
+def paired(candidate: dict | None, base: dict | None, metric: str) -> str | None:
+    """Il confronto appaiato di PROTO-02 (stesse repliche, stessi seed), riportato accanto: non decide.
+
+    None se una delle due non e' misurata.
+    """
+    if not (measured(candidate) and measured(base)):
+        return None
+    result = protocol.paired_comparison(candidate["metrics"][metric]["replicas"], base["metrics"][metric]["replicas"])
+    return {"a meglio": "vince", "b meglio": "perde"}.get(result.verdict, "pari")
+
+
 def measured(result: dict | None) -> bool:
     return bool(result) and result.get("status") == "measured"
 
@@ -147,7 +158,9 @@ def verdict(card: Card, phase: str, results: dict, logs: list[str]) -> dict:
                 mine, theirs = cost(rows[log]), cost(base_rows[log])
                 if mine and theirs and (mine[0] > 2 * theirs[0] or mine[1] > 2 * theirs[1]):
                     costly.append(log)
+        pairs = [paired(rows[log], base_rows[log], card.primary) for log in usable]
         per_base[base] = {
+            "paired": {k: sum(p == k for p in pairs) for k in ("vince", "pari", "perde")},
             "wins": wins, "ties": sum(v == "pari" for v in outcome.values()), "logs": len(usable), "losses": losses, "missing": missing,
             "guard_losses": {m: v for m, v in guards.items() if v}, "costlier_than_double": costly,
         }
@@ -221,14 +234,21 @@ def report(results: dict) -> tuple[str, dict]:
             v = verdict(card, phase, results, logs)
             verdicts[f"{card.component} / {phase}"] = v
             lines.append(f"| {card.component} | {phase} | **{v['verdict']}** | {'; '.join(v['reasons']) or '—'} |")
-    lines += ["", "## Primaria contro ogni base", "", "Log dove la primaria è identificabile: vince / pari / perde.", "",
+    lines += ["", "## Primaria contro ogni base", "",
+              "Log dove la primaria è identificabile: vince / pari / perde. Accanto, fra parentesi, il confronto",
+              "appaiato di PROTO-02 (bootstrap della differenza sulle stesse repliche) sui log dove entrambe sono",
+              "misurate: si riporta, non decide.", "",
               "| Componente | Primaria | Base | Validazione | Test |", "| --- | --- | --- | --- | --- |"]
     for card in CARDS:
         for base in card.bases:
             cells = []
             for phase in PHASES:
                 b = verdicts[f"{card.component} / {phase}"]["bases"].get(base)
-                cells.append(f"{b['wins']} / {b['ties']} / {len(b['losses'])}" if b else "—")
+                if b:
+                    q = b["paired"]
+                    cells.append(f"{b['wins']} / {b['ties']} / {len(b['losses'])} ({q['vince']} / {q['pari']} / {q['perde']})")
+                else:
+                    cells.append("—")
             lines.append(f"| {card.component} | {LABELS[card.primary]} | {base} | " + " | ".join(cells) + " |")
     for phase in PHASES:
         lines += ["", f"## Metriche, fase {phase}", ""]

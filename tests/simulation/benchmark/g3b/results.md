@@ -23,23 +23,25 @@ Distanze di B2 (tempi in ore, NGD in [0, 1]): media ± semiampiezza IC 95% su 10
 
 ## Primaria contro ogni base
 
-Log dove la primaria è identificabile: vince / pari / perde.
+Log dove la primaria è identificabile: vince / pari / perde. Accanto, fra parentesi, il confronto
+appaiato di PROTO-02 (bootstrap della differenza sulle stesse repliche) sui log dove entrambe sono
+misurate: si riporta, non decide.
 
 | Componente | Primaria | Base | Validazione | Test |
 | --- | --- | --- | --- | --- |
-| Arrivi (AT-KDE) | CAR | naive | 7 / 0 / 16 | 6 / 4 / 14 |
-| Arrivi (AT-KDE) | CAR | simod_extr | 0 / 6 / 17 | 3 / 9 / 12 |
-| Attese (ritardi estranei) | RED | naive | 5 / 2 / 16 | 6 / 0 / 17 |
-| Attese (ritardi estranei) | RED | simod | 4 / 13 / 6 | 4 / 16 / 3 |
-| Calendari delle risorse | CED | naive | 6 / 8 / 11 | 2 / 7 / 16 |
-| Calendari delle risorse | CED | simod_extr_247 | 13 / 5 / 7 | 12 / 2 / 11 |
-| Control flow e risorse condizionali | NGD | naive | 0 / 16 / 7 | 0 / 16 / 7 |
-| Control flow e risorse condizionali | NGD | simod_extr | 14 / 4 / 5 | 17 / 0 / 6 |
-| Control flow e risorse condizionali | NGD | prosit_norules | 6 / 17 / 0 | 12 / 11 / 0 |
-| Approccio intero: ProSiT | W1 | naive | 4 / 7 / 12 | 0 / 7 / 16 |
-| Approccio intero: ProSiT | W1 | simod_extr | 8 / 7 / 8 | 7 / 3 / 13 |
-| Approccio intero: AgentSimulator | W1 | naive | 5 / 6 / 12 | 1 / 2 / 20 |
-| Approccio intero: AgentSimulator | W1 | simod_extr | 12 / 2 / 9 | 11 / 1 / 11 |
+| Arrivi (AT-KDE) | CAR | naive | 7 / 0 / 16 (7 / 0 / 0) | 6 / 4 / 14 (6 / 4 / 2) |
+| Arrivi (AT-KDE) | CAR | simod_extr | 0 / 6 / 17 (0 / 5 / 2) | 3 / 9 / 12 (6 / 3 / 3) |
+| Attese (ritardi estranei) | RED | naive | 5 / 2 / 16 (5 / 3 / 14) | 6 / 0 / 17 (6 / 0 / 16) |
+| Attese (ritardi estranei) | RED | simod | 4 / 13 / 6 (4 / 14 / 4) | 4 / 16 / 3 (7 / 9 / 6) |
+| Calendari delle risorse | CED | naive | 6 / 8 / 11 (7 / 4 / 13) | 2 / 7 / 16 (3 / 6 / 14) |
+| Calendari delle risorse | CED | simod_extr_247 | 13 / 5 / 7 (13 / 3 / 8) | 12 / 2 / 11 (12 / 0 / 11) |
+| Control flow e risorse condizionali | NGD | naive | 0 / 16 / 7 (2 / 13 / 8) | 0 / 16 / 7 (2 / 13 / 8) |
+| Control flow e risorse condizionali | NGD | simod_extr | 14 / 4 / 5 (13 / 4 / 5) | 17 / 0 / 6 (16 / 0 / 6) |
+| Control flow e risorse condizionali | NGD | prosit_norules | 6 / 17 / 0 (11 / 12 / 0) | 12 / 11 / 0 (12 / 10 / 1) |
+| Approccio intero: ProSiT | W1 | naive | 4 / 7 / 12 (5 / 5 / 13) | 0 / 7 / 16 (0 / 4 / 19) |
+| Approccio intero: ProSiT | W1 | simod_extr | 8 / 7 / 8 (9 / 4 / 9) | 7 / 3 / 13 (7 / 1 / 14) |
+| Approccio intero: AgentSimulator | W1 | naive | 5 / 6 / 12 (6 / 4 / 6) | 1 / 2 / 20 (1 / 1 / 13) |
+| Approccio intero: AgentSimulator | W1 | simod_extr | 12 / 2 / 9 (12 / 1 / 3) | 11 / 1 / 11 (11 / 0 / 4) |
 
 ## Metriche, fase validation
 
