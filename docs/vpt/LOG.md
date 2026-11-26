@@ -70,6 +70,37 @@ Modello:
   seed: gli scenari non sono quelli di G3b, che restano il riferimento storico); risultati in
   `tests/simulation/benchmark/b3_1/results/`. Al massimo due processi pesanti alla volta.
 
+### Diagnosi di C1 in validazione (dai risultati di G3b, solo validazione)
+
+- **Finestra sbagliata.** In validazione il fit è 4 volte il periodo da prevedere: "B = A" estrae
+  casi da tutto il fit e li sposta di settimane intere, così gli arrivi coprono 2-4 volte la
+  finestra vera; il 29-54% finisce prima del primo inizio (e C1 lo schiaccia lì) e il 15-38%
+  dopo l'ultimo arrivo vero (BPIC 2012 W, BPIC 2017 W, Loan_Application, Procure_to_Pay). In
+  test train e test hanno la stessa lunghezza e il problema non si vede: per questo C1 regge lì.
+- **Log di poche ore.** Insurance_Claims e Pharmacy hanno l'input in 0,1-1,1 giorni: lo
+  spostamento a settimane intere arrotonda a zero e il 100% dei casi arriva nello stesso istante.
+- **Rumore dell'estrazione.** Procure_to_Pay ha 16 casi esatti per giorno feriale: estrarre casi
+  con reinserimento dà conteggi giornalieri casuali; SIMOD (CAR 2,4 in validazione) no.
+- **Ritmo di fine train.** Nella validazione di BPIC 2012 W e 2017 W il ritmo cala nelle ultime
+  settimane (casi iniziati tardi e non ancora finiti, tagliati dal train): 31,7 contro 60 casi
+  al giorno su BPIC 2012 W. Nessuna variante lo conosce senza guardare il periodo da prevedere.
+
+### Scheda B3.1-C2 (scritta il 2026-11-26, prima della misura di C2)
+
+Uguale a C1 (basi, primarie, guardie, log, regole, letture dichiarate, misura) tranne il candidato.
+
+| Campo | Contenuto |
+| --- | --- |
+| Ipotesi | gli arrivi del log ricampionati a giorni interi dal primo inizio del periodo tengono il ritmo, il giorno della settimana e l'ora dell'input, senza spargere i casi fuori dalla finestra e senza il rumore dell'estrazione dei casi |
+| Candidato | `simod_extr_days` (`b3_1/arrivals.py`, `day_blocks`): ogni giorno del periodo, dal primo inizio, prende gli arrivi in ora locale di un giorno intero dell'input estratto a caso con lo stesso giorno della settimana (primo e ultimo giorno dell'input esclusi perché parziali), finché i casi sono tutti arrivati; con meno di 7 giorni interi si estrae fra tutti i giorni; con meno di 2 (log di poche ore) si estraggono con reinserimento i tempi fra arrivi dell'input. Seed della replica `20261124 + replica`. Nessun parametro scelto sulla validazione |
+| Basi | `simod_extr`; `naive` |
+
+- **Valutazioni sulla validazione: n. 2 (diagnosi) e n. 3 (misura) di 20.** Prima di questa scheda ho calcolato CAR dei soli
+  arrivi di C2 (senza simulare) su 7 log di validazione, per controllare che la finestra fosse
+  giusta: AcademicCredentials 222, BPIC 2012 W 68,8, BPIC 2017 W 48,8, Insurance_Claims 0,03,
+  Loan_Application 5,5, Pharmacy 7,3, Procure_to_Pay 0,0. La conto come una valutazione.
+  Nessuna scelta di C2 è venuta da quei numeri (le regole erano già scritte nel codice).
+
 ---
 
 ## 2026-11-26 — G3b benchmark dei motori scientifici — fatto
