@@ -24,21 +24,60 @@ import csv
 import json
 import random
 import signal
+import sys
 import tempfile
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import NoReturn
 
 import numpy
 from prosimos.simulation_engine import SimBPMEnv, execute_full_process, run_simulation
 from prosimos.simulation_properties_parser import parse_datetime
 from prosimos.simulation_setup import SimDiffSetup
 
-REPLICA_SECONDS = 600  # PROTOCOL.md §6: al massimo 10 minuti per replica
+# Esito per il driver (run.py, stessi numeri): non applicabile e fuori budget (PROTOCOL.md §6).
+EXIT_NOT_APPLICABLE = 3
+EXIT_OUT_OF_BUDGET = 4
 
 
-def _over_budget(_signum, _frame):
-    raise SystemExit(f"fuori budget: una replica oltre {REPLICA_SECONDS} s")
+def stop(code: int, message: str) -> NoReturn:
+    print(message, file=sys.stderr, flush=True)
+    raise SystemExit(code)
+
+
+@contextmanager
+def budget(seconds: int, what: str) -> Iterator[None]:
+    """Oltre ``seconds`` di tempo reale lo strumento esce con ``EXIT_OUT_OF_BUDGET``."""
+
+    def expired(_signum, _frame):
+        stop(EXIT_OUT_OF_BUDGET, f"fuori budget: {what} oltre {seconds} s")
+
+    previous = signal.signal(signal.SIGALRM, expired)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+def common_arguments(parser: argparse.ArgumentParser) -> None:
+    """Gli argomenti che il driver passa a ogni strumento (``run._tool_args``)."""
+    parser.add_argument("--cases", type=int, required=True)
+    parser.add_argument("--start", required=True)
+    parser.add_argument("--seed", type=int, required=True)
+    parser.add_argument("--replicas", type=int, required=True)
+    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--discovery-seconds", type=int, default=7200)
+    parser.add_argument("--replica-seconds", type=int, default=600)
+
+
+def seed_replica(seed: int) -> None:
+    random.seed(seed)
+    numpy.random.seed(seed)
 
 
 ALWAYS_OPEN = [{"from": "MONDAY", "to": "SUNDAY", "beginTime": "00:00:00", "endTime": "23:59:59.999999"}]
@@ -71,11 +110,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--bpmn", type=Path, required=True)
     parser.add_argument("--json", type=Path, required=True)
-    parser.add_argument("--cases", type=int, required=True)
-    parser.add_argument("--start", required=True)
-    parser.add_argument("--seed", type=int, required=True)
-    parser.add_argument("--replicas", type=int, required=True)
-    parser.add_argument("--out", type=Path, required=True)
+    common_arguments(parser)
     parser.add_argument("--arrivals", type=Path)
     parser.add_argument("--calendars-247", action="store_true")
     args = parser.parse_args()
@@ -89,24 +124,20 @@ def main() -> int:
     start = parse_datetime(args.start, True)
     timings = []
     for replica in range(args.replicas):
-        seed = args.seed + replica
-        random.seed(seed)
-        numpy.random.seed(seed)
+        seed_replica(args.seed + replica)
         log_path = args.out / f"sim_{replica}.csv"
-        signal.signal(signal.SIGALRM, _over_budget)
-        signal.alarm(REPLICA_SECONDS)
         began = time.perf_counter()
-        if arrivals is None:
-            with tempfile.NamedTemporaryFile(suffix=".csv") as stats:
-                run_simulation(
-                    str(args.bpmn), str(scenario_path), total_cases=args.cases, stat_out_path=stats.name,
-                    log_out_path=str(log_path), starting_at=args.start, is_event_added_to_log=False,
-                )
-        else:
-            instants = sorted(datetime.fromisoformat(a) for a in arrivals[replica])
-            simulate_fixed(args.bpmn, scenario_path, start, instants, log_path)
+        with budget(args.replica_seconds, "una replica"):
+            if arrivals is None:
+                with tempfile.NamedTemporaryFile(suffix=".csv") as stats:
+                    run_simulation(
+                        str(args.bpmn), str(scenario_path), total_cases=args.cases, stat_out_path=stats.name,
+                        log_out_path=str(log_path), starting_at=args.start, is_event_added_to_log=False,
+                    )
+            else:
+                instants = sorted(datetime.fromisoformat(a) for a in arrivals[replica])
+                simulate_fixed(args.bpmn, scenario_path, start, instants, log_path)
         timings.append(round(time.perf_counter() - began, 3))
-        signal.alarm(0)
     (args.out / "timings.json").write_text(json.dumps({"simulation_seconds": timings}))
     return 0
 

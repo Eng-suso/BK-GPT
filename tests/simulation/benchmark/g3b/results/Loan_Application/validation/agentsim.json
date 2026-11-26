@@ -136,20 +136,20 @@
     }
   },
   "cost": {
-    "discovery_seconds": 25.438,
+    "discovery_seconds": 22.291,
     "simulation_seconds": [
-      0.471,
-      0.532,
-      0.377,
-      0.522,
-      0.423,
-      0.528,
-      0.595,
-      0.482,
-      0.479,
-      0.504
+      0.491,
+      0.564,
+      0.391,
+      0.607,
+      0.484,
+      0.587,
+      0.579,
+      0.466,
+      0.45,
+      0.457
     ],
-    "peak_mb": 730.1,
+    "peak_mb": 725.4,
     "choice": {
       "central_orchestration": true,
       "discover_extr_delays": null

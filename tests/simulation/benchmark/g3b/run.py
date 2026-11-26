@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import functools
 import gzip
 import json
 import os
@@ -51,7 +52,7 @@ from tests.simulation.benchmark import protocol
 from tests.simulation.benchmark.benchmark_datasets import DATASETS, fetch, load
 from tests.simulation.benchmark.eval_harness import DEFAULT_SEED, PAPER_REPLICAS, summarize
 from tests.simulation.benchmark.log_distance import METRICS, Event, cases, distances, parse_instant
-from tests.simulation.benchmark.run_baseline import NaiveTwin, split_in_half
+from tests.simulation.benchmark.run_baseline import NaiveTwin, replicas_error, split_in_half
 
 HERE = Path(__file__).resolve().parent
 RESULTS = HERE / "results"
@@ -119,45 +120,40 @@ class Prepared:
     log: protocol.DevelopmentLog
     phase: str
     source: list[Row]  # l'input della discovery
+    source_events: list[Event]
     target: list[Event]  # il periodo da prevedere
+    cases: int  # casi del periodo da prevedere
+    start: datetime  # suo primo inizio
     zone: ZoneInfo
     work: Path
     identifiability: dict
-
-    @property
-    def cases(self) -> int:
-        return len({e.case_id for e in self.target})
-
-    @property
-    def start(self) -> datetime:
-        return min(e.start for e in self.target)
 
     @property
     def input_csv(self) -> Path:
         return self.work / "input.csv"
 
 
-def prepare(log: protocol.DevelopmentLog, phase: str) -> Prepared:
-    train, test, zone = periods(log)
+def prepare(log: protocol.DevelopmentLog, phase: str, loaded: tuple[list[Row], list[Row], ZoneInfo]) -> Prepared:
+    """Una fase di un log: ``loaded`` e' ``periods(log)``, letto una volta per entrambe le fasi."""
+    train, test, zone = loaded
+    train_events = [r.event() for r in train]
     if phase == "validation":
-        fit, validation = protocol.train_validation([r.event() for r in train])
-        fit_cases = {e.case_id for e in fit}
-        source, target = [r for r in train if r.case_id in fit_cases], validation
         # Proprieta' del §4 con A = fit e B = validazione.
-        props = protocol.properties(
-            fit, validation, has_start=[r.start is not None for r in train], has_resource=[bool(r.resource) for r in train]
-        )
+        fit, target = protocol.train_validation(train_events)
+        fit_cases = {e.case_id for e in fit}
+        source, source_events, flagged = [r for r in train if r.case_id in fit_cases], fit, train
     else:
-        source, target = train, [r.event() for r in test]
-        everything = train + test
-        props = protocol.properties(
-            [r.event() for r in train], target,
-            has_start=[r.start is not None for r in everything], has_resource=[bool(r.resource) for r in everything],
-        )
+        source, source_events, target, flagged = train, train_events, [r.event() for r in test], train + test
+    props = protocol.properties(
+        source_events, target, has_start=[r.start is not None for r in flagged], has_resource=[bool(r.resource) for r in flagged]
+    )
     verdicts = protocol.identifiability(props, synthetic=log.category == protocol.SYNTHETIC)
     work = WORK / log.key / phase
     work.mkdir(parents=True, exist_ok=True)
-    prepared = Prepared(log, phase, source, target, zone, work, {m: v for m, (v, _) in verdicts.items()})
+    prepared = Prepared(
+        log, phase, source, source_events, target, len({e.case_id for e in target}), min(e.start for e in target), zone, work,
+        {m: v for m, (v, _) in verdicts.items()},
+    )
     _write_input(prepared)
     return prepared
 
@@ -216,6 +212,11 @@ def measured(cmd: list[str], *, cwd: Path, log_path: Path, timeout: float) -> Me
     return Measured(round(time.perf_counter() - began, 1), round(peak / 2**20, 1), process.returncode, reason)
 
 
+# Codici di uscita con cui gli strumenti in ``tools/`` dicono l'esito (stessi numeri li').
+EXIT_NOT_APPLICABLE = 3
+EXIT_OUT_OF_BUDGET = 4
+
+
 def _python(env: str) -> str:
     return str(ENVS / env / "bin" / "python")
 
@@ -235,6 +236,10 @@ def _failed(step: str, run: Measured, log_path: Path) -> ToolFailed:
     return ToolFailed(f"{step}: uscita {run.returncode}; " + " | ".join(line[:400] for line in errors + lines[-3:]), run)
 
 
+class NotApplicable(ToolFailed):
+    """Lo strumento dichiara che il log non soddisfa le sue condizioni d'uso."""
+
+
 class OutOfBudget(Exception):
     def __init__(self, step: str, run: Measured):
         super().__init__(f"{step}: {run.over_budget}")
@@ -245,20 +250,34 @@ class OutOfBudget(Exception):
 def _checked(step: str, run: Measured, log_path: Path) -> Measured:
     if run.over_budget:
         raise OutOfBudget(step, run)
+    if run.returncode == EXIT_OUT_OF_BUDGET:
+        raise OutOfBudget(step, Measured(run.seconds, run.peak_mb, run.returncode, str(_failed(step, run, log_path))))
+    if run.returncode == EXIT_NOT_APPLICABLE:
+        failure = _failed(step, run, log_path)
+        raise NotApplicable(str(failure), run)
     if run.returncode != 0:
         raise _failed(step, run, log_path)
     return run
 
 
+def tool_args(cases: int, start: datetime | str, seed: int, replicas: int, out: Path) -> list[str]:
+    """Gli argomenti comuni a ogni strumento, budget del §6 compresi."""
+    start = start.isoformat() if isinstance(start, datetime) else start
+    return ["--cases", str(cases), "--start", start, "--seed", str(seed),
+            "--replicas", str(replicas), "--out", str(out),
+            "--discovery-seconds", str(DISCOVERY_SECONDS), "--replica-seconds", str(REPLICA_SECONDS)]
+
+
 # --------------------------------------------------------------------------- discovery (in cache per log e fase)
 
 
-def _cached(prepared: Prepared, name: str, build) -> dict:
+def _cached(prepared: Prepared, name: str, build) -> tuple[Path, dict]:
+    """La cartella della discovery e i suoi metadati (tempo, picco), calcolati una volta per log e fase."""
     folder = prepared.work / name
     meta = folder / "meta.json"
     over = folder / "out_of_budget.json"
     if meta.is_file():
-        return json.loads(meta.read_text(encoding="utf-8"))
+        return folder, json.loads(meta.read_text(encoding="utf-8"))
     if over.is_file():  # una discovery fuori budget non si rifa' per ogni configurazione che la usa
         saved = json.loads(over.read_text(encoding="utf-8"))
         raise OutOfBudget(saved["step"], Measured(saved["seconds"], saved["peak_mb"], -9, saved["reason"]))
@@ -273,10 +292,10 @@ def _cached(prepared: Prepared, name: str, build) -> dict:
     finally:
         shutil.rmtree(folder / "out", ignore_errors=True)  # i file intermedi di SIMOD occupano GB
     meta.write_text(json.dumps(result, indent=2), encoding="utf-8")
-    return result
+    return folder, result
 
 
-def _simod(prepared: Prepared, variant: str, model: Path | None = None) -> dict:
+def _simod(prepared: Prepared, variant: str, model: Path | None = None) -> tuple[Path, dict]:
     def build(folder: Path) -> dict:
         template = (HERE / "configs" / f"simod_{variant}.yml").read_text(encoding="utf-8")
         config = folder / "config.yml"
@@ -301,15 +320,19 @@ def _simod(prepared: Prepared, variant: str, model: Path | None = None) -> dict:
 
 
 def simod_diff(prepared: Prepared) -> tuple[Path, dict]:
-    meta = _simod(prepared, "diff")
-    return prepared.work / "simod_diff", meta
+    return _simod(prepared, "diff")
 
 
 def simod_extr(prepared: Prepared) -> tuple[Path, dict]:
     diff_folder, diff = simod_diff(prepared)
-    extr = _simod(prepared, "extr", diff_folder / "model.bpmn")
+    folder, extr = _simod(prepared, "extr", diff_folder / "model.bpmn")
     # Riusa il BPMN della variante senza ritardi: il suo tempo conta (vedi schede in LOG.md).
-    return prepared.work / "simod_extr", {"seconds": diff["seconds"] + extr["seconds"], "peak_mb": max(diff["peak_mb"], extr["peak_mb"])}
+    return folder, {"seconds": diff["seconds"] + extr["seconds"], "peak_mb": max(diff["peak_mb"], extr["peak_mb"])}
+
+
+def simod_folder(config: str) -> str:
+    """La discovery SIMOD che una configurazione simula."""
+    return "simod_diff" if config == "simod" else "simod_extr"
 
 
 def atkde(prepared: Prepared, seed: int, replicas: int) -> tuple[Path, dict]:
@@ -318,15 +341,15 @@ def atkde(prepared: Prepared, seed: int, replicas: int) -> tuple[Path, dict]:
         log_path = folder / "atkde.log"
         run = _checked(
             "AT-KDE",
-            measured([_python("atkde"), str(TOOLS / "atkde_arrivals.py"), "--input", str(prepared.input_csv), "--cases",
-                      str(prepared.cases), "--start", prepared.start.isoformat(), "--seed", str(seed), "--replicas", str(replicas),
-                      "--out", str(out)], cwd=CACHE / "at-kde", log_path=log_path, timeout=DISCOVERY_SECONDS),
+            measured([_python("atkde"), str(TOOLS / "atkde_arrivals.py"), "--input", str(prepared.input_csv),
+                      *tool_args(prepared.cases, prepared.start, seed, replicas, out)],
+                     cwd=CACHE / "at-kde", log_path=log_path, timeout=DISCOVERY_SECONDS),
             log_path,
         )
         return {"seconds": run.seconds, "peak_mb": run.peak_mb}
 
-    meta = _cached(prepared, f"atkde_{seed}_{replicas}", build)
-    return prepared.work / f"atkde_{seed}_{replicas}" / "arrivals.json", meta
+    folder, meta = _cached(prepared, f"atkde_{seed}_{replicas}", build)
+    return folder / "arrivals.json", meta
 
 
 # --------------------------------------------------------------------------- simulazione
@@ -335,17 +358,15 @@ def atkde(prepared: Prepared, seed: int, replicas: int) -> tuple[Path, dict]:
 def read_simulated(path: Path) -> list[Event]:
     """Un log simulato, qualunque strumento l'abbia scritto (colonne di Prosimos, ProSiT o AgentSimulator)."""
     with open(path, newline="", encoding="utf-8") as handle:
-        rows = list(csv.DictReader(handle))
-    if not rows:
-        return []
-    keys = rows[0].keys()
-    activity = "activity" if "activity" in keys else "activity_name"
-    start = "start_time" if "start_time" in keys else "start_timestamp"
-    end = "end_time" if "end_time" in keys else "end_timestamp"
-    events = [Event(str(r["case_id"]), r[activity], parse_instant(r[start]), parse_instant(r[end])) for r in rows if r[activity] != "zzz_end"]
-    return events
+        reader = csv.DictReader(handle)
+        keys = reader.fieldnames or []
+        activity = "activity" if "activity" in keys else "activity_name"
+        start = "start_time" if "start_time" in keys else "start_timestamp"
+        end = "end_time" if "end_time" in keys else "end_timestamp"
+        return [Event(r["case_id"], r[activity], parse_instant(r[start]), parse_instant(r[end])) for r in reader if r[activity] != "zzz_end"]
 
 
+@functools.cache
 def val01(folder: Path) -> str:
     """VAL-01 sullo scenario scoperto: lo stesso controllo dell'import del prodotto (``require_sound``)."""
     from backend.simulation.ir.from_prosimos import import_prosimos
@@ -364,13 +385,12 @@ def val01(folder: Path) -> str:
     return "supera"
 
 
-def _prosimos(prepared: Prepared, folder: Path, out: Path, seed: int, replicas: int, *extra: str) -> Measured:
+def prosimos(bpmn: Path, scenario: Path, args: list[str], out: Path, replicas: int, *extra: str) -> Measured:
+    """Le repliche di uno scenario Prosimos nel venv di ricerca; ``args`` da ``tool_args``."""
     log_path = out / "prosimos.log"
     return _checked(
         "Prosimos",
-        measured([_python("simod"), str(TOOLS / "prosimos_sim.py"), "--bpmn", str(folder / "model.bpmn"), "--json",
-                  str(folder / "scenario.json"), "--cases", str(prepared.cases), "--start", prepared.start.isoformat(),
-                  "--seed", str(seed), "--replicas", str(replicas), "--out", str(out), *extra],
+        measured([_python("simod"), str(TOOLS / "prosimos_sim.py"), "--bpmn", str(bpmn), "--json", str(scenario), *args, *extra],
                  cwd=out, log_path=log_path, timeout=REPLICA_SECONDS * replicas),
         log_path,
     )
@@ -378,7 +398,7 @@ def _prosimos(prepared: Prepared, folder: Path, out: Path, seed: int, replicas: 
 
 def _replay_arrivals(prepared: Prepared, seed: int, replicas: int, out: Path) -> Path:
     """Gli arrivi del gemello "B = A": i casi del fit/train spostati sul periodo da prevedere."""
-    twin = NaiveTwin.of([r.event() for r in prepared.source], prepared.target, prepared.zone)
+    twin = NaiveTwin.of(prepared.source_events, prepared.target, prepared.zone)
     arrivals = []
     for replica in range(replicas):
         starts = cases(twin.replica(random.Random(seed + replica)))
@@ -393,19 +413,18 @@ def _external(prepared: Prepared, env: str, tool: str, cwd: Path, out: Path, see
     log_path = out / f"{env}.log"
     run = _checked(
         tool,
-        measured([_python(env), str(TOOLS / tool), "--input", str(prepared.input_csv), "--cases", str(prepared.cases),
-                  "--start", prepared.start.isoformat(), "--seed", str(seed), "--replicas", str(replicas), "--out", str(out), *extra],
+        measured([_python(env), str(TOOLS / tool), "--input", str(prepared.input_csv), *tool_args(prepared.cases, prepared.start, seed, replicas, out), *extra],
                  cwd=cwd, log_path=log_path, timeout=DISCOVERY_SECONDS + REPLICA_SECONDS * replicas),
         log_path,
     )
     return json.loads((out / "timings.json").read_text(encoding="utf-8")), run
 
 
-def simulate(config: str, prepared: Prepared, out: Path, seed: int, replicas: int) -> tuple[list[list[Event]], dict]:
-    """Le repliche simulate della configurazione e i loro costi."""
+def simulate(config: str, prepared: Prepared, out: Path, seed: int, replicas: int) -> tuple[list, dict]:
+    """Le repliche della configurazione (log in memoria o percorsi dei CSV) e i loro costi."""
     if config == "naive":
         began = time.perf_counter()
-        twin = NaiveTwin.of([r.event() for r in prepared.source], prepared.target, prepared.zone)
+        twin = NaiveTwin.of(prepared.source_events, prepared.target, prepared.zone)
         logs, seconds = [], []
         for replica in range(replicas):
             tick = time.perf_counter()
@@ -415,6 +434,7 @@ def simulate(config: str, prepared: Prepared, out: Path, seed: int, replicas: in
 
     if config.startswith("simod"):
         folder, meta = (simod_diff if config == "simod" else simod_extr)(prepared)
+        args = tool_args(prepared.cases, prepared.start, seed, replicas, out)
         extra: list[str] = []
         cost = {"discovery_seconds": meta["seconds"], "discovery_peak_mb": meta["peak_mb"]}
         if config == "simod_extr_atkde":
@@ -425,7 +445,7 @@ def simulate(config: str, prepared: Prepared, out: Path, seed: int, replicas: in
             extra = ["--arrivals", str(_replay_arrivals(prepared, seed, replicas, out))]
         elif config == "simod_extr_247":
             extra = ["--calendars-247"]
-        run = _prosimos(prepared, folder, out, seed, replicas, *extra)
+        run = prosimos(folder / "model.bpmn", folder / "scenario.json", args, out, replicas, *extra)
         timings = json.loads((out / "timings.json").read_text(encoding="utf-8"))
         cost |= {"simulation_seconds": timings["simulation_seconds"], "simulation_peak_mb": run.peak_mb, "val01": val01(folder)}
     elif config in ("prosit", "prosit_norules"):
@@ -438,7 +458,7 @@ def simulate(config: str, prepared: Prepared, out: Path, seed: int, replicas: in
                 "peak_mb": run.peak_mb, "choice": timings.get("choice")}
     else:
         raise ValueError(f"configurazione sconosciuta: {config}")
-    return [read_simulated(out / f"sim_{r}.csv") for r in range(replicas)], cost
+    return [out / f"sim_{r}.csv" for r in range(replicas)], cost
 
 
 CONFIGS = {
@@ -474,24 +494,30 @@ def evaluate(config: str, prepared: Prepared, *, seed: int, replicas: int) -> di
         logs, cost = simulate(config, prepared, out, seed, replicas)
     except OutOfBudget as exc:
         return {**base, "status": "out_of_budget", "reason": str(exc), "cost": {"seconds": exc.run.seconds, "peak_mb": exc.run.peak_mb}}
+    except NotApplicable as exc:
+        return {**base, "status": "not_applicable", "reason": str(exc)[:2000], "cost": {"seconds": exc.run.seconds, "peak_mb": exc.run.peak_mb}}
+    except ToolFailed as exc:
+        return {**base, "status": "failed", "reason": str(exc)[:2000], "cost": {"seconds": exc.run.seconds, "peak_mb": exc.run.peak_mb}}
     except (RuntimeError, OSError, ValueError, KeyError) as exc:
         # Un errore resta nel risultato: il giro continua con le altre configurazioni.
-        text = str(exc) or repr(exc)
-        status = "not_applicable" if "non applicabile" in text else "out_of_budget" if "fuori budget" in text else "failed"
-        result = {**base, "status": status, "reason": text[:2000]}
-        if isinstance(exc, ToolFailed):
-            result["cost"] = {"seconds": exc.run.seconds, "peak_mb": exc.run.peak_mb}
-        return result
-    if any(not log for log in logs):
-        return {**base, "status": "failed", "reason": "una replica senza eventi", "cost": cost}
+        return {**base, "status": "failed", "reason": (str(exc) or repr(exc))[:2000]}
     if any(s > REPLICA_SECONDS for s in cost.get("simulation_seconds", [])):
         return {**base, "status": "out_of_budget", "reason": f"replica oltre {REPLICA_SECONDS} s", "cost": cost}
-    measured_ = [distances(prepared.target, log) for log in logs]
+    measured_, simulated_cases = [], []
+    try:
+        for log in logs:  # una replica alla volta: dieci log simulati in memoria insieme pesano GB
+            events = read_simulated(log) if isinstance(log, Path) else log
+            if not events:
+                return {**base, "status": "failed", "reason": "una replica senza eventi", "cost": cost}
+            measured_.append(distances(prepared.target, events))
+            simulated_cases.append(len({e.case_id for e in events}))
+    except (OSError, ValueError, KeyError) as exc:
+        return {**base, "status": "failed", "reason": f"log simulato illeggibile: {exc!r}"[:2000], "cost": cost}
     shutil.rmtree(out / "agentsim", ignore_errors=True)
     return {
         **base,
         "status": "measured",
-        "simulated_cases": [len({e.case_id for e in log}) for log in logs],
+        "simulated_cases": simulated_cases,
         "metrics": {m: summarize([d[m] for d in measured_]) for m in METRICS},
         "cost": cost,
     }
@@ -503,7 +529,7 @@ def refresh_val01(keys: list[str]) -> int:
         result = json.loads(path.read_text(encoding="utf-8"))
         if "val01" not in result.get("cost", {}):
             continue
-        folder = WORK / result["log"] / result["phase"] / ("simod_diff" if result["config"] == "simod" else "simod_extr")
+        folder = WORK / result["log"] / result["phase"] / simod_folder(result["config"])
         result["cost"]["val01"] = val01(folder)
         path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"{result['log']} {result['phase']} {result['config']}: {result['cost']['val01'][:80]}")
@@ -534,19 +560,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--retry-failed", action="store_true", help="riprova le configurazioni fallite")
     parser.add_argument("--refresh-val01", action="store_true", help="ricalcola solo VAL-01 sui risultati SIMOD scritti")
     args = parser.parse_args(argv)
+    if error := replicas_error(args.replicas):
+        parser.error(error)
 
     logs = [log for log in protocol.development_logs() if not args.logs or log.key in args.logs]
     if args.refresh_val01:
         return refresh_val01([log.key for log in logs])
     with protocol.selection_phase():
         for log in logs:
-            for phase in args.phases:
-                todo = [c for c in args.configs if args.force or not _done(
+            todo = {
+                phase: [c for c in args.configs if args.force or not _done(
                     RESULTS / log.key / phase / f"{c}.json", retry_failed=args.retry_failed, seed=args.seed, replicas=args.replicas)]
-                if not todo:
+                for phase in args.phases
+            }
+            if not any(todo.values()):
+                continue
+            loaded = periods(log)  # una lettura del log per le due fasi
+            for phase in args.phases:
+                if not todo[phase]:
                     continue
-                prepared = prepare(log, phase)
-                for config in todo:
+                prepared = prepare(log, phase, loaded)
+                for config in todo[phase]:
                     began = time.time()
                     result = evaluate(config, prepared, seed=args.seed, replicas=args.replicas)
                     target = RESULTS / log.key / phase / f"{config}.json"

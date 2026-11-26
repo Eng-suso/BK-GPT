@@ -139,18 +139,18 @@
     "discovery_seconds": 136.7,
     "discovery_peak_mb": 1070.9,
     "simulation_seconds": [
-      0.195,
+      0.2,
+      0.148,
+      0.181,
       0.142,
-      0.141,
-      0.123,
-      0.168,
-      0.127,
-      0.196,
-      0.13,
-      0.126,
-      0.134
+      0.152,
+      0.144,
+      0.18,
+      0.135,
+      0.149,
+      0.142
     ],
-    "simulation_peak_mb": 162.0,
+    "simulation_peak_mb": 161.8,
     "val01": "supera"
   }
 }

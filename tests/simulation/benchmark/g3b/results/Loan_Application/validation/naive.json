@@ -136,10 +136,10 @@
     }
   },
   "cost": {
-    "discovery_seconds": 0.004,
+    "discovery_seconds": -0.001,
     "simulation_seconds": [
-      0.002,
-      0.002,
+      0.001,
+      0.001,
       0.001,
       0.001,
       0.001,

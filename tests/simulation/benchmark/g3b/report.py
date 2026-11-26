@@ -30,11 +30,14 @@ if __package__ in (None, ""):  # lanciato come script
     sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from tests.simulation.benchmark import protocol
+from tests.simulation.benchmark.eval_harness import within_intervals
+from tests.simulation.benchmark.g3b.run import CONFIGS, PHASES, RESULTS
 from tests.simulation.benchmark.log_distance import METRICS
 
 HERE = Path(__file__).resolve().parent
-RESULTS = HERE / "results"
-PHASES = ("validation", "test")
+# Basi senza discovery: la regola "al massimo il doppio del costo" non si applica (lettura
+# da confermare con Sohayb, vedi docstring).
+COST_EXEMPT_BASES = frozenset({"naive"})
 LABELS = {
     "cycle_time_w1": "W1",
     "ngram": "NGD",
@@ -79,16 +82,17 @@ def compare(candidate: dict | None, base: dict | None, metric: str) -> str:
     """
     if base is None:
         return "incompleto"
-    base_ok = base.get("status") == "measured"
-    candidate_ok = candidate is not None and candidate.get("status") == "measured"
+    base_ok, candidate_ok = measured(base), measured(candidate)
     if not (base_ok and candidate_ok):
         return "pari" if base_ok == candidate_ok else ("perde" if base_ok else "vince")
     c, b = candidate["metrics"][metric], base["metrics"][metric]
-    if c["mean"] + c["ci95"] < b["mean"] - b["ci95"]:
-        return "vince"
-    if b["mean"] + b["ci95"] < c["mean"] - c["ci95"]:
-        return "perde"
-    return "pari"
+    if within_intervals(c, b):  # la regola "pari" di B2
+        return "pari"
+    return "vince" if c["mean"] < b["mean"] else "perde"
+
+
+def measured(result: dict | None) -> bool:
+    return bool(result) and result.get("status") == "measured"
 
 
 def identifiable(result: dict | None, metric: str) -> bool:
@@ -105,10 +109,15 @@ def cost(result: dict | None) -> tuple[float, float] | None:
     return seconds, peak
 
 
+def first_result(results: dict, log: str, phase: str) -> dict | None:
+    """L'identificabilita' dipende dal periodo, non dalla configurazione: basta un risultato."""
+    return next((r for (l, p, _), r in results.items() if l == log and p == phase), None)
+
+
 def verdict(card: Card, phase: str, results: dict, logs: list[str]) -> dict:
     rows = {log: results.get((log, phase, card.candidate)) for log in logs}
     # Identificabilita' dal periodo, uguale per tutte le configurazioni: si prende la prima che c'e'.
-    reference = {log: next((r for (l, p, _), r in results.items() if l == log and p == phase), None) for log in logs}
+    reference = {log: first_result(results, log, phase) for log in logs}
     usable = [log for log in logs if identifiable(reference[log], card.primary)]
     reasons: list[str] = []
     per_base = {}
@@ -116,26 +125,26 @@ def verdict(card: Card, phase: str, results: dict, logs: list[str]) -> dict:
         return {"verdict": "NOT VALIDATED", "reasons": [f"{LABELS[card.primary]} identificabile in {len(usable)} log"], "bases": {}}
     complete = True
     for base in card.bases:
-        outcome = {log: compare(rows[log], results.get((log, phase, base)), card.primary) for log in usable}
+        base_rows = {log: results.get((log, phase, base)) for log in logs}
+        outcome = {log: compare(rows[log], base_rows[log], card.primary) for log in usable}
         wins = sum(v == "vince" for v in outcome.values())
         losses = [log for log, v in outcome.items() if v == "perde"]
         missing = [log for log, v in outcome.items() if v == "incompleto"]
-        guards = {}
-        for metric in METRICS:
-            if metric == card.primary:
-                continue
-            lost = [
+        guards = {
+            LABELS[metric]: [
                 log for log in logs
-                if identifiable(reference[log], metric) and compare(rows[log], results.get((log, phase, base)), metric) == "perde"
+                if identifiable(reference[log], metric) and compare(rows[log], base_rows[log], metric) == "perde"
             ]
-            guards[LABELS[metric]] = lost
+            for metric in METRICS
+            if metric != card.primary
+        }
         costly = []
-        if base != "naive":
+        if base not in COST_EXEMPT_BASES:
             for log in logs:
-                other = results.get((log, phase, base))
-                if not (rows[log] and rows[log]["status"] == "measured" and other and other["status"] == "measured"):
-                    continue  # il costo di chi e' stato fermato non e' un costo da raddoppiare
-                mine, theirs = cost(rows[log]), cost(other)
+                # Il costo di chi e' stato fermato non e' un costo da raddoppiare.
+                if not (measured(rows[log]) and measured(base_rows[log])):
+                    continue
+                mine, theirs = cost(rows[log]), cost(base_rows[log])
                 if mine and theirs and (mine[0] > 2 * theirs[0] or mine[1] > 2 * theirs[1]):
                     costly.append(log)
         per_base[base] = {
@@ -154,7 +163,7 @@ def verdict(card: Card, phase: str, results: dict, logs: list[str]) -> dict:
                 reasons.append(f"contro {base}: guardia {metric} perde su {len(lost)} log")
         if costly:
             reasons.append(f"contro {base}: tempo o memoria oltre il doppio su {len(costly)} log")
-    budget = [log for log, r in rows.items() if r is None or r.get("status") != "measured"]
+    budget = [log for log, r in rows.items() if not measured(r)]
     if budget:
         reasons.append(f"candidato non misurato (fallito, fuori budget o non applicabile) su {_logs(budget)}")
     if card.val01 == "non verificabile":
@@ -192,7 +201,8 @@ def _cost_cell(result: dict | None) -> str:
 
 def report(results: dict) -> tuple[str, dict]:
     logs = [log.key for log in protocol.development_logs() if any(k[0] == log.key for k in results)]
-    configs = sorted({k[2] for k in results}, key=lambda c: list(_order()).index(c) if c in _order() else 99)
+    order = {config: n for n, config in enumerate(CONFIGS)}
+    configs = sorted({k[2] for k in results}, key=lambda c: order.get(c, len(order)))
     lines = [
         "# G3b: benchmark dei motori scientifici",
         "",
@@ -232,12 +242,6 @@ def report(results: dict) -> tuple[str, dict]:
                 lines.append(f"| {r['label']} | " + " | ".join(_cell(r, m) for m in METRICS) + f" | {_cost_cell(r)} |")
             lines.append("")
     return "\n".join(lines).rstrip() + "\n", verdicts
-
-
-def _order() -> tuple[str, ...]:
-    from tests.simulation.benchmark.g3b.run import CONFIGS
-
-    return tuple(CONFIGS)
 
 
 def main() -> int:

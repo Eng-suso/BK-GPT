@@ -24,7 +24,7 @@ if __package__ in (None, ""):  # lanciato come script
 
 from tests.simulation.benchmark import protocol
 from tests.simulation.benchmark.eval_harness import DEFAULT_SEED, INPUTS, PAPER_REPLICAS, summarize, within_intervals
-from tests.simulation.benchmark.g3b.run import ENVS, TOOLS, measured, read_simulated
+from tests.simulation.benchmark.g3b.run import prosimos, read_simulated, tool_args
 from tests.simulation.benchmark.log_distance import METRICS, distances, read_csv_log
 
 HERE = Path(__file__).resolve().parent
@@ -44,14 +44,9 @@ def main(argv: list[str] | None = None) -> int:
     with protocol.selection_phase(), tempfile.TemporaryDirectory() as work:
         test = read_csv_log(INPUTS / "real-life" / f"{log}_test.csv.gz")
         out = Path(work)
-        run = measured(
-            [str(ENVS / "simod" / "bin" / "python"), str(TOOLS / "prosimos_sim.py"), "--bpmn", str(folder / f"{log}.bpmn"),
-             "--json", str(folder / f"{log}.json"), "--cases", str(product["cases"]), "--start", product["start"],
-             "--seed", str(DEFAULT_SEED), "--replicas", str(PAPER_REPLICAS), "--out", str(out)],
-            cwd=out, log_path=out / "prosimos.log", timeout=3600,
-        )
-        if run.returncode:
-            raise SystemExit((out / "prosimos.log").read_text(encoding="utf-8")[-2000:])
+        # Lo stesso comando con cui run.py simula gli scenari SIMOD.
+        prosimos(folder / f"{log}.bpmn", folder / f"{log}.json",
+                 tool_args(product["cases"], product["start"], DEFAULT_SEED, PAPER_REPLICAS, out), out, PAPER_REPLICAS)
         direct = [distances(test, read_simulated(out / f"sim_{r}.csv")) for r in range(PAPER_REPLICAS)]
     rows = {}
     for metric in METRICS:

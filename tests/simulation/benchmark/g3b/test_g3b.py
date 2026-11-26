@@ -121,7 +121,7 @@ def test_the_discovery_input_keeps_missing_starts_empty_and_integer_ids(tmp_path
     t = datetime(2024, 1, 1, 9, tzinfo=UTC)
     rows = [run.Row("c-b", "A", "r1", None, t), run.Row("c-a", "B", "", t, t + timedelta(hours=1))]
     log = protocol.development_logs()[0]
-    prepared = run.Prepared(log, "test", rows, [], run.ZoneInfo("UTC"), tmp_path, {})
+    prepared = run.Prepared(log, "test", rows, [], [], 0, t, run.ZoneInfo("UTC"), tmp_path, {})
     run._write_input(prepared)
     with open(prepared.input_csv, newline="") as handle:
         written = list(csv.DictReader(handle))

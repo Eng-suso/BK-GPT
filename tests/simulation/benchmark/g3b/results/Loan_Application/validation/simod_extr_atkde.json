@@ -25,5 +25,9 @@
     "counterfactual": "identificabile"
   },
   "status": "not_applicable",
-  "reason": "AT-KDE: uscita 1; AT-KDE non applicabile: 13 giorni con arrivi nell'input, ne servono almeno 14"
+  "reason": "AT-KDE: uscita 3; AT-KDE non applicabile: 13 giorni con arrivi nell'input, ne servono almeno 14 | AT-KDE non applicabile: 13 giorni con arrivi nell'input, ne servono almeno 14",
+  "cost": {
+    "seconds": 1.8,
+    "peak_mb": 178.4
+  }
 }

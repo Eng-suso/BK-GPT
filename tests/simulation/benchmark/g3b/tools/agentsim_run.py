@@ -22,12 +22,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 import random
 import signal
+import sys
 import time
 import warnings
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from typing import NoReturn
 
 # Il codice dello strumento sta nella cartella del suo repository, la cwd.
 sys.path.insert(0, os.getcwd())
@@ -40,12 +43,46 @@ from source.discovery import discover_simulation_parameters
 RENAME = {"activity": "activity_name", "start_time": "start_timestamp", "end_time": "end_timestamp"}
 
 
-REPLICA_SECONDS = 600  # PROTOCOL.md §6: al massimo 10 minuti per replica
-DISCOVERY_SECONDS = 7200  # e 2 ore di discovery
+# Esito per il driver (run.py, stessi numeri): non applicabile e fuori budget (PROTOCOL.md §6).
+EXIT_NOT_APPLICABLE = 3
+EXIT_OUT_OF_BUDGET = 4
 
 
-def _over_budget(_signum, _frame):
-    raise SystemExit("fuori budget: discovery oltre 7200 s o una replica oltre 600 s")
+def stop(code: int, message: str) -> NoReturn:
+    print(message, file=sys.stderr, flush=True)
+    raise SystemExit(code)
+
+
+@contextmanager
+def budget(seconds: int, what: str) -> Iterator[None]:
+    """Oltre ``seconds`` di tempo reale lo strumento esce con ``EXIT_OUT_OF_BUDGET``."""
+
+    def expired(_signum, _frame):
+        stop(EXIT_OUT_OF_BUDGET, f"fuori budget: {what} oltre {seconds} s")
+
+    previous = signal.signal(signal.SIGALRM, expired)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+def common_arguments(parser: argparse.ArgumentParser) -> None:
+    """Gli argomenti che il driver passa a ogni strumento (``run._tool_args``)."""
+    parser.add_argument("--cases", type=int, required=True)
+    parser.add_argument("--start", required=True)
+    parser.add_argument("--seed", type=int, required=True)
+    parser.add_argument("--replicas", type=int, required=True)
+    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--discovery-seconds", type=int, default=7200)
+    parser.add_argument("--replica-seconds", type=int, default=600)
+
+
+def seed_replica(seed: int) -> None:
+    random.seed(seed)
+    numpy.random.seed(seed)
 
 
 def read_input(path: Path) -> pandas.DataFrame:
@@ -81,50 +118,37 @@ def placeholder_target(frame: pandas.DataFrame, cases: int, start: pandas.Timest
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=Path, required=True)
-    parser.add_argument("--cases", type=int, required=True)
-    parser.add_argument("--start", required=True)
-    parser.add_argument("--seed", type=int, required=True)
-    parser.add_argument("--replicas", type=int, required=True)
-    parser.add_argument("--out", type=Path, required=True)
+    common_arguments(parser)
     args = parser.parse_args()
     warnings.filterwarnings("ignore")
     args.out.mkdir(parents=True, exist_ok=True)
     work = args.out / "agentsim"
     work.mkdir(exist_ok=True)
 
-    random.seed(args.seed)
-    numpy.random.seed(args.seed)
-    signal.signal(signal.SIGALRM, _over_budget)
-    signal.alarm(DISCOVERY_SECONDS)
+    seed_replica(args.seed)
     began = time.perf_counter()
     train = read_input(args.input)
+    # Con un solo giorno la media degli arrivi per giorno e' NaN e AgentSimulator si ferma.
+    if train["start_timestamp"].dt.date.nunique() < 2:
+        stop(EXIT_NOT_APPLICABLE, "AgentSimulator non applicabile: input di un solo giorno")
     validation = validation_part(train)
     target = placeholder_target(train, args.cases, pandas.Timestamp(args.start).tz_convert("UTC"))
-    try:
+    with budget(args.discovery_seconds, "discovery"):
         train, parameters = discover_simulation_parameters(
             train, target, validation, str(work), args.cases, validation["case_id"].nunique(),
             determine_automatically=True, central_orchestration=False, discover_extr_delays=False,
         )
-    except ValueError as exc:
-        # Un input che dura meno di un giorno: la media degli arrivi per giorno e' NaN.
-        if "NaN" in str(exc) and train["start_timestamp"].dt.date.nunique() < 2:
-            raise SystemExit(f"AgentSimulator non applicabile: input di un solo giorno ({exc})") from exc
-        raise
     discovery = round(time.perf_counter() - began, 3)
-    signal.alarm(0)
     arrivals = list(parameters["case_arrival_times"])
 
     timings = []
     for replica in range(args.replicas):
-        random.seed(args.seed + replica)
-        numpy.random.seed(args.seed + replica)
+        seed_replica(args.seed + replica)
         parameters["case_arrival_times"] = list(arrivals)
-        signal.signal(signal.SIGALRM, _over_budget)
-        signal.alarm(REPLICA_SECONDS)
         began = time.perf_counter()
-        agent_simulation.simulate_process(train, parameters, str(work), 1)
+        with budget(args.replica_seconds, "una replica"):
+            agent_simulation.simulate_process(train, parameters, str(work), 1)
         timings.append(round(time.perf_counter() - began, 3))
-        signal.alarm(0)
         (work / "simulated_log_0.csv").rename(args.out / f"sim_{replica}.csv")
     choice = {k: parameters.get(k) for k in ("central_orchestration", "discover_extr_delays")}
     (args.out / "timings.json").write_text(

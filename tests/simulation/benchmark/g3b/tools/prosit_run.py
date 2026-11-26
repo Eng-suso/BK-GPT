@@ -17,9 +17,13 @@ import argparse
 import json
 import random
 import signal
+import sys
 import time
 import warnings
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from typing import NoReturn
 
 import numpy
 import pandas
@@ -35,12 +39,46 @@ COLUMNS = {
 }
 
 
-REPLICA_SECONDS = 600  # PROTOCOL.md §6: al massimo 10 minuti per replica
-DISCOVERY_SECONDS = 7200  # e 2 ore di discovery
+# Esito per il driver (run.py, stessi numeri): non applicabile e fuori budget (PROTOCOL.md §6).
+EXIT_NOT_APPLICABLE = 3
+EXIT_OUT_OF_BUDGET = 4
 
 
-def _over_budget(_signum, _frame):
-    raise SystemExit("fuori budget: discovery oltre 7200 s o una replica oltre 600 s")
+def stop(code: int, message: str) -> NoReturn:
+    print(message, file=sys.stderr, flush=True)
+    raise SystemExit(code)
+
+
+@contextmanager
+def budget(seconds: int, what: str) -> Iterator[None]:
+    """Oltre ``seconds`` di tempo reale lo strumento esce con ``EXIT_OUT_OF_BUDGET``."""
+
+    def expired(_signum, _frame):
+        stop(EXIT_OUT_OF_BUDGET, f"fuori budget: {what} oltre {seconds} s")
+
+    previous = signal.signal(signal.SIGALRM, expired)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+def common_arguments(parser: argparse.ArgumentParser) -> None:
+    """Gli argomenti che il driver passa a ogni strumento (``run._tool_args``)."""
+    parser.add_argument("--cases", type=int, required=True)
+    parser.add_argument("--start", required=True)
+    parser.add_argument("--seed", type=int, required=True)
+    parser.add_argument("--replicas", type=int, required=True)
+    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--discovery-seconds", type=int, default=7200)
+    parser.add_argument("--replica-seconds", type=int, default=600)
+
+
+def seed_replica(seed: int) -> None:
+    random.seed(seed)
+    numpy.random.seed(seed)
 
 
 def read_log(path: Path):
@@ -56,36 +94,31 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--depth", type=int, required=True)
-    parser.add_argument("--cases", type=int, required=True)
-    parser.add_argument("--start", required=True)
-    parser.add_argument("--seed", type=int, required=True)
-    parser.add_argument("--replicas", type=int, required=True)
-    parser.add_argument("--out", type=Path, required=True)
+    common_arguments(parser)
     args = parser.parse_args()
     warnings.filterwarnings("ignore")
     args.out.mkdir(parents=True, exist_ok=True)
 
-    signal.signal(signal.SIGALRM, _over_budget)
-    signal.alarm(DISCOVERY_SECONDS)
+    seed_replica(args.seed)
     began = time.perf_counter()
-    log = read_log(args.input)
-    net, initial, final = pm4py.discover_petri_net_inductive(log)
-    params = SimulatorParameters(net, initial, final)
-    params.discover_from_eventlog(log, max_depth_tree=args.depth, verbose=False)
+    # Non ripetibile al bit: i parametri del control flow seguono l'ordine in cui Python
+    # itera le transizioni della rete di Petri (oggetti, non nomi). Fra due passate le
+    # metriche cambiano dentro gli IC (G3b, LOG.md).
+    with budget(args.discovery_seconds, "discovery"):
+        log = read_log(args.input)
+        net, initial, final = pm4py.discover_petri_net_inductive(log)
+        params = SimulatorParameters(net, initial, final)
+        params.discover_from_eventlog(log, max_depth_tree=args.depth, verbose=False)
     discovery = round(time.perf_counter() - began, 3)
-    signal.alarm(0)
 
     start = pandas.Timestamp(args.start).tz_convert("UTC")
     timings = []
     for replica in range(args.replicas):
-        random.seed(args.seed + replica)
-        numpy.random.seed(args.seed + replica)
-        signal.signal(signal.SIGALRM, _over_budget)
-        signal.alarm(REPLICA_SECONDS)
+        seed_replica(args.seed + replica)
         began = time.perf_counter()
-        simulated = SimulatorEngine(params).apply(n_traces=args.cases, t_start=start)
+        with budget(args.replica_seconds, "una replica"):
+            simulated = SimulatorEngine(params).apply(n_traces=args.cases, t_start=start)
         timings.append(round(time.perf_counter() - began, 3))
-        signal.alarm(0)
         out = simulated.rename(columns={v: k for k, v in COLUMNS.items()})[list(COLUMNS)]
         out.to_csv(args.out / f"sim_{replica}.csv", index=False)
     (args.out / "timings.json").write_text(json.dumps({"discovery_seconds": discovery, "simulation_seconds": timings}))
