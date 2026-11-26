@@ -105,7 +105,11 @@ def get_memory():
     try:
         from mem0 import Memory
 
-        return Memory.from_config(_config())
+        from backend.llm.mem0_meter import meter
+
+        # Mem0 ha i suoi client: senza `meter` le sue chiamate non lasciano
+        # nessuna riga nel registro dei consumi.
+        return meter(Memory.from_config(_config()))
     except Exception as exc:  # config errata, DB irraggiungibile, dip mancante
         return Mem0Disabled(f"init fallita: {exc}")
 

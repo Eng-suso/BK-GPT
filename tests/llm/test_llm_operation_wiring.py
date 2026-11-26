@@ -757,8 +757,15 @@ class TestIlTurnoDiChatSiDivideInDueCompiti:
         from backend.llm import LlmTask
         from backend.services.agent_runtime import task_for_node
 
-        for nodo in ("consulting_subgraph", "summarize", "", "process_subgraph"):
+        for nodo in ("consulting_subgraph", "", "process_subgraph"):
             assert task_for_node(nodo) is LlmTask.CHAT_TURN
+
+    def test_il_riassunto_del_thread_e_un_compito_suo(self):
+        from backend.agent import SUMMARY_NODE
+        from backend.llm import LlmTask
+        from backend.services.agent_runtime import task_for_node
+
+        assert task_for_node(SUMMARY_NODE) is LlmTask.THREAD_SUMMARY
 
     def test_il_nodo_esiste_davvero_nel_grafo(self, monkeypatch):
         """Se il nodo si rinomina, la spesa dell'instradamento ricade nel turno.

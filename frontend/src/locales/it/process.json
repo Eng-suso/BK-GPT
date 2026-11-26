@@ -208,6 +208,7 @@
       "hideMapping": "Chiudi strumenti avanzati",
       "autoMapWarning": "Conversione automatica incompleta: {{reason}} Puoi associare manualmente i valori disponibili qui sotto.",
       "chooseJson": "Seleziona configurazione",
+      "cannotFinish": "Il file non è stato applicato: alcuni casi non arriverebbero mai alla fine",
       "importNotApplied": "Il file non è stato applicato",
       "importNotAppliedHint": "Lo scenario non è cambiato. Verifica il file {{name}} oppure modifica i parametri qui nell’editor.",
       "importTechnicalReason": "Mostra il motivo tecnico",
@@ -229,6 +230,7 @@
         "title": "DeliR può simulare questo scenario così com'è",
         "description": "{{name}} non entra nell'editor dei parametri, ma DeliR l'ha letto per intero e può simularlo senza modifiche.",
         "descriptionAdjusted": "{{name}} non entra nell'editor dei parametri. DeliR l'ha letto per intero e può simularlo con gli adattamenti elencati sotto.",
+        "descriptionCheck": "{{name}} non entra nell'editor dei parametri. DeliR l'ha letto per intero e può simularlo senza modifiche: prima di usare i risultati, leggi il punto da verificare.",
         "startedDetailDays_one": "{{name}} è in coda per {{count}} giorno di simulazione.",
         "startedDetailDays_other": "{{name}} è in coda per {{count}} giorni di simulazione.",
         "summary": "Attività: {{activities}} · Risorse: {{resources}} · Decisioni: {{decisions}} · Attese: {{waits}}",
@@ -255,6 +257,8 @@
           "rounded_probabilities_other": "{{count}} gruppi di probabilità arrotondati e riportati a 100%.",
           "probabilistic_calendars_one": "Le persone non sono sempre libere nei loro orari: la simulazione usa, fascia per fascia, la probabilità di trovarle disponibili ricavata dai dati.",
           "probabilistic_calendars_other": "Le persone non sono sempre libere nei loro orari: la simulazione usa, fascia per fascia, la probabilità di trovarle disponibili ricavata dai dati.",
+          "arrivals_faster_one": "Nella simulazione i casi arriveranno più spesso di quanto indica il file: code e attese risulteranno più lunghe di quelle reali. Prima di confrontare i risultati con i dati, correggi gli arrivi nel file e importalo di nuovo (come, nei dettagli); altrimenti leggi code e attese come stime per eccesso.",
+          "arrivals_faster_other": "Nella simulazione i casi arriveranno più spesso di quanto indica il file: code e attese risulteranno più lunghe di quelle reali. Prima di confrontare i risultati con i dati, correggi gli arrivi nel file e importalo di nuovo (come, nei dettagli); altrimenti leggi code e attese come stime per eccesso.",
           "other_one": "1 altra nota.",
           "other_other": "{{count}} altre note."
         }
@@ -737,7 +741,13 @@
       "systemCapacity": "Esecuzioni contemporanee",
       "alwaysCalendar": "Sempre, 24 ore su 24",
       "removable": "Non aggiunge valore",
-      "removableHint": "In «Cosa provare» l'advisor proporrà di toglierla, con quanto si risparmia. Il run di adesso la simula come sempre."
+      "removableHint": "In «Cosa provare» l'advisor proporrà di toglierla, con quanto si risparmia. Il run di adesso la simula come sempre.",
+      "arrivalsFaster": {
+        "title": "I casi arriveranno più spesso del previsto",
+        "body": "Con un massimo di {{max}} fra due arrivi, la simulazione scarta gli intervalli più lunghi e li sostituisce con altri più brevi: in media arriva un caso ogni {{produced}} invece che ogni {{mean}}, circa il {{more}}% di casi in più. Code e attese risulteranno più lunghe di quelle reali. Se i casi arrivano con regolarità, scegli «Fissa»; se variano molto, alza il massimo.",
+        "action": "Porta il massimo a {{suggested}}",
+        "toast": "Gli arrivi del file renderanno i casi più frequenti del previsto: controlla l'avviso in Arrivi dei casi."
+      }
     },
     "diagram": {
       "title": "Modello di processo",

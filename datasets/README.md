@@ -11,6 +11,7 @@ uv run python scripts/fetch_datasets.py list                       # catalogo
 uv run python scripts/fetch_datasets.py verify                     # i dataset nel repo ci sono
 uv run python scripts/fetch_datasets.py fetch --all                # tutti quelli scaricabili
 uv run python scripts/fetch_datasets.py fetch --all --allow-noncommercial   # anche quelli accademici
+uv run python scripts/fetch_datasets.py fetch --collection radar   # Research Radar (~2,9 GB di download, ~24 GB estratti)
 uv run python scripts/fetch_datasets.py path bpic2012              # dove sta
 ```
 
@@ -34,6 +35,16 @@ host `zenodo.org` e `data.4tu.nl` (ambiente **BK-GPT**); GitHub passa dal proxy 
 | `simod` | cache (git) | Apache-2.0 | repository completo SIMOD: baseline di H1 |
 | `bpic2020` | cache, 5 log, 5,5 MB | CC BY-NC 4.0 | note spese di viaggio: **solo ricerca accademica**, mai nei numeri commerciali |
 
+## Research Radar
+
+33 voci in più (21 dataset, 12 repository di ricerca) con `"collection": "radar"`: log
+cross-industry (BPIC 2017 completo, 2018, 2019, Sepsis, Hospital Billing, Road Traffic
+Fines, Helpdesk), OCEL 2.0, drift con verità nota, dati controfattuali (SimBank, ProCause),
+il BPS Quality Framework e i repository di AT-KDE, Kronos, AgentSimulator, ProSiT, DAS,
+POWL, SimOC, SimPy, salabim, QueueSim. `fetch --all` non li scarica. Elenco, a cosa serve
+ognuno e regole d'uso in [`../docs/vpt/RESEARCH_RADAR.md`](../docs/vpt/RESEARCH_RADAR.md).
+Il radar non è sviluppo né holdout finché `docs/vpt/PROTOCOL.md` (PROTO-02) non lo dichiara.
+
 ## Regole
 
 - Nel repo entrano solo dati con licenza che ne permette la ripubblicazione (oggi
@@ -44,3 +55,5 @@ host `zenodo.org` e `data.4tu.nl` (ambiente **BK-GPT**); GitHub passa dal proxy 
 - Nessun dato di clienti, anche anonimizzato, entra in `datasets/`.
 - Un nuovo dataset si aggiunge al manifest con URL, MD5 (o commit), dimensione,
   licenza e il blocco del piano che lo usa.
+- Per la ricerca si usano tutti i dataset (decisione di Sohayb del 2026-11-25: il prodotto non
+  è ancora in vendita); la licenza resta registrata per LIC-01 e per quando si vende.

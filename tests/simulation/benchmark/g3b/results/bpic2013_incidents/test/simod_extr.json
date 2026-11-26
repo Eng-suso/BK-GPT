@@ -1,0 +1,156 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "bpic2013_incidents",
+  "category": "osservabilita parziale",
+  "phase": "test",
+  "config": "simod_extr",
+  "label": "SIMOD con ritardi estranei",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 3776,
+    "target": 3778
+  },
+  "identifiability": {
+    "cycle_time_w1": "NOT VALIDATED",
+    "ngram": "NOT VALIDATED",
+    "relative_event": "NOT VALIDATED",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "NOT VALIDATED",
+    "processing_time": "NOT VALIDATED",
+    "resources": "identificabile",
+    "waiting_causes": "NOT VALIDATED",
+    "true_parameters": "NOT VALIDATED",
+    "counterfactual": "NOT VALIDATED"
+  },
+  "status": "measured",
+  "simulated_cases": [
+    3778,
+    3778,
+    3778,
+    3778,
+    3778,
+    3778,
+    3778,
+    3778,
+    3778,
+    3778
+  ],
+  "metrics": {
+    "cycle_time_w1": {
+      "mean": 57.998676548438326,
+      "ci95": 1.7782326229864813,
+      "replicas": [
+        57.35256749602964,
+        56.401270513499206,
+        58.73610375860243,
+        61.65431445209105,
+        60.7496029645315,
+        56.13499205929063,
+        61.452885124404446,
+        56.82980412916887,
+        54.994970884065644,
+        55.68025410269984
+      ]
+    },
+    "ngram": {
+      "mean": 0.7173247730938112,
+      "ci95": 0.0017242822489665303,
+      "replicas": [
+        0.7136748329621381,
+        0.7150561697175849,
+        0.7194008118602189,
+        0.7187036175538867,
+        0.7189695550351288,
+        0.7143431770187376,
+        0.7212502328027257,
+        0.7168521816562778,
+        0.7170976931240575,
+        0.7178994592073557
+      ]
+    },
+    "relative_event": {
+      "mean": 34.02812051931393,
+      "ci95": 2.594389572895609,
+      "replicas": [
+        31.560065883964462,
+        33.59789301651669,
+        36.652550713454396,
+        36.67797803129925,
+        34.42616176546721,
+        30.326108549406054,
+        41.232505867100556,
+        35.38576410994379,
+        31.06022833108671,
+        29.361948924900133
+      ]
+    },
+    "absolute_event": {
+      "mean": 224.83786812455673,
+      "ci95": 4.495884809105365,
+      "replicas": [
+        221.4139405025014,
+        221.6422679047304,
+        222.69143854693746,
+        220.44379170519943,
+        232.53078658893997,
+        212.0620199044287,
+        230.635637874616,
+        229.2899444780511,
+        227.87100715959352,
+        229.79784658056954
+      ]
+    },
+    "circadian_event": {
+      "mean": 3.1724681355746616,
+      "ci95": 0.021686886119629982,
+      "replicas": [
+        3.1339234976027677,
+        3.2345091168731326,
+        3.152017116913954,
+        3.1567729864761613,
+        3.187905218443412,
+        3.1388124600791145,
+        3.167375257278631,
+        3.170494835740146,
+        3.200151065550741,
+        3.1827198007885555
+      ]
+    },
+    "case_arrival": {
+      "mean": 191.03189518263633,
+      "ci95": 4.424061887482051,
+      "replicas": [
+        190.45341450502912,
+        188.46267866596082,
+        185.17734250926415,
+        181.22657490735838,
+        198.7358390682901,
+        186.23398623610376,
+        190.74298570672315,
+        191.97988353626258,
+        196.73636844891476,
+        200.56987824245633
+      ]
+    }
+  },
+  "cost": {
+    "discovery_seconds": 6140.0,
+    "discovery_peak_mb": 1638.2,
+    "simulation_seconds": [
+      10.42,
+      9.763,
+      9.968,
+      10.846,
+      9.401,
+      10.292,
+      10.133,
+      10.214,
+      9.024,
+      9.669
+    ],
+    "simulation_peak_mb": 347.4,
+    "val01": "non supera: Alcuni casi si bloccano a il punto di unione dopo «Completed · Closed», il punto di unione dopo «Accepted · Wait - Implementation»: lì il processo aspetta che arrivino tutti i percorsi, ma una scelta precedente ne ha preso solo uno. Quei casi non finirebbero mai.\nCosa fare: se i percorsi sono alternativi, il punto di unione deve aspettarne uno solo: correggi il disegno del processo e importa di nuovo lo scenario."
+  }
+}

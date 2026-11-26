@@ -56,7 +56,7 @@ class ProsimosImportRequest(BaseModel):
 
 
 class ProsimosImportNote(BaseModel):
-    kind: Literal["info", "approximated"]
+    kind: Literal["info", "approximated", "warning"]
     topic: str
     message: str
     element_id: str | None = None

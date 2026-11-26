@@ -8,6 +8,7 @@ from hmac import compare_digest
 
 from fastapi import Depends, Header, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from backend.settings import environment_is_open, settings
@@ -16,6 +17,9 @@ from backend.settings import environment_is_open, settings
 TENANT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")
 DEFAULT_LOCAL_TENANT_ID = "local"
 _tenant_id: ContextVar[str | None] = ContextVar("delir_tenant_id", default=None)
+# Il consulente della richiesta. Lo legge solo il registro dei consumi (tramite
+# l'operazione): non e' un'autorizzazione, e niente decide accessi su questo.
+_user_id: ContextVar[str | None] = ContextVar("delir_user_id", default=None)
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -36,6 +40,20 @@ def set_current_tenant_id(tenant_id: str) -> Token[str | None]:
 
 def reset_current_tenant_id(token: Token[str | None]) -> None:
     _tenant_id.reset(token)
+
+
+def get_current_user_id() -> str | None:
+    return _user_id.get()
+
+
+def set_current_user_id(user_id: str | None) -> Token[str | None]:
+    return _user_id.set(user_id)
+
+
+def _bind_principal(principal: AuthPrincipal) -> None:
+    """Il tenant e il consulente della richiesta, nel contesto corrente."""
+    set_current_tenant_id(principal.tenant_id)
+    set_current_user_id(principal.user_id)
 
 
 def normalize_tenant_id(value: str | None) -> str:
@@ -86,42 +104,97 @@ def _token_from_credentials(credentials: HTTPAuthorizationCredentials | None) ->
     return credentials.credentials
 
 
-def require_principal(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    x_delir_tenant_id: str | None = Header(default=None),
-    x_delir_user_id: str | None = Header(default=None),
+SUPABASE_PROVIDER = "supabase"
+_UNAUTHORIZED = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Credenziali API mancanti o non valide.",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+
+
+def _authenticate_bearer(supplied_token: str | None) -> tuple[str | None, str]:
+    """Chi prova di essere il portatore del token: `(user_id, auth_mode)`.
+
+    Con il token condiviso l'identita' non esiste (`None`): il token prova solo
+    di essere un client autorizzato. Con Supabase l'identita' e' il `sub` del
+    token, e solo quello: un header non puo' cambiarla.
+
+    Raises:
+        HTTPException: 401 se il token non prova niente; 503 se Supabase non e'
+            verificabile da troppo tempo o non e' autorizzato come destinazione.
+    """
+    if not supplied_token:
+        raise _UNAUTHORIZED
+
+    if settings.delir_auth_provider == SUPABASE_PROVIDER:
+        from backend.auth.supabase_jwt import (
+            IdentityProviderUnavailable,
+            InvalidAccessToken,
+            get_verifier,
+        )
+        from backend.llm.egress import EgressBlocked
+
+        try:
+            identity = get_verifier().verify(supplied_token)
+        except InvalidAccessToken as exc:
+            raise _UNAUTHORIZED from exc
+        except (IdentityProviderUnavailable, EgressBlocked) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Verifica dell'identita' non disponibile.",
+            ) from exc
+        return identity.subject, SUPABASE_PROVIDER
+
+    if not compare_digest(supplied_token, _configured_api_token()):
+        raise _UNAUTHORIZED
+    return None, "bearer"
+
+
+def _resolve_principal(
+    credentials: HTTPAuthorizationCredentials | None,
+    x_delir_tenant_id: str | None,
+    x_delir_user_id: str | None,
 ) -> AuthPrincipal:
     tenant_id = normalize_tenant_id(x_delir_tenant_id)
     assert_allowed_tenant(tenant_id)
 
     if not settings.delir_auth_enabled:
-        principal = AuthPrincipal(
+        return AuthPrincipal(
             user_id=x_delir_user_id or "local-dev",
             tenant_id=tenant_id,
             is_admin=True,
             auth_mode="local",
         )
-        set_current_tenant_id(tenant_id)
-        request.state.auth_principal = principal
-        return principal
 
-    supplied_token = _token_from_credentials(credentials)
-    expected_token = _configured_api_token()
-    if not supplied_token or not compare_digest(supplied_token, expected_token):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenziali API mancanti o non valide.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    subject, auth_mode = _authenticate_bearer(_token_from_credentials(credentials))
 
-    principal = AuthPrincipal(
-        user_id=x_delir_user_id or "api-client",
+    return AuthPrincipal(
+        user_id=subject or x_delir_user_id or "api-client",
         tenant_id=tenant_id,
         is_admin=not (settings.delir_admin_token or "").strip() and _admin_without_token(),
-        auth_mode="bearer",
+        auth_mode=auth_mode,
     )
-    set_current_tenant_id(tenant_id)
+
+
+async def require_principal(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    x_delir_tenant_id: str | None = Header(default=None),
+    x_delir_user_id: str | None = Header(default=None),
+) -> AuthPrincipal:
+    """Chi chiama, verificato. Lega tenant e consulente al contesto della richiesta.
+
+    E' `async` per una ragione precisa: una dipendenza sincrona gira in un thread
+    del pool, con una **copia** del contesto, e quello che imposta li' non arriva
+    alla rotta. Il consulente non arrivava al registro dei consumi proprio per
+    questo. La verifica del token resta nel pool (puo' leggere le chiavi
+    pubbliche dalla rete); il legame col contesto si fa qui, nel task della
+    richiesta, da cui la rotta lo eredita.
+    """
+    principal = await run_in_threadpool(
+        _resolve_principal, credentials, x_delir_tenant_id, x_delir_user_id
+    )
+    _bind_principal(principal)
     request.state.auth_principal = principal
     return principal
 
@@ -181,14 +254,18 @@ async def authenticate_websocket(websocket: WebSocket) -> AuthPrincipal | None:
 
     if not settings.delir_auth_enabled:
         principal = AuthPrincipal(user_id="local-dev", tenant_id=tenant_id, is_admin=True)
-        set_current_tenant_id(tenant_id)
+        _bind_principal(principal)
         return principal
 
-    expected_token = _configured_api_token()
-    if not supplied_token or not compare_digest(supplied_token, expected_token):
-        await websocket.close(code=1008)
+    try:
+        subject, auth_mode = _authenticate_bearer(supplied_token)
+    except HTTPException as exc:
+        # 1008: credenziali rifiutate; 1011: verifica non disponibile lato server.
+        await websocket.close(code=1011 if exc.status_code >= 500 else 1008)
         return None
 
-    principal = AuthPrincipal(user_id="api-client", tenant_id=tenant_id, auth_mode="bearer")
-    set_current_tenant_id(tenant_id)
+    principal = AuthPrincipal(
+        user_id=subject or "api-client", tenant_id=tenant_id, auth_mode=auth_mode
+    )
+    _bind_principal(principal)
     return principal

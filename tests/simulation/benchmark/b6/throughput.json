@@ -1,0 +1,720 @@
+{
+  "scenario": "Loan_Application",
+  "replicas": 10,
+  "cases": 1000,
+  "seed": 20261124,
+  "cpus": 4,
+  "results": [
+    {
+      "accepted_s": 0.13797997100027715,
+      "completed_s": 19.855458725000062,
+      "kpi_read_s": 19.966315542000302,
+      "total_s": 22.88393848700025,
+      "runs_per_minute": 26.2192629271768,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 8.7224,
+          "max": 17.184
+        },
+        "motore": {
+          "mean": 1.6309999999999998,
+          "max": 1.971
+        },
+        "analisi": {
+          "mean": 0.1724,
+          "max": 0.45
+        },
+        "salvataggio": {
+          "mean": 0.0826,
+          "max": 0.1
+        }
+      },
+      "workers": 1,
+      "round": 1
+    },
+    {
+      "accepted_s": 0.10627870099961001,
+      "completed_s": 21.91520359099968,
+      "kpi_read_s": 22.06046315599997,
+      "total_s": 26.10346377099995,
+      "runs_per_minute": 22.985455312125257,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 9.4348,
+          "max": 19.017
+        },
+        "motore": {
+          "mean": 1.8445,
+          "max": 2.198
+        },
+        "analisi": {
+          "mean": 0.21400000000000002,
+          "max": 0.648
+        },
+        "salvataggio": {
+          "mean": 0.0769,
+          "max": 0.116
+        }
+      },
+      "workers": 1,
+      "round": 2
+    },
+    {
+      "accepted_s": 0.15191027099990606,
+      "completed_s": 20.799410688999615,
+      "kpi_read_s": 20.94426171899977,
+      "total_s": 24.860306559000037,
+      "runs_per_minute": 24.134859261531727,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 9.126999999999999,
+          "max": 18.31
+        },
+        "motore": {
+          "mean": 1.7672,
+          "max": 1.963
+        },
+        "analisi": {
+          "mean": 0.19290000000000002,
+          "max": 0.534
+        },
+        "salvataggio": {
+          "mean": 0.0742,
+          "max": 0.083
+        }
+      },
+      "workers": 1,
+      "round": 3
+    },
+    {
+      "accepted_s": 0.13425743800007695,
+      "completed_s": 10.598564624000119,
+      "kpi_read_s": 10.713522989000012,
+      "total_s": 14.289539000000332,
+      "runs_per_minute": 41.988758349726055,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 4.020899999999999,
+          "max": 8.083
+        },
+        "motore": {
+          "mean": 1.6443,
+          "max": 1.896
+        },
+        "analisi": {
+          "mean": 0.1777,
+          "max": 0.441
+        },
+        "salvataggio": {
+          "mean": 0.11040000000000001,
+          "max": 0.238
+        }
+      },
+      "workers": 2,
+      "round": 1
+    },
+    {
+      "accepted_s": 0.1103263899999547,
+      "completed_s": 10.865301818999797,
+      "kpi_read_s": 10.980003086999659,
+      "total_s": 14.533277734999956,
+      "runs_per_minute": 41.28456160684539,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 4.3532,
+          "max": 8.71
+        },
+        "motore": {
+          "mean": 1.7605,
+          "max": 1.966
+        },
+        "analisi": {
+          "mean": 0.2022,
+          "max": 0.57
+        },
+        "salvataggio": {
+          "mean": 0.0863,
+          "max": 0.213
+        }
+      },
+      "workers": 2,
+      "round": 2
+    },
+    {
+      "accepted_s": 0.11697001499987891,
+      "completed_s": 10.664594910999767,
+      "kpi_read_s": 10.794316807000087,
+      "total_s": 14.481584676999773,
+      "runs_per_minute": 41.43192981862985,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 4.1671,
+          "max": 8.216
+        },
+        "motore": {
+          "mean": 1.7201999999999997,
+          "max": 1.894
+        },
+        "analisi": {
+          "mean": 0.1995,
+          "max": 0.305
+        },
+        "salvataggio": {
+          "mean": 0.1311,
+          "max": 0.266
+        }
+      },
+      "workers": 2,
+      "round": 3
+    },
+    {
+      "accepted_s": 0.13690491900024426,
+      "completed_s": 8.009240472000329,
+      "kpi_read_s": 8.110582243999943,
+      "total_s": 11.495748926000033,
+      "runs_per_minute": 52.193206711654504,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 2.3272,
+          "max": 5.733
+        },
+        "motore": {
+          "mean": 1.9457999999999998,
+          "max": 2.606
+        },
+        "analisi": {
+          "mean": 0.3688,
+          "max": 0.739
+        },
+        "salvataggio": {
+          "mean": 0.1484,
+          "max": 0.298
+        }
+      },
+      "workers": 4,
+      "round": 1
+    },
+    {
+      "accepted_s": 0.10490549899986945,
+      "completed_s": 8.008498624999902,
+      "kpi_read_s": 8.121023695000076,
+      "total_s": 11.494583064999915,
+      "runs_per_minute": 52.19850051168467,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 2.1297,
+          "max": 5.344
+        },
+        "motore": {
+          "mean": 1.9195999999999998,
+          "max": 2.399
+        },
+        "analisi": {
+          "mean": 0.3327,
+          "max": 0.647
+        },
+        "salvataggio": {
+          "mean": 0.1951,
+          "max": 0.378
+        }
+      },
+      "workers": 4,
+      "round": 2
+    },
+    {
+      "accepted_s": 0.11786937300030331,
+      "completed_s": 7.943216785999994,
+      "kpi_read_s": 8.056647742000223,
+      "total_s": 11.304624272000183,
+      "runs_per_minute": 53.0756251214919,
+      "fingerprints": {
+        "1": {
+          "seed": 20261124,
+          "kpi": "6833b0f7c88ddbbea30498756ce457b6cd2fe6605f5524266a26816ede1714fe",
+          "event_log": "dd30755359f733d436e931f22cb2aad39e6ff503bc7182e27ad509b0930add7e"
+        },
+        "2": {
+          "seed": 20261125,
+          "kpi": "0c960bc79f9a3db7cd431af21315651794d41ea185c290824bc56209093ee70d",
+          "event_log": "596d36eee66854644ca8a66cf288943035e4a8a6fdd51db0a9d728d82054e325"
+        },
+        "3": {
+          "seed": 20261126,
+          "kpi": "d9aeca2b3bed9e400f314936bb767534a897ad973f12441ac82dbe96874e07a5",
+          "event_log": "7d76150009feecd26936fd5801ca63134a4b5f94bc1d2fc851fb318959e32e95"
+        },
+        "4": {
+          "seed": 20261127,
+          "kpi": "b759f0bc2f4ae66bdffc2d6a2b74547ae97a5615a547948dc12f85a652089257",
+          "event_log": "6e8be2e9a0afa186f098645dceb9715e57cd82e0b55c0a8a64aa3a33b79d638e"
+        },
+        "5": {
+          "seed": 20261128,
+          "kpi": "fca39e57b058306a4ee91b2a9d80d28f1c3fffcc171564771b053879d2f62cd9",
+          "event_log": "b41cfd7983fc33ece21e27d05f547b6f0881e498d57db5b64ca139e3d249d2e0"
+        },
+        "6": {
+          "seed": 20261129,
+          "kpi": "f92269127ca7ac51c076522594eaabab7d789e80cf4394d5c68de7459751f161",
+          "event_log": "7f5b3eb329d850ade6fe3c53ad6d1f9d45a5ccc15b2be78db2cdb0ea79b5f9af"
+        },
+        "7": {
+          "seed": 20261130,
+          "kpi": "4e126d36aba6071ed03efba39fd9c6f1edfe549f764f8114fb837c746bb68c6f",
+          "event_log": "e1170c4fc1d77b0ebf6254a11575602069cc2a23cadbce192e7941a98b747e1a"
+        },
+        "8": {
+          "seed": 20261131,
+          "kpi": "7cce1da91a95d3d49e7e1466d00eb83d325a386d242eed0ebde605c2b03261b7",
+          "event_log": "9fe369b6ca1c58dc2b7b37ab2b93fac28ca15025934bcec937d9b5e5ea18167b"
+        },
+        "9": {
+          "seed": 20261132,
+          "kpi": "036b710705c1cfb26bfb1379fb6a10b115d6c191f5eb665b857bbeb0ec87b86c",
+          "event_log": "fd2f2ea8eabf5d147b26387989768eb96ae7420373a6107d42398ad95f8be8f6"
+        },
+        "10": {
+          "seed": 20261133,
+          "kpi": "2c67827b4a378c992a8578a256f098820bf3e520167f0b0c4fcfec8664edbe68",
+          "event_log": "11110f27cb6a6ddae7e9114ae9c59b41ae41754dbb96fd20e7abeae54057136b"
+        }
+      },
+      "phases": {
+        "in coda": {
+          "mean": 2.1836,
+          "max": 5.557
+        },
+        "motore": {
+          "mean": 1.8157,
+          "max": 2.53
+        },
+        "analisi": {
+          "mean": 0.5305,
+          "max": 0.828
+        },
+        "salvataggio": {
+          "mean": 0.2029,
+          "max": 0.433
+        }
+      },
+      "workers": 4,
+      "round": 3
+    }
+  ]
+}

@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 
 from backend.api.errors import setup_api_error_handlers
 from backend.api.routes.audio import router as audio_router
+from backend.api.routes.identity import public_router as auth_config_router
 from backend.api.routes.identity import router as identity_router
 from backend.api.routes.chat import router as chat_router
 from backend.api.routes.memory import router as memory_router
@@ -38,14 +39,170 @@ from fastapi.staticfiles import StaticFiles
 logger = logging.getLogger(__name__)
 
 
+#: Lunghezza minima dei token in un ambiente vero. `local_release.py` ne genera
+#: da 48 caratteri e `.env.example` suggerisce `secrets.token_urlsafe(48)` (64):
+#: sotto 32 e' quasi sempre un valore scritto a mano ("test", "change-me").
+MIN_TOKEN_LENGTH = 32
+
+
+def _allowed_tenants() -> list[str]:
+    return [item.strip() for item in settings.delir_allowed_tenant_ids.split(",") if item.strip()]
+
+
+AUTH_PROVIDERS = ("token", "supabase")
+
+
+def _identity_provider_problems() -> list[str]:
+    """Con `DELIR_AUTH_PROVIDER=supabase`: da dove si verificano i token."""
+    from urllib.parse import urlparse
+
+    from backend.llm.egress import is_internal_host
+
+    problems: list[str] = []
+    publishable = settings.supabase_publishable_key.strip()
+    if not publishable:
+        problems.append(
+            "DELIR_AUTH_PROVIDER=supabase senza SUPABASE_PUBLISHABLE_KEY: il browser non "
+            "potrebbe fare il login."
+        )
+    elif _looks_like_a_secret_key(publishable):
+        # Finisce in /v1/auth/config, cioe' in ogni browser: una secret key li'
+        # darebbe a chiunque i permessi amministrativi sul progetto Supabase.
+        problems.append(
+            "SUPABASE_PUBLISHABLE_KEY contiene una chiave segreta (secret o "
+            "service_role): usa la publishable key del progetto."
+        )
+
+    url = settings.supabase_url.strip()
+    if not url:
+        return [
+            "DELIR_AUTH_PROVIDER=supabase senza SUPABASE_URL: nessun token sarebbe verificabile.",
+            *problems,
+        ]
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        problems.append("SUPABASE_URL non e' un URL http(s) valido.")
+    # In chiaro solo verso un host interno (CLI locale, rete docker): le chiavi
+    # pubbliche lette da internet senza TLS si potrebbero sostituire in transito.
+    elif parsed.scheme != "https" and not is_internal_host(parsed.hostname):
+        problems.append("SUPABASE_URL deve usare https verso un host esterno.")
+    return problems
+
+
+def _looks_like_a_secret_key(key: str) -> bool:
+    """`sb_secret_...`, o una chiave legacy JWT con `role` service_role."""
+    if key.startswith("sb_secret_"):
+        return True
+    if key.count(".") == 2:
+        import jwt
+
+        try:
+            claims = jwt.decode(key, options={"verify_signature": False})
+        except jwt.PyJWTError:
+            return False
+        return claims.get("role") == "service_role"
+    return False
+
+
+def auth_configuration_problems() -> list[str]:
+    """Cosa, nella configurazione d'accesso, renderebbe indifendibile questo processo.
+
+    Fuori da una macchina di sviluppo ogni voce e' un modo concreto di aprire
+    la porta: un token che si indovina, un amministratore che coincide con
+    chiunque abbia il token API, un tenant scelto dal client senza allowlist,
+    un'origine `*`. Le restituisce tutte insieme: chi configura un ambiente
+    corregge il file una volta sola invece di scoprirle a una a una a ogni
+    riavvio. I messaggi nominano le variabili, mai i valori.
+
+    In sviluppo conta solo che, se l'autenticazione e' accesa, esista il token:
+    senza, ogni richiesta riceverebbe 503.
+    """
+    environment = current_environment()
+    api_token = (settings.delir_api_token or "").strip()
+    provider = settings.delir_auth_provider
+
+    if settings.delir_auth_enabled and provider not in AUTH_PROVIDERS:
+        return [f"DELIR_AUTH_PROVIDER deve essere uno fra {', '.join(AUTH_PROVIDERS)}."]
+    uses_shared_token = provider == "token"
+
+    if environment in OPEN_ENVIRONMENTS:
+        if not settings.delir_auth_enabled:
+            return []
+        if not uses_shared_token:
+            return _identity_provider_problems()
+        if not api_token:
+            return [
+                "DELIR_AUTH_ENABLED acceso senza DELIR_API_TOKEN: ogni richiesta "
+                "riceverebbe 503, che sembra un guasto e invece e' configurazione."
+            ]
+        return []
+
+    if not settings.delir_auth_enabled:
+        permessi = ", ".join(sorted(OPEN_ENVIRONMENTS))
+        # Con l'autenticazione spenta il resto non conta: e' gia' tutto aperto.
+        return [
+            f"DELIR_ENVIRONMENT={environment} con DELIR_AUTH_ENABLED spento: "
+            "il prodotto accetterebbe qualunque chiamata, da qualunque origine, "
+            "con permessi di amministratore. Accendi l'autenticazione, oppure "
+            f"dichiara uno degli ambienti aperti ({permessi}) se questa e' "
+            "davvero una macchina di sviluppo."
+        ]
+
+    problems: list[str] = []
+    admin_token = (settings.delir_admin_token or "").strip()
+
+    if not uses_shared_token:
+        problems.extend(_identity_provider_problems())
+    elif not api_token:
+        problems.append("DELIR_API_TOKEN mancante: ogni richiesta riceverebbe 503.")
+    elif len(api_token) < MIN_TOKEN_LENGTH:
+        problems.append(
+            f"DELIR_API_TOKEN piu' corto di {MIN_TOKEN_LENGTH} caratteri: generane uno "
+            "con `python -c \"import secrets; print(secrets.token_urlsafe(48))\"`."
+        )
+
+    if not admin_token:
+        problems.append(
+            "DELIR_ADMIN_TOKEN mancante: cancellare clienti, progetti, processi o "
+            "l'intero workspace richiede una chiave distinta dal token API."
+        )
+    elif len(admin_token) < MIN_TOKEN_LENGTH:
+        problems.append(f"DELIR_ADMIN_TOKEN piu' corto di {MIN_TOKEN_LENGTH} caratteri.")
+    elif api_token and admin_token == api_token:
+        problems.append(
+            "DELIR_ADMIN_TOKEN uguale a DELIR_API_TOKEN: chiunque usi l'app sarebbe "
+            "amministratore."
+        )
+
+    allowed = _allowed_tenants()
+    if not allowed:
+        problems.append(
+            "DELIR_ALLOWED_TENANT_IDS vuota: il tenant lo sceglierebbe il client "
+            "con un header, senza nessun limite."
+        )
+    elif settings.delir_default_tenant_id.strip() not in allowed:
+        problems.append("DELIR_DEFAULT_TENANT_ID non compare in DELIR_ALLOWED_TENANT_IDS.")
+
+    origins = [o.strip() for o in settings.delir_cors_origins.split(",") if o.strip()]
+    if not origins or "*" in origins:
+        problems.append(
+            "DELIR_CORS_ORIGINS deve elencare le origini del frontend, senza `*`."
+        )
+
+    return problems
+
+
 def assert_environment_is_defensible() -> Literal["open", "guarded"]:
-    """Rifiuta di avviare un ambiente dichiarato vero senza autenticazione.
+    """Rifiuta di avviare un processo la cui configurazione d'accesso lascia la porta aperta.
 
     Con `delir_auth_enabled` a falso il prodotto accetta qualunque chiamata, con
     CORS `*` e `is_admin` acceso per tutti - cancellazioni comprese. In
     sviluppo e' comodo ed e' il default. In un ambiente dichiarato staging o
     prod e' un deploy senza porta, e il difetto di prima era che non lo diceva
-    nessuno: partiva e basta.
+    nessuno: partiva e basta. Lo stesso vale per una porta chiusa male: senza
+    chiave amministrativa, con un token debole o senza allowlist dei tenant il
+    processo partiva con un warning. Ora non parte (fail closed): vedi
+    `auth_configuration_problems`.
 
     Returns:
         Literal["open", "guarded"]: `"guarded"` quando una richiesta deve
@@ -54,37 +211,14 @@ def assert_environment_is_defensible() -> Literal["open", "guarded"]:
             in un test e, domani, mostrare in `/health`.
 
     Raises:
-        RuntimeError: Quando l'ambiente e' dichiarato vero e l'autenticazione e'
-            spenta, o e' accesa e manca il token.
+        RuntimeError: Con l'elenco completo dei problemi, quando ce n'e' almeno uno.
     """
     environment = current_environment()
-
-    if not settings.delir_auth_enabled and environment not in OPEN_ENVIRONMENTS:
-        permessi = ", ".join(sorted(OPEN_ENVIRONMENTS))
+    problems = auth_configuration_problems()
+    if problems:
         raise RuntimeError(
-            f"DELIR_ENVIRONMENT={environment} con DELIR_AUTH_ENABLED spento: "
-            "il prodotto accetterebbe qualunque chiamata, da qualunque origine, "
-            "con permessi di amministratore. Accendi l'autenticazione, oppure "
-            f"dichiara uno degli ambienti aperti ({permessi}) se questa e' "
-            "davvero una macchina di sviluppo."
-        )
-
-    if settings.delir_auth_enabled and not (settings.delir_api_token or "").strip():
-        raise RuntimeError(
-            "DELIR_AUTH_ENABLED acceso senza DELIR_API_TOKEN: ogni richiesta "
-            "riceverebbe 503, che sembra un guasto e invece e' configurazione."
-        )
-
-    if (
-        settings.delir_auth_enabled
-        and environment not in OPEN_ENVIRONMENTS
-        and not (settings.delir_admin_token or "").strip()
-    ):
-        logger.warning(
-            "DELIR_ADMIN_TOKEN non configurato (DELIR_ENVIRONMENT=%s): le operazioni "
-            "amministrative (cancellazioni di clienti, progetti, processi, workspace) "
-            "rispondono 403 finche' non lo si imposta.",
-            environment,
+            f"Configurazione d'accesso non difendibile (DELIR_ENVIRONMENT={environment}):\n- "
+            + "\n- ".join(problems)
         )
 
     if not settings.delir_auth_enabled:
@@ -179,24 +313,18 @@ def configured_cors_origins() -> list[str]:
     ]
     return origins or ["http://127.0.0.1:3030", "http://localhost:3030"]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=configured_cors_origins(),
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    # Senza questa riga il browser vede le intestazioni ma non le lascia
-    # leggere al codice della pagina: l'elenco saprebbe di essere tagliato e
-    # non potrebbe dirlo.
-    expose_headers=["X-DeliR-Total", "X-DeliR-Returned", "X-DeliR-Limit", "X-Request-ID"],
-)
+
+
+#: Rotte che si leggono prima di avere uno spazio di lavoro: come entrare.
+#: Un tenant sbagliato rimasto in sessione non deve impedire di rifare il login.
+PUBLIC_PATHS = frozenset({"/v1/auth/config"})
 
 
 @app.middleware("http")
 async def tenant_context_middleware(request: Request, call_next):
     # Il cliente che apre il link non manda lo spazio di lavoro: lo decide il
     # link stesso, nel servizio. Qui non c'e' nulla da controllare.
-    if request.url.path.startswith("/v1/shared/"):
+    if request.url.path.startswith("/v1/shared/") or request.url.path in PUBLIC_PATHS:
         return await call_next(request)
     try:
         tenant_id = normalize_tenant_id(request.headers.get("X-DeliR-Tenant-ID"))
@@ -215,6 +343,22 @@ async def tenant_context_middleware(request: Request, call_next):
         reset_current_tenant_id(token)
 
 
+# CORS per ultimo, cioe' piu' esterno: in Starlette l'ultimo middleware aggiunto
+# avvolge gli altri. Prima il 403 del tenant usciva dal middleware qui sopra
+# senza intestazioni CORS, e il browser lo leggeva come "backend irraggiungibile".
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=configured_cors_origins(),
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    # Senza questa riga il browser vede le intestazioni ma non le lascia
+    # leggere al codice della pagina: l'elenco saprebbe di essere tagliato e
+    # non potrebbe dirlo.
+    expose_headers=["X-DeliR-Total", "X-DeliR-Returned", "X-DeliR-Limit", "X-Request-ID"],
+)
+
+
 app.include_router(workspace_router)
 app.include_router(shared_router)
 app.include_router(simulation_router)
@@ -222,6 +366,7 @@ app.include_router(simulation_scenarios_router)
 app.include_router(eventlog_router)
 app.include_router(memory_router)
 app.include_router(observability_router)
+app.include_router(auth_config_router)
 app.include_router(identity_router)
 app.include_router(chat_router)
 app.include_router(audio_router)

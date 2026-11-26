@@ -35,6 +35,7 @@ dependencies = [
     "docling-core[chunking]>=2.99.0",
     "pypdfium2>=5.13.0",
     "defusedxml>=0.7.1",
+    "pyjwt[crypto]>=2.10",
     "mcp>=2,<3",
 ]
 
@@ -96,6 +97,8 @@ files = [
     "backend/workers",
     # Conformance del log contro il BPMN: nata tipata, resta tipata.
     "backend/eventlog/conformance.py",
+    # Simulation Engine Interface (ENG-01): il confine fra il prodotto e il motore.
+    "backend/simulation/engine",
     # Fuori copertura per ora, con gli errori contati il 2026-10-03:
     # backend/memory (25), backend/toolsets (9), backend/agents (4).
     # Entrano uno per volta, a zero errori; questa lista puo' solo accorciarsi.

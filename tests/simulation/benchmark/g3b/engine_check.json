@@ -1,0 +1,81 @@
+{
+  "scenario": "BPIC_2012_W_extr",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": 2976,
+  "start": "2012-01-07T09:04:12.635000+00:00",
+  "metrics": {
+    "cycle_time_w1": {
+      "g3b_direct": {
+        "mean": 42.4645497311828,
+        "ci95": 2.095223864952598
+      },
+      "g3_product_path": {
+        "mean": 42.4645497311828,
+        "ci95": 2.095223864952598
+      },
+      "same": true,
+      "identical_replicas": true
+    },
+    "ngram": {
+      "g3b_direct": {
+        "mean": 0.5023943209714419,
+        "ci95": 0.00470985300028147
+      },
+      "g3_product_path": {
+        "mean": 0.5023943209714419,
+        "ci95": 0.00470985300028147
+      },
+      "same": true,
+      "identical_replicas": true
+    },
+    "relative_event": {
+      "g3b_direct": {
+        "mean": 65.28775282973672,
+        "ci95": 2.4261629671153955
+      },
+      "g3_product_path": {
+        "mean": 65.28775282973672,
+        "ci95": 2.4261629671153955
+      },
+      "same": true,
+      "identical_replicas": true
+    },
+    "absolute_event": {
+      "g3b_direct": {
+        "mean": 92.65517921651482,
+        "ci95": 10.919820960604415
+      },
+      "g3_product_path": {
+        "mean": 92.65517921651482,
+        "ci95": 10.919820960604415
+      },
+      "same": true,
+      "identical_replicas": true
+    },
+    "circadian_event": {
+      "g3b_direct": {
+        "mean": 1.9530087955792528,
+        "ci95": 0.011599528162021784
+      },
+      "g3_product_path": {
+        "mean": 1.9530087955792528,
+        "ci95": 0.011599528162021784
+      },
+      "same": true,
+      "identical_replicas": true
+    },
+    "case_arrival": {
+      "g3b_direct": {
+        "mean": 65.78588709677419,
+        "ci95": 10.351208755438323
+      },
+      "g3_product_path": {
+        "mean": 65.78588709677419,
+        "ci95": 10.351208755438323
+      },
+      "same": true,
+      "identical_replicas": true
+    }
+  }
+}

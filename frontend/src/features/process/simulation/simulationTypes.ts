@@ -176,6 +176,8 @@ export const scenarioTemplateSchema = z.object({
   resources: z.array(scenarioTemplateResourceSchema).optional(),
   /** Il calendario di arrivi e risorse senza calendario proprio. */
   standard_calendar: simCalendarSchema.nullable().optional(),
+  // Porte di sola unione: nessuna scelta da impostare, il consulente non le associa.
+  merges: z.array(z.string()).optional(),
   tasks: z.array(
     z.object({
       element_id: z.string(), name: z.string(), type: z.string(),

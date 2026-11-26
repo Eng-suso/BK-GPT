@@ -137,6 +137,15 @@ describe("scenario JSON", () => {
     expect(() => importScenarioJson(JSON.stringify({ ...source, event_distribution: [{ event_id: "unknown", distribution_name: "fix", distribution_params: [{ value: 1 }] }] }), "model-1", template, draft)).toThrow("non presente");
   });
 
+  it("never asks to map a point where paths merge back: it has no choice to set (IMP-01)", () => {
+    const template = { resources: [], tasks: [], gateways: [], waits: [], merges: ["G_merge"] } as unknown as ScenarioTemplate;
+    const source = { gateway_branching_probabilities: [
+      { gateway_id: "G_merge", probabilities: [{ path_id: "f2", value: "1" }] },
+      { gateway_id: "G_old", probabilities: [{ path_id: "f9", value: "1" }] },
+    ] };
+    expect(prosimosReferenceFields(source, template, {}).map((field) => field.source)).toEqual(["G_old"]);
+  });
+
   it("requires explicit mappings for stale timer, decision and branch IDs", () => {
     const source = structuredClone(golden.default) as typeof golden.default & { event_distribution: unknown[] };
     source.event_distribution = [{ event_id: "Event_old", distribution_name: "fix", distribution_params: [{ value: 600 }] }];

@@ -1,0 +1,33 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "bpic2013_incidents",
+  "category": "osservabilita parziale",
+  "phase": "test",
+  "config": "prosit",
+  "label": "ProSiT con regole (profondita' 3)",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 3776,
+    "target": 3778
+  },
+  "identifiability": {
+    "cycle_time_w1": "NOT VALIDATED",
+    "ngram": "NOT VALIDATED",
+    "relative_event": "NOT VALIDATED",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "NOT VALIDATED",
+    "processing_time": "NOT VALIDATED",
+    "resources": "identificabile",
+    "waiting_causes": "NOT VALIDATED",
+    "true_parameters": "NOT VALIDATED",
+    "counterfactual": "NOT VALIDATED"
+  },
+  "status": "out_of_budget",
+  "reason": "prosit_run.py: uscita 4; aligning log, completed variants ::  13%|█▎        | 234/1784 [1:28:48<9:48:17, 22.77s/it] |  | aligning log, completed variants :: 100%|██████████| 1784/1784 [1:59:58<00:00,  4.04s/it]",
+  "cost": {
+    "seconds": 7215.1,
+    "peak_mb": 11726.5
+  }
+}

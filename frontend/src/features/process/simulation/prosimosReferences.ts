@@ -16,6 +16,8 @@ function id(value: unknown): string | null {
 /** Only missing BPMN references need explicit re-binding; exact IDs stay untouched. */
 export function prosimosReferenceFields(source: Source, template: ScenarioTemplate, mapping: ProsimosIdMapping): ProsimosReferenceField[] {
   const fields: ProsimosReferenceField[] = [];
+  // Un punto in cui i percorsi si ricongiungono non ha scelte: il server lo riconosce da solo.
+  const merges = new Set(template.merges ?? []);
   const tasks = new Set(template.tasks.map((item) => item.element_id));
   const gateways = new Map(template.gateways.map((item) => [item.element_id, item]));
   const waits = new Set((template.waits ?? []).map((item) => item.element_id));
@@ -28,7 +30,7 @@ export function prosimosReferenceFields(source: Source, template: ScenarioTempla
   }
   for (const row of records(source.gateway_branching_probabilities)) {
     const sourceId = id(row.gateway_id);
-    if (!sourceId) continue;
+    if (!sourceId || merges.has(sourceId)) continue;
     if (!gateways.has(sourceId)) fields.push({ kind: "gateways", source: sourceId, key: sourceId, options: gatewayOptions });
     const target = gateways.get(mapping.gateways?.[sourceId] || sourceId);
     if (!target) continue;

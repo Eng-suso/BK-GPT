@@ -33,12 +33,13 @@ configurazione la accende; una destinazione spenta resta elencata.
 | `llm_embedding` | OpenAI | `api.openai.com` | Frammenti di documenti e interviste | `OPENAI_API_KEY` impostata | `embedding` |
 | `transcription` | OpenAI | `api.openai.com` | **File audio** delle interviste (voce = dato personale) | `OPENAI_API_KEY` impostata | `transcription` |
 | `transcription_live` | OpenAI Realtime | `api.openai.com` (wss) | **Audio dal microfono** in tempo reale | `OPENAI_API_KEY` impostata | — (WebSocket diretto, non passa dal gateway) |
-| `memory_extraction` | OpenAI, o il fornitore di `MEM0_LLM_BASE_URL` | `api.openai.com` | Fatti estratti dalle conversazioni (Mem0) | `OPENAI_API_KEY` + `MEM0_DATABASE_URL` | — (libreria Mem0) |
-| `memory_embedding` | OpenAI | `api.openai.com` | Testi delle memorie (Mem0) | come sopra | — (libreria Mem0) |
+| `memory_extraction` | OpenAI, o il fornitore di `MEM0_LLM_BASE_URL` | `api.openai.com` | Fatti estratti dalle conversazioni (Mem0) | `OPENAI_API_KEY` + `MEM0_DATABASE_URL` | `memory_extraction` (client di Mem0, contato da `backend/llm/mem0_meter.py`) |
+| `memory_embedding` | OpenAI | `api.openai.com` | Testi delle memorie (Mem0) | come sopra | `memory_embedding` (come sopra) |
 | `tracing` | LangSmith (LangChain Inc.) | `api.smith.langchain.com` | **Prompt e risposte interi** di ogni chiamata al modello | `LANGSMITH_TRACING=true` | Tutti quelli che passano da LangChain |
 | `web_search` | Tavily | `api.tavily.com` | Query di ricerca generate dall'agente (possono citare il cliente) | `TAVILY_API_KEY` impostata | — (strumento dell'agente) |
 | `document_reader` | docling-serve, **self-hosted** | `docling` / `127.0.0.1` | PDF, DOCX e PPTX caricati, interi | sempre | — |
 | `simulation_engine` | Prosimos, **self-hosted** | `prosimos` / `127.0.0.1` | Modelli BPMN e scenari (nomi di attività e ruoli) | sempre | — |
+| `identity_provider` | Supabase Auth (cloud), o la CLI locale in dev/prod-sim | `<ref>.supabase.co` | Email e identificativo dei consulenti; il backend legge solo le chiavi pubbliche (JWKS), il browser fa il login | `DELIR_AUTH_ENABLED=true` + `DELIR_AUTH_PROVIDER=supabase` | — |
 
 ### Cose che dalla lettura del codice non erano ovvie
 
@@ -75,6 +76,7 @@ cosa porta con sé. La destinazione è quella risolta da `egress.py`.
 | `playbook_generalization` | `llm_chat` | Playbook già estratti | |
 | `chat_turn` | `llm_chat` | Messaggi di chat + contesto recuperato | |
 | `context_routing` | `llm_chat` | Messaggio del consulente | |
+| `thread_summary` | `llm_chat` | Messaggi più vecchi del thread | Riassunto del contesto, non la risposta |
 | `eval_judge` | `llm_chat` | Output dell'agente sui casi di test | Solo eval, mai in produzione |
 | `claim_matching` | `llm_chat` | Affermazioni + nomi delle attività | |
 | `simulation_what_if` | `llm_chat` | Frase del consulente + id dello scenario | |
@@ -96,7 +98,7 @@ a memoria.
 | Oracle (OCI) | Hosting | Tutto, a riposo | VM, Postgres, Neo4j, volumi | Da verificare (regione della VM) | Da verificare | — | Da verificare | NOT VALIDATED |
 | Cloudflare | Rete (Tunnel, Access) | Traffico in transito (TLS terminato al bordo) | Ingresso API | Globale | Da verificare | — | Sì | NOT VALIDATED (previsto, A1) |
 | Vercel | Hosting del frontend | Frontend statico; nessun dato cliente previsto | — | Da verificare | Da verificare | — | Da verificare | NOT VALIDATED (previsto) |
-| Supabase | Identità (Track B) | Email e identità degli utenti | — | Da verificare | Da verificare | — | Da verificare | NOT VALIDATED (non ancora in uso) |
+| Supabase | Identità (Track B) | Email e identità degli utenti | `identity_provider` | UE (Frankfurt) prevista | Da verificare | — | Da verificare | NOT VALIDATED (verifier B1 pronto, progetti cloud da creare) |
 | GitHub (GHCR, Actions) | Codice e immagini | Codice; **nessun dato cliente** ammesso | CI, registry | US | Da verificare | — | Sì | NOT VALIDATED |
 | docling-serve | Self-hosted | Documenti | `document_reader` | Sulla VM | — | — | No | Interno |
 | Prosimos | Self-hosted | Modelli di processo | `simulation_engine` | Sulla VM | — | — | No | Interno |

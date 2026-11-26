@@ -36,6 +36,8 @@ TRACKED_COMPONENTS = [
     "ChatMessageRecord",
     "ChatResponse",
     "TranscriptionResponse",
+    "AuthConfig",
+    "CurrentIdentity",
 ]
 
 OUTPUT_PATH = (

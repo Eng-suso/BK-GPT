@@ -40,6 +40,7 @@ from backend.llm.operation import current_operation
 from backend.llm.tasks import LlmTask, TaskProfile, profile_for
 from backend.llm.usage import (
     Outcome,
+    classify_failure,
     TokenUsage,
     extract_embedding_tokens,
     extract_tokens,
@@ -141,18 +142,8 @@ def _max_retries(profile: TaskProfile) -> int:
     return settings.agent_max_retries if profile.retry else settings.model_max_retries
 
 
-def _error_kind(exc: BaseException) -> tuple[str, str]:
-    """Classifica un guasto in `(outcome, error_kind)`.
-
-    Il timeout ha un esito suo perche' e' l'unico guasto che si paga per intero:
-    il fornitore ha lavorato, noi abbiamo buttato il risultato. Tenerlo dentro
-    `error` renderebbe invisibile proprio la voce che va sorvegliata.
-    """
-    name = type(exc).__name__
-    lowered = name.lower()
-    if isinstance(exc, TimeoutError) or "timeout" in lowered:
-        return Outcome.TIMEOUT, name
-    return Outcome.ERROR, name
+# Un solo modo di classificare un guasto, condiviso con le chiamate di Mem0.
+_error_kind = classify_failure
 
 
 @overload

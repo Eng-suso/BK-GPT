@@ -18,6 +18,738 @@ Modello:
 
 ---
 
+## 2026-11-26 — G3b benchmark dei motori scientifici — fatto
+
+- Branch / PR: `spike/sim-g3b-ablation`, #195, CI verde. Dipendenze chiuse: PROTO-01 (#190).
+- Schede di go/no-go (PROTOCOL.md §7), scritte **prima di ogni misura** di G3b. Valgono per
+  ogni componente, prima sulla validazione (scoperta sul fit, confronto con l'ultimo 20% del
+  train) e poi sul test dei log di sviluppo (scoperta sull'intero train); holdout chiusi.
+
+  | Componente | Ipotesi | Candidato | Base da battere | Metrica primaria | Guardia | Log |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | Arrivi | AT-KDE coglie andamento globale, giorno della settimana e ora: gli arrivi simulati somigliano di più a quelli veri della distribuzione dei tempi fra arrivi di SIMOD | SIMOD con ritardi estranei + arrivi AT-KDE | "B = A"; SIMOD con ritardi estranei | CAR | W1, NGD, RED, AED, CED; tempo e memoria | dove CAR è identificabile (§4, ricalcolato anche per la validazione) |
+  | Attese (ritardi estranei) | modellare i ritardi estranei avvicina la posizione degli eventi nel caso | SIMOD con ritardi estranei | "B = A"; SIMOD senza ritardi (calendari fissi) | RED | W1, NGD, AED, CED, CAR; tempo e memoria | dove RED è identificabile |
+  | Calendari delle risorse | i calendari scoperti spiegano quando si lavora: senza, gli eventi cadono a tutte le ore | SIMOD con ritardi estranei (calendari scoperti) | "B = A"; lo stesso scenario con calendari 24/7 | CED | W1, NGD, RED, AED, CAR; tempo e memoria | dove CED è identificabile |
+  | Control flow e risorse condizionali | regole che dipendono dal caso (alberi di decisione di ProSiT) prevedono meglio i percorsi delle probabilità fisse | ProSiT con regole (profondità 3) | "B = A"; SIMOD con ritardi estranei; ProSiT senza regole (profondità 0) | NGD | W1, RED, AED, CED, CAR; tempo e memoria | dove NGD è identificabile |
+  | Approccio intero: ProSiT | un twin a regole batte il twin di processo con arrivi parametrici | ProSiT con regole | "B = A"; SIMOD con ritardi estranei | W1 | NGD, RED, AED, CED, CAR; tempo e memoria | dove W1 è identificabile |
+  | Approccio intero: AgentSimulator | un twin ad agenti (passaggi di mano fra risorse) batte il twin di processo | AgentSimulator, architettura e ritardi scelti da lui sul 20% finale del suo input (default del paper) | "B = A"; SIMOD con ritardi estranei | W1 | NGD, RED, AED, CED, CAR; tempo e memoria | dove W1 è identificabile |
+
+  - **GO** solo se vale contro **ogni** base della riga: primaria vince (IC 95% separati) sulla
+    maggioranza dei log dove è identificabile e non perde su nessuno; nessuna guardia perde su
+    più di un log; discovery e simulazione entro il budget del §6 e al massimo il doppio della
+    base; il modello prodotto supera VAL-01 (`require_sound`). AgentSimulator non produce un
+    modello di processo da verificare: per lui la condizione VAL-01 è "non verificabile" e
+    conta come non soddisfatta. ProSiT usa una rete di Petri dell'Inductive Miner (sound per
+    costruzione): si dichiara così, senza `require_sound`.
+  - **NO-GO** se manca una condizione; **NOT VALIDATED** se la primaria è identificabile in
+    meno di 2 log. Metriche NOT VALIDATED nel log: calcolate, marcate, non contano.
+  - **Diagnosi, non schede:** SIMOD con ritardi estranei + arrivi di A rigiocati (quelli del
+    gemello ingenuo) separa l'effetto del modello degli arrivi dal resto del twin; Prosimos
+    diretto contro percorso del prodotto su uno scenario di G3 dice se il simulatore della
+    ricerca è lo stesso del prodotto.
+  - **Budget (§6), uguale per tutti:** discovery ≤ 2 h e ≤ 12 GB per configurazione e log;
+    ≤ 20 valutazioni sulla validazione (qui 1 per configurazione: nessuna griglia, gli
+    strumenti girano con i default pubblicati; la ricerca interna di SIMOD e di
+    AgentSimulator usa solo il loro input, mai la nostra validazione); simulazione ≤ 10 minuti
+    per replica; G3b ≤ 120 h. Fuori budget = sconfitta su tutte le metriche, con tempo e
+    memoria misurati. Il tempo di "SIMOD con ritardi estranei" è scoperta senza ritardi +
+    ritardi (riusa il BPMN, come in G3).
+  - **Misura:** 10 repliche, seed `20261124 + replica`, tanti casi quanti il periodo da
+    prevedere a partire dal suo primo inizio; le sei distanze di B2 con IC 95% (t); tempo di
+    discovery, tempo di simulazione e picco di memoria (somma della memoria residente
+    dell'albero dei processi, campionata). Codice esterno (SIMOD 5.2.1, ProSiT 1.0.5,
+    AgentSimulator, AT-KDE) solo in venv di ricerca, mai importato dal prodotto.
+- **Esito (2026-11-26).** Misurati i 25 log di sviluppo × 2 fasi × 9 configurazioni (450
+  risultati, holdout chiusi): **12 schede su 12 NO-GO**, in validazione e in test. Nessun
+  componente esterno entra in B3 così com'è. "B = A" resta l'asticella più dura, anche sui
+  sintetici. Tabelle e verdetti in `tests/simulation/benchmark/g3b/results.md`, comando in
+  `tests/simulation/benchmark/g3b/README.md`. Esiti: 389 misurati, 17 fuori budget, 35 non
+  applicabili, 9 falliti. Calcolo speso ~34 h (budget 120 h).
+
+  | Componente | Primaria | Contro "B = A" (val / test) | Contro la base senza il componente (val / test) | Decisione |
+  | --- | --- | --- | --- | --- |
+  | Arrivi AT-KDE | CAR | 7-0-16 / 6-4-14 | SIMOD con ritardi: 0-6-17 / 3-9-12 | **NO-GO** |
+  | Attese (ritardi estranei) | RED | 5-2-16 / 6-0-17 | SIMOD senza ritardi: 4-13-6 / 4-16-3 | **NO-GO** |
+  | Calendari delle risorse | CED | 6-8-11 / 2-7-16 | calendari 24/7: 13-5-7 / 12-2-11 | **NO-GO** |
+  | Control flow condizionale (ProSiT) | NGD | 0-16-7 / 0-16-7 | ProSiT senza regole: 6-17-0 / 12-11-0 | **NO-GO** |
+  | Approccio intero ProSiT | W1 | 4-7-12 / 0-7-16 | SIMOD con ritardi: 8-7-8 / 7-3-13 | **NO-GO** |
+  | Approccio intero AgentSimulator | W1 | 5-6-12 / 1-2-20 | SIMOD con ritardi: 12-2-9 / 11-1-11 | **NO-GO** (anche VAL-01 non verificabile) |
+
+  Vince-pari-perde sui log dove la primaria è identificabile (fino a 25). Fallito, fuori
+  budget o non applicabile = sconfitta (§6), per il candidato e per la base. Il confronto
+  appaiato di PROTO-02 (`protocol.paired_comparison`, riportato accanto in `results.md`, non
+  decide) dà sconfitte della primaria in ogni scheda come gli IC: nessun verdetto cambierebbe.
+
+- **Decisione per componente** (da scheda, nessuna meta cambiata):
+  - **Arrivi — NO-GO per AT-KDE.** Non si applica a 15 log su 25 (meno di 14 giorni con arrivi
+    nell'input: i 5 Insurance_Claims e i 5 Pharmacy in entrambe le fasi, i 5 Loan_Application
+    in validazione).
+    Dove gira, prolunga il ritmo di fine train: su BPIC 2017 W test genera 7.376 casi in 57
+    giorni invece di 83 (CAR 281 contro 117 di SIMOD). **Diagnosi:** gli arrivi di A rigiocati
+    dentro lo stesso scenario SIMOD battono gli arrivi di SIMOD in test su CAR 12-7-5 e AED
+    13-11-1 (BPIC 2017 W: CAR 30,2 contro 117, AED 39 contro 68): il modello degli arrivi conta
+    e quello empirico è il migliore provato. Candidato per B3.1, con scheda propria.
+  - **Attese — NO-GO per i ritardi estranei di SIMOD.** Contro SIMOD senza ritardi RED è quasi
+    sempre pari (13 e 16 log), vince su 4, perde su 3-6; contro "B = A" perde su 16-17. Vince
+    dove G3 l'aveva visto: BPIC 2017 W test RED 8,1 contro 11,4. Limite: SIMOD con ritardi
+    riottimizza anche risorse e calendari (40 iterazioni senza seed), quindi il confronto non
+    isola solo i ritardi. Per B3.2 serve un'ablazione con il resto fissato.
+  - **Calendari — NO-GO.** Contro i calendari 24/7 CED vince su 12-13 log ma perde su 7-11
+    (Pharmacy e Insurance_Claims, sintetici di 1-2 giorni, dove 24/7 è più vicino al vero);
+    contro "B = A" perde su 11-16. Su BPIC 2017 W test i calendari 24/7 danno W1 10,3 contro
+    18,8: il calendario scoperto allunga i casi.
+  - **Control flow condizionale — NO-GO.** NGD non vince mai contro "B = A" (0 log, 7 perse).
+    Le regole aiutano ProSiT (contro ProSiT senza regole 12-11-0 in test, 0 sconfitte), ma
+    restano sotto "B = A" e perdono su 5-6 log contro SIMOD.
+  - **ProSiT intero — NO-GO.** W1 perde contro "B = A" su 12-16 log. Fallisce su
+    AcademicCredentials validazione (overflow di data in una replica); su BPIC 2013 la
+    discovery (allineamenti) supera le 2 ore. Non ripetibile al bit: i parametri del control
+    flow seguono l'ordine in cui Python itera le transizioni della rete di Petri; due passate
+    su Loan_Application cambiano le medie dentro gli IC.
+  - **AgentSimulator — NO-GO.** VAL-01 non verificabile (nessun modello di processo) e W1 perde
+    contro "B = A" su 12-20 log. È però l'unica configurazione che batte "B = A" su W1, AED e
+    CAR di un log del paper in test: BPIC 2017 W, W1 12,3 contro 30,6, AED 22,1 contro 42,8,
+    CAR 25,6 contro 35,9 (perde su NGD, RED, CED). Fuori budget su BPIC 2012 W test (una
+    replica oltre 10 minuti) e BPIC 2012 (discovery oltre 2 ore); overflow di date su
+    AcademicCredentials e Loan_Application_5_timers; non applicabile agli Insurance_Claims (un
+    giorno solo).
+- **VAL-01 sugli scenari scoperti:** 11 scenari SIMOD su 100 non supererebbero l'import del
+  prodotto: tutti quelli di BPIC 2013 (casi bloccati a un'unione dopo «Completed», in
+  entrambe le fasi) e quello senza ritardi di AcademicCredentials test (ciclo senza uscita,
+  come in G3). Conta già nelle schede come condizione mancata; per B3.3 è la prova che la
+  discovery deve produrre modelli sound.
+- **Holdout: non aperti.** Nessun GO: la conferma sugli holdout del §7 non serve a nessuna
+  decisione. Aprirli resta una decisione di Sohayb (una volta, `final_evaluation(1cfaa147…)`).
+- **Iterazioni del banco** (nessuna sulle mete): 1) strumenti esterni come sottoprocessi nei
+  venv di ricerca, solo percorsi di log di sviluppo; 2) Prosimos della ricerca contro percorso
+  del prodotto su BPIC 2012 W extr di G3: repliche identiche al bit (`engine_check.json`);
+  3) AT-KDE e AgentSimulator dichiarano quando non si applicano (codice d'uscita 3);
+  4) budget del §6 fatti rispettare negli strumenti (codice 4): prima un AgentSimulator su
+  BPIC 2012 W ha tenuto una replica 88 minuti; l'allarme `SIGALRM` non scattava mentre ProSiT
+  aspettava i worker di joblib, ora è un timer su thread e il driver ferma i figli rimasti;
+  5) una discovery fuori budget resta in cache per le varianti che la usano; 6) con tre
+  processi in parallelo il container è andato fuori memoria su ProSiT (BPIC 2013 validazione):
+  rifatto da solo, fuori budget per memoria (oltre 12 GB); 7) metriche ripetibili al bit su due passate (Loan_Application) per "B = A",
+  SIMOD simulato, AT-KDE e AgentSimulator.
+- **Code review:** `code-review` 10 rilievi, tutti corretti o motivati: VAL-01 "non
+  verificato" distinto da "supera"; errori imprevisti non fermano il giro; regola del doppio
+  del costo solo fra misurati; costo salvato anche negli esiti fuori budget degli strumenti;
+  pulizia dei file intermedi di SIMOD a ogni errore; seed e repliche controllati prima di
+  riusare un risultato; motivo leggibile. Motivati: l'ablazione dei ritardi non isola le risorse
+  (scritto sopra); `int(n·0,2)` di AgentSimulator copiato dall'originale (tutti i log hanno
+  più di 5 casi). `simplify` (4 revisori): applicati la regola "pari" di B2 (`within_intervals`)
+  invece di una seconda, esiti per codice d'uscita invece che per testo, budget passati dal
+  driver, controllo preventivo di AgentSimulator, repliche validate (`replicas_error`),
+  argomenti comuni in `tool_args`, log letto una volta per le due fasi, VAL-01 una volta per
+  scenario, repliche lette una alla volta, report con ricerche uniche. Saltati: riuso dei
+  lettori di `protocol_properties` e precalcolo delle distanze (moduli del protocollo e di B2
+  fuori dal diff), formato unico dei CSV degli strumenti (contratto cambiato a misure in corso),
+  un modulo comune per gli strumenti (restano script autonomi). ruff pulito; nessun codice del
+  prodotto toccato (niente ast-grep di backend, niente `security-review`).
+- **Da confermare con Sohayb:** la regola "al massimo il doppio del costo della base" non si
+  applica contro "B = A" (non ha discovery; ogni modello costerebbe infinite volte di più);
+  `COST_EXEMPT_BASES` in `report.py`. Nessun verdetto dipende da questa lettura.
+- Skill: `code-review`, `simplify`. Nessuna UI: gate UX non applicabile.
+- Prossimo passo: B3.1 con gli arrivi empirici (rigiocati) come candidato e scheda propria;
+  B3.2 con l'ablazione dei ritardi a risorse fissate; PERF-01 ha già tempi e memoria di G3b.
+
+---
+
+## 2026-11-25 — RAD-01 inventario del radar e PROTO-02 secondo set — fatto
+
+- Branch / PR: `claude/vpt-radar-inventory-j14bbw` (il branch assegnato alla sessione cloud, al
+  posto di `chore/radar-inventory`).
+- Meta RAD-01 (*proposta*): per ogni log del radar casi, eventi, attività, periodo, risorse, inizio
+  e fine, osservabilità; ogni file confrontato per hash e nome con sviluppo e holdout; nessun
+  holdout aperto → misura: 33/33 voci, 2.205 log, 42 file holdout marcati e mai aperti (8 con i
+  nomi del primo set in Kronos, 34 del secondo set), sovrapposizioni dichiarate in PROTOCOL.md §10
+  (comando: `uv run --with ijson python tests/simulation/benchmark/radar_inventory.py`, 22 min;
+  report in `tests/simulation/benchmark/radar/inventory.md`).
+- Meta PROTO-02 (*proposta*): ruolo di ogni voce del radar, secondo set congelato per hash prima
+  dell'uso, confronti appaiati e metriche di CF-01 senza toccare il benchmark → PROTOCOL.md §10
+  e §11, `holdout2.lock.json` `24974f9b…` (CallCenter, Road Traffic Fines con la copia di DAS-RP),
+  primo lucchetto invariato; `test_protocol.py` 124 → 139 test, `test_radar_inventory.py` 22.
+- Iterazioni: 1) giro di prova: falsi «contiene i casi» fra id numerici lunghi di processi diversi
+  (BPIC19 OCEL contro AcademicCredentials) → gli id da soli valgono solo con attività in comune o
+  ricodificate; JSON da 129 MB → relazioni più forti, al massimo 6; simulati del BPS Quality
+  Framework letti come «completa» → marcatori di percorso; 2) OCEL fino a 11 GB → streaming con
+  ijson; zip in 7 parti di `cdlg-drift-val` → riuniti con `zip -s 0`; 3) giro finale dopo la review.
+- Trovato: ProCause non contiene file BPIC (solo `.gitkeep`); la copia di Helpdesk contiene BPIC
+  2012 W e BPIC 2013 incidents (stessi casi, attività come numeri) e `env_permit` (CoSeLoG, escluso:
+  forse lo stesso comune dell'holdout BPIC 2015); il BPS Quality Framework contiene
+  AcademicCredentials identico per hash, BPIC 2012/2017 W e simulati, più CallCenter; AgentSimulator
+  e AT-KDE solo Loan_Application; DAS-RP estratti di BPIC 2019, Sepsis, Road Traffic Fines e un
+  sintetico Loan_Application; Kronos file con i nomi di Production e PurchasingExample. Sepsis e
+  Hospital Billing: ospedale regionale (Mannhardt, ERP), BPIC 2011 ospedale accademico (van
+  Dongen), dai metadati 4TU.
+- Decisione di Sohayb (2026-11-25, dopo una revisione con la letteratura): secondo set confermato
+  (CallCenter, Road Traffic Fines con l'estratto di DAS-RP come una sola famiglia; BPIC 2018 resta
+  sviluppo), con precisazioni al protocollo: capacità distinte (descrittiva, predittiva,
+  generalizzazione, controfattuale; Sargent 2013), due livelli di separazione (fra processi e nel
+  tempo dentro ogni log), holdout usato una volta con codice e configurazioni congelati (Dwork 2015),
+  CallCenter senza indipendenza organizzativa dichiarata finché la provenienza non è verificata
+  (probabile CALL degli articoli di SIMOD; nessuna fonte pubblica la dice), GT-01 con scenari
+  riservati. CF-01: 1% come margine standardizzato provvisorio, non soglia universale (SESOI,
+  Lakens 2017); sensibilità a 0,5%, 2%, 5%; margine assoluto per baseline nulle; classi INCREASE,
+  DECREASE, NEGLIGIBLE, INCONCLUSIVE con gli inconclusivi riportati; bias e metriche continue senza
+  soglia. Rimandati come estensioni: decision regret, tasso di interventi sbagliati, CRN per entità,
+  ProCause. Non adottato: l'holdout 1 come validazione ripetuta (lo schema proposto lo disegnava
+  così), perché contraddice PROTO-01 confermato, in cui il primo set si apre una volta alla fine di G3b.
+- Prima: «procedi» di Sohayb preso come via libera alla proposta del secondo set;
+  il sintetico di DAS-RP proposto in un primo momento è caduto (è Loan_Application di sviluppo):
+  la categoria sintetica del secondo set la copre GT-01. Da confermare esplicitamente prima del
+  merge: il secondo set e la soglia dell'1% per la direzione dell'effetto (CF-01).
+- Code review: `code-review` 10 rilievi, tutti corretti (Wilcoxon oltre 20 repliche con
+  l'approssimazione normale; istanti compatti ed epoch; copie decompresse o ricompresse degli
+  holdout riconosciute per impronta del contenuto; OCEL grandi senza ijson riportati; messaggio
+  della guardia con il set; lucchetto nuovo registrato nel processo; `--set 2` senza il primo
+  lucchetto; contenuto delle parti train/test; marcatore `test`; file gzip chiusi). `simplify`
+  (4 revisori): applicati un solo `sha256_stream`, helper riusati (`_local`, `summarize`,
+  `DATASETS`), `compare` a calcolo unico, codice duplicato tolto; non applicati con motivo (PR):
+  streaming in un passaggio, sketch degli id, alias spostati nella guardia, tabella dei set,
+  statistica in un modulo a parte. Nessuna modifica ad autenticazione: niente `security-review`.
+- Skill: code-review, simplify (backend e ricerca: nessuna skill di frontend). Nessuna UI: gate UX
+  non applicabile.
+- Seconda code review sulle modifiche di CF-01: 1 rilievo (intervallo della verità con un solo
+  estremo), corretto. Test: `test_protocol.py` 124 → 144, `test_radar_inventory.py` 22.
+- Prossimo passo: G3b (percorso critico), poi RAD-02 sui log di sviluppo del §10; GT-01 è libero.
+
+
+## 2026-11-25 — Code review di RAD-00: login Supabase e host di Mannheim — fatto
+
+- Branch / PR: `claude/delir-dataset-research-1a7xd5`.
+- `DELIR_AUTH_PROVIDER`: normalizzato una volta in `Settings` (validatore); tolte le
+  normalizzazioni sparse in `app.py` e `identity.py`, così avvio, `/v1/auth/config`, verifica
+  delle richieste (`security.py:111`) ed egress (`egress.py:250`) leggono lo stesso valore.
+  Test: `test_the_provider_is_read_in_one_form_everywhere` (`Supabase`, ` supabase `,
+  `SUPABASE`); `test_supabase_auth.py` + `test_startup_guard.py` 60 passati su Postgres locale
+  (`scripts/vpt_stack.sh`). `security-review`: nessuna vulnerabilità, il cambio chiude un ramo
+  in cui un deploy Supabase avrebbe accettato il token condiviso.
+- `gitlab.uni-mannheim.de` aggiunto all'ambiente BK-GPT: raggiungibile, ma risponde 404 a ogni
+  richiesta, anche alla home. CDLG e SSD restano da scaricare dal computer di Sohayb.
+- Branch aperti rispetto a `main`: `feat/sim-engine-interface` (ENG-01) fuso in `main` (#191)
+  durante questa review, `main` riunito nel branch; `feat/canvas-agent-architecture` (26), `feat/mcp-server` (3), `claude/charming-hawking-0bmoev`
+  (3, media), `fix/sim-zero-fixed-durations` (1, del 23/11) fuori dal VPT: segnalati a Sohayb,
+  non fusi senza la sua decisione.
+- Skill: code-review, simplify, security-review.
+- Prossimo passo: i due prompt in `HANDOFF.md` (G3b; RAD-01 → PROTO-02).
+## 2026-11-25 — ENG-01 Simulation Engine Interface — fatto
+
+- Branch / PR: `feat/sim-engine-interface`.
+- Meta: una sola interfaccia fra IR e motore (valida, compila, esegue, annulla,
+  risultati); Prosimos adattatore, nessun modulo fuori dall'adattatore lo importa
+  (regola ast-grep bloccante); canvas, agenti, API pubbliche e modelli invariati,
+  suite `tests/simulation` ed e2e verdi senza modificarli → raggiunta. Misura: regola
+  `python-engine-outside-adapter` 0 rilievi in `backend/` (15 prima del refactor);
+  nessun file in `tests/` esistente modificato, `tests/simulation` + `tests/eventlog`
+  848 passati, suite intera 3018; harness B2 `baseline.json` prima e dopo identico
+  (SHA-256 `4e4fce5d…`, 9/9 dentro); nessun file del frontend toccato (e2e in CI).
+- Iterazioni: 1) interfaccia e regola, 15 rilievi → 0; 2) un test nuovo ha trovato
+  due istanze del motore (`get_engine()` e `get_engine("prosimos")` in cache separate)
+  → un'istanza per nome; 3) il test del contratto nel venv del runner falliva
+  (l'adattatore caricava httpx e le impostazioni) → all'import solo `ir.compile`;
+  4) harness interrotto da un run chiuso dal fixture dei test lanciati in parallelo:
+  rilanciato da solo.
+- Code review: `code-review` 7 rilievi. Corretti: il worker che annullava un run perso
+  lo segnava fallito anche se rimesso in coda, e il runner restava carico oltre il
+  limite → il worker non annulla (il verbo resta, collegarlo richiede uno stop nel
+  runner); regola estesa agli import relativi; gruppo delle risorse letto una volta per
+  log; namespace BPMN da una sola fonte; `prosimosCrossCheck` tolto nell'adattatore;
+  funzione storica dopo le costanti. Motivati: `ir/from_prosimos` fuori dalla regola
+  (è il lettore del formato di file, non il motore, ed è di VAL-01); nomi storici
+  richiesti dai test invariati. `simplify` (4 revisori): tolti il verbo `activity_ids`
+  (senza chiamanti), lo stato duplicato dell'annullamento (`Task.cancelling()`), il
+  doppio controllo del log mancante, l'adattatore caricato in `storage` per un nome,
+  un import doppio; rami della regola uniti; modulo dei log risolto una volta. Non
+  applicati: togliere `cancel`/`validate` (verbi richiesti dalla meta), `ir`
+  risolto dal registro invece di un'eccezione nella regola, helper per il BPMN della
+  richiesta (schema già presente 6 volte prima del diff). `backend/CODE_QUALITY.md`:
+  Protocol al confine, dataclass per gli eventi, nessun `Any` nuovo; ast-grep 5 regole
+  a 0 sui file toccati; ruff e mypy puliti (mypy ora copre `backend/simulation/engine`).
+  Nessuna modifica ad autenticazione o isolamento: niente `security-review`.
+- Decisioni: meta (*proposta*) confermata da Sohayb il 2026-11-25 ("procedi") con la
+  misura sopra, compreso `cancel` presente nell'interfaccia ma non usato dal worker.
+- Skill: `code-review`, `simplify` (backend: nessuna skill di frontend).
+- Trovato per strada: `tests/simulation/benchmark/b2/baseline.json` nel repo è
+  precedente a IMP-01 (`import_notes` 4 invece di 5 sulle Procure_to_Pay), metriche
+  identiche. Non aggiornato qui. Branch vecchi non miei, molto indietro su `main`:
+  `claude/charming-hawking-0bmoev`, `feat/mcp-server`, `feat/canvas-agent-architecture`,
+  `fix/sim-zero-fixed-durations`.
+- Prossimo passo: ENG-02 dopo LIC-01; per un annullamento vero serve uno stop nel runner.
+
+---
+
+## 2026-11-25 — RAD-00 Research Radar nel manifest e nel piano — fatto
+
+- Branch / PR: `claude/delir-dataset-research-1a7xd5`.
+- Origine: analisi «Dataset & Research Radar» portata da Sohayb; decisione di Sohayb: servono
+  più dati, si usano tutti i dataset per la ricerca (il prodotto non è in vendita).
+- Meta: 21 dataset e 12 repository nel manifest con URL e MD5 o commit, scaricati e verificati;
+  `fetch --all` invariato → misura ottenuta: 33/33 scaricati e verificati, 0 errori, ~24 GB estratti nella cache (bpic-ocel2 18 GB) (comando:
+  `uv run python scripts/fetch_datasets.py fetch --collection radar`).
+- Cosa è cambiato:
+  - `datasets/manifest.json`: 33 voci con `"collection": "radar"` e `kind`
+    (Zenodo, 4TU, GitHub, GitLab), ognuna con i punti del piano che la usano;
+  - `scripts/fetch_datasets.py`: `fetch --collection <nome>`; `--all` resta il nucleo,
+    `--all --collection radar` prende entrambi; test in `test_dataset_manifest.py`;
+  - `docs/vpt/RESEARCH_RADAR.md`: catalogo, lacune coperte, regole, Ground Truth Benchmark,
+    tre correzioni al protocollo, scorecard della North Star;
+  - `PLAN.md`: sezione R (RAD-00, RAD-01, PROTO-02, RAD-02, ANA-01, GT-01, DRIFT-01, OC-01),
+    CF-01 e PERF-01 estesi, ordine aggiornato; Master Plan V2 aggiornato (tabella dei dataset,
+    ordine di esecuzione, paragrafo sul radar).
+- Decisioni: il radar è una collezione separata; i 6 holdout di PROTO-01 non si toccano.
+  Esclusi dal manifest i BPIC 2015 del pacchetto OCEL (Municipality 1 è holdout, gli altri
+  comuni sono lo stesso processo). Nessun evento di un log del radar letto: solo nomi, dimensioni,
+  licenze. Nel repo pubblico non entra nessun file del radar, solo il manifest.
+- Non acquisiti: CDLG e Steady-State Detection (`gitlab.uni-mannheim.de` rifiutato dal proxy),
+  Helpdesk originale (Mendeley), ProcessLog (sorgente non identificata). Sostituti nel radar:
+  `cdlg-drift-val`, copia CSV di Helpdesk.
+- Review: `code-review` (1 rilievo: `--all --collection` saltava il nucleo, corretto con test;
+  una prima esecuzione sul `main` locale vecchio ha trovato un difetto preesistente, fuori da
+  questo diff e confermato su `main`: `backend/security.py:111` e `backend/llm/egress.py:250`
+  confrontano `delir_auth_provider` senza `strip().lower()`, mentre l'avvio e `/v1/auth/config`
+  lo normalizzano; con `DELIR_AUTH_PROVIDER=Supabase` ogni token Supabase riceve 401. Da
+  correggere in un punto a parte), `simplify` (selezione degli id unificata).
+- Skill: code-review, simplify. Nessuna UI toccata: gate UX non applicabile.
+- Prossimo passo: RAD-01 (inventario e deduplica), in parallelo al P0; poi PROTO-02.
+
+## 2026-11-25 — PROTO-01 protocollo sperimentale — fatto
+
+- Branch / PR: `docs/vpt-protocol`, #190, CI verde.
+- Meta: `docs/vpt/PROTOCOL.md` con categorie, NOT VALIDATED per log e metrica, nessun log
+  escluso, holdout congelati per hash prima di G3b, divisione train / validazione / test,
+  budget, go/no-go; più un test che fallisce se il codice di selezione legge un holdout →
+  consegnata. Misura: `test_protocol.py` 124/124 (`--noconftest`), `tests/simulation` sullo
+  stack reale 885 passati e 5 saltati con la guardia attiva, `protocol_properties.py` su
+  25/25 log di sviluppo, 0 non disponibili.
+- Holdout, scelti e congelati alle 08:12 UTC del 2026-11-25 (commit `476e705`) prima di ogni
+  misura: Production, ConsultaDataMining 2016-18, PurchasingExample, confidential_2000
+  (pacchetto Camargo 2022, CC BY 4.0), BPIC 2015 Municipality 1 e BPIC 2011 Hospital (4TU,
+  aggiunti al manifest). Lucchetto `1cfaa147a37187c1a319968f200c99d1cc5918ac0795c8a95e8ee70286c35cdb`.
+  Letti per sceglierli solo nomi, dimensioni, licenze e la presenza di `qbp:` nel BPMN
+  confidential; `cvs_pharmacy` non è un holdout: stesse attività di Pharmacy.
+- Iterazioni: 1) regola dei casi tagliati "fuori dal 95% delle attività finali" → 6% su
+  AcademicCredentials e 5% su BPIC 2012 W, per costruzione; ora conta l'eccesso sui casi
+  maturi di A (2,5% e 0,7%); 2) BPIC 2013 incidents ha arrivi di B ×204 rispetto ad A:
+  aggiunta la regola degli arrivi (fuori da ×0,5-×2, CAR NOT VALIDATED), uguale per tutti.
+- Identificabilità: 3 log del paper e 20 sintetici validano le metriche osservabili; BPIC 2012
+  NOT VALIDATED su W1, NGD, RED e durate; BPIC 2013 su W1, NGD, RED, CAR e durate (AED, CED,
+  risorse valide). Cause delle attese, parametri veri e controfattuale solo sui sintetici.
+- Code review: `code-review` 9 rilievi, tutti corretti: file derivati dagli holdout nel
+  pacchetto Camargo (log simulati da modelli addestrati sugli holdout, BPMN vero modificato)
+  ora chiusi per cartella e per prefisso; fase per thread invece che globale; lucchetto LF in
+  `.gitattributes` (impronta stabile su Windows); `O_ACCMODE` assente su Windows; collegamenti
+  fisici chiusi per inode; `.json` e `.xml` tolti dalle estensioni bloccate (falsi allarmi su
+  `production.json`); colonna in più nella tabella; nessun sintetico saltato in silenzio;
+  HANDOFF aggiornato. `backend/CODE_QUALITY.md`: proprietà in una dataclass e verdetti e
+  categorie `Literal` invece di `dict` e stringhe libere. ast-grep 4 regole: 0. ruff e mypy
+  puliti. `simplify`: i 4 revisori si sono fermati per il limite d'uso; revisione fatta in
+  sessione: una sola funzione SHA-256, log e percorsi del harness riusati, controllo
+  dell'hook solo su stringhe. Non applicati: `cases()` calcolato più volte in `properties`
+  (script da 20 s), import dei moduli che vogliono il database nel test (serve lo stack).
+  Nessuna autenticazione o isolamento fra clienti: niente `security-review`.
+- Skill: `code-review`, `simplify`, `docs` (lettura del Master Plan V2). Nessuna di
+  frontend: punto di ricerca senza UI, niente gate UX.
+- Branch aperti all'inizio: tutti indietro rispetto a `main` e già mergiati, tranne
+  `docs/vpt-no-contact` (#188, decisione di Sohayb), mergiato su `main` durante la sessione
+  e ripreso qui.
+- Decisioni (Sohayb, 2026-11-25): confermate così le soglie del §4, il budget del §6 e il
+  go/no-go del §7. Nessuna meta abbassata.
+- Prossimo passo: G3b, dentro `selection_phase()`, con le schede del §7 scritte prima.
+
+---
+
+## 2026-11-25 — VAL-01 validazione formale all'import — fatto
+
+- Branch / PR: `feat/sim-formal-validation`, #189.
+- Meta (confermata da Sohayb il 2026-11-25, prima era *proposta*): all'import nessun
+  deadlock né livelock, fine raggiungibile da ogni stato, uscita da ogni ciclo > 0 e
+  ripetizioni attese finite; AcademicCredentials di G3 rifiutato; 19 scenari del dataset e
+  scenari SIMOD validi di G3 passano; messaggio in linguaggio di business; gate UX →
+  raggiunta. Misura: `tests/simulation/test_soundness.py` 51/51 (19/19, 8/8, `_diff` e
+  `_fuzz` rifiutati; ciclo con uscita 0,25 → 4 esecuzioni attese); API 400
+  `process_cannot_finish` su import e run; e2e `simulation-import-validation` 6/6
+  (chromium, mobile-chrome, axe pulito) e gli altri e2e d'import 14/14; `tests/simulation`
+  sullo stack 812 passati; vitest simulazione 454/454.
+- Iterazioni: 1) gioco dei gettoni con un ordine fisso → meta sui dati raggiunta subito;
+  2) messaggio ripetitivo → «cosa non torna» e «cosa fare» separati, nome della decisione;
+  3) due test di import toglievano l'uscita di un ciclo: ora tengono l'uscita (il rifiuto
+  è corretto); 4) code review: il verdetto dipendeva dai nomi degli elementi → passo
+  massimo; bozze e what-if → verifica anche al run; 5) simplify.
+- Gate UX (`docs/vpt/ux/val-01/`, desktop 1440 × 900 e Pixel 7, aperti e letti): prima il
+  titolo «alcuni casi non arriverebbero mai alla fine», poi il motivo con i nomi delle
+  attività, «Cosa fare» a capo, «lo scenario non è cambiato», id nel motivo tecnico chiuso.
+  Corretto: «Cosa fare» annegato nel paragrafo; «il motore» → «la simulazione»;
+  «scoperta dal log» → «ricalcola il modello dai dati storici»; «nei dati … dai dati».
+- Code review: `code-review` 8 rilievi, 7 corretti (nomi, inclusive > 10 rami, blocchi
+  persi al limite di stati, bozze e what-if, gergo, attese calcolate sempre, HANDOFF),
+  1 motivato (testo solo in italiano, come IMP-01). `backend/CODE_QUALITY.md`: errore di
+  dominio tipizzato, nessun `Any`. ast-grep 4 regole: 0; ruff pulito; mypy pulito sui file
+  nuovi. `simplify` 4 revisori: 14 applicati, 4 saltati con motivo (parser BPMN comune,
+  cache fra import e run, endpoint di sola verifica, codice delle attese tenuto come prova
+  della meta). Nessuna autenticazione o isolamento toccati: niente `security-review`.
+- Skill: `react-ui-patterns`, `ui-visual-validator`, `code-review`, `simplify`.
+- Decisioni: meta confermata da Sohayb; la verifica vale anche al run (oltre l'import),
+  perché bozze e what-if non passano dall'import.
+- Prossimo passo: G3b dopo PROTO-01; B3.3 usa `require_sound` come criterio.
+
+---
+
+## 2026-11-25 — Prosimos per l'MVP, nessun contatto con i titolari — fatto
+
+- Branch / PR: `docs/vpt-no-contact`, #188. Solo piano e documenti; Master Plan V2
+  corretto nel Claude Docs.
+- Decisione (Sohayb, dopo aver parlato con chi di dovere): Prosimos resta il motore per
+  l'MVP e per i test del prodotto con le aziende; dopo l'MVP si sostituisce con un motore
+  nativo sull'IR o con licenza permissiva (ENG-02, dietro ENG-01). Nessun contatto con i
+  titolari del codice: la richiesta esce da LIC-01.
+- Mete: nessuna abbassata.
+
+---
+
+## 2026-11-24 — Master Plan V2 diventa un programma di ricerca — fatto
+
+- Branch / PR: `docs/vpt-research-program`. Solo piano e documenti; Master Plan V2
+  aggiornato nel Claude Docs (otto suggerimenti accettati da Sohayb, più North Star,
+  protocollo, Simulation Engine Interface e ordine di esecuzione).
+- Fatti verificati:
+  - DeliR ha una propria IR (`backend/simulation/ir/`) compilata per Prosimos, ma nessun
+    motore di esecuzione proprio.
+  - All'import oggi c'è solo l'allineamento fra IR e BPMN (`ir/bpmn_check.py`), nessuna
+    validazione formale.
+  - Prosimos 2.1.0 è su PyPI dal 2026-09-21, senza licenza nei metadati, ed è la versione
+    del runner.
+  - AT-KDE ha una versione estesa su Process Science 3:9 (2026),
+    doi:10.1007/s44311-026-00041-z.
+- Decisioni (Sohayb):
+  1. SIMOD resta un benchmark.
+  2. Obiettivo: un motore proprietario di discovery e simulazione, validato,
+     utilizzabile commercialmente e indipendente. Valore originale su quattro livelli:
+     Automatic Model Selection, Causal Simulation, Adaptive Calibration, Uncertainty
+     Quantification.
+  3. North Star su cinque dimensioni: predictive accuracy, formal correctness,
+     counterfactual reliability, computational efficiency, technological independence.
+  4. Prima LIC-01, PROTO-01, VAL-01, ENG-01 e G3b; nessun candidato implementato prima.
+  5. Nessun log escluso: BPIC 2013 resta, con le metriche non identificabili dichiarate
+     NOT VALIDATED. Holdout indipendenti, validazione controfattuale, benchmark
+     computazionale.
+  6. Ogni componente ha criteri quantitativi, test e go/no-go scritti prima.
+- Mete: quelle dei punti nuovi sono *proposta*, da confermare. Nessuna meta esistente
+  abbassata; B3 ora dipende da G3b e da B3.1-B3.3.
+- Prossimo passo: LIC-01, PROTO-01, VAL-01, ENG-01 in sessioni parallele.
+
+---
+
+## 2026-11-24 — IMP-01 avviso sugli arrivi troncati — fatto
+
+- Branch / PR: `feat/sim-import-expon-warning`, #185.
+- Meta: importando uno scenario con arrivi `expon` e media vicina al massimo, DeliR
+  avvisa in linguaggio di business con cosa cambia e cosa fare; lo scenario resta
+  com'era; avvisano le 4 Procure_to_Pay, nessuno dei 15 altri; gate UX → raggiunta.
+  Misura: `tests/simulation/test_prosimos_import.py` 118/118 (19 scenari: 4 avvisano,
+  15 no; arrivi ricompilati identici al file), API 2 test sullo stack reale, e2e
+  `simulation-import-arrivals` 4/4 (chromium e mobile-chrome, axe pulito, controllo
+  anti-gergo), vitest simulazione 452/452, `tests/simulation` sullo stack 746 passati.
+- Iterazioni: 1) regola sul codice di pix_framework 0.15 (rifiuto e ricampionamento,
+  non taglio al massimo): media prodotta 1240,5 s contro 1241,8 campionati, +45%;
+  2) nota `warning` e pannello d'import; 3) prova col file vero: il consulente veniva
+  fermato da 3 ID di porte di unione da associare → il template li elenca; 4) gate UX:
+  su mobile il bottone schiacciava il testo in colonna e la media appariva
+  "30.083333333333332" → bottone sotto il testo, media a 3 cifre; 5) code review e
+  simplify.
+- Gate UX (`docs/vpt/ux/imp-01/`, desktop 1440 × 900 e Pixel 7, aperti e letti):
+  risposta e azione prima dei dettagli, nessun "esponenziale", "Prosimos", "node-…"
+  nel percorso ordinario, nessun testo tagliato dopo la correzione. "Prima" non
+  catturato: il flusso col file vero si fermava alla richiesta di associare gli ID.
+- Code review: `code-review` 8 rilievi, tutti corretti (avviso falso con ritmi per mese,
+  arrotondamento che azzerava i passi brevi, `withArrival` che perdeva i mesi, toast
+  senza avviso con limiti non validi, arrotondamento diverso Python/JS, unità scelte
+  prima di arrotondare, rimando in inglese a dettagli in italiano, HANDOFF). `simplify`
+  (4 revisori): porte di unione dal template del server invece di un parser BPMN nel
+  client, campi di mappatura calcolati una volta, secondi nell'avviso, golden
+  condiviso Python/TS, stesso controllo della lingua delle altre viste. Non applicati:
+  `arrivalsRunFaster` privato (lo usano i test e il golden), `_arrival_notes` che
+  restituisce una lista (stile delle altre note), calcolo pigro delle porte (sparito
+  col template). `backend/CODE_QUALITY.md`: tolto un `Any`; regola duplicata
+  frontend/backend motivata (l'editor valida le bozze senza chiamare il server) e
+  tenuta uguale dal golden. ast-grep 4 regole: 0 rilievi; ruff e mypy puliti. Nessuna
+  modifica ad autenticazione o isolamento: niente `security-review`.
+- Skill: `ui-visual-validator`, `code-review`, `simplify`.
+- Decisioni: soglia 10% fra media scritta e prodotta; correzione proposta "massimo ≥ 5
+  volte la media" (scarto 3%).
+- Prossimo passo: B3 (SIM-36b è chiuso).
+
+---
+
+## 2026-11-24 — SIM-36b baseline "B = A" sui log train/test — fatto
+
+- Branch / PR: `feat/sim-benchmark-train-test`.
+- Meta: "B = A" (impara dal train, prevede il test) misurata sui 3 log reali del paper con
+  metriche, repliche e formato di B2, salvata con il comando per rifarla; BPIC 2013
+  incidents marcato come non adatto al confronto A→B → raggiunta. Comando:
+  `run_baseline.py AcademicCredentials BPIC_2012_W BPIC_2017_W` (seed 20261124, 10 repliche, ore):
+
+  | Log | W1 | NGD | RED | AED | CED | CAR |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | AcademicCredentials | 28,827 ± 3,601 | 0,179 ± 0,006 | 25,856 ± 2,223 | 62,309 ± 6,194 | 1,391 ± 0,116 | 95,460 ± 17,106 |
+  | BPIC_2012_W | 28,061 ± 2,000 | 0,083 ± 0,005 | 10,140 ± 2,565 | 29,710 ± 4,414 | 0,800 ± 0,155 | 38,215 ± 4,309 |
+  | BPIC_2017_W | 30,602 ± 1,481 | 0,079 ± 0,001 | 11,359 ± 1,570 | 42,785 ± 4,042 | 0,660 ± 0,011 | 35,916 ± 3,821 |
+
+  Contro lo scenario SIMOD del paper di B2: "B = A" migliore in 17 confronti su 18, pari
+  su CAR di AcademicCredentials. Stessi file bit per bit su due passate; i JSON SIM-36 di
+  BPIC 2012 e 2013 rilanciati con metriche identiche (aggiunti solo `split` e la marcatura).
+- Iterazioni: 1) estensione di `run_baseline.py` (A = train, B = test, fuso UTC perché i
+  CSV non ne hanno) → numeri uguali a quelli della decisione del 2026-11-24; 2) la
+  marcatura di BPIC 2013 non compariva con il JSON vecchio: rilancio dei BPIC.
+- Code review: `code-review` 7 rilievi, tutti corretti (log mancante in B2 → nota invece
+  di KeyError; file di B2 scelto dal chiamante, `--b2`; un log con seed diverso non
+  cancella il confronto degli altri; nota di BPIC 2013 solo se il log è nella cartella;
+  `compare_with_paper` usa la regola comune; docstring; etichette pubbliche
+  `METRIC_LABELS`). `backend/CODE_QUALITY.md`: nessun rilievo (script di benchmark, nessun
+  errore inghiottito: log indisponibile o confronto non fatto sono scritti). ast-grep
+  (4 regole): 0. ruff e mypy puliti. `simplify` con 4 revisori: una fonte per log
+  (`SOURCES`) invece dei rami `if key in REAL_LIFE`, `ROOT` e `manifest_entry(id)`
+  riusati, un solo `cell()` per media ± intervallo, etichetta del benchmark nella fonte.
+  Non applicati, con motivo: `within_intervals` resta identica a G3 (stesso hunk, merge
+  pulito); costanti dei percorsi train/test comuni con G3 (da fare quando G3 è su main);
+  rilettura dei CSV nei test (≈20 KB, trascurabile).
+- Skill: `code-review`, `simplify`. Nessuna di frontend: punto di ricerca senza UI,
+  niente gate UX.
+- Decisioni: nessuna meta cambiata.
+- Prossimo passo: G3 e B3 misurano il twin contro questa baseline; G3 può usare
+  `run_baseline.measure` invece della sua copia del gemello.
+
+---
+
+## 2026-11-24 — G3 spike SIMOD — fatto
+
+- Branch / PR: `spike/sim-simod-discovery`.
+- Meta: SIMOD scopre i 3 log reali dal train, lo scenario si importa in DeliR (FUZZY
+  compresi), si valuta sul test con l'harness di B2 contro lo scenario del paper, decisione
+  scritta → raggiunta. Comandi: `tests/simulation/benchmark/g3/discover.sh all`, poi
+  `uv run python tests/simulation/benchmark/g3/evaluate.py` sullo stack reale (seed
+  20261124, 10 repliche). Tabelle complete in `tests/simulation/benchmark/g3/results.md`.
+- Misura (ore, media ± IC 95%, più basso è meglio; "ingenuo" è il "B = A" di SIM-36 con
+  A = train e B = test):
+
+  | Log | Scenario | RED | AED | W1 cycle time | CAR |
+  | --- | --- | --- | --- | --- | --- |
+  | AcademicCredentials | SIMOD 5.2.1 fissi | 6649 ± 2136 | 6904 ± 2196 | 295,4 ± 29,7 | 254,2 ± 36,4 |
+  | AcademicCredentials | SIMOD 5.2.1 FUZZY | 10074 ± 3042 | 10372 ± 3061 | 324,0 ± 67,2 | 270,1 ± 41,5 |
+  | AcademicCredentials | paper in DeliR | 77,5 ± 0,2 | 121,4 ± 23,3 | 174,8 ± 0,4 | 131,0 ± 25,9 |
+  | AcademicCredentials | ingenuo | 25,9 ± 2,2 | 62,3 ± 6,2 | 28,8 ± 3,6 | 95,5 ± 17,1 |
+  | BPIC 2012 W | SIMOD 5.2.1 fissi | 178,0 ± 0,1 | 172,6 ± 9,2 | 175,3 ± 0,0 | 41,5 ± 6,5 |
+  | BPIC 2012 W | SIMOD 5.2.1 FUZZY | 87,5 ± 9,8 | 123,0 ± 9,6 | 307,4 ± 50,1 | 66,0 ± 9,1 |
+  | BPIC 2012 W | SIMOD 5.2.1 fissi + ritardi estranei | 65,3 ± 2,4 | 92,7 ± 10,9 | 42,5 ± 2,1 | 65,8 ± 10,4 |
+  | BPIC 2012 W | paper in DeliR | 178,5 ± 0,0 | 221,5 ± 8,2 | 175,7 ± 0,0 | 85,8 ± 8,1 |
+  | BPIC 2012 W | ingenuo | 10,1 ± 2,6 | 29,7 ± 4,4 | 28,1 ± 2,0 | 38,2 ± 4,3 |
+  | BPIC 2017 W | SIMOD 5.2.1 fissi | 183,0 ± 0,0 | 244,4 ± 14,2 | 252,9 ± 0,0 | 112,7 ± 11,6 |
+  | BPIC 2017 W | SIMOD 5.2.1 FUZZY | 167,1 ± 0,7 | 241,8 ± 12,0 | 230,2 ± 0,9 | 123,6 ± 11,3 |
+  | BPIC 2017 W | SIMOD 5.2.1 fissi + ritardi estranei | 8,1 ± 0,5 | 106,3 ± 9,3 | 17,9 ± 1,7 | 154,6 ± 9,0 |
+  | BPIC 2017 W | paper in DeliR | 183,5 ± 0,0 | 303,4 ± 9,7 | 253,3 ± 0,0 | 169,6 ± 9,4 |
+  | BPIC 2017 W | ingenuo | 11,4 ± 1,6 | 42,8 ± 4,0 | 30,6 ± 1,5 | 35,9 ± 3,8 |
+
+  - Contro lo scenario del paper: SIMOD 5.2.1 a calendari fissi è migliore su 4/4 metriche
+    sia su BPIC 2012 W sia su BPIC 2017 W. Su AcademicCredentials è molto peggiore.
+  - Contro l'ingenuo: vince solo BPIC 2017 W con i ritardi estranei, su RED (8,1 contro 11,4)
+    e W1 (17,9 contro 30,6). AED e CAR restano dell'ingenuo ovunque; BPIC 2012 W CRISP è pari
+    su CAR. In tutto 2 coppie log × metrica vinte su 12.
+- Tempo di discovery (SIMOD, preprocessing + pipeline, 4 vCPU; wall-clock nel report):
+  AcademicCredentials 106 s, BPIC 2012 W 687 s, BPIC 2017 W 1545 s a calendari fissi; FUZZY
+  e ritardi estranei riusano quel BPMN e aggiungono 389-1133 s. I `diff` sono stati misurati
+  con 3 discovery in parallelo.
+- Cosa l'import ha dovuto adattare: niente. Solo note informative: attività istantanee
+  (1-16 per scenario) e "calendari probabilistici" sui FUZZY (306 calendari su
+  AcademicCredentials, importati grazie a CAL-01). I timer dei ritardi estranei entrano
+  senza note. DeliR riproduce la valutazione di SIMOD stesso (BPIC 2012 W fissi: RED
+  178,0/178,0, W1 175,3/175,3; tabella in `results.md`): l'import è fedele, gli scarti
+  sono del modello scoperto.
+- Cosa SIMOD non sa fare (visto qui):
+  - **Cicli senza uscita.** Su AcademicCredentials il gateway dopo "Avanzar recepcion
+    documentos" ha uscita 0 e ritorno 1 (attività in 2 casi su 398 del train): chi entra
+    ripete ~1000 volte, RED 6649 h. SIMOD lo vede nella sua valutazione (RED ~6240 h) e lo
+    sceglie lo stesso: la sua metrica di ottimizzazione (2-gram) non lo punisce. Riaperto il
+    ciclo alla frequenza del train (`fix_dead_loops.py`, diagnosi, non uno scenario SIMOD):
+    RED 77,9 ± 0,5, pari al paper; AED 233 e CAR 254 restano peggiori.
+  - **Ritardi estranei su AcademicCredentials:** SIMOD crolla (timestamp nel 2262,
+    `OutOfBoundsDatetime` in pandas) per lo stesso ciclo. Traccia in `g3/failures/`.
+  - **Riproducibilità:** nessun seed (hyperopt): rilanciata, la discovery dà scenari
+    diversi. Gli scenari usati sono nel repo.
+  - **Arrivi:** CAR peggiore dell'ingenuo in 7 scenari SIMOD su 8, pari nell'ottavo (BPIC 2012 W fissi).
+  - I calendari FUZZY non sono meglio dei fissi: W1 peggiore su BPIC 2012 W (307 contro 175).
+- Nota di B2 su Procure_to_Pay: non tocca questi confronti. Gli arrivi scoperti sono tutti
+  lognorm (lo scenario del paper usa gamma), con media lontana dal massimo; nessun `expon`
+  troncato.
+- **Decisione G3: SIMOD sì, come motore di discovery di DeliR, a queste condizioni.**
+  1. Gira come lavoro in background in un servizio a parte, come il runner: Python 3.12,
+     Java, da 2 a 45 minuti per log su 4 vCPU. Lo scenario prodotto si salva con versione e
+     configurazione, perché la discovery non è riproducibile.
+  2. Variante di partenza: calendari fissi + ritardi estranei. È l'unica che si avvicina
+     all'ingenuo (BPIC 2017 W lo batte su RED e W1); senza ritardi W1 è 6-8 volte quello
+     dell'ingenuo.
+  3. Prima di proporlo al consulente, DeliR controlla lo scenario: un gateway che torna
+     indietro con probabilità 1 e uscita 0 blocca l'import con un messaggio chiaro (oggi
+     passa in silenzio). Su log piccoli come AcademicCredentials (398 casi) lo scenario non
+     è affidabile.
+  4. Uno scenario SIMOD non è "validato" finché non batte "B = A" sul test con gli
+     intervalli: oggi succede su 2 coppie log × metrica su 12. La meta H1 di B3 (batte "B =
+     A" su ≥ 3 log) SIMOD da solo non la raggiunge: B3 parte da SIMOD con i ritardi
+     estranei come base e lavora su arrivi (CAR) e attese (AED).
+- Cosa è cambiato:
+  - `tests/simulation/benchmark/g3/`: configurazioni, `discover.sh`, `evaluate.py`,
+    `fix_dead_loops.py`, scenari scoperti, risultati, README con i comandi.
+  - `eval_harness.py`: `Scenario.source` per scenari esterni; `import_into_new_process` e
+    `within_intervals` condivisi. Verificato che `b2/baseline.json` dei 3 reali resta
+    identico.
+  - Nessun file di prodotto toccato; `run_baseline.py` e B6 non toccati, solo riusato
+    `NaiveTwin`.
+- Iterazioni:
+  1) Gemello ingenuo mio, spostato sul primo inizio, sostituito da quello di SIM-36 (mediana,
+     repliche con intervallo): AED di AcademicCredentials da 165 a 62 h.
+  2) Aggiunta la variante con i ritardi estranei (configurazioni `_extr` di SIMOD) quando è
+     stato chiaro che il divario con l'ingenuo è nelle attese, tema del paper.
+  3) Le prime discovery hanno perso `runtimes.json` per una modifica allo script in corsa:
+     copiato a mano, script ora tutto dentro `main`.
+- Code review:
+  - `code-review`: 10 rilievi, tutti corretti. I principali: `all` si fermava al crash noto;
+    una discovery fallita lasciava lo scenario vecchio; il controllo del seed di B2 arrivava
+    dopo 15 minuti di simulazioni; doppio import per scenario; tempi ereditati sulle diagnosi.
+  - `backend/CODE_QUALITY.md` e le 4 regole ast-grep: 0 rilievi; aggiunti i test delle
+    trasformazioni deterministiche (`g3/test_g3_spike.py`).
+  - `simplify` con 4 revisori: 5 corretti (regola degli intervalli condivisa con B2,
+    grafo BPMN del backend nella diagnosi, etichette uniche, cartella nel risultato, niente
+    `deepcopy`) e 3 saltati con motivo (letture ripetute dei log < 1% del tempo; percorsi dei
+    log scritti a mano, pochi e a basso rischio in uno spike).
+  - Nessuna autenticazione o isolamento fra clienti toccati: niente `security-review`.
+- Skill: `code-review`, `simplify`. Nessuna di frontend: punto di ricerca senza UI, quindi
+  niente gate UX.
+- Con la meta di B3 decisa da Sohayb lo stesso giorno (batte "B = A" train/test su W1, RED e
+  AED senza sovrapposizione), nessuno scenario SIMOD passa: il migliore (BPIC 2017 W con
+  ritardi estranei) vince su RED e W1, perde su AED.
+- Prossimo passo: SIM-36b (il "B = A" train/test è già misurato qui, da portare nel
+  benchmark) e IMP-01, poi B3 con SIMOD (fissi + ritardi estranei) come candidato di
+  partenza; proposto un punto Prod per il controllo dei cicli senza uscita nell'import.
+
+---
+
+## 2026-11-24 — B6 throughput del simulatore (G2) — fatto
+
+- Branch / PR: `spike/sim-throughput`.
+- Meta: run al minuto misurati sul percorso del prodotto (API, coda, worker, runner
+  Prosimos 2.1); what-if 10 ripetizioni × 1.000 casi in meno di 60 s dalla richiesta al
+  risultato salvato e leggibile → raggiunta. Misura finale (comando:
+  `uv run python tests/simulation/benchmark/throughput.py --check`, 4 CPU, 3 giri):
+
+  | Worker del runner | What-if (s) | Run/min |
+  | --- | --- | --- |
+  | 1 | 22,9-26,1 | 23-26 |
+  | 2 | 14,3-14,5 | 41-42 |
+  | 4 | 11,3-11,5 | 52-53 |
+
+- Iterazioni: 1) script di carico e riga delle fasi nel worker; prima misura sul codice
+  di `main`: 21,5-23,6 / 14,9-18,8 / 11,5-16,3 s, meta gia' raggiunta; impronte salvate;
+  2) profilo: motore = Prosimos, analisi 0,2 s, salvataggio 0,1 s, export del log 0,3 s
+  a run; con piu' worker i posti oltre il primo aspettavano il giro periodico (10 s);
+  3) la richiesta di un gruppo avviava piu' drenaggi → 10,1-11,1 s con 4 worker;
+  4) `simplify` ha portato la correzione alla radice: la richiesta sveglia il giro
+  della coda; 5) l'harness B2 ha mostrato una corsa reale (run "completed" prima del
+  suo log, 404): completamento atomico con KPI e log; 6) misura finale e harness B2.
+- Risultati invariati: impronte di KPI e log identiche in ogni giro e al riferimento
+  (`b6/fingerprints.json`); harness B2 rilanciato: `baseline.json` identico bit per bit
+  (`24809a7f…`), 9/9 dentro. Suite `tests/simulation` sullo stack: 703 passati.
+- Code review: `code-review` 8 rilievi, tutti corretti (drenaggi falliti non attesi,
+  attesa in coda di un run rimesso in coda, regex delle fasi, riga anche per i run
+  falliti, run rieseguito, orologi diversi, commenti, file di log non chiusi);
+  `backend/CODE_QUALITY.md`: un parser di orari duplicato, rimosso (si usa quello della
+  coda); 4 regole ast-grep: 0 rilievi; ruff e mypy puliti. `simplify` con 4 revisori:
+  corretti il pool di drenaggi nella richiesta (sostituito dal risveglio del giro), il
+  riuso di `ProductPath` e del seed di B2, i nomi delle fasi in un posto solo, polling
+  a 0,5 s, campo `sum` inutile. Non applicati, con motivo: timer passato come argomento
+  invece di una contextvar (stato nascosto peggiore), colonna `queued_at` per i run
+  rimessi in coda (migrazione per un caso raro), ritocchi di forma dello script
+  (intestazioni, URL, ExitStack). Nessuna modifica ad autenticazione o isolamento:
+  niente `security-review`.
+- Skill: `code-review`, `simplify` (nessuna di frontend: lavoro di backend). Nessun
+  gate UX: il punto non cambia cio' che il cliente vede.
+- Decisioni: scenario fisso Loan_Application tradotto nei campi del pannello, perche'
+  le ripetizioni esistono solo su `simulation-runs`.
+- Prossimo passo: B7 (ottimizzazione) puo' partire quando V3 e' chiuso; G3 e B3 come
+  da piano.
+
+---
+
+## 2026-11-24 — decisioni di Sohayb su benchmark, B3, import e infrastruttura — fatto
+
+- Branch / PR: `docs/vpt-decisions-2026-11-24`. Solo piano e documenti.
+- Misure che hanno portato alle decisioni (strumenti di SIM-36, seed 20261124):
+  - **Taglio A/B su BPIC 2012.** Metà dei casi, metà del tempo e metà del tempo senza
+    l'1% di code danno W1 16,3, 16,5 e 17,6 h. Il criterio conta poco.
+  - **Taglio A/B su BPIC 2013 incidents.** Con ogni taglio il 100% dei casi di B è
+    troncato dalla fine del log; con la metà del tempo A ha 7 casi. Il log è una foto
+    degli incidenti aperti a maggio 2012, non un flusso.
+  - **"B = A" sui 3 log train/test del paper** contro il modello SIMOD simulato da B2:
+    "B = A" vince 14 confronti su 15 con intervalli separati (pari su CAR di
+    AcademicCredentials). W1 vale 28,8 contro 174,8 h, 28,1 contro 175,7 h e 30,6
+    contro 253,3 h.
+- Decisioni (Sohayb, 2026-11-24):
+  1. Il benchmark A→B principale sono i 3 log train/test; nuovo punto SIM-36b. BPIC
+     2012 resta. BPIC 2013 incidents si marca come non adatto al confronto A→B.
+  2. La meta di B3 sui sintetici è confermata (gateway ±0,05, durate ±10%). Sui reali
+     "batte B = A" diventa: sui 3 log train/test, su W1, RED e AED, con intervalli al
+     95% separati. NGD resta fuori dal criterio perché "B = A" ripete tracce reali e
+     parte avvantaggiato sui percorsi.
+  3. L'import avvisa sugli arrivi `expon` con media vicina al massimo; nuovo punto IMP-01.
+  4. `DELIR_ADMIN_TOKEN` in staging e prod e la VM per l'isolamento fra clienti li
+     sblocca Sohayb.
+- Mete abbassate: nessuna. La meta di B3 sui reali è più precisa e più dura (tutti e 3
+  i log, tre metriche).
+- Prossimo passo: SIM-36b in una sessione nuova, poi G3 e B3; IMP-01 in parallelo.
+
+---
+
+## 2026-11-24 — SIM-36 baseline pubblica "B = A" — fatto
+
+- Branch / PR: `feat/sim-benchmark-baseline`, #178.
+- Meta: baseline "B = A" misurata su BPIC 2012 e BPIC 2013 incidents e salvata nel repo con
+  il comando per rifarla → raggiunta. Comandi: `run_baseline.py bpic2012`,
+  `run_baseline.py bpic2013_incidents`; log scaricati con `fetch_datasets.py`, MD5 del
+  manifest verificato. Seed 20261124, 10 repliche, ore:
+  - BPIC 2012: W1 16,931 ± 1,518, NGD 0,055 ± 0,002, RED 16,554 ± 1,567, AED 60,281 ± 3,275,
+    CED 0,222 ± 0,013, CAR 48,697 ± 2,653.
+  - BPIC 2013 incidents: W1 383,995 ± 7,811, NGD 0,329 ± 0,004, RED 176,788 ± 3,981,
+    AED 334,396 ± 16,091, CED 1,751 ± 0,079, CAR 290,944 ± 6,383.
+  Stesso seed, stessi file bit per bit.
+- Iterazioni:
+  1) BPIC 2013 letto con 0 eventi: il ciclo di vita è un sottostato. Ora è parte
+     dell'attività, con eventi istantanei.
+  2) Spostamento di A non a settimane intere: CED 6,7 h su BPIC 2012, misurava la rotazione
+     del calendario. Con le settimane intere: 0,35.
+  3) Code review: l'ancoraggio sul minimo portava un caso del 2010 a spostare tutto, con
+     AED 17.945 h. Con l'ancoraggio sulla mediana: 334 h.
+  4) Ora legale: spostare in UTC perdeva un'ora (CED 0,21 dopo). Spostare ogni evento
+     sull'orologio locale cambiava le durate a cavallo del cambio d'ora: ora si sposta
+     l'inizio del caso.
+  5) Il primo JSON perdeva la descrizione delle distanze, sovrascritta dalle metriche.
+- Cosa è cambiato:
+  - `run_baseline.py` usa le distanze di B2, scrive un file per log e non sovrascrive una
+    misura con un motivo di indisponibilità.
+  - `benchmark_datasets.py` scarica dal manifest, con una mappatura e un fuso per log.
+  - `benchmark_metrics.py` è stato tolto.
+  - `docs/simulation-benchmark.md` riscritto.
+- Decisioni:
+  - Ancoraggio sulla mediana e settimane intere: scelta di metodo, documentata.
+  - Lo scarto fino a 3,5 giorni resta in AED e CAR.
+  - Nessuna meta cambiata.
+- Code review:
+  - `code-review`: 9 rilievi, 7 corretti e 2 motivati.
+  - `backend/CODE_QUALITY.md` e ast-grep: 0 rilievi.
+  - `simplify` con 4 revisori: 5 corretti, 6 saltati con motivo (dettaglio nella PR).
+- Skill: `code-review`, `simplify`. Nessuna skill di frontend: punto di ricerca senza UI,
+  quindi niente gate UX.
+- Prossimo passo: G3 e B3 misurano il twin contro questa baseline con lo stesso comando.
+
+---
+
 ## 2026-11-24 — B2 harness di valutazione — fatto
 
 - Branch / PR: `feat/sim-eval-harness`.

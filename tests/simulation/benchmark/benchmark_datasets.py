@@ -1,144 +1,101 @@
 """SIM-36: i log pubblici del benchmark, scaricati e verificati.
 
 Due log BPIC sotto i 4TU General Terms of Use. Il BPIC 2020 e' CC BY-NC: escluso.
-Il file si scarica una volta in una cache locale e si accetta solo se il suo MD5
-coincide con quello che 4TU dichiara nei metadati del file: nessun MD5 scritto a
-mano qui, nessun mirror non verificato. Con 4TU in manutenzione (503
-``StorageMaintenance``) il download fallisce e il benchmark si riprova dopo.
-
-Verificato il 2026-11-23: l'API dei file di 4TU (Djehuty,
-``/v2/articles/<uuid>/files``) restituisce per ogni file ``name``,
-``download_url`` e l'MD5 in ``computed_md5`` e ``supplied_md5``. Se la forma
-cambia, ``_file_entry`` lo dice invece di scaricare alla cieca.
+Il download e' quello di ``scripts/fetch_datasets.py``: URL e MD5 vengono da
+``datasets/manifest.json`` e un file si accetta solo se l'MD5 coincide. I log
+non entrano nel repo (la licenza 4TU non ne permette la ripubblicazione): stanno
+nella cache di ``fetch_datasets`` (``DELIR_DATASETS_CACHE``). Con 4TU in
+manutenzione o la rete chiusa il download fallisce e il motivo arriva al
+chiamante come ``DatasetUnavailable``.
 """
 
 from __future__ import annotations
 
 import gzip
-import hashlib
-import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-import httpx
-
-from backend.eventlog.mapping import ColumnMapping, apply_mapping
+from backend.eventlog.mapping import ColumnMapping, QualityReport, TimestampFormat, apply_mapping
 from backend.eventlog.model import EventLog
 from backend.eventlog.readers import read_xes
+from scripts import fetch_datasets
 
-API = "https://data.4tu.nl/v2/articles"
-
-# I log BPIC sono XES con una riga per transizione (start/complete).
-XES_MAPPING = ColumnMapping(
+# Entrambi i log sono in ora dell'Europa centrale (+01/+02): i timestamp XES hanno
+# il fuso, e il gemello ingenuo sposta il calendario in questa zona.
+_CET = TimestampFormat(timezone="Europe/Amsterdam")
+# BPIC 2012: una riga per transizione (start/complete).
+_TRANSITIONS = ColumnMapping(
     case_id=("case:concept:name",),
     activity=("concept:name",),
     timestamp="time:timestamp",
     lifecycle="lifecycle:transition",
     resource="org:resource",
+    timestamps=_CET,
+)
+# BPIC 2013: ogni riga e' un cambio di stato istantaneo. Il ciclo di vita non e'
+# start/complete ma il sottostato ("Accepted" + "In Progress"): fa parte
+# dell'attivita', come nella letteratura sul log.
+_STATUS_CHANGES = ColumnMapping(
+    case_id=("case:concept:name",),
+    activity=("concept:name", "lifecycle:transition"),
+    end="time:timestamp",
+    resource="org:resource",
+    timestamps=_CET,
 )
 
 
 @dataclass(frozen=True, slots=True)
 class Dataset:
+    """Un log del benchmark: titolo, fonte, licenza, URL e MD5 stanno nel manifest."""
+
     key: str
-    title: str
-    doi: str
-    # L'uuid dell'articolo nell'API attuale di 4TU (Djehuty). Non e' quello del
-    # DOI storico: con l'uuid del DOI l'API risponde "This resource does not
-    # exist". Si ricava da /v2/articles?doi=<doi>.
-    article_uuid: str
-    file_name: str
-    license: str
+    manifest_id: str
+    mapping: ColumnMapping
+    # Perche' il log non serve a giudicare una previsione A -> B; None se serve.
+    unsuitable_for_a_to_b: str | None = None
 
 
 DATASETS: dict[str, Dataset] = {
-    "bpic2012": Dataset(
-        key="bpic2012",
-        title="BPI Challenge 2012 (richieste di prestito)",
-        doi="10.4121/uuid:3926db30-f712-4394-aebc-75976070e91f",
-        article_uuid="533f66a4-8911-4ac7-8612-1235d65d1f37",
-        file_name="BPI_Challenge_2012.xes.gz",
-        license="4TU General Terms of Use",
-    ),
-    "bpic2013_incidents": Dataset(
-        key="bpic2013_incidents",
-        title="BPI Challenge 2013, incidenti (Volvo IT)",
-        doi="10.4121/uuid:500573e6-accc-4b0c-9576-aa5468b10cee",
-        article_uuid="0fc5c579-e544-4fab-9143-fab1f5192432",
-        file_name="BPI_Challenge_2013_incidents.xes.gz",
-        license="4TU General Terms of Use",
-    ),
+    d.key: d
+    for d in (
+        Dataset("bpic2012", "bpic2012", _TRANSITIONS),
+        Dataset(
+            "bpic2013_incidents",
+            "bpic2013-incidents",
+            _STATUS_CHANGES,
+            unsuitable_for_a_to_b=(
+                "foto degli incidenti aperti a maggio 2012, non un flusso: con ogni taglio il 100% dei casi "
+                "di B e' troncato dalla fine del log (decisione di Sohayb, 2026-11-24)"
+            ),
+        ),
+    )
 }
 
 
 class DatasetUnavailable(RuntimeError):
-    """4TU non risponde, o il file non e' quello dichiarato."""
+    """4TU non risponde, o il file non e' quello dichiarato nel manifest."""
 
 
-def cache_dir() -> Path:
-    return Path(os.environ.get("DELIR_BENCHMARK_CACHE", Path.home() / ".cache" / "delir-benchmark"))
+def manifest_entry(manifest_id: str) -> dict:
+    return fetch_datasets.load_manifest()[manifest_id]
 
 
-def md5_of(path: Path) -> str:
-    digest = hashlib.md5(usedforsecurity=False)
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _file_entry(files: Any, dataset: Dataset) -> tuple[str, str]:
-    """(URL di download, MD5 dichiarato) del file del dataset nei metadati di 4TU."""
-    if not isinstance(files, list):
-        raise DatasetUnavailable(f"4TU ha risposto con metadati inattesi per {dataset.key}.")
-    for entry in files:
-        if isinstance(entry, dict) and entry.get("name") == dataset.file_name:
-            url = entry.get("download_url")
-            md5 = entry.get("computed_md5") or entry.get("supplied_md5")
-            if not url or not md5:
-                raise DatasetUnavailable(f"4TU non dichiara URL e MD5 di {dataset.file_name}: niente download non verificato.")
-            return str(url), str(md5).lower()
-    raise DatasetUnavailable(f"{dataset.file_name} non e' fra i file dell'articolo {dataset.doi}.")
-
-
-def fetch(dataset: Dataset, *, client: httpx.Client | None = None) -> Path:
-    """Il file del dataset nella cache, scaricato e verificato se manca."""
-    target = cache_dir() / dataset.file_name
-    owned = client is None
-    http = client or httpx.Client(timeout=120, follow_redirects=True)
+def fetch(dataset: Dataset) -> Path:
+    """Il file del dataset nella cache di ``fetch_datasets``, scaricato e verificato se manca."""
     try:
-        response = http.get(f"{API}/{dataset.article_uuid}/files")
-        if response.status_code != 200:
-            raise DatasetUnavailable(f"4TU risponde {response.status_code} per {dataset.key}: riprova piu' tardi.")
-        url, expected = _file_entry(response.json(), dataset)
-        if target.exists() and md5_of(target) == expected:
-            return target
-        target.parent.mkdir(parents=True, exist_ok=True)
-        partial = target.with_suffix(target.suffix + ".part")
-        with http.stream("GET", url) as stream:
-            if stream.status_code != 200:
-                raise DatasetUnavailable(f"Download di {dataset.file_name}: risposta {stream.status_code}.")
-            with partial.open("wb") as handle:
-                for chunk in stream.iter_bytes():
-                    handle.write(chunk)
-        actual = md5_of(partial)
-        if actual != expected:
-            partial.unlink(missing_ok=True)
-            raise DatasetUnavailable(f"MD5 di {dataset.file_name} diverso da quello di 4TU ({actual} invece di {expected}): file scartato.")
-        partial.replace(target)
-        return target
-    except httpx.HTTPError as exc:
-        raise DatasetUnavailable(f"4TU non raggiungibile per {dataset.key}: {exc}.") from exc
-    finally:
-        if owned:
-            http.close()
+        entry = manifest_entry(dataset.manifest_id)
+        return fetch_datasets.fetch(entry) / entry["file"]
+    except (fetch_datasets.DatasetError, OSError) as exc:
+        raise DatasetUnavailable(f"{dataset.key}: {exc}") from exc
 
 
-def load(path: Path) -> EventLog:
-    """Il log XES (anche ``.xes.gz``) come event log canonico."""
+def load(path: Path, mapping: ColumnMapping) -> tuple[EventLog, QualityReport]:
+    """Il log XES (anche ``.xes.gz``) come event log canonico, con il report delle righe scartate.
+
+    In BPIC 2012 le righe ``SCHEDULE`` non sono ne' inizio ne' fine: il report le
+    conta come ``unknown_lifecycle`` e la baseline lo scrive.
+    """
     payload = path.read_bytes()
     if path.suffix == ".gz":
         payload = gzip.decompress(payload)
-    log, _ = apply_mapping(read_xes(payload), XES_MAPPING, source_name=path.name)
-    return log
+    return apply_mapping(read_xes(payload), mapping, source_name=path.name)

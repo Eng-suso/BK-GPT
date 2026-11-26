@@ -498,6 +498,10 @@ class WorkspaceSource(WorkspaceBase):
     content_hash: Mapped[str | None] = mapped_column(String, index=True)
     byte_size: Mapped[int | None] = mapped_column(Integer)
     mime_type: Mapped[str | None] = mapped_column(String)
+    # Chi ha caricato la fonte. La lettura e l'estrazione girano dopo, in un
+    # worker che non ha una richiesta: senza questo campo la loro spesa non
+    # apparteneva a nessun consulente.
+    uploaded_by: Mapped[str | None] = mapped_column(String)
     storage_key: Mapped[str | None] = mapped_column(String)
     extracted_text: Mapped[str | None] = mapped_column(Text)
     parser: Mapped[str | None] = mapped_column(String)
@@ -781,9 +785,15 @@ class WorkspaceLlmUsage(WorkspaceBase):
     """
 
     __tablename__ = "workspace_llm_usage"
+    # «Quanto ha speso questo consulente da quell'ora»: e' la domanda del limite
+    # d'uso, e l'indice ha la sua forma.
+    __table_args__ = (Index("ix_workspace_llm_usage_user_created", "user_id", "created_at"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
+    # Il consulente che ha causato la spesa. NULL per le righe scritte prima che
+    # il registro lo sapesse, e per il lavoro che nessuno ha chiesto.
+    user_id: Mapped[str | None] = mapped_column(String)
     # L'operazione: tipo, identita' dell'esecuzione, e il lavoro a cui appartiene.
     operation_kind: Mapped[str] = mapped_column(String, nullable=False, index=True)
     operation_id: Mapped[str] = mapped_column(String, nullable=False, index=True)

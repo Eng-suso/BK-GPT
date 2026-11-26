@@ -1,0 +1,182 @@
+{
+  "protocol": "PROTO-01, docs/vpt/PROTOCOL.md",
+  "frozen_on": "2026-11-25",
+  "rule": "Questi log non si leggono per sviluppare, scegliere modelli, iperparametri o componenti. Si aprono una volta, in protocol.final_evaluation(), a selezione congelata.",
+  "holdouts": [
+    {
+      "id": "production",
+      "title": "Production (fabbricazione di parti su commessa)",
+      "category": "osservabilita completa",
+      "dataset": "camargo-2022-reproducibility",
+      "organization": "azienda manifatturiera (Levy, 2014), via Camargo et al. 2022",
+      "independent_because": "nessuna organizzazione o processo dei log di sviluppo; mai letto da DeliR",
+      "split": "test pubblicato dal pacchetto (tst_Production.csv); train = log meno i casi di test",
+      "names": [
+        "Production",
+        "tst_Production"
+      ],
+      "license": "CC-BY-4.0",
+      "source": "https://zenodo.org/records/5734443",
+      "files": [
+        {
+          "path": "reproducibility_package_caise_22/event_logs/public_real_logs/Production.zip",
+          "sha256": "4bf51a08e12894d7ee4fa15eae6c7d2c3a4b67f8f45cdb652e3322a173335714",
+          "bytes": 94562
+        },
+        {
+          "path": "reproducibility_package_caise_22/event_logs/test_partitions/tst_Production.csv",
+          "sha256": "0c2ad9a640cb6abedf1c8631e23e164c94b2b6a7ce684395e8aac9ed22da0bf4",
+          "bytes": 34853
+        }
+      ]
+    },
+    {
+      "id": "consulta_data_mining",
+      "title": "ConsultaDataMining 2016-2018 (richieste accademiche)",
+      "category": "osservabilita completa",
+      "dataset": "camargo-2022-reproducibility",
+      "organization": "universita' colombiana, via Camargo et al. 2022",
+      "independent_because": "processo diverso da ogni log di sviluppo e mai letto da DeliR; l'organizzazione potrebbe essere la stessa di AcademicCredentials: indipendenza di processo, non garantita di organizzazione",
+      "split": "test pubblicato dal pacchetto (tst_ConsultaDataMining201618.csv)",
+      "names": [
+        "ConsultaDataMining201618",
+        "tst_ConsultaDataMining201618"
+      ],
+      "license": "CC-BY-4.0",
+      "source": "https://zenodo.org/records/5734443",
+      "files": [
+        {
+          "path": "reproducibility_package_caise_22/event_logs/public_real_logs/ConsultaDataMining201618.zip",
+          "sha256": "ad028e0cd884f3533f65587466ce9eb3cc4db7b84db30f6e12802c6183736ea4",
+          "bytes": 135189
+        },
+        {
+          "path": "reproducibility_package_caise_22/event_logs/test_partitions/tst_ConsultaDataMining201618.csv",
+          "sha256": "8316027405a22b428d51f44f2056e0e0eb68d8d937f1a5d95d03fe4f3713904f",
+          "bytes": 72657
+        }
+      ]
+    },
+    {
+      "id": "purchasing_example",
+      "title": "PurchasingExample (acquisti, log simulato senza modello pubblicato)",
+      "category": "osservabilita completa",
+      "dataset": "camargo-2022-reproducibility",
+      "organization": "esempio sintetico di acquisti, via Camargo et al. 2022",
+      "independent_because": "modello diverso da Procure_to_Pay e dagli altri sintetici; il modello che l'ha generato non e' pubblicato, quindi conta come log a osservabilita' completa senza verita' nota",
+      "split": "test pubblicato dal pacchetto (tst_PurchasingExample.csv)",
+      "names": [
+        "PurchasingExample",
+        "tst_PurchasingExample"
+      ],
+      "license": "CC-BY-4.0",
+      "source": "https://zenodo.org/records/5734443",
+      "files": [
+        {
+          "path": "reproducibility_package_caise_22/event_logs/syntetic_logs/PurchasingExample.zip",
+          "sha256": "6cec762ff8e68f6b147e08a46c26c8ca8b5fed68b76f6e0417355bdf75f46c0f",
+          "bytes": 223109
+        },
+        {
+          "path": "reproducibility_package_caise_22/event_logs/test_partitions/tst_PurchasingExample.csv",
+          "sha256": "960ff47e4bf7bb6f7ef2f3e1ea8cecf6d0e51dceecd90372b7c953e72bdf91a6",
+          "bytes": 105257
+        }
+      ]
+    },
+    {
+      "id": "confidential_2000",
+      "title": "Confidential 2000 casi (sintetico con il modello di simulazione pubblicato)",
+      "category": "sintetico con verita nota",
+      "dataset": "camargo-2022-reproducibility",
+      "organization": "modello di processo riservato, via Camargo et al. 2022",
+      "independent_because": "modello diverso da tutti i sintetici di sviluppo; la verita' e' ConfidentialProcessModel.bpmn. La variante da 1000 casi viene dallo stesso modello: e' chiusa con lui, non e' un log di sviluppo",
+      "split": "test pubblicato dal pacchetto (tst_confidential_2000.csv)",
+      "names": [
+        "confidential_2000",
+        "tst_confidential_2000",
+        "confidential_1000",
+        "tst_confidential_1000",
+        "ConfidentialProcessModel"
+      ],
+      "license": "CC-BY-4.0",
+      "source": "https://zenodo.org/records/5734443",
+      "files": [
+        {
+          "path": "reproducibility_package_caise_22/event_logs/syntetic_logs/confidential_2000.zip",
+          "sha256": "1cbd2f3cb48f0609c8b948b137d15270044b4ead22c596a0b41dda67c577470a",
+          "bytes": 2476151
+        },
+        {
+          "path": "reproducibility_package_caise_22/event_logs/test_partitions/tst_confidential_2000.csv",
+          "sha256": "c617c61bbbada1c6a076f1aff2477e7ac9ea588780589b7d2fe8b8bcd255f24b",
+          "bytes": 728851
+        },
+        {
+          "path": "reproducibility_package_caise_22/event_logs/syntetic_logs/confidential_1000.zip",
+          "sha256": "a167674e03c44302cca41223b76f87590d9a9676c41c64c0ad4d1751e1b4e129",
+          "bytes": 1214808
+        },
+        {
+          "path": "reproducibility_package_caise_22/event_logs/test_partitions/tst_confidential_1000.csv",
+          "sha256": "525867f970e1a3f5351ee1528225d94c1ad26dab8eb0e6278419c0c4e1296891",
+          "bytes": 337126
+        },
+        {
+          "path": "reproducibility_package_caise_22/event_logs/syntetic_logs/simulation_models/ConfidentialProcessModel.bpmn",
+          "sha256": "ec3bbf4c7c54e3ce3768526d8f916bd5006a7169ac383c173f6aa35753be1cdd",
+          "bytes": 61840
+        }
+      ]
+    },
+    {
+      "id": "bpic2015_municipality1",
+      "title": "BPI Challenge 2015, Municipality 1 (permessi edilizi)",
+      "category": "osservabilita parziale",
+      "dataset": "bpic2015-municipality1",
+      "organization": "comune olandese",
+      "independent_because": "nessuna organizzazione o processo dei log di sviluppo; mai letto da DeliR",
+      "split": "meta' dei casi per inizio",
+      "names": [
+        "BPIC15_1"
+      ],
+      "license": "4TU General Terms of Use",
+      "source": "https://doi.org/10.4121/uuid:a0addfda-2044-4541-a450-fdcc9fe16d17",
+      "files": [
+        {
+          "path": "BPIC15_1.xes",
+          "sha256": "7591f70d4a4d536ead76a56c2fa493fbe22bf2ec7e06c8ddd29da79bd666e516",
+          "bytes": 41227060
+        }
+      ]
+    },
+    {
+      "id": "bpic2011_hospital",
+      "title": "BPI Challenge 2011, Hospital log (ginecologia di un ospedale universitario)",
+      "category": "osservabilita parziale",
+      "dataset": "bpic2011-hospital",
+      "organization": "ospedale universitario olandese",
+      "independent_because": "nessuna organizzazione o processo dei log di sviluppo; mai letto da DeliR",
+      "split": "meta' dei casi per inizio",
+      "names": [
+        "Hospital_log"
+      ],
+      "license": "4TU General Terms of Use",
+      "source": "https://doi.org/10.4121/uuid:d9769f3d-0ab0-4fb8-803b-0d1120ffcf54",
+      "files": [
+        {
+          "path": "Hospital_log.xes.gz",
+          "sha256": "afeec2ad34d7d084441c8b19c9b6bda20e716b66aee6a162247b3f203f59ce96",
+          "bytes": 2384410
+        }
+      ]
+    }
+  ],
+  "containers": [
+    {
+      "dataset": "camargo-2022-reproducibility",
+      "file": "reproducibility_package.zip",
+      "why": "contiene Production, ConsultaDataMining, PurchasingExample e confidential"
+    }
+  ]
+}
