@@ -50,6 +50,7 @@ from backend.llm.usage import (
 from backend.llm.egress import Destination, EgressBlocked, require
 from backend.llm.local_tracer import local_callbacks
 from backend.llm_config import MissingProviderKey, chat_openai_kwargs, timeout_for_input
+from backend.llm_streaming import LEDGER_RECORDED_TAG
 from backend.services import degradation_counters
 from backend.settings import settings
 
@@ -120,6 +121,9 @@ def _client(profile: TaskProfile, input_characters: int | None):
         input_characters=input_characters if profile.scales_with_input else None,
     )
     kwargs["max_retries"] = _max_retries(profile)
+    # Il gateway registra da se' ogni chiamata: il tag dice al runtime della chat
+    # di non sommarla una seconda volta quando passa nello stream di un turno.
+    kwargs["tags"] = [LEDGER_RECORDED_TAG]
     # Quando LangSmith e' spento - nei test, sempre - la traccia la scriviamo
     # noi su file. Senza, «cosa e' stato mandato e cosa e' tornato» resterebbe
     # senza risposta proprio dove serve di piu': dentro un test che fallisce.

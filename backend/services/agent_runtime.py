@@ -19,6 +19,7 @@ from backend.llm import LlmTask, OperationKind, adopt, new_operation, record_str
 from backend.llm_streaming import (
     INTERNAL_STREAM_METADATA_KEY,
     INTERNAL_STREAM_METADATA_VALUE,
+    LEDGER_RECORDED_TAG,
 )
 from backend.schemas.api import AgentStreamEvent, ApiError, TraceContext
 from backend.services.agent_progress import (
@@ -285,6 +286,18 @@ def is_internal_stream_metadata(metadata: dict[str, Any]) -> bool:
 
     tags = metadata.get("tags")
     return isinstance(tags, list) and INTERNAL_STREAM_METADATA_VALUE in tags
+
+
+def is_ledger_recorded(metadata: dict[str, Any]) -> bool:
+    """Se il pezzo viene da un client del gateway, che la sua riga l'ha gia' scritta.
+
+    Un tool della chat che chiama `llm.run()` gira dentro il grafo, e LangGraph
+    ne inoltra i pezzi nello stream del turno con i loro `usage_metadata`.
+    Sommarli anche qui contava la stessa spesa due volte: una riga del compito
+    vero (estrazione, rerank, giudizio) e la stessa cifra dentro `chat_turn`.
+    """
+    tags = metadata.get("tags")
+    return isinstance(tags, list) and LEDGER_RECORDED_TAG in tags
 
 
 def progress_event(
@@ -852,7 +865,10 @@ def stream_agent_events(
                     # scartarlo qui lo rendeva spesa invisibile - proprio il
                     # compito che si vorrebbe misurare per decidere se pagargli
                     # del ragionamento.
-                    if chunk_usage:
+                    #
+                    # Le chiamate del gateway fatte dentro un tool sono l'eccezione:
+                    # passano di qui, ma la loro riga l'ha gia' scritta il gateway.
+                    if chunk_usage and not is_ledger_recorded(metadata):
                         merge_usage_metadata(
                             usage_by_node.setdefault(node_name or "", {}),
                             dict(chunk_usage),

@@ -7,6 +7,13 @@ from langchain_core.runnables import RunnableConfig
 INTERNAL_STREAM_METADATA_KEY = "delir_stream_visibility"
 INTERNAL_STREAM_METADATA_VALUE = "internal"
 
+#: Il tag dei client costruiti dal gateway. Una chiamata del gateway scrive gia'
+#: la sua riga nel registro dei consumi; quando avviene dentro un nodo del grafo
+#: della chat (un tool che estrae, riordina, giudica) LangGraph la vede passare
+#: nello stream del turno come qualunque altra. Senza questo tag il runtime la
+#: sommava anche alla riga del turno, e la stessa spesa compariva due volte.
+LEDGER_RECORDED_TAG = "delir:ledger-recorded"
+
 
 class StreamableRunnable(Protocol):
     def stream(
