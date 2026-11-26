@@ -28,6 +28,7 @@ from backend.schemas.chat_api import (
     CreateSessionResponse,
     SendMessageRequest,
 )
+from backend.llm.budget import UsageLimitReached
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
 from backend.services import degradation_counters
 from backend.services.agent_runtime import (
@@ -191,6 +192,9 @@ def chat(request: ChatRequest) -> ChatResponse:
             attachments=request.attachments,
             reasoning_effort=request.reasoning_effort,
         )
+    except UsageLimitReached:
+        # Il limite d'uso non e' un guasto dell'agente: 429 col suo messaggio.
+        raise
     except Exception as exc:
         log_agent_failure(exc, thread_id=request.thread_id)
         raise HTTPException(status_code=502, detail=AGENT_FAILED_MESSAGE) from exc
@@ -332,6 +336,8 @@ def send_consultant_chat_message(
             attachments=request.attachments,
             reasoning_effort=request.reasoning_effort,
         )
+    except UsageLimitReached:
+        raise
     except TimeoutError as exc:
         log_agent_failure(exc, thread_id=thread_id)
         raise HTTPException(status_code=503, detail=AGENT_TIMEOUT_MESSAGE) from exc

@@ -262,6 +262,7 @@ def translate(process_id: str, request: SimulationWhatIfRequest) -> SimulationWh
     from langchain_core.messages import HumanMessage, SystemMessage
 
     from backend.llm import LlmTask, OperationKind, operation, run
+    from backend.llm.budget import UsageLimitReached
 
     user = render(request)
     try:
@@ -273,6 +274,10 @@ def translate(process_id: str, request: SimulationWhatIfRequest) -> SimulationWh
                 input_characters=len(user),
                 prompt_version=prompt_version(),
             )
+    except UsageLimitReached:
+        # Il limite d'uso non e' un guasto del modello: arriva al consulente
+        # col suo messaggio (429), non come «riprova fra poco».
+        raise
     except Exception as exc:
         logger.warning("Traduzione del what-if non riuscita.", exc_info=True)
         raise WhatIfFailed("Il modello non ha tradotto la frase: riprova fra poco.") from exc

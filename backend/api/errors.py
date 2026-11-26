@@ -128,13 +128,12 @@ def setup_api_error_handlers(app: FastAPI) -> None:
         Non e' ritentabile a breve: si ripristina con la sessione o la settimana,
         e il pannello Utilizzo dice quando.
         """
-        blocking = exc.status.blocking
         return api_error_response(
             request,
             status_code=429,
             code="usage_limit_reached",
             message=str(exc),
-            detail=f"window={blocking.name if blocking else 'unknown'}",
+            detail=f"window={exc.window}",
         )
 
     from backend.eventlog.service import ConformanceUnavailable

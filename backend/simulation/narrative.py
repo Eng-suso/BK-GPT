@@ -163,6 +163,7 @@ def write(process_id: str, request: SimulationNarrativeRequest) -> SimulationNar
     from langchain_core.messages import HumanMessage, SystemMessage
 
     from backend.llm import LlmTask, OperationKind, operation, run
+    from backend.llm.budget import UsageLimitReached
 
     user = render(request)
     try:
@@ -174,6 +175,10 @@ def write(process_id: str, request: SimulationNarrativeRequest) -> SimulationNar
                 input_characters=len(user),
                 prompt_version=prompt_version(),
             )
+    except UsageLimitReached:
+        # Il limite d'uso non e' un guasto del modello: arriva al consulente
+        # col suo messaggio (429), non come «riprova fra poco».
+        raise
     except Exception as exc:
         logger.warning("Redazione del testo per il cliente non riuscita.", exc_info=True)
         raise NarrativeRejected("Il modello non ha scritto il testo: riprova fra poco.") from exc

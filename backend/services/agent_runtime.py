@@ -291,6 +291,13 @@ def is_internal_stream_metadata(metadata: dict[str, Any]) -> bool:
     return _has_tag(metadata, INTERNAL_STREAM_METADATA_VALUE)
 
 
+USAGE_LIMIT_CODE = "usage_limit_reached"
+
+
+def _window_of(detail: str | None) -> str:
+    return (detail or "").removeprefix("window=") or "session"
+
+
 def usage_limit_error(context: TraceContext) -> ApiError | None:
     """L'errore da mostrare se il consulente ha esaurito il suo limite d'uso."""
     from backend.llm import current_user_id
@@ -299,11 +306,10 @@ def usage_limit_error(context: TraceContext) -> ApiError | None:
     try:
         check(current_user_id())
     except UsageLimitReached as exc:
-        blocking = exc.status.blocking
         return ApiError(
-            code="usage_limit_reached",
+            code=USAGE_LIMIT_CODE,
             message=str(exc),
-            detail=f"window={blocking.name if blocking else 'unknown'}",
+            detail=f"window={exc.window}",
             request_id=context.request_id,
             trace_id=context.trace_id,
             origin="agent",
@@ -1206,6 +1212,12 @@ def stream_agent_deltas(
         if event.type == "delta" and event.content:
             yield event.content
         elif event.type == "error" and event.error:
+            if event.error.code == USAGE_LIMIT_CODE:
+                # Le rotte non in streaming lo lasciano passare: diventa un 429
+                # col suo messaggio, non un «agente guasto» da 502.
+                from backend.llm.budget import UsageLimitReached
+
+                raise UsageLimitReached(event.error.message, _window_of(event.error.detail))
             raise RuntimeError(event.error.message)
 
 
