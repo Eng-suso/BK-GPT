@@ -1,0 +1,29 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "bpic2012",
+  "category": "osservabilita parziale",
+  "phase": "test",
+  "config": "agentsim",
+  "label": "AgentSimulator (scelta automatica)",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 6543,
+    "target": 6544
+  },
+  "identifiability": {
+    "cycle_time_w1": "NOT VALIDATED",
+    "ngram": "NOT VALIDATED",
+    "relative_event": "NOT VALIDATED",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "NOT VALIDATED",
+    "resources": "identificabile",
+    "waiting_causes": "NOT VALIDATED",
+    "true_parameters": "NOT VALIDATED",
+    "counterfactual": "NOT VALIDATED"
+  },
+  "status": "out_of_budget",
+  "reason": "agentsim_run.py: uscita 4; transition_probabilities: {0: {'A_SUBMITTED': {0: {'A_PARTLYSUBMITTED': 1.0}}, 'A_PARTLYSUBMITTED': {0: {'A_PREACCEPTED': 0.3658872077028886, 'A_DECLINED': 0.2634876967751796}, 8: {'A_PREACCEPTED': 0.0004585052728106373, 'W_Afhandelen leads': 0.0004585052728106373, 'A_DECLINED': 0.0007641754546843956}, 27: {'A_DECLINED': 0.004585052728106373, 'A_PREACCEPTED': 0.004890722909980131, 'W_Afhandelen le | preceding_activities_dict: {'A_PARTLYSUBMITTED': ['A_SUBMITTED'], 'A_PREACCEPTED': ['A_PARTLYSUBMITTED', 'A_SUBMITTED'], 'A_ACCEPTED': ['A_PREACCEPTED', 'A_PARTLYSUBMITTED', 'A_SUBMITTED'], 'O_SELECTED': ['A_PARTLYSUBMITTED', 'A_PREACCEPTED', 'A_ACCEPTED', 'A_SUBMITTED'], 'A_FINALIZED': ['A_PREACCEPTED', 'A_PARTLYSUBMITTED', 'A_ACCEPTED', 'A_SUBMITTED'], 'O_CREATED': ['A_FINALIZED', 'A_PARTLYSUBMI | fuori budget: discovery oltre 7200 s"
+}
