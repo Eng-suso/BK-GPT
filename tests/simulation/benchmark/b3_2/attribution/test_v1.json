@@ -1,0 +1,305 @@
+{
+  "pooled_timer_logs": 0.9564501662006015,
+  "results": [
+    {
+      "log": "Insurance_Claims_1_timer",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 1802,
+      "right": 1802,
+      "accuracy": 1.0,
+      "seconds_share_right": 0.9999999997297322,
+      "confusion": {
+        "contention->contention": 887,
+        "extraneous->extraneous": 915
+      }
+    },
+    {
+      "log": "Insurance_Claims_3_timers",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 3054,
+      "right": 3054,
+      "accuracy": 1.0,
+      "seconds_share_right": 0.8704807945722975,
+      "confusion": {
+        "contention->contention": 880,
+        "extraneous->extraneous": 2174
+      }
+    },
+    {
+      "log": "Insurance_Claims_5_timers",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 4423,
+      "right": 4421,
+      "accuracy": 0.9995478182229256,
+      "seconds_share_right": 0.8515868579375885,
+      "confusion": {
+        "contention->contention": 875,
+        "extraneous->extraneous": 3546,
+        "extraneous->none": 2
+      }
+    },
+    {
+      "log": "Insurance_Claims_5_timers_after",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 3175,
+      "right": 3175,
+      "accuracy": 1.0,
+      "seconds_share_right": 0.9999999996131179,
+      "confusion": {
+        "contention->contention": 880,
+        "extraneous->extraneous": 2295
+      }
+    },
+    {
+      "log": "Loan_Application_1_timer",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 6210,
+      "right": 5847,
+      "accuracy": 0.9415458937198068,
+      "seconds_share_right": 0.9435249847676083,
+      "confusion": {
+        "contention->contention": 4248,
+        "contention->none": 23,
+        "extraneous->contention": 318,
+        "extraneous->extraneous": 581,
+        "unavailability->contention": 22,
+        "unavailability->unavailability": 1018
+      }
+    },
+    {
+      "log": "Loan_Application_3_timers",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 6375,
+      "right": 5961,
+      "accuracy": 0.9350588235294117,
+      "seconds_share_right": 0.9359581714984572,
+      "confusion": {
+        "contention->contention": 3783,
+        "contention->none": 27,
+        "extraneous->contention": 351,
+        "extraneous->extraneous": 984,
+        "unavailability->contention": 35,
+        "unavailability->none": 1,
+        "unavailability->unavailability": 1194
+      }
+    },
+    {
+      "log": "Loan_Application_5_timers",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 7160,
+      "right": 6487,
+      "accuracy": 0.9060055865921788,
+      "seconds_share_right": 0.9060889048428075,
+      "confusion": {
+        "contention->contention": 4121,
+        "contention->none": 17,
+        "extraneous->contention": 589,
+        "extraneous->extraneous": 1031,
+        "unavailability->contention": 67,
+        "unavailability->unavailability": 1335
+      }
+    },
+    {
+      "log": "Loan_Application_5_timers_after",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 6614,
+      "right": 6021,
+      "accuracy": 0.9103416994254612,
+      "seconds_share_right": 0.923265756727336,
+      "confusion": {
+        "contention->contention": 3620,
+        "contention->none": 28,
+        "extraneous->contention": 526,
+        "extraneous->extraneous": 1028,
+        "unavailability->contention": 38,
+        "unavailability->none": 1,
+        "unavailability->unavailability": 1373
+      }
+    },
+    {
+      "log": "Pharmacy_1_timer",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 1858,
+      "right": 1830,
+      "accuracy": 0.984930032292788,
+      "seconds_share_right": 0.9825507037781291,
+      "confusion": {
+        "contention->contention": 857,
+        "extraneous->contention": 28,
+        "extraneous->extraneous": 966,
+        "unavailability->unavailability": 7
+      }
+    },
+    {
+      "log": "Pharmacy_3_timers",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 3771,
+      "right": 3591,
+      "accuracy": 0.9522673031026253,
+      "seconds_share_right": 0.9723869553130657,
+      "confusion": {
+        "contention->contention": 830,
+        "extraneous->contention": 180,
+        "extraneous->extraneous": 2745,
+        "unavailability->unavailability": 16
+      }
+    },
+    {
+      "log": "Pharmacy_5_timers",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 5825,
+      "right": 5589,
+      "accuracy": 0.9594849785407725,
+      "seconds_share_right": 0.9755320273954061,
+      "confusion": {
+        "contention->contention": 855,
+        "extraneous->batching": 14,
+        "extraneous->contention": 222,
+        "extraneous->extraneous": 4710,
+        "unavailability->unavailability": 24
+      }
+    },
+    {
+      "log": "Pharmacy_5_timers_after",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 3537,
+      "right": 2915,
+      "accuracy": 0.8241447554424653,
+      "seconds_share_right": 0.9113329804721897,
+      "confusion": {
+        "contention->contention": 417,
+        "extraneous->batching": 10,
+        "extraneous->contention": 612,
+        "extraneous->extraneous": 2483,
+        "unavailability->unavailability": 15
+      }
+    },
+    {
+      "log": "Procure_to_Pay_1_timer",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 9723,
+      "right": 9664,
+      "accuracy": 0.9939319140183072,
+      "seconds_share_right": 0.9970057378735145,
+      "confusion": {
+        "contention->contention": 4968,
+        "extraneous->contention": 59,
+        "extraneous->extraneous": 224,
+        "unavailability->unavailability": 4472
+      }
+    },
+    {
+      "log": "Procure_to_Pay_3_timers",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 9936,
+      "right": 9808,
+      "accuracy": 0.9871175523349437,
+      "seconds_share_right": 0.9965652350561175,
+      "confusion": {
+        "contention->contention": 4390,
+        "extraneous->contention": 128,
+        "extraneous->extraneous": 1090,
+        "unavailability->unavailability": 4328
+      }
+    },
+    {
+      "log": "Procure_to_Pay_5_timers",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 10745,
+      "right": 10287,
+      "accuracy": 0.957375523499302,
+      "seconds_share_right": 0.9914401444183782,
+      "confusion": {
+        "contention->contention": 4085,
+        "extraneous->batching": 10,
+        "extraneous->contention": 448,
+        "extraneous->extraneous": 1456,
+        "unavailability->unavailability": 4746
+      }
+    },
+    {
+      "log": "Procure_to_Pay_5_timers_after",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 10557,
+      "right": 10186,
+      "accuracy": 0.9648574405607654,
+      "seconds_share_right": 0.9919601321639506,
+      "confusion": {
+        "contention->contention": 4080,
+        "extraneous->batching": 4,
+        "extraneous->contention": 367,
+        "extraneous->extraneous": 1277,
+        "unavailability->unavailability": 4829
+      }
+    },
+    {
+      "log": "Insurance_Claims",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 881,
+      "right": 881,
+      "accuracy": 1.0,
+      "seconds_share_right": 1.0,
+      "confusion": {
+        "contention->contention": 881
+      }
+    },
+    {
+      "log": "Loan_Application",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 5854,
+      "right": 5809,
+      "accuracy": 0.9923129484113427,
+      "seconds_share_right": 0.9468117607218135,
+      "confusion": {
+        "contention->contention": 4872,
+        "contention->none": 17,
+        "unavailability->contention": 27,
+        "unavailability->none": 1,
+        "unavailability->unavailability": 937
+      }
+    },
+    {
+      "log": "Pharmacy",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 960,
+      "right": 960,
+      "accuracy": 1.0,
+      "seconds_share_right": 1.0,
+      "confusion": {
+        "contention->contention": 960
+      }
+    },
+    {
+      "log": "Procure_to_Pay",
+      "phase": "test",
+      "variant": "v1",
+      "waits": 8746,
+      "right": 8746,
+      "accuracy": 1.0,
+      "seconds_share_right": 1.0,
+      "confusion": {
+        "contention->contention": 4768,
+        "unavailability->unavailability": 3978
+      }
+    }
+  ]
+}

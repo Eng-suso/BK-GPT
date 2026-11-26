@@ -297,3 +297,79 @@ def _batches(executions: Sequence[Execution], tolerance: float) -> dict[int, int
             batched.update({j: group for j in run})
             group += 1
     return batched
+
+
+# --------------------------------------------------------------------------- ritardi esterni per il simulatore
+
+
+def extraneous_delays(executions: Sequence[Execution], waitings: Sequence[Waiting], *, min_share: float = 0.05) -> dict[str, dict]:
+    """Per attivita' la distribuzione del ritardo esterno (formato Prosimos ``event_distribution``).
+
+    Si considerano le esecuzioni con l'abilitazione osservabile, zeri compresi; un'attivita'
+    ha un timer se piu' del ``min_share`` delle sue esecuzioni ha un ritardo (la stessa regola
+    del lavoro di Chapela-Campa e Dumas). Il ritardo e' la quota ``extraneous`` (il batching no:
+    lo spiega la risorsa).
+    """
+    values: dict[str, list[float]] = defaultdict(list)
+    for e, w in zip(executions, waitings, strict=True):
+        if w.enabled is not None:
+            values[e.activity].append(w.seconds["extraneous"])
+    delays = {}
+    for activity, xs in values.items():
+        if sum(x > 0 for x in xs) / len(xs) > min_share:
+            delays[activity] = fit_duration(xs)
+    return delays
+
+
+def fit_duration(xs: Sequence[float]) -> dict:
+    """Una distribuzione per Prosimos dai momenti: fissa, esponenziale o lognormale."""
+    n = len(xs)
+    mean = sum(xs) / n
+    var = sum((x - mean) ** 2 for x in xs) / max(1, n - 1)
+    low, high = min(xs), max(xs)
+    if mean <= 0 or var ** 0.5 < 0.01 * mean:
+        return {"distribution_name": "fix", "distribution_params": [{"value": round(mean, 3)}]}
+    cv = var ** 0.5 / mean
+    if 0.8 <= cv <= 1.25:
+        return {"distribution_name": "expon",
+                "distribution_params": [{"value": round(mean, 3)}, {"value": round(low, 3)}, {"value": round(high, 3)}]}
+    return {"distribution_name": "lognorm",
+            "distribution_params": [{"value": round(mean, 3)}, {"value": round(var, 3)}, {"value": round(low, 3)}, {"value": round(high, 3)}]}
+
+
+BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
+
+
+def add_timers(bpmn: str, delays: dict[str, dict]) -> tuple[str, list[dict]]:
+    """Il BPMN con un timer prima di ogni attivita' con ritardo e la ``event_distribution`` dello scenario.
+
+    Il timer prende il posto della freccia che entra nell'attivita' (una sola, come nei modelli
+    di SIMOD); le attivita' con piu' frecce in ingresso restano senza timer.
+    """
+    import xml.etree.ElementTree as ET
+
+    ET.register_namespace("", BPMN_NS)
+    root = ET.fromstring(bpmn)
+    q = lambda tag: f"{{{BPMN_NS}}}{tag}"  # noqa: E731
+    process = root.find(q("process"))
+    events = []
+    for n, task in enumerate(process.findall(q("task"))):
+        name = task.get("name")
+        if name not in delays:
+            continue
+        incoming = [f for f in process.findall(q("sequenceFlow")) if f.get("targetRef") == task.get("id")]
+        if len(incoming) != 1:
+            continue
+        timer_id, flow_id = f"Event_b32_{n}", f"Flow_b32_{n}"
+        edge = incoming[0]
+        edge.set("targetRef", timer_id)
+        timer = ET.SubElement(process, q("intermediateCatchEvent"), {"id": timer_id})
+        ET.SubElement(timer, q("incoming")).text = edge.get("id")
+        ET.SubElement(timer, q("outgoing")).text = flow_id
+        ET.SubElement(timer, q("timerEventDefinition"), {"id": f"TimerEventDefinition_b32_{n}"})
+        ET.SubElement(process, q("sequenceFlow"), {"id": flow_id, "sourceRef": timer_id, "targetRef": task.get("id")})
+        for inc in task.findall(q("incoming")):
+            if inc.text == edge.get("id"):
+                inc.text = flow_id
+        events.append({"event_id": timer_id, "activity": name} | delays[name])
+    return ET.tostring(root, encoding="unicode", xml_declaration=True), events

@@ -69,6 +69,30 @@ Modello:
   - Limiti dichiarati: l'attesa della prima attività del caso (dall'arrivo) non è osservabile;
     sospensioni non identificabili senza ciclo di vita; i modelli non hanno batching, quindi il
     batching si verifica solo come "mai attribuito a torto".
+  - **Esito scheda 2 (sintetici).** Valutazione 2 (v1 su metà dei casi): 87,3%. Diagnosi: dimezzare
+    i casi toglie alle risorse il lavoro dei casi dell'altra metà, e il log mostra buchi che non ci
+    sono (Requester_1 di Procure_to_Pay lavora senza pause, nel log dimezzato ha pause di minuti).
+    Correzione del banco, non della meta: validazione e test sono due log interi indipendenti dello
+    stesso modello (seed 20261124 e 20261125). Valutazione 3, v1 invariato: **validazione 95,0%**
+    (88.336 su 92.994 attese), 4 log senza timer 99,6%, secondi giusti 95,1%. **Test, una volta:
+    95,65%** (90.638 su 94.765), senza timer 99,7%, secondi giusti 95,3%. Peggiore Pharmacy_5_timers_after
+    (82-84%: timer dopo l'attività, poi la risorsa occupata: la congestione prende più secondi del
+    timer). **GO sui sintetici.** Valutazioni in validazione: 3 su 20.
+- **Scheda 3 — attese dell'attribuzione nel simulatore, sui reali** (scritta prima della misura):
+
+  | Campo | Contenuto |
+  | --- | --- |
+  | Ipotesi | la quota "ritardo esterno" delle attese, stimata dall'attribuzione e messa come timer davanti alle attività, avvicina durata dei casi e posizione degli eventi più dei ritardi estranei di SIMOD |
+  | Candidato | `simod_attr_extr`: lo scenario di `simod` più un timer per attività con ritardo in più del 5% delle esecuzioni; distribuzione dai momenti (fissa, esponenziale con CV fra 0,8 e 1,25, altrimenti lognormale), nessuna ricerca né scala; attribuzione v1 sull'input della discovery |
+  | Base | `simod_extr` ("SIMOD con ritardi estranei" di G3b, rifatto qui sulla stessa discovery senza ritardi) |
+  | Metriche primarie | W1 e RED, entrambe |
+  | Guardie | NGD, AED, CED, CAR; tempo e memoria |
+  | Log | i 3 reali con W1 e RED identificabili: AcademicCredentials, BPIC 2012 W, BPIC 2017 W (BPIC 2012 e 2013 NOT VALIDATED su W1 e RED) |
+
+  - **GO** se, in validazione e poi in test, W1 e RED vincono (IC 95% separati) su almeno 2 dei 3
+    log e non perdono su nessuno; nessuna guardia perde su più di un log; costo entro budget e al
+    massimo il doppio della base; VAL-01 superato. **NO-GO** altrimenti. Una valutazione per log e
+    fase. Per informazione (non decide) si misurano anche i 20 sintetici.
 
 ---
 

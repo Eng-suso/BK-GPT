@@ -1,7 +1,8 @@
 """B3.2: attribuzione delle attese contro la verita' dei sintetici (meta: >= 90% di cause giuste).
 
     /var/tmp/delir-g3b/envs/simod/bin/python tests/simulation/benchmark/b3_2/tools/truth_logs.py \\
-        --inputs datasets/extraneous-delays/inputs/synthetic --out /var/tmp/delir-b32/truth <nomi>
+        --inputs datasets/extraneous-delays/inputs/synthetic --out /var/tmp/delir-b32/truth/validation --seed 20261124 <nomi>
+    (e --out /var/tmp/delir-b32/truth/test --seed 20261125)
     uv run python tests/simulation/benchmark/b3_2/attribution_eval.py --phase validation [--variant NOME]
 
 **Verita'.** I log rigenerati dai modelli veri (``tools/truth_logs.py``) hanno per ogni
@@ -16,8 +17,10 @@ non ci sono nei modelli: veri a zero.
 che il log non registra), con attesa vera o stimata oltre 1 s. Causa giusta = la causa con
 piu' secondi coincide (``none`` se una delle due attese e' <= 1 s).
 
-**Fasi** (PROTOCOL.md §5): ``validation`` = prima meta' dei casi per inizio (si sceglie qui),
-``test`` = seconda meta'. L'attribuzione vede solo la sua meta', senza abilitazioni ne' timer.
+**Fasi.** ``validation`` = il log rigenerato con seed 20261124 (si sceglie qui), ``test`` = un
+secondo log indipendente dello stesso modello, seed 20261125. L'attribuzione vede il log intero,
+senza abilitazioni ne' timer. Non meta' dei casi: le risorse lavorano casi di entrambe le meta'
+insieme, e un log dimezzato mostra buchi di lavoro che non esistono (valutazione 2, LOG.md).
 """
 
 from __future__ import annotations
@@ -83,9 +86,9 @@ def _profile(resource: str, profiles: dict[str, Calendar]) -> Calendar:
     return profiles[base]
 
 
-def load_truth(name: str) -> tuple[list[Execution], list[Waiting]]:
+def load_truth(name: str, phase: str) -> tuple[list[Execution], list[Waiting]]:
     """Le esecuzioni (senza timer ne' abilitazioni) e le loro attese vere, nell'ordine del file."""
-    with open(TRUTH / f"{name}.csv", newline="", encoding="utf-8") as handle:
+    with open(TRUTH / phase / f"{name}.csv", newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     ts = lambda text: datetime.fromisoformat(text).timestamp()  # noqa: E731
     timers: dict[tuple[str, float], float] = {}
@@ -131,15 +134,6 @@ def _busy_on(busy: _Busy, a: float, b: float, calendar: Calendar) -> float:
     return total
 
 
-def halves(executions: list[Execution]) -> tuple[list[int], list[int]]:
-    first: dict[str, float] = {}
-    for e in executions:
-        first[e.case_id] = min(first.get(e.case_id, e.start), e.start)
-    order = sorted(first, key=lambda c: (first[c], c))
-    a = set(order[: len(order) // 2])
-    return [i for i, e in enumerate(executions) if e.case_id in a], [i for i, e in enumerate(executions) if e.case_id not in a]
-
-
 def _dominant(w: Waiting) -> str:
     if w.enabled is None or w.total <= 1.0:
         return "none"
@@ -147,14 +141,11 @@ def _dominant(w: Waiting) -> str:
 
 
 def evaluate(name: str, phase: str, variant: str) -> dict:
-    executions, truths = load_truth(name)
-    part = halves(executions)[0 if phase == "validation" else 1]
-    subset = [executions[i] for i in part]
-    predicted = attribute(subset, **VARIANTS[variant])
+    executions, truths = load_truth(name, phase)
+    predicted = attribute(executions, **VARIANTS[variant])
     confusion: Counter = Counter()
     seconds_right = seconds_total = 0.0
-    for i, p in zip(part, predicted, strict=True):
-        t = truths[i]
+    for t, p in zip(truths, predicted, strict=True):
         if t.enabled is None or p.enabled is None:  # abilitazione non osservabile: fuori dal conteggio
             continue
         td, pd = _dominant(t), _dominant(p)
