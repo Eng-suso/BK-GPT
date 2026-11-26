@@ -18,9 +18,9 @@ Modello:
 
 ---
 
-## 2026-11-25 — G3b benchmark dei motori scientifici — in corso
+## 2026-11-26 — G3b benchmark dei motori scientifici — fatto
 
-- Branch: `spike/sim-g3b-ablation`. Dipendenze chiuse: PROTO-01 (#190).
+- Branch / PR: `spike/sim-g3b-ablation`, #195, CI verde. Dipendenze chiuse: PROTO-01 (#190).
 - Schede di go/no-go (PROTOCOL.md §7), scritte **prima di ogni misura** di G3b. Valgono per
   ogni componente, prima sulla validazione (scoperta sul fit, confronto con l'ultimo 20% del
   train) e poi sul test dei log di sviluppo (scoperta sull'intero train); holdout chiusi.
@@ -63,7 +63,8 @@ Modello:
   risultati, holdout chiusi): **12 schede su 12 NO-GO**, in validazione e in test. Nessun
   componente esterno entra in B3 così com'è. "B = A" resta l'asticella più dura, anche sui
   sintetici. Tabelle e verdetti in `tests/simulation/benchmark/g3b/results.md`, comando in
-  `tests/simulation/benchmark/g3b/README.md`. Calcolo speso ~31 h (budget 120 h).
+  `tests/simulation/benchmark/g3b/README.md`. Esiti: 389 misurati, 17 fuori budget, 35 non
+  applicabili, 9 falliti. Calcolo speso ~34 h (budget 120 h).
 
   | Componente | Primaria | Contro "B = A" (val / test) | Contro la base senza il componente (val / test) | Decisione |
   | --- | --- | --- | --- | --- |
@@ -112,6 +113,11 @@ Modello:
     replica oltre 10 minuti) e BPIC 2012 (discovery oltre 2 ore); overflow di date su
     AcademicCredentials e Loan_Application_5_timers; non applicabile agli Insurance_Claims (un
     giorno solo).
+- **VAL-01 sugli scenari scoperti:** 11 scenari SIMOD su 100 non supererebbero l'import del
+  prodotto: tutti quelli di BPIC 2013 (casi bloccati a un'unione dopo «Completed», in
+  entrambe le fasi) e quello senza ritardi di AcademicCredentials test (ciclo senza uscita,
+  come in G3). Conta già nelle schede come condizione mancata; per B3.3 è la prova che la
+  discovery deve produrre modelli sound.
 - **Holdout: non aperti.** Nessun GO: la conferma sugli holdout del §7 non serve a nessuna
   decisione. Aprirli resta una decisione di Sohayb (una volta, `final_evaluation(1cfaa147…)`).
 - **Iterazioni del banco** (nessuna sulle mete): 1) strumenti esterni come sottoprocessi nei
@@ -123,7 +129,7 @@ Modello:
   aspettava i worker di joblib, ora è un timer su thread e il driver ferma i figli rimasti;
   5) una discovery fuori budget resta in cache per le varianti che la usano; 6) con tre
   processi in parallelo il container è andato fuori memoria su ProSiT (BPIC 2013 validazione):
-  rifatto da solo; 7) metriche ripetibili al bit su due passate (Loan_Application) per "B = A",
+  rifatto da solo, fuori budget per memoria (oltre 12 GB); 7) metriche ripetibili al bit su due passate (Loan_Application) per "B = A",
   SIMOD simulato, AT-KDE e AgentSimulator.
 - **Code review:** `code-review` 10 rilievi, tutti corretti o motivati: VAL-01 "non
   verificato" distinto da "supera"; errori imprevisti non fermano il giro; regola del doppio

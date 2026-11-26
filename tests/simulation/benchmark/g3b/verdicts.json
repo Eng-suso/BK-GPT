@@ -2439,9 +2439,9 @@
       "contro simod_extr: guardia NGD perde su 10 log",
       "contro simod_extr: guardia RED perde su 11 log",
       "contro simod_extr: guardia AED perde su 15 log",
-      "contro simod_extr: guardia CED perde su 16 log",
+      "contro simod_extr: guardia CED perde su 15 log",
       "contro simod_extr: guardia CAR perde su 16 log",
-      "candidato non misurato (fallito, fuori budget o non applicabile) su 10 log (AcademicCredentials, BPIC_2012_W, bpic2012, ...)",
+      "candidato non misurato (fallito, fuori budget o non applicabile) su 9 log (AcademicCredentials, BPIC_2012_W, bpic2012, ...)",
       "VAL-01 non verificabile: nessun modello di processo"
     ],
     "bases": {
@@ -2649,7 +2649,6 @@
           ],
           "CED": [
             "BPIC_2012_W",
-            "bpic2013_incidents",
             "Insurance_Claims",
             "Insurance_Claims_1_timer",
             "Insurance_Claims_3_timers",

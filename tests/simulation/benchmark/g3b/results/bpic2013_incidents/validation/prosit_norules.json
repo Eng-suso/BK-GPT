@@ -24,10 +24,10 @@
     "true_parameters": "NOT VALIDATED",
     "counterfactual": "NOT VALIDATED"
   },
-  "status": "failed",
-  "reason": "prosit_run.py: uscita -9; aligning log, completed variants ::   7%|▋         | 119/1653 [48:09<15:58:28, 37.49s/it]\u001b[A |  | aligning log, completed variants ::   7%|▋         | 120/1653 [48:15<11:51:31, 27.85s/it]\u001b[A",
+  "status": "out_of_budget",
+  "reason": "prosit_run.py: oltre 12288 MB",
   "cost": {
-    "seconds": 7059.5,
-    "peak_mb": 10274.3
+    "seconds": 2910.8,
+    "peak_mb": 12289.1
   }
 }

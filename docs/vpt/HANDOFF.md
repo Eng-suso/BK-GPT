@@ -50,6 +50,8 @@ Da sapere per i prossimi punti:
 - **Budget:** discovery 2 h e 12 GB, replica 10 minuti, fatti rispettare dagli strumenti
   (codice 4); non applicabile = codice 3. Con tre processi grandi in parallelo il container
   (15 GB) va fuori memoria: due processi pesanti al massimo.
+- **VAL-01:** gli scenari SIMOD di BPIC 2013 (unione bloccata) e AcademicCredentials test
+  (ciclo senza uscita) non superano la verifica: 11 su 100.
 - **Holdout non aperti:** nessun GO da confermare. Aprirli è una decisione di Sohayb.
 - **Da confermare con Sohayb:** la regola del doppio del costo non si applica contro "B = A"
   (`COST_EXEMPT_BASES` in `g3b/report.py`); nessun verdetto dipende da questa lettura.
@@ -91,7 +93,7 @@ uv run pytest --noconftest -q tests/simulation/benchmark/test_protocol.py tests/
 ## Ultima misura
 
 G3b (2026-11-26): 450 risultati, 12/12 schede NO-GO; Prosimos della ricerca identico al
-percorso del prodotto; ~31 h di calcolo. ENG-01: `baseline.json` di B2 identico bit per bit.
+percorso del prodotto; ~34 h di calcolo; 11 scenari SIMOD su 100 non superano VAL-01. ENG-01: `baseline.json` di B2 identico bit per bit.
 
 ## Research Radar (RAD-00 fatto il 2026-11-25)
 
