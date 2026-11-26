@@ -144,7 +144,7 @@ gateway.run / embed / transcribe / chat_client  ──►  budget.check(operatio
 
 ### API e interfaccia
 
-- `GET /api/usage/me` → `{session: {used_pct, resets_at}, week: {used_pct, resets_at},
+- `GET /v1/usage/me` → `{session: {used_pct, resets_at}, week: {used_pct, resets_at},
   trial: {ends_at, days_left}, by_activity: [...]}`.
 - **TopBar** (`frontend/src/components/shell/TopBar.tsx`): un indicatore compatto, anello o
   barra, che diventa ambra all'80% e rosso al 95%. Al clic: le due barre e l'ora di reset.
