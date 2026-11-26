@@ -23,8 +23,14 @@ prima in validazione e poi in test (meta in `PLAN.md`). Scheda C1 (arrivi di A r
 `simod_extr_replay`) scritta in `LOG.md` prima della misura. Driver in
 `tests/simulation/benchmark/b3_1/` (riusa `g3b/run.py`, non lo cambia).
 
-- Stato: discovery SIMOD da rifare in questo container (cache in `/var/tmp/delir-b3_1/work`).
-- Valutazioni sulla validazione usate: 0 di 20.
+- Stato (2026-11-26): due processi in background, log in `/var/tmp/delir-b3_1/{val,test}.log`:
+  validazione di `naive simod_extr simod_extr_replay` (C1) e test di `naive simod_extr` (solo la
+  base, il candidato in test si misura solo se passa la validazione). Poi C2 in validazione:
+  `uv run python tests/simulation/benchmark/b3_1/run.py --phases validation --configs simod_extr_days`.
+- Diagnosi di C1 e scheda C2 (`simod_extr_days`, giorni interi ricampionati) in `LOG.md`.
+- Valutazioni sulla validazione usate: 3 di 20 (C1; C2 diagnosi; C2 misura).
+- Si riprende: rilanciare gli stessi comandi, il driver salta ciò che è scritto in `b3_1/results/`
+  (la cache SIMOD in `/var/tmp/delir-b3_1/work` si perde con il container).
 
 ## G3b (fatto il 2026-11-26, `spike/sim-g3b-ablation`)
 
