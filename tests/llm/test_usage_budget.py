@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.llm import OperationKind, budget, new_operation, operation
+from backend.security import get_current_tenant_id
 from backend.settings import settings
 from backend.workspace_storage import WorkspaceLlmUsage, WorkspaceUsagePlan, workspace_connection
 
@@ -42,7 +43,7 @@ def _spend(user_id: str, when: datetime, cost: str | None, tokens: int = 0) -> N
         session.add(
             WorkspaceLlmUsage(
                 id=uuid.uuid4().hex,
-                tenant_id="test-budget",
+                tenant_id=get_current_tenant_id(),
                 user_id=user_id,
                 operation_kind="chat_turn",
                 operation_id=uuid.uuid4().hex,
@@ -66,7 +67,7 @@ def _start_trial(user_id: str, started: datetime, session_started: datetime | No
         session.add(
             WorkspaceUsagePlan(
                 user_id=user_id,
-                tenant_id="test-budget",
+                tenant_id=get_current_tenant_id(),
                 trial_started_at=started.isoformat(),
                 session_started_at=session_started.isoformat() if session_started else None,
                 updated_at=started.isoformat(),
@@ -120,7 +121,7 @@ class TestBlocco:
         with pytest.raises(budget.UsageLimitReached) as exc:
             budget.check(user)
 
-        assert exc.value.status.blocking.name == "session"
+        assert exc.value.window == "session"
         assert "sessione" in str(exc.value)
 
     def test_la_settimana_esaurita_ferma_anche_con_la_sessione_libera(self, limits, user):
@@ -131,7 +132,7 @@ class TestBlocco:
         with pytest.raises(budget.UsageLimitReached) as exc:
             budget.check(user)
 
-        assert exc.value.status.blocking.name == "week"
+        assert exc.value.window == "week"
 
     def test_la_settimana_si_rinnova_a_blocchi_dall_inizio_della_prova(self, limits, user):
         _start_trial(user, NOW - timedelta(days=8))
@@ -149,7 +150,7 @@ class TestBlocco:
         with pytest.raises(budget.UsageLimitReached) as exc:
             budget.check(user)
 
-        assert exc.value.status.trial_over
+        assert exc.value.window == "trial_over"
         assert "prova" in str(exc.value)
 
     def test_le_righe_senza_prezzo_si_contano_al_prezzo_di_ripiego(self, limits, user):
@@ -291,3 +292,108 @@ class TestTurnoDiChat:
         set_current_user_id(user)
 
         assert usage_limit_error(TraceContext(request_id="r", trace_id="t")) is None
+
+
+class TestDallaReview:
+    def test_guardare_il_pannello_non_crea_il_piano_ne_fa_partire_la_prova(self, limits, user):
+        from sqlalchemy import select
+
+        budget.status(user)
+        budget.status(user)
+
+        with workspace_connection() as session:
+            rows = session.scalars(select(WorkspaceUsagePlan).where(WorkspaceUsagePlan.user_id == user)).all()
+        assert rows == []
+
+    def test_con_piu_finestre_esaurite_vince_quella_che_si_ripristina_per_ultima(self, limits, user):
+        _start_trial(user, NOW - timedelta(days=2), session_started=NOW - timedelta(hours=1))
+        _spend(user, NOW - timedelta(minutes=10), "4.0000")  # sessione e settimana insieme
+
+        current = budget.status(user, now=NOW)
+
+        assert current.session.exhausted and current.week.exhausted
+        assert current.blocking.name == "week"
+
+    def test_zero_vuol_dire_nessun_tetto_per_ogni_finestra(self, limits, user, monkeypatch):
+        monkeypatch.setattr(settings, "usage_week_budget_usd", 0.0)
+        monkeypatch.setattr(settings, "usage_session_budget_usd", 0.0)
+        _start_trial(user, NOW - timedelta(days=1), session_started=NOW - timedelta(hours=1))
+        _spend(user, NOW - timedelta(minutes=10), "3.0000")
+
+        current = budget.status(user, now=NOW)
+
+        assert current.week.limit_usd is None and current.session.limit_usd is None
+        assert current.blocking is None
+
+    def test_lo_stesso_id_in_un_altro_tenant_e_un_altra_persona(self, limits, user):
+        _start_trial(user, NOW - timedelta(days=1), session_started=NOW - timedelta(hours=1))
+        _spend(user, NOW - timedelta(minutes=10), "1.0000")
+
+        other = budget.status(user, tenant_id="altro-tenant", now=NOW)
+
+        assert other.week.used_usd == 0
+
+    def test_due_primi_controlli_insieme_non_si_scontrano(self, limits, user):
+        from concurrent.futures import ThreadPoolExecutor
+
+        from backend.security import set_current_tenant_id
+
+        tenant = get_current_tenant_id()
+
+        def first_check(_):
+            set_current_tenant_id(tenant)
+            budget.reset_cache()
+            budget.check(user)
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(first_check, range(4)))
+
+    def test_una_data_senza_fuso_e_utc(self, limits, user):
+        budget.update_plan(user, trial_ends_at=datetime(2026, 12, 10, 0, 0))
+
+        with workspace_connection() as session:
+            plan = session.get(WorkspaceUsagePlan, (get_current_tenant_id(), user))
+        assert plan.trial_ends_at == "2026-12-10T00:00:00+00:00"
+
+    def test_il_pannello_dice_la_durata_della_sessione(self, limits, user, monkeypatch):
+        monkeypatch.setattr(settings, "delir_auth_enabled", False)
+        monkeypatch.setattr(settings, "usage_session_hours", 3.0)
+        from backend.app import app
+
+        body = TestClient(app).get("/v1/usage/me", headers={"X-DeliR-User-ID": user}).json()
+
+        assert body["session_hours"] == 3.0
+
+
+class TestIlMessaggioArrivaAlConsulente:
+    def test_la_chat_non_in_streaming_risponde_429_non_502(self, limits, user, monkeypatch):
+        from backend.app import app
+        from backend.services import agent_runtime
+
+        monkeypatch.setattr(settings, "delir_auth_enabled", False)
+        monkeypatch.setattr(settings, "delir_fake_llm", False)
+        _start_trial(user, NOW - timedelta(days=15))
+        monkeypatch.setattr(agent_runtime, "get_agent", lambda *_a, **_k: None)
+
+        response = TestClient(app).post(
+            "/chat",
+            headers={"X-DeliR-User-ID": user},
+            json={"thread_id": f"t-{user}", "messages": [{"role": "user", "content": "ciao"}]},
+        )
+
+        assert response.status_code == 429
+        assert response.json()["error"]["code"] == "usage_limit_reached"
+
+    def test_il_what_if_non_trasforma_il_limite_in_riprova_fra_poco(self, limits, user, monkeypatch):
+        from backend.simulation import whatif
+
+        def blocked(**_kwargs):
+            raise budget.UsageLimitReached("limite", "session")
+
+        monkeypatch.setattr(settings, "openai_api_key", "sk-test-non-usata")
+        monkeypatch.setattr(settings, "delir_fake_llm", False)
+        monkeypatch.setattr("backend.llm.run", blocked)
+        monkeypatch.setattr(whatif, "render", lambda _request: "frase")
+
+        with pytest.raises(budget.UsageLimitReached):
+            whatif.translate("proc", object())
