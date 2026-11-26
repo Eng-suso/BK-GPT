@@ -27,7 +27,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.db import canonical_session
-from backend.llm import LlmTask, record_avoided_call
+from backend.llm import LlmTask, current_user_id, record_avoided_call
 from backend.memory import embeddings, provenance
 from backend.memory.knowledge_graph import catalog
 from backend.memory.knowledge_graph import entity_resolution
@@ -844,6 +844,20 @@ def source_already_indexed(consultant_id: str, client_id: str, content: str) -> 
         return missing is None
 
 
+def prepare_source_if_new(
+    consultant_id: str, client_id: str, content: str
+) -> tuple[bool, tuple[list[str], list[list[float]] | None] | None]:
+    """`(gia_indicizzata, preparato)`: chunk ed embedding solo per un testo nuovo.
+
+    E' l'unico posto che decide se un testo va embeddato, e lo decide fuori da
+    qualunque transazione: il controllo in una sessione breve, poi la chiamata di
+    rete. `preparato` e' `None` quando il testo c'e' gia' con i suoi vettori.
+    """
+    if source_already_indexed(consultant_id, client_id, content):
+        return True, None
+    return False, prepare_source(content)
+
+
 def prepare_source(content: str) -> tuple[list[str], list[list[float]] | None]:
     """Chunk + embed del testo, SENZA toccare il DB. Da chiamare fuori dalla
     transazione (la chiamata all'embedder e' di rete): `write_evidence` lo fa
@@ -886,11 +900,7 @@ def write_source_chunks(
     # chiamata all'embedder e' di rete. Senza una transazione del chiamante il
     # controllo si fa in una sessione breve, poi l'embedding, poi la scrittura.
     if prepared is None and tx is None:
-        with canonical_session(consultant_id, client_id) as lookup:
-            existing = _indexed_source(lookup, consultant_id, client_id, content_hash)
-        if existing:
-            return existing, 0
-        prepared = prepare_source(text_value)
+        _, prepared = prepare_source_if_new(consultant_id, client_id, text_value)
 
     with _open(consultant_id, client_id, tx) as session:
         existing = _indexed_source(session, consultant_id, client_id, content_hash)
@@ -1320,8 +1330,9 @@ def write_evidence(
     # Il testo c'e' gia', con i suoi vettori: nessun embedding. Se la sorgente
     # sparisse fra questo controllo e la scrittura, `write_source_chunks` la
     # ricalcola da se': piu' lento, mai sbagliato.
-    already_indexed = has_source and source_already_indexed(consultant_id, client_id, source_text or "")
-    prepared = prepare_source(source_text or "") if has_source and not already_indexed else None
+    already_indexed, prepared = (
+        prepare_source_if_new(consultant_id, client_id, source_text) if has_source and source_text else (False, None)
+    )
 
     # P2: entity resolution decisa FUORI dalla transazione. plan_resolution apre
     # la sua sessione read-only, fa i lookup + le chiamate LLM, la chiude. Il
@@ -1340,6 +1351,7 @@ def write_evidence(
         project_id=project_id,
     )
 
+    confirmed_avoided = False
     with canonical_session(consultant_id, client_id) as session:
         source_ids: list[str] | None = None
         if has_source:
@@ -1353,10 +1365,8 @@ def write_evidence(
                 source_ids = [source_id]
                 counts["chunks"] = n_chunks
             # Il risparmio si dichiara solo quando la scrittura ha confermato la
-            # sorgente esistente (nessun chunk nuovo). Senza chiave non si sarebbe
-            # speso niente, quindi non c'e' nessun risparmio da dichiarare.
-            if already_indexed and n_chunks == 0 and embeddings.available():
-                record_avoided_call(LlmTask.EMBEDDING)
+            # sorgente esistente (nessun chunk nuovo), e dopo la transazione.
+            confirmed_avoided = already_indexed and n_chunks == 0
 
         if process_id and process_name:
             write_process_node(
@@ -1499,6 +1509,11 @@ def write_evidence(
             )
             counts["impacts"] += 1
 
+    # Fuori dalla transazione del pacchetto: la riga va su un altro database, e
+    # non deve tenere aperti i lock dell'evidenza. Senza chiave non si sarebbe
+    # speso niente, quindi non c'e' nessun risparmio da dichiarare.
+    if confirmed_avoided and embeddings.available():
+        record_avoided_call(LlmTask.EMBEDDING)
     return counts
 
 
@@ -1565,7 +1580,7 @@ def enqueue_evidence(
         # Chi ha causato l'ingestione: il worker che la esegue non ha una
         # richiesta, e senza questo la spesa dell'embedding e del giudizio delle
         # entita' non apparterrebbe a nessun consulente.
-        "user_id": _requesting_user(),
+        "user_id": current_user_id(),
     }
     with canonical_session(consultant_id, client_id) as session:
         row = session.execute(
@@ -1586,15 +1601,6 @@ def enqueue_evidence(
 
 
 # --- helpers ---------------------------------------------------------------
-
-def _requesting_user() -> str | None:
-    """Il consulente del lavoro in corso: quello dell'operazione, o della richiesta."""
-    from backend.llm import current_operation
-    from backend.security import get_current_user_id
-
-    current = current_operation()
-    return (current.user_id if current else None) or get_current_user_id()
-
 
 def _float(value: Any, default: float = 0.5) -> float:
     try:

@@ -87,7 +87,7 @@ def test_il_consulente_autenticato_arriva_alla_rotta_sincrona(monkeypatch):
 
 
 def test_l_ingestione_accodata_ricorda_chi_l_ha_causata(nessun_consulente):
-    from backend.memory.knowledge_graph.canonical import _requesting_user
+    from backend.llm import current_user_id
 
     with operation(OperationKind.CHAT_TURN, user_id="consulente-kg"):
-        assert _requesting_user() == "consulente-kg"
+        assert current_user_id() == "consulente-kg"

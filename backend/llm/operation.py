@@ -101,6 +101,17 @@ def current_operation() -> Operation | None:
     return _current.get()
 
 
+def current_user_id() -> str | None:
+    """Il consulente del lavoro in corso: quello dell'operazione aperta, o della richiesta.
+
+    E' la regola unica di «chi ha causato questo lavoro». La usa `new_operation`
+    per le operazioni annidate e chi accoda un job da eseguire altrove, perche'
+    il worker la rimetta nell'operazione.
+    """
+    parent = _current.get()
+    return (parent.user_id if parent else None) or get_current_user_id()
+
+
 def new_operation(
     kind: str,
     *,
@@ -131,7 +142,7 @@ def new_operation(
         project_id=project_id,
         process_id=process_id,
         parent_id=parent.id if parent else None,
-        user_id=user_id or (parent.user_id if parent else None) or get_current_user_id(),
+        user_id=user_id or current_user_id(),
     )
 
 
