@@ -536,6 +536,19 @@ def refresh_val01(keys: list[str]) -> int:
     return 0
 
 
+def reclassify(keys: list[str]) -> int:
+    """Lo stato dei falliti dal codice d'uscita gia' scritto nel motivo (risultati di prima dei codici)."""
+    by_code = {f"uscita {EXIT_OUT_OF_BUDGET};": "out_of_budget", f"uscita {EXIT_NOT_APPLICABLE};": "not_applicable"}
+    for path in sorted(p for key in keys for p in (RESULTS / key).glob("*/*.json")):
+        result = json.loads(path.read_text(encoding="utf-8"))
+        status = next((s for code, s in by_code.items() if code in result.get("reason", "")), None)
+        if result["status"] == "failed" and status:
+            result["status"] = status
+            path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            print(f"{result['log']} {result['phase']} {result['config']}: {status}")
+    return 0
+
+
 def _done(path: Path, *, retry_failed: bool, seed: int, replicas: int) -> bool:
     """Gia' scritto con lo stesso seed e le stesse repliche: non si rifa'.
 
@@ -559,6 +572,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--force", action="store_true", help="rifa' anche le misure gia' scritte")
     parser.add_argument("--retry-failed", action="store_true", help="riprova le configurazioni fallite")
     parser.add_argument("--refresh-val01", action="store_true", help="ricalcola solo VAL-01 sui risultati SIMOD scritti")
+    parser.add_argument("--reclassify", action="store_true", help="stato dei falliti dal codice d'uscita degli strumenti")
     args = parser.parse_args(argv)
     if error := replicas_error(args.replicas):
         parser.error(error)
@@ -566,6 +580,8 @@ def main(argv: list[str] | None = None) -> int:
     logs = [log for log in protocol.development_logs() if not args.logs or log.key in args.logs]
     if args.refresh_val01:
         return refresh_val01([log.key for log in logs])
+    if args.reclassify:
+        return reclassify([log.key for log in logs])
     with protocol.selection_phase():
         for log in logs:
             todo = {
