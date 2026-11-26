@@ -1,6 +1,7 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { z } from "zod";
 
+import type { MeterTone } from "@/components/data";
 import { http } from "@/lib/http";
 
 /**
@@ -14,74 +15,63 @@ export const usageKeys = {
   me: ["usage-me"] as const,
 };
 
-const windowSchema = z.object({
-  used_share: z.number().min(0).max(1),
-  limited: z.boolean(),
-  exhausted: z.boolean(),
-  started_at: z.string().nullable(),
-  resets_at: z.string().nullable(),
-});
+const windowNameSchema = z.enum(["session", "week", "trial"]);
 
-const usageSchema = z.object({
-  enabled: z.boolean(),
-  session_hours: z.number().positive(),
-  session: windowSchema,
-  week: windowSchema,
-  trial: windowSchema.extend({ over: z.boolean() }),
-  blocking: z.enum(["session", "week", "trial"]).nullable(),
-  forecast: z
-    .object({
-      window: z.enum(["session", "week", "trial"]),
-      exhausts_at: z.string(),
-      resets_at: z.string(),
-    })
-    .nullable(),
-});
-
-export type UsageWindowName = "session" | "week" | "trial";
-
-export type UsageWindow = {
-  usedShare: number;
-  limited: boolean;
-  exhausted: boolean;
-  startedAt: string | null;
-  resetsAt: string | null;
-};
-
-export type Usage = {
-  enabled: boolean;
-  /** Quanto dura una sessione: e' configurazione del server, non un 5 scritto a mano. */
-  sessionHours: number;
-  session: UsageWindow;
-  week: UsageWindow;
-  trial: UsageWindow & { over: boolean };
-  blocking: UsageWindowName | null;
-  forecast: { window: UsageWindowName; exhaustsAt: string; resetsAt: string } | null;
-};
-
-function toWindow(raw: z.infer<typeof windowSchema>): UsageWindow {
-  return {
+const windowSchema = z
+  .object({
+    used_share: z.number().min(0).max(1),
+    limited: z.boolean(),
+    exhausted: z.boolean(),
+    resets_at: z.string().nullable(),
+  })
+  .transform((raw) => ({
     usedShare: raw.used_share,
     limited: raw.limited,
     exhausted: raw.exhausted,
-    startedAt: raw.started_at,
     resetsAt: raw.resets_at,
-  };
-}
+  }));
 
-export async function fetchUsage(): Promise<Usage> {
-  const raw = usageSchema.parse(await http<unknown>("/v1/usage/me"));
-  return {
-    enabled: raw.enabled,
+const enabledSchema = z
+  .object({
+    enabled: z.literal(true),
+    session_hours: z.number().positive(),
+    session: windowSchema,
+    week: windowSchema,
+    trial: z.intersection(windowSchema, z.object({ over: z.boolean() })),
+    blocking: windowNameSchema.nullable(),
+    forecast: z
+      .object({ window: windowNameSchema, exhausts_at: z.string(), resets_at: z.string() })
+      .nullable(),
+  })
+  .transform((raw) => ({
+    enabled: true as const,
     sessionHours: raw.session_hours,
-    session: toWindow(raw.session),
-    week: toWindow(raw.week),
-    trial: { ...toWindow(raw.trial), over: raw.trial.over },
+    session: raw.session,
+    week: raw.week,
+    // Una prova finita e' esaurita, qualunque sia la sua quota: il pannello la
+    // mostra piena e rossa senza casi speciali.
+    trial: { ...raw.trial, exhausted: raw.trial.exhausted || raw.trial.over },
+    trialOver: raw.trial.over,
     blocking: raw.blocking,
     forecast: raw.forecast
       ? { window: raw.forecast.window, exhaustsAt: raw.forecast.exhausts_at, resetsAt: raw.forecast.resets_at }
       : null,
-  };
+  }));
+
+// Con i limiti spenti il backend non legge niente e manda il minimo.
+const disabledSchema = z
+  .object({ enabled: z.literal(false) })
+  .transform(() => ({ enabled: false as const }));
+
+const usageSchema = z.union([enabledSchema, disabledSchema]);
+
+export type UsageWindowName = z.infer<typeof windowNameSchema>;
+export type ActiveUsage = z.output<typeof enabledSchema>;
+export type UsageWindow = ActiveUsage["session"];
+export type Usage = z.output<typeof usageSchema>;
+
+export async function fetchUsage(): Promise<Usage> {
+  return usageSchema.parse(await http<unknown>("/v1/usage/me"));
 }
 
 /**
@@ -90,7 +80,7 @@ export async function fetchUsage(): Promise<Usage> {
  * Un limite raggiunto vale sempre 1, anche quando la sua quota arrotondata non
  * lo dice: e' il caso in cui il consulente deve vedere il rosso.
  */
-export function headlineShare(usage: Usage): number {
+export function headlineShare(usage: ActiveUsage): number {
   if (usage.blocking) return 1;
   const shares = [usage.session, usage.week, usage.trial]
     .filter((window) => window.limited)
@@ -98,12 +88,11 @@ export function headlineShare(usage: Usage): number {
   return shares.length ? Math.max(...shares) : 0;
 }
 
-export type UsageTone = "normal" | "warning" | "danger";
-
-export function usageTone(share: number): UsageTone {
+/** I toni di `Meter`: ambra dall'80%, rosso dal 95%. */
+export function usageTone(share: number): MeterTone {
   if (share >= 0.95) return "danger";
   if (share >= 0.8) return "warning";
-  return "normal";
+  return "ok";
 }
 
 export function useUsageQuery(): UseQueryResult<Usage> {
@@ -111,8 +100,7 @@ export function useUsageQuery(): UseQueryResult<Usage> {
     queryKey: usageKeys.me,
     queryFn: fetchUsage,
     // Il consumo cresce mentre il consulente lavora: un giro al minuto basta a
-    // tenere l'anello vero senza pesare sul backend.
-    // Con i limiti spenti non c'e' niente da tenere aggiornato: si smette di chiedere.
+    // tenere l'anello vero. Con i limiti spenti si smette di chiedere.
     refetchInterval: (query) => (query.state.data?.enabled === false ? false : 60_000),
     staleTime: 20_000,
     retry: false,

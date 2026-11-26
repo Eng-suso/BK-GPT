@@ -44,3 +44,44 @@ export function formatDateRange(
   if (end) return `→ ${formatDate(end, locale)}`;
   return "";
 }
+
+export const DAY_MS = 86_400_000;
+
+function sameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+/**
+ * Un momento vicino nel futuro, come lo dice una persona: l'ora se e' oggi,
+ * "domani" se e' domani, altrimenti il giorno della settimana.
+ *
+ * Le parole vengono da chi chiama (i18n): qui si decide solo quale forma usare.
+ *
+ * @param iso - L'istante in ISO
+ * @param locale - Lingua attiva
+ * @param words - Le tre forme, con `{time}` e `{day}` gia' formattati
+ * @returns Per esempio "alle 20:20", "domani alle 01:00", "mar alle 01:00"
+ */
+export function formatUpcoming(
+  iso: string,
+  locale: string,
+  words: { today: (time: string) => string; tomorrow: (time: string) => string; weekday: (day: string, time: string) => string },
+  now: Date = new Date(),
+): string {
+  const when = new Date(iso);
+  const time = new Intl.DateTimeFormat(locale || "it", { hour: "2-digit", minute: "2-digit" }).format(when);
+  if (sameDay(when, now)) return words.today(time);
+  if (sameDay(when, new Date(now.getTime() + DAY_MS))) return words.tomorrow(time);
+  const day = new Intl.DateTimeFormat(locale || "it", { weekday: "short" }).format(when);
+  return words.weekday(day, time);
+}
+
+/** Giorno e mese corti, senza anno: "10 dic". */
+export function formatDayMonth(iso: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale || "it", { day: "numeric", month: "short" }).format(new Date(iso));
+}
+
+/** Quanti giorni mancano a un istante, arrotondati per eccesso, mai negativi. */
+export function daysUntil(iso: string, now: Date = new Date()): number {
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - now.getTime()) / DAY_MS));
+}

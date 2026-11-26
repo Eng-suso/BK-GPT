@@ -60,7 +60,8 @@ afterEach(() => {
 
 describe("UsageMenu", () => {
   it("con i limiti spenti non mostra niente", async () => {
-    http.mockResolvedValue(usage({ enabled: false }));
+    // Spento, il backend manda il minimo e non legge niente.
+    http.mockResolvedValue({ enabled: false, session_hours: 5 });
     const { container } = render(<UsageMenu />, { wrapper });
 
     await vi.waitFor(() => expect(http).toHaveBeenCalledWith("/v1/usage/me"));
@@ -126,12 +127,14 @@ describe("UsageMenu", () => {
 
 describe("headlineShare e usageTone", () => {
   it("un limite raggiunto vale sempre il pieno", () => {
+    const window = { usedShare: 0.4, limited: true, exhausted: false, resetsAt: null };
     const blocked = {
-      enabled: true,
+      enabled: true as const,
       sessionHours: 5,
-      session: { usedShare: 0.4, limited: true, exhausted: false, startedAt: null, resetsAt: null },
-      week: { usedShare: 0.99, limited: true, exhausted: false, startedAt: null, resetsAt: null },
-      trial: { usedShare: 0, limited: false, exhausted: false, startedAt: null, resetsAt: null, over: true },
+      session: window,
+      week: { ...window, usedShare: 0.99 },
+      trial: { ...window, usedShare: 0, limited: false, over: true },
+      trialOver: true,
       blocking: "trial" as const,
       forecast: null,
     };
@@ -139,7 +142,7 @@ describe("headlineShare e usageTone", () => {
   });
 
   it("i colori cambiano prima del limite", () => {
-    expect(usageTone(0.5)).toBe("normal");
+    expect(usageTone(0.5)).toBe("ok");
     expect(usageTone(0.8)).toBe("warning");
     expect(usageTone(0.95)).toBe("danger");
   });

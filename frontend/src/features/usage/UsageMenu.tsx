@@ -1,22 +1,16 @@
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 
+import { Meter, type MeterTone } from "@/components/data";
 import { InlineNotice } from "@/components/feedback/InlineNotice";
 import { Button } from "@/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
-import { cn } from "@/lib/utils";
-import {
-  headlineShare,
-  usageTone,
-  useUsageQuery,
-  type Usage,
-  type UsageTone,
-  type UsageWindow,
-  type UsageWindowName,
-} from "./api";
+import { daysUntil, formatDayMonth, formatUpcoming } from "@/lib/date";
+import { headlineShare, usageTone, useUsageQuery, type ActiveUsage, type UsageWindow } from "./api";
 
-const TONE_COLOR: Record<UsageTone, string> = {
-  normal: "var(--primary)",
+// Gli stessi colori di `Meter`, per l'anello che non e' una barra.
+const RING_COLOR: Record<MeterTone, string> = {
+  ok: "var(--primary)",
   warning: "var(--color-status-warning)",
   danger: "var(--color-status-danger)",
 };
@@ -27,29 +21,9 @@ function percent(share: number): number {
   return Math.max(1, Math.min(100, Math.round(share * 100)));
 }
 
-function sameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-
-/** "20:20" oggi, "domani 01:00", altrimenti "mar 01:00". Nel fuso del consulente. */
-function formatMoment(iso: string, locale: string, t: (key: string, options?: Record<string, unknown>) => string): string {
-  const when = new Date(iso);
-  const now = new Date();
-  const time = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(when);
-  if (sameDay(when, now)) return t("usage.when.today", { time });
-  const tomorrow = new Date(now);
-  tomorrow.setDate(now.getDate() + 1);
-  if (sameDay(when, tomorrow)) return t("usage.when.tomorrow", { time });
-  const day = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(when);
-  return t("usage.when.weekday", { day, time });
-}
-
-function formatDay(iso: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(new Date(iso));
-}
-
-function daysLeft(iso: string): number {
-  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000));
+/** La quota da mostrare: una finestra esaurita e' piena, qualunque sia l'arrotondamento. */
+function shownShare(window: UsageWindow): number {
+  return window.exhausted ? 1 : window.usedShare;
 }
 
 /**
@@ -58,25 +32,26 @@ function daysLeft(iso: string): number {
  * Un numero dentro un cerchio che si riempie: si legge a colpo d'occhio senza
  * aprire niente, e cambia colore prima che il limite arrivi, non dopo.
  */
-export function UsageRing({ share, tone, size = 28 }: { share: number; tone: UsageTone; size?: number }): React.JSX.Element {
+export function UsageRing({ share, size = 28 }: { share: number; size?: number }): React.JSX.Element {
   const stroke = 3;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const value = percent(share);
+  const center = size / 2;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" className="block">
-      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--border)" strokeWidth={stroke} />
+      <circle cx={center} cy={center} r={radius} fill="none" stroke="var(--border)" strokeWidth={stroke} />
       <circle
-        cx={size / 2}
-        cy={size / 2}
+        cx={center}
+        cy={center}
         r={radius}
         fill="none"
-        stroke={TONE_COLOR[tone]}
+        stroke={RING_COLOR[usageTone(share)]}
         strokeWidth={stroke}
         strokeLinecap="round"
         strokeDasharray={circumference}
         strokeDashoffset={circumference * (1 - Math.min(1, share))}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        transform={`rotate(-90 ${center} ${center})`}
         className="transition-[stroke-dashoffset] duration-500 motion-reduce:transition-none"
       />
       <text
@@ -93,37 +68,9 @@ export function UsageRing({ share, tone, size = 28 }: { share: number; tone: Usa
   );
 }
 
-function UsageBar({ share, tone, label }: { share: number; tone: UsageTone; label: string }): React.JSX.Element {
-  const value = percent(share);
-  return (
-    <div
-      role="progressbar"
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={value}
-      className="h-2 w-full overflow-hidden rounded-full bg-muted"
-    >
-      <div
-        className="h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none"
-        style={{ width: `${value}%`, background: TONE_COLOR[tone] }}
-      />
-    </div>
-  );
-}
-
-function WindowRow({
-  title,
-  window,
-  caption,
-}: {
-  title: string;
-  window: UsageWindow;
-  caption: string;
-}): React.JSX.Element {
+function WindowRow({ title, window, caption }: { title: string; window: UsageWindow; caption: string }): React.JSX.Element {
   const { t } = useTranslation("common");
-  const share = window.exhausted ? 1 : window.usedShare;
-  const tone = window.exhausted ? "danger" : usageTone(share);
+  const share = shownShare(window);
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-card px-3 py-3">
       <div className="flex items-baseline justify-between gap-3">
@@ -132,50 +79,10 @@ function WindowRow({
           {t("usage.used", { percent: percent(share) })}
         </p>
       </div>
-      <UsageBar share={share} tone={tone} label={title} />
+      <Meter value={percent(share)} label={title} tone={usageTone(share)} showValue={false} height={8} />
       <p className="text-xs text-muted-foreground">{caption}</p>
     </div>
   );
-}
-
-function Banner({ usage, locale }: { usage: Usage; locale: string }): React.JSX.Element | null {
-  const { t } = useTranslation("common");
-  if (usage.blocking) {
-    const window = usage[usage.blocking];
-    const key = usage.trial.over ? "trialOver" : usage.blocking;
-    return (
-      <InlineNotice tone="error" title={t(`usage.blocked.${key}.title`)}>
-        {t(`usage.blocked.${key}.body`, {
-          when: window.resetsAt ? formatMoment(window.resetsAt, locale, t) : "",
-        })}
-      </InlineNotice>
-    );
-  }
-  if (usage.forecast) {
-    return (
-      <InlineNotice tone="warning" title={t("usage.forecast.title")}>
-        {t(`usage.forecast.${usage.forecast.window}`, {
-          when: formatMoment(usage.forecast.exhaustsAt, locale, t),
-          reset: formatMoment(usage.forecast.resetsAt, locale, t),
-        })}
-      </InlineNotice>
-    );
-  }
-  return null;
-}
-
-function captionFor(name: UsageWindowName, usage: Usage, locale: string, t: (key: string, options?: Record<string, unknown>) => string): string {
-  const window = usage[name];
-  if (name === "session") {
-    return window.resetsAt
-      ? t("usage.session.resets", { when: formatMoment(window.resetsAt, locale, t) })
-      : t("usage.session.notStarted", { count: usage.sessionHours });
-  }
-  if (name === "week") {
-    return window.resetsAt ? t("usage.week.resets", { when: formatMoment(window.resetsAt, locale, t) }) : "";
-  }
-  if (usage.trial.over || !window.resetsAt) return t("usage.trial.over");
-  return t("usage.trial.ends", { day: formatDay(window.resetsAt, locale), count: daysLeft(window.resetsAt) });
 }
 
 /**
@@ -186,14 +93,11 @@ function captionFor(name: UsageWindowName, usage: Usage, locale: string, t: (key
  * un contatore che non conta niente sarebbe solo rumore.
  */
 export function UsageMenu(): React.JSX.Element | null {
-  const { t, i18n } = useTranslation("common");
+  const { t } = useTranslation("common");
   const usage = useUsageQuery();
-  const locale = i18n.language || "it";
 
   if (!usage.data?.enabled) return null;
-  const data = usage.data;
-  const share = headlineShare(data);
-  const tone = data.blocking ? "danger" : usageTone(share);
+  const share = headlineShare(usage.data);
 
   return (
     <Popover>
@@ -203,7 +107,7 @@ export function UsageMenu(): React.JSX.Element | null {
           aria-label={t("usage.label", { percent: percent(share) })}
           className="ui-chrome-control"
         >
-          <UsageRing share={share} tone={tone} />
+          <UsageRing share={share} />
         </button>
       </PopoverTrigger>
 
@@ -221,27 +125,63 @@ export function UsageMenu(): React.JSX.Element | null {
             {usage.isFetching ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : t("usage.refresh")}
           </Button>
         </div>
-
-        <div className="flex max-h-[70dvh] flex-col gap-3 overflow-y-auto p-3">
-          <Banner usage={data} locale={locale} />
-
-          <WindowRow title={t("usage.session.title")} window={data.session} caption={captionFor("session", data, locale, t)} />
-
-          <p className="px-1 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {t("usage.limitsHeading")}
-          </p>
-          <WindowRow title={t("usage.week.title")} window={data.week} caption={captionFor("week", data, locale, t)} />
-          {data.trial.limited || data.trial.over ? (
-            <WindowRow
-              title={t("usage.trial.title")}
-              window={data.trial.over ? { ...data.trial, exhausted: true } : data.trial}
-              caption={captionFor("trial", data, locale, t)}
-            />
-          ) : null}
-
-          <p className={cn("px-1 text-xs leading-relaxed text-muted-foreground")}>{t("usage.explainer")}</p>
-        </div>
+        <UsagePanel usage={usage.data} />
       </PopoverContent>
     </Popover>
+  );
+}
+
+function UsagePanel({ usage }: { usage: ActiveUsage }): React.JSX.Element {
+  const { t, i18n } = useTranslation("common");
+  const locale = i18n.language || "it";
+  const upcoming = (iso: string) =>
+    formatUpcoming(iso, locale, {
+      today: (time) => t("usage.when.today", { time }),
+      tomorrow: (time) => t("usage.when.tomorrow", { time }),
+      weekday: (day, time) => t("usage.when.weekday", { day, time }),
+    });
+
+  const sessionCaption = usage.session.resetsAt
+    ? t("usage.session.resets", { when: upcoming(usage.session.resetsAt) })
+    : t("usage.session.notStarted", { count: usage.sessionHours });
+  const weekCaption = usage.week.resetsAt ? t("usage.week.resets", { when: upcoming(usage.week.resetsAt) }) : "";
+  const trialCaption =
+    usage.trialOver || !usage.trial.resetsAt
+      ? t("usage.trial.over")
+      : t("usage.trial.ends", { day: formatDayMonth(usage.trial.resetsAt, locale), count: daysUntil(usage.trial.resetsAt) });
+
+  let banner: React.JSX.Element | null = null;
+  if (usage.blocking) {
+    const key = usage.trialOver ? "trialOver" : usage.blocking;
+    const resetsAt = usage[usage.blocking].resetsAt;
+    banner = (
+      <InlineNotice tone="error" title={t(`usage.blocked.${key}.title`)}>
+        {t(`usage.blocked.${key}.body`, { when: resetsAt ? upcoming(resetsAt) : "" })}
+      </InlineNotice>
+    );
+  } else if (usage.forecast) {
+    banner = (
+      <InlineNotice tone="warning" title={t("usage.forecast.title")}>
+        {t(`usage.forecast.${usage.forecast.window}`, {
+          when: upcoming(usage.forecast.exhaustsAt),
+          reset: upcoming(usage.forecast.resetsAt),
+        })}
+      </InlineNotice>
+    );
+  }
+
+  return (
+    <div className="flex max-h-[70dvh] flex-col gap-3 overflow-y-auto p-3">
+      {banner}
+      <WindowRow title={t("usage.session.title")} window={usage.session} caption={sessionCaption} />
+      <p className="px-1 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("usage.limitsHeading")}
+      </p>
+      <WindowRow title={t("usage.week.title")} window={usage.week} caption={weekCaption} />
+      {usage.trial.limited || usage.trialOver ? (
+        <WindowRow title={t("usage.trial.title")} window={usage.trial} caption={trialCaption} />
+      ) : null}
+      <p className="px-1 text-xs leading-relaxed text-muted-foreground">{t("usage.explainer")}</p>
+    </div>
   );
 }
