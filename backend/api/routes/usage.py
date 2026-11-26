@@ -56,7 +56,13 @@ def _status(current: budget.UsageStatus) -> dict:
 
 @router.get("/me")
 def my_usage(principal: AuthPrincipal = Depends(require_principal)) -> dict:
-    """Quanto ha usato il consulente e quando si ripristina."""
+    """Quanto ha usato il consulente e quando si ripristina.
+
+    Con i limiti spenti non si legge niente: il pannello non compare, e la
+    barra lo chiede a ogni apertura dell'app.
+    """
+    if not settings.usage_limits_enabled:
+        return {"enabled": False, "session_hours": settings.usage_session_hours}
     return _status(budget.status(principal.user_id))
 
 

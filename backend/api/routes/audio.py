@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, W
 from backend.llm import LlmTask, OperationKind, operation, profile_for, transcribe
 from backend.schemas.chat_api import TranscriptionResponse
 from backend.llm.egress import Destination, EgressBlocked, require
-from backend.llm.budget import UsageLimitReached
+from backend.llm.budget import require_usage_available
 from backend.security import AuthPrincipal, authenticate_websocket, require_principal
 from backend.services.transcription import (
     build_live_transcription_options,
@@ -77,7 +77,7 @@ async def send_ws_event(websocket: WebSocket, event_type: str, **payload) -> Non
     await websocket.send_text(json.dumps({"type": event_type, **payload}, ensure_ascii=False))
 
 
-@router.post("/transcriptions")
+@router.post("/transcriptions", dependencies=[Depends(require_usage_available)])
 async def transcribe_audio(
     file: UploadFile = File(...),
     language: str | None = Form(default=None),
@@ -149,9 +149,6 @@ async def transcribe_audio(
                 file=(filename, audio_file, content_type),
                 options=transcription_options,
             )
-    except UsageLimitReached:
-        # Il limite d'uso arriva al consulente col suo messaggio (429).
-        raise
     except Exception as exc:
         # The upstream message can carry request and organization identifiers.
         # It belongs in the log, not in a response body.

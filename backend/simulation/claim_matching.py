@@ -131,7 +131,6 @@ def match_with_llm(process_id: str, activities: list[Activity], claims: list[Sou
     from langchain_core.messages import HumanMessage, SystemMessage
 
     from backend.llm import LlmTask, OperationKind, operation, run
-    from backend.llm.budget import UsageLimitReached
 
     user = render(activities, claims)
     try:
@@ -143,10 +142,6 @@ def match_with_llm(process_id: str, activities: list[Activity], claims: list[Sou
                 input_characters=len(user),
                 prompt_version=prompt_version(),
             )
-    except UsageLimitReached:
-        # Il limite d'uso non e' un guasto del modello: arriva al consulente
-        # col suo messaggio (429), non come «riprova fra poco».
-        raise
     # Il ripiego non deve rompere il pannello: con qualunque guasto restano le proposte lessicali.
     except Exception:
         logger.warning("Abbinamento affermazioni con LLM non riuscito: solo proposte lessicali.", exc_info=True)

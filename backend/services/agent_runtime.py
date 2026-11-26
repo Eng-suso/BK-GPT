@@ -294,10 +294,6 @@ def is_internal_stream_metadata(metadata: dict[str, Any]) -> bool:
 USAGE_LIMIT_CODE = "usage_limit_reached"
 
 
-def _window_of(detail: str | None) -> str:
-    return (detail or "").removeprefix("window=") or "session"
-
-
 def usage_limit_error(context: TraceContext) -> ApiError | None:
     """L'errore da mostrare se il consulente ha esaurito il suo limite d'uso."""
     from backend.llm import current_user_id
@@ -1212,12 +1208,6 @@ def stream_agent_deltas(
         if event.type == "delta" and event.content:
             yield event.content
         elif event.type == "error" and event.error:
-            if event.error.code == USAGE_LIMIT_CODE:
-                # Le rotte non in streaming lo lasciano passare: diventa un 429
-                # col suo messaggio, non un «agente guasto» da 502.
-                from backend.llm.budget import UsageLimitReached
-
-                raise UsageLimitReached(event.error.message, _window_of(event.error.detail))
             raise RuntimeError(event.error.message)
 
 

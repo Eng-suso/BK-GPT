@@ -50,7 +50,7 @@ from backend.schemas.workspace import (
     WorkspaceNotificationsResponse,
     WorkspaceSearchHit,
 )
-from backend.llm import OperationKind, budget, operation
+from backend.llm.budget import require_usage_available
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
 from backend.workspace_services.bpmn_draft import (
     generate_bpmn_draft,
@@ -1129,7 +1129,7 @@ def review_workspace_process_element(
     )
 
 
-@router.post("/processes/{process_id}/bpmn-draft")
+@router.post("/processes/{process_id}/bpmn-draft", dependencies=[Depends(require_usage_available)])
 def generate_workspace_bpmn_draft(process_id: str) -> BpmnDraftResponse:
     """Genera la bozza BPMN di un processo dal piano gia' materializzato.
 
@@ -1161,12 +1161,7 @@ def generate_workspace_bpmn_draft(process_id: str) -> BpmnDraftResponse:
     # scrittura del canvas e gira nel worker, cosi' chi ha premuto il
     # bottone vede il processo in pochi secondi invece di aspettare una
     # chiamata per fonte.
-    # Un'azione diretta del consulente: il limite d'uso si guarda qui, prima
-    # di spendere. La sintesi del piano che parte dentro e' figlia di questa
-    # operazione, e un lavoro accettato arriva in fondo.
-    with operation(OperationKind.BPMN_DRAFT, process_id=process_id) as opened:
-        budget.enforce(opened)
-        result = generate_bpmn_draft(process_id)
+    result = generate_bpmn_draft(process_id)
 
     if result.reason_code in {"process_not_found", "missing_bpmn_model", "model_disappeared"}:
         raise HTTPException(status_code=404, detail=result.reason)
@@ -1233,7 +1228,7 @@ def get_workspace_process_conformance(process_id: str) -> ConformanceStatusRespo
     )
 
 
-@router.post("/processes/{process_id}/conformance/repair")
+@router.post("/processes/{process_id}/conformance/repair", dependencies=[Depends(require_usage_available)])
 def repair_workspace_process_from_conformance(process_id: str) -> BpmnDraftResponse:
     """Riporta nel piano i punti che le fonti dicono e il disegno non mostra.
 
@@ -1254,9 +1249,7 @@ def repair_workspace_process_from_conformance(process_id: str) -> BpmnDraftRespo
     Side effects:
         Nuova versione del piano e del canvas; chiamate al modello.
     """
-    with operation(OperationKind.BPMN_DRAFT, process_id=process_id) as opened:
-        budget.enforce(opened)
-        result = generate_verified_bpmn_draft(process_id)
+    result = generate_verified_bpmn_draft(process_id)
     if result.reason_code in {"process_not_found", "missing_bpmn_model", "model_disappeared"}:
         raise HTTPException(status_code=404, detail=result.reason)
     model = get_bpmn_model(result.bpmn_model_id) if result.ok else None

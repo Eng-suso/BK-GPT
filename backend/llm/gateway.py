@@ -29,7 +29,6 @@ a chi chiama, e conta i token dal grezzo.
 
 from __future__ import annotations
 
-import asyncio
 import time
 from functools import lru_cache
 from typing import Any, TypeVar, overload
@@ -37,7 +36,7 @@ from typing import Any, TypeVar, overload
 import openai
 from pydantic import BaseModel
 
-from backend.llm.operation import Operation, current_operation
+from backend.llm.operation import current_operation
 from backend.llm.tasks import LlmTask, TaskProfile, profile_for
 from backend.llm.usage import (
     Outcome,
@@ -77,17 +76,6 @@ class _Gateway:
 
 
 GATEWAY = _Gateway()
-
-
-def _enforce_budget(operation: Operation) -> None:
-    """Il limite d'uso della prova, per le azioni dirette del consulente.
-
-    Import tardivo: il controllo legge il registro, e il gateway non deve
-    trascinarsi il database dietro solo per essere importato.
-    """
-    from backend.llm.budget import enforce
-
-    enforce(operation)
 
 
 class OperationNotOpen(RuntimeError):
@@ -223,7 +211,6 @@ def run(
             "`inherit_operation` se il lavoro passa a un thread."
         )
 
-    _enforce_budget(operation)
     profile = profile_for(task)
     model = profile.model
 
@@ -645,7 +632,6 @@ def embed(*, texts: list[str], dimensions: int) -> list[list[float]]:
             "cui e' nato il gateway."
         )
 
-    _enforce_budget(operation)
     profile = profile_for(LlmTask.EMBEDDING)
     model = profile.model
 
@@ -755,8 +741,6 @@ async def transcribe(*, file: Any, options: dict[str, Any]) -> Any:
             "`llm.operation(OperationKind.TRANSCRIPTION)` nella rotta."
         )
 
-    # Il controllo legge il database: fuori dal ciclo degli eventi.
-    await asyncio.to_thread(_enforce_budget, operation)
     profile = profile_for(LlmTask.TRANSCRIPTION)
     model = str(options.get("model") or profile.model)
     options = {**options, "model": model}
