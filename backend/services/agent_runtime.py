@@ -9,7 +9,7 @@ from threading import Thread
 from typing import Any, Iterator
 from uuid import UUID
 
-from backend.agent import CONTEXT_ROUTER_NODE, get_agent, normalize_model_name
+from backend.agent import CONTEXT_ROUTER_NODE, SUMMARY_NODE, get_agent, normalize_model_name
 from backend.agents.context_budget import collect_context_fingerprints, latest_context_fingerprint
 from backend.agents.chat_mode import bind_active_mode
 from backend.agents.primary_scope import agent_scope_state
@@ -69,7 +69,7 @@ KEEPALIVE_SECONDS = 15.0
 # Nodes whose work is plumbing, not the agent's answer: context loaders, routers,
 # loop evaluators. They emit nothing.
 INTERNAL_AGENT_NODES = {
-    "summarize",
+    SUMMARY_NODE,
     CONTEXT_ROUTER_NODE,
     "load_process_context",
     "load_canvas_context",
@@ -167,7 +167,11 @@ def task_for_node(node_name: str) -> LlmTask:
     ragionare. Il nome del nodo arriva da `backend.agent`, cosi' un rename non
     puo' far ricadere l'instradamento dentro il turno senza che niente si rompa.
     """
-    return LlmTask.CONTEXT_ROUTING if node_name == CONTEXT_ROUTER_NODE else LlmTask.CHAT_TURN
+    if node_name == CONTEXT_ROUTER_NODE:
+        return LlmTask.CONTEXT_ROUTING
+    if node_name == SUMMARY_NODE:
+        return LlmTask.THREAD_SUMMARY
+    return LlmTask.CHAT_TURN
 
 
 def prompt_version_for(task: LlmTask) -> str | None:
@@ -190,6 +194,10 @@ def prompt_version_for(task: LlmTask) -> str | None:
             from backend.memory.consultant_context_classifier import SISTEMA_CLASSIFICAZIONE
 
             return prompt_version(task.value, SISTEMA_CLASSIFICAZIONE)
+        if task is LlmTask.THREAD_SUMMARY:
+            # Il riassunto non legge la memoria procedurale: dargli la sua
+            # versione direbbe che un prompt mai mandato ha cambiato la spesa.
+            return None
 
         from backend.agent import load_procedural_memory
 

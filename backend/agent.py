@@ -51,6 +51,9 @@ from backend.services import degradation_counters
 # (`CONTEXT_ROUTING`): rinominare il nodo senza accorgersene farebbe ricadere
 # la spesa dell'instradamento dentro quella del turno, in silenzio.
 CONTEXT_ROUTER_NODE = "classify_and_select_context"
+# Il nodo del riassunto del thread: il runtime lo conta come compito suo
+# (`THREAD_SUMMARY`), non dentro il turno.
+SUMMARY_NODE = "summarize"
 
 PROCEDURAL_MEMORY_PATH = Path(__file__).parent / "memory" / "procedural" / "how_to_act.md"
 RECENT_MESSAGE_LIMIT = 8
@@ -507,7 +510,7 @@ def build_agent(
     # Il riassunto del thread e' manutenzione, non la risposta: resta al livello
     # del profilo anche quando il consulente chiede di ragionare a fondo.
     summary_llm = chat_client(
-        LlmTask.CHAT_TURN,
+        LlmTask.THREAD_SUMMARY,
         model_name=selected_model,
         streaming=True,
         tag="thread-summary",
@@ -556,7 +559,7 @@ def build_agent(
         return tool_scope_type(state.get("scope_type"))
 
     workflow = StateGraph(ConsultantState)
-    workflow.add_node("summarize", summarize_node)
+    workflow.add_node(SUMMARY_NODE, summarize_node)
     workflow.add_node(CONTEXT_ROUTER_NODE, classify_and_select_context_node)
     workflow.add_node(
         "consulting_subgraph",
@@ -599,8 +602,8 @@ def build_agent(
 
     workflow.add_node("task_review_subgraph", build_task_review_subgraph(llm, build_context_messages))
 
-    workflow.add_edge(START, "summarize")
-    workflow.add_edge("summarize", CONTEXT_ROUTER_NODE)
+    workflow.add_edge(START, SUMMARY_NODE)
+    workflow.add_edge(SUMMARY_NODE, CONTEXT_ROUTER_NODE)
     workflow.add_conditional_edges(
         CONTEXT_ROUTER_NODE,
         route_scope,
