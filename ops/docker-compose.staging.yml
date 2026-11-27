@@ -42,6 +42,10 @@ services:
       FORWARDED_ALLOW_IPS: 127.0.0.1
       WORKERS_IN_PROCESS: "false"
       # DELIR_ADMIN_TOKEN arriva dal file .env.<ambiente>: senza, l'app non parte.
+      # Gli stack locali entrano col token condiviso finche' il file non dice
+      # altro; la produzione vera usa gli account personali (Supabase).
+      DELIR_AUTH_PROVIDER: ${DELIR_AUTH_PROVIDER:-token}
+      USAGE_LIMITS_ENABLED: ${USAGE_LIMITS_ENABLED:-false}
       LANGSMITH_TRACING: "false"
       LANGSMITH_API_KEY: ""
       # Fornitori esterni registrati: vedi docs/compliance/fornitori-e-invii-dati.md.
