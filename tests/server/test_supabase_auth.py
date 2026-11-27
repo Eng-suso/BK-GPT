@@ -143,15 +143,38 @@ def test_without_a_token_nothing_is_served(client, supabase_api):
     assert client.get("/v1/auth/me", headers={"X-DeliR-Tenant-ID": TENANT}).status_code == 401
 
 
-def test_a_valid_session_on_a_tenant_outside_the_allowlist_is_refused(
-    client, supabase_api, signing_key
+@pytest.mark.parametrize("asked", ["altro", f"acct-{uuid.uuid4()}", "pilot"])
+def test_the_tenant_header_cannot_move_a_person_out_of_their_account(
+    client, supabase_api, signing_key, asked
 ):
+    """Lo spazio di lavoro e' l'account della persona: l'header non lo sposta."""
     response = client.get(
         "/v1/auth/me",
-        headers={**_headers(_token(signing_key[0])), "X-DeliR-Tenant-ID": "altro"},
+        headers={**_headers(_token(signing_key[0])), "X-DeliR-Tenant-ID": asked},
     )
 
-    assert response.status_code == 403
+    assert response.status_code == 200
+    assert response.json()["tenant_id"] == f"acct-{SUBJECT}"
+
+
+def test_two_people_get_two_accounts(client, supabase_api, signing_key):
+    other = str(uuid.uuid4())
+    mine = client.get("/v1/auth/me", headers=_headers(_token(signing_key[0])))
+    theirs = client.get("/v1/auth/me", headers=_headers(_token(signing_key[0], sub=other)))
+
+    assert mine.json()["tenant_id"] == f"acct-{SUBJECT}"
+    assert theirs.json()["tenant_id"] == f"acct-{other}"
+
+
+def test_a_subject_that_is_not_a_uuid_is_refused(client, supabase_api, signing_key):
+    """Il `sub` di Supabase e' un UUID; il verifier lo controlla gia', qui si ricontrolla."""
+    from backend.security import _account_principal
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as refused:
+        _account_principal("non-un-uuid")
+
+    assert refused.value.status_code == 401
 
 
 def test_when_supabase_cannot_be_verified_the_answer_is_503_not_open(
@@ -164,19 +187,42 @@ def test_when_supabase_cannot_be_verified_the_answer_is_503_not_open(
     assert response.status_code == 503
 
 
-def test_admin_operations_still_need_the_admin_key(client, supabase_api, signing_key):
-    """B1 non introduce ruoli: la chiave admin resta finche' non arriva la membership (B2)."""
+def test_a_person_governs_their_own_account(client, supabase_api, signing_key):
+    """Lo spazio e' solo suo: cancellare le proprie chat non chiede la chiave admin."""
+    response = client.delete(
+        "/v1/consultant-chat/sessions", headers=_headers(_token(signing_key[0]))
+    )
+
+    assert response.status_code == 200
+
+
+def test_spending_limits_still_need_the_platform_admin_key(client, supabase_api, signing_key):
+    """Il proprio limite di spesa non lo decide la persona: serve DELIR_ADMIN_TOKEN."""
     from backend.settings import settings
 
     token = _token(signing_key[0])
-    blocked = client.delete("/v1/consultant-chat/sessions", headers=_headers(token))
-    allowed = client.delete(
-        "/v1/consultant-chat/sessions",
-        headers=_headers(token, **{"X-DeliR-Admin-Token": settings.delir_admin_token}),
+    path = f"/v1/usage/plans/{SUBJECT}"
+    blocked = client.put(path, headers=_headers(token), json={"week_budget_usd": 1000})
+    allowed = client.get(
+        path, headers=_headers(token, **{"X-DeliR-Admin-Token": settings.delir_admin_token})
     )
 
     assert blocked.status_code == 403
     assert allowed.status_code == 200
+    assert allowed.json()["user_id"] == SUBJECT
+
+
+def test_a_plan_is_addressed_by_the_account_id(client, supabase_api, signing_key):
+    from backend.settings import settings
+
+    response = client.get(
+        "/v1/usage/plans/non-un-uuid",
+        headers=_headers(
+            _token(signing_key[0]), **{"X-DeliR-Admin-Token": settings.delir_admin_token}
+        ),
+    )
+
+    assert response.status_code == 422
 
 
 def test_a_websocket_authenticates_with_the_same_session(supabase_api, signing_key):
@@ -245,8 +291,12 @@ def test_without_supabase_the_config_says_nothing_more(client, monkeypatch, enab
     assert body == {"provider": expected, "supabase_url": "", "supabase_publishable_key": ""}
 
 
-def test_a_refused_tenant_reaches_the_browser_as_403_not_as_a_network_error(client, supabase_api, monkeypatch):
-    """Senza intestazioni CORS il browser non legge il 403 e mostra "backend irraggiungibile"."""
+def test_a_refusal_reaches_the_browser_with_cors_not_as_a_network_error(client, supabase_api, monkeypatch):
+    """Senza intestazioni CORS il browser non legge il rifiuto e mostra "backend irraggiungibile".
+
+    Con gli account personali il tenant sbagliato non conta piu': si rifiuta la
+    richiesta senza token (401), e il rifiuto deve arrivare leggibile.
+    """
     from backend.app import app
 
     origin = "http://127.0.0.1:3030"
@@ -257,7 +307,7 @@ def test_a_refused_tenant_reaches_the_browser_as_403_not_as_a_network_error(clie
         "/v1/auth/me", headers={"X-DeliR-Tenant-ID": "altro", "Origin": origin}
     )
 
-    assert response.status_code == 403
+    assert response.status_code == 401
     assert response.headers.get("access-control-allow-origin") in {origin, "*"}
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import uuid
 from contextvars import ContextVar, Token
 from hmac import compare_digest
 
@@ -16,6 +17,10 @@ from backend.settings import environment_is_open, settings
 
 TENANT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")
 DEFAULT_LOCAL_TENANT_ID = "local"
+#: Lo spazio di lavoro di un account personale si chiama `acct-<sub>`. Il
+#: prefisso e' riservato: nessun header puo' sceglierlo, lo assegna solo il
+#: server dopo aver verificato il token della persona.
+ACCOUNT_TENANT_PREFIX = "acct-"
 _tenant_id: ContextVar[str | None] = ContextVar("delir_tenant_id", default=None)
 # Il consulente della richiesta. Lo legge solo il registro dei consumi (tramite
 # l'operazione): non e' un'autorizzazione, e niente decide accessi su questo.
@@ -40,6 +45,48 @@ def set_current_tenant_id(tenant_id: str) -> Token[str | None]:
 
 def reset_current_tenant_id(token: Token[str | None]) -> None:
     _tenant_id.reset(token)
+
+
+def account_tenant_id(subject: str) -> str:
+    """Lo spazio di lavoro dell'account con questo `sub`: uno per persona.
+
+    Raises:
+        ValueError: se `subject` non e' un UUID (il `sub` di Supabase lo e').
+    """
+    return f"{ACCOUNT_TENANT_PREFIX}{uuid.UUID(str(subject))}"
+
+
+def is_account_tenant(tenant_id: str | None) -> bool:
+    return bool(tenant_id) and str(tenant_id).startswith(ACCOUNT_TENANT_PREFIX)
+
+
+def consultant_id_for_tenant(tenant_id: str | None) -> str:
+    """Il consulente canonical (memoria, grafo, Mem0) di uno spazio di lavoro.
+
+    Un account personale ha il suo: l'UUID della persona. Ogni altro spazio
+    (sviluppo, token condiviso del pilota) resta sul consulente di default, come
+    prima: la memoria gia' salvata li' non si perde.
+    """
+    if is_account_tenant(tenant_id):
+        return str(uuid.UUID(str(tenant_id)[len(ACCOUNT_TENANT_PREFIX):]))
+    return str(settings.default_consultant_id)
+
+
+def tenant_id_for_consultant(consultant_id: str) -> str | None:
+    """L'inverso, per i worker che partono dal consulente: `None` = quello di default."""
+    if str(consultant_id) == str(settings.default_consultant_id):
+        return None
+    return account_tenant_id(consultant_id)
+
+
+def get_current_consultant_id() -> str:
+    """Il consulente della richiesta (o del lavoro in coda) corrente.
+
+    Si ricava dallo spazio di lavoro del contesto, che la richiesta prende dal
+    token verificato e il worker dalla riga di coda: e' l'unico modo previsto
+    di sapere di chi e' la memoria su cui si sta lavorando.
+    """
+    return consultant_id_for_tenant(get_current_tenant_id())
 
 
 def get_current_user_id() -> str | None:
@@ -75,6 +122,19 @@ def assert_allowed_tenant(tenant_id: str) -> None:
     allowed = allowed_tenant_ids()
     if allowed and tenant_id not in allowed:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant non autorizzato.")
+
+
+def requested_tenant_id(value: str | None) -> str:
+    """Lo spazio di lavoro chiesto dal client (header o messaggio WebSocket).
+
+    Lo spazio di un account non si chiede: un client col token condiviso che
+    scrivesse `acct-<qualcuno>` leggerebbe la memoria di quella persona.
+    """
+    tenant_id = normalize_tenant_id(value)
+    if is_account_tenant(tenant_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant non autorizzato.")
+    assert_allowed_tenant(tenant_id)
+    return tenant_id
 
 
 def _admin_without_token() -> bool:
@@ -150,13 +210,27 @@ def _authenticate_bearer(supplied_token: str | None) -> tuple[str | None, str]:
     return None, "bearer"
 
 
+def _account_principal(subject: str) -> AuthPrincipal:
+    """Una persona autenticata: il suo spazio di lavoro e' il suo account."""
+    try:
+        tenant_id = account_tenant_id(subject)
+    except ValueError as exc:
+        raise _UNAUTHORIZED from exc
+    return AuthPrincipal(user_id=subject, tenant_id=tenant_id, auth_mode=SUPABASE_PROVIDER)
+
+
 def _resolve_principal(
     credentials: HTTPAuthorizationCredentials | None,
     x_delir_tenant_id: str | None,
     x_delir_user_id: str | None,
 ) -> AuthPrincipal:
-    tenant_id = normalize_tenant_id(x_delir_tenant_id)
-    assert_allowed_tenant(tenant_id)
+    if settings.delir_auth_enabled:
+        subject, auth_mode = _authenticate_bearer(_token_from_credentials(credentials))
+        if auth_mode == SUPABASE_PROVIDER and subject:
+            # L'header del tenant non conta: chi sei decide anche dove lavori.
+            return _account_principal(subject)
+
+    tenant_id = requested_tenant_id(x_delir_tenant_id)
 
     if not settings.delir_auth_enabled:
         return AuthPrincipal(
@@ -166,10 +240,8 @@ def _resolve_principal(
             auth_mode="local",
         )
 
-    subject, auth_mode = _authenticate_bearer(_token_from_credentials(credentials))
-
     return AuthPrincipal(
-        user_id=subject or x_delir_user_id or "api-client",
+        user_id=x_delir_user_id or "api-client",
         tenant_id=tenant_id,
         is_admin=not (settings.delir_admin_token or "").strip() and _admin_without_token(),
         auth_mode=auth_mode,
@@ -199,10 +271,29 @@ async def require_principal(
     return principal
 
 
-def require_admin_principal(
+def owns_its_workspace(principal: AuthPrincipal) -> bool:
+    """Una persona nel proprio account: lo spazio e' solo suo, quindi lo governa."""
+    return principal.auth_mode == SUPABASE_PROVIDER and principal.tenant_id == _safe_account_tenant(
+        principal.user_id
+    )
+
+
+def _safe_account_tenant(subject: str) -> str | None:
+    try:
+        return account_tenant_id(subject)
+    except ValueError:
+        return None
+
+
+def require_platform_admin(
     principal: AuthPrincipal = Depends(require_principal),
     x_delir_admin_token: str | None = Header(default=None),
 ) -> AuthPrincipal:
+    """Chi gestisce la piattaforma (per esempio i limiti di spesa di ogni persona).
+
+    Non basta essere padroni del proprio account: serve la chiave
+    `DELIR_ADMIN_TOKEN`, che sta fuori dal browser.
+    """
     if not settings.delir_auth_enabled:
         return principal.model_copy(update={"is_admin": True})
 
@@ -227,6 +318,20 @@ def require_admin_principal(
     return principal.model_copy(update={"is_admin": True})
 
 
+def require_admin_principal(
+    principal: AuthPrincipal = Depends(require_principal),
+    x_delir_admin_token: str | None = Header(default=None),
+) -> AuthPrincipal:
+    """Le operazioni distruttive su uno spazio di lavoro.
+
+    Nel proprio account una persona puo' cancellare le sue cose; in uno spazio
+    condiviso (token del pilota) serve la chiave amministrativa.
+    """
+    if owns_its_workspace(principal):
+        return principal.model_copy(update={"is_admin": True})
+    return require_platform_admin(principal, x_delir_admin_token)
+
+
 async def authenticate_websocket(websocket: WebSocket) -> AuthPrincipal | None:
     await websocket.accept()
     try:
@@ -244,28 +349,32 @@ async def authenticate_websocket(websocket: WebSocket) -> AuthPrincipal | None:
             or not isinstance(supplied_token, str)
         ):
             raise ValueError("invalid authentication fields")
-        tenant_id = normalize_tenant_id(supplied_tenant)
-        assert_allowed_tenant(tenant_id)
     except WebSocketDisconnect:
         return None
     except (HTTPException, ValueError, asyncio.TimeoutError):
         await websocket.close(code=1008)
         return None
 
-    if not settings.delir_auth_enabled:
-        principal = AuthPrincipal(user_id="local-dev", tenant_id=tenant_id, is_admin=True)
-        _bind_principal(principal)
-        return principal
-
     try:
-        subject, auth_mode = _authenticate_bearer(supplied_token)
+        principal = await run_in_threadpool(_websocket_principal, supplied_tenant, supplied_token)
     except HTTPException as exc:
         # 1008: credenziali rifiutate; 1011: verifica non disponibile lato server.
         await websocket.close(code=1011 if exc.status_code >= 500 else 1008)
         return None
 
-    principal = AuthPrincipal(
-        user_id=subject or "api-client", tenant_id=tenant_id, auth_mode=auth_mode
-    )
     _bind_principal(principal)
     return principal
+
+
+def _websocket_principal(supplied_tenant: str, supplied_token: str) -> AuthPrincipal:
+    """Come `_resolve_principal`, con il token nel primo messaggio invece che nell'header."""
+    if settings.delir_auth_enabled:
+        subject, auth_mode = _authenticate_bearer(supplied_token)
+        if auth_mode == SUPABASE_PROVIDER and subject:
+            return _account_principal(subject)
+        return AuthPrincipal(
+            user_id="api-client", tenant_id=requested_tenant_id(supplied_tenant), auth_mode=auth_mode
+        )
+    return AuthPrincipal(
+        user_id="local-dev", tenant_id=requested_tenant_id(supplied_tenant), is_admin=True
+    )
