@@ -811,6 +811,10 @@ class WorkspaceLlmUsage(WorkspaceBase):
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     reasoning_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     cached_input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Token scritti in cache: Anthropic li fattura a parte (1,25x l'ingresso).
+    cache_write_input_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     # I secondi di audio, per i compiti che si pagano a minuto (trascrizione).
     # E' anche cio' che il contatore d'uso mostra in ore al consulente.
     audio_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")

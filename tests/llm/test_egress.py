@@ -202,9 +202,13 @@ class TestNessunoLaAggira:
         """Ogni client verso un fornitore si costruisce in un punto che chiede
         il permesso a `egress.require`. Un modulo nuovo che costruisce un client
         da solo e' un invio che l'inventario non vede."""
-        costruttori = {"OpenAI", "AsyncOpenAI", "ChatOpenAI", "TavilySearch", "MemoryClient"}
+        costruttori = {
+            "OpenAI", "AsyncOpenAI", "ChatOpenAI", "TavilySearch", "MemoryClient",
+            "Anthropic", "AsyncAnthropic", "ChatAnthropic", "DeliRChatAnthropic",
+        }
         permessi = {
             "backend/llm/gateway.py",
+            "backend/llm/claude_client.py",
             "backend/llm_config.py",
             "backend/llm/chat_client.py",
             "backend/toolsets/web.py",

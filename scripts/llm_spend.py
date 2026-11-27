@@ -65,7 +65,9 @@ def _stampa_totale(titolo: str, totale: ledger.Totale) -> None:
         f"{totale.evitate} evitate dalla cache, {totale.fallite} fallite"
     )
     print(
-        f"  token: {_token(totale.input)} in ({_token(totale.cached)} da cache), "
+        f"  token: {_token(totale.input)} in ({_token(totale.cached)} da cache"
+        + (f", {_token(totale.cache_write)} scritti in cache" if totale.cache_write else "")
+        + "), "
         f"{_token(totale.output)} out ({_token(totale.reasoning)} di ragionamento)"
     )
     print(_copertura(totale))

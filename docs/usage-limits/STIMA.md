@@ -55,15 +55,15 @@ costruito davvero, e quindi come il fornitore lo mette in cache (sezione sotto).
 | | Tipica | Intensa |
 |---|---|---|
 | **Totale, GPT-6 Luna** | **$0.21** | **$3.50** |
-| **Totale, Claude Haiku 5.5**, quando il client metterà i segnalibri della cache | **$0.23** | **$3.63** |
+| **Totale, Claude Haiku 5.5**, se anche la chat fosse su Haiku | **$0.23** | **$3.63** |
 | di cui trascrizione dal vivo | — | $2.04 (58%) |
 | di cui file audio | — | $0.36 (10%) |
 | di cui modelli di linguaggio (Luna) | $0.21 | $1.10 |
 | di cui la chat (Luna) | $0.14 | $0.74 |
 | di cui embedding | $0.0004 | $0.002 |
 
-Senza cache la giornata intensa sale a $4.63, per entrambi i modelli. Haiku oggi
-non ha un client: la riga Haiku vale per il client che lo avrà, con i segnalibri.
+Senza cache la giornata intensa sale a $4.63, per entrambi i modelli. Oggi Haiku
+può fare i compiti del gateway, non la chat (vedi «Come si usano Luna e Haiku»).
 
 ### La cache, e perché decide il costo della chat
 
@@ -200,25 +200,41 @@ LLM_PRICES_JSON={"gpt-6-luna": {"input": 0.10, "output": 0.50, "cached_input": 0
 ($10 per milione di token, cento volte il prezzo vero) e il limite scatta dopo
 pochi turni.
 
-## Cosa serve per usare davvero Luna e Haiku
+## Come si usano Luna e Haiku
 
-1. **Haiku non si può ancora chiamare.** Il gateway costruisce solo client
-   OpenAI (`langchain_openai`): serve un client Anthropic in `backend/llm/`,
-   scelto per compito dal profilo.
-2. **Mem0 usa `gpt-4o-mini`** (`MEM0_LLM_MODEL`). Per restare su Luna e Haiku va
+Dal 2026-11-27 il gateway sa chiamare Claude. Un compito passa a Haiku con una
+riga di configurazione; tutti gli altri restano sul modello di conversazione.
+
+```bash
+ANTHROPIC_API_KEY=...
+LLM_TASK_MODELS_JSON={"retrieval_rerank": "claude-haiku-5-5", "entity_resolution": "claude-haiku-5-5", "simulation_what_if": "claude-haiku-5-5", "simulation_narrative": "claude-haiku-5-5", "claim_matching": "claude-haiku-5-5"}
+LLM_PRICES_JSON={..., "claude-haiku-5-5": {"input": 0.10, "output": 0.50, "cached_input": 0.01, "cache_write": 0.125}}
+DELIR_EGRESS_ALLOWED_HOSTS=...,api.anthropic.com   # in staging e prod
+```
+
+1. **La cache di Claude è accesa da sola.** Il client mette il segnalibro
+   `cache_control` alla fine del prompt di sistema, cioè della parte fissa del
+   compito; sotto i 512 token Anthropic non mette in cache e non fa pagare
+   niente. Il registro conta le scritture in cache (`cache_write_input_tokens`) e
+   le valorizza a `cache_write` del listino.
+2. **La chat resta su Luna.** Per Claude nella chat (turno, instradamento,
+   riassunto) serve una versione di `langchain-core` più recente di quella fissata
+   nel progetto: la 1.4.0 regge solo `langchain-anthropic` 1.4.4, che non accetta
+   istruzioni di sistema a metà conversazione, e il contratto dello specialista
+   sta in coda al prompt. È un aggiornamento della pila langchain, da fare a sé.
+3. **Anthropic va registrato fra i fornitori** prima di accenderlo in produzione
+   (`docs/compliance/fornitori-e-invii-dati.md`, oggi NOT VALIDATED), e il suo
+   host aggiunto a `DELIR_EGRESS_ALLOWED_HOSTS`.
+4. **Mem0 usa `gpt-4o-mini`** (`MEM0_LLM_MODEL`). Per restare su Luna e Haiku va
    impostato `MEM0_LLM_MODEL=gpt-6-luna`.
-3. **Ripartizione suggerita**, da validare con gli eval:
+5. **Ripartizione suggerita**, da validare con gli eval:
    - Luna per la chat e per l'estrazione del piano, che con molte fonti può
      superare i 100K token, dove Haiku costerebbe 5 volte tanto;
-   - Haiku per i compiti piccoli con schema stretto: instradamento, rerank,
-     giudizio sulle entità, what-if, racconto, abbinamento delle affermazioni.
+   - Haiku per i compiti piccoli con schema stretto: rerank, giudizio sulle
+     entità, what-if, racconto, abbinamento delle affermazioni (l'instradamento
+     segue la chat).
 
    Il costo non cambia: lo scopo è la qualità.
-4. **Haiku va chiamato con la cache accesa**, cioè con i segnalibri
-   `cache_control` sulla parte fissa del prompt: senza, i modelli costano quasi
-   il doppio (vedi sopra). E il listino del registro (`ModelPrice` in
-   `backend/llm/prices.py`) va esteso con il prezzo della scrittura in cache: oggi
-   non ce l'ha, e il registro sotto-conterebbe Haiku rispetto alla fattura.
 
 ## Rischi della stima
 

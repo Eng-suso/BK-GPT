@@ -22,3 +22,6 @@ rule:
     - pattern: AsyncOpenAI($$$)
     - pattern: OpenAI($$$)
     - pattern: OpenAIEmbeddings($$$)
+    - pattern: ChatAnthropic($$$)
+    - pattern: Anthropic($$$)
+    - pattern: AsyncAnthropic($$$)

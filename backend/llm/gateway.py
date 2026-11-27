@@ -33,10 +33,12 @@ import time
 from functools import lru_cache
 from typing import Any, TypeVar, overload
 
+import anthropic
 import openai
 from pydantic import BaseModel
 
 from backend.llm.operation import current_operation
+from backend.llm.providers import Provider
 from backend.llm.tasks import LlmTask, TaskProfile, profile_for
 from backend.llm.usage import (
     Outcome,
@@ -100,8 +102,20 @@ TRANSIENT_PROVIDER_ERRORS: tuple[type[BaseException], ...] = (
     openai.APIConnectionError,  # comprende APITimeoutError
     openai.RateLimitError,
     openai.InternalServerError,
+    anthropic.APIConnectionError,
+    anthropic.RateLimitError,
+    anthropic.InternalServerError,
+    # 529: Anthropic e' sovraccarico. Passa da solo, come un 503.
+    anthropic.OverloadedError,
     TimeoutError,
     ConnectionError,
+)
+
+# Il fornitore rifiuta la richiesta per come e' fatta (400): il segnale con cui
+# l'output strutturato passa al JSON libero, con qualunque dei due fornitori.
+_BAD_REQUEST_ERRORS: tuple[type[BaseException], ...] = (
+    openai.BadRequestError,
+    anthropic.BadRequestError,
 )
 
 
@@ -112,6 +126,11 @@ def _client(profile: TaskProfile, input_characters: int | None):
     kwargs alla chiamata API, e il fornitore rifiuterebbe un parametro che non
     conosce. E' una policy del client, non un argomento della richiesta.
     """
+    if profile.provider is Provider.ANTHROPIC:
+        from backend.llm.claude_client import claude_client
+
+        return claude_client(profile, input_characters=input_characters, max_retries=_max_retries(profile))
+
     from langchain_openai import ChatOpenAI
 
     kwargs = chat_openai_kwargs(
@@ -120,6 +139,9 @@ def _client(profile: TaskProfile, input_characters: int | None):
         # Un compito che legge poco non guadagna niente da un timeout lungo:
         # lo allunga soltanto il tempo che ci vuole ad accorgersi del guasto.
         input_characters=input_characters if profile.scales_with_input else None,
+        # Il modello del compito, che puo' non essere quello di conversazione
+        # (`LLM_TASK_MODELS_JSON`).
+        model=profile.model,
     )
     kwargs["max_retries"] = _max_retries(profile)
     # Quando LangSmith e' spento - nei test, sempre - la traccia la scriviamo
@@ -303,8 +325,11 @@ _NATIVE_SCHEMA_REJECTED: set[tuple[str, str]] = set()
 _JSON_REPAIRS = 1
 
 
-def _provider_key() -> tuple[str, str]:
-    return (settings.openai_base_url or "", settings.openai_model or "")
+def _provider_key(profile: TaskProfile) -> tuple[str, str]:
+    """Chi ha rifiutato lo schema: l'endpoint e il modello del compito."""
+    if profile.provider is Provider.ANTHROPIC:
+        return (Provider.ANTHROPIC.value, profile.model)
+    return (settings.openai_base_url or "", profile.model)
 
 
 def reset_structured_output_memory() -> None:
@@ -322,7 +347,7 @@ def _run_structured(
     prompt_version: str | None,
 ) -> _Output:
     """Un compito strutturato: schema nativo, e JSON libero dove non passa."""
-    key = _provider_key()
+    key = _provider_key(profile)
     if key not in _NATIVE_SCHEMA_REJECTED:
         try:
             return _run_native_schema(
@@ -333,7 +358,7 @@ def _run_structured(
                 output=output,
                 prompt_version=prompt_version,
             )
-        except openai.BadRequestError:
+        except _BAD_REQUEST_ERRORS:
             # La riga del 400 l'ha gia' lasciata `_run_native_schema`.
             degradation_counters.bump(
                 "llm_structured_output", "native_schema_rejected", detail=key[1] or task.value
@@ -491,7 +516,12 @@ def _run_free_json(
         raise OperationNotOpen(f"il compito {task.value} richiede un'operazione aperta")
     model = profile.model
     conversation = [*_as_message_list(messages), HumanMessage(content=_schema_instruction(output))]
-    runnable = client.bind(response_format={"type": "json_object"})
+    # Claude non ha `json_object`: langchain-anthropic lo rifiuta prima ancora di
+    # mandare la richiesta. Si parte dal testo, con lo schema nel prompt.
+    if profile.provider is Provider.ANTHROPIC:
+        runnable = client
+    else:
+        runnable = client.bind(response_format={"type": "json_object"})
     last_error: Exception | None = None
 
     for attempt in range(_JSON_REPAIRS + 1):
@@ -499,7 +529,7 @@ def _run_free_json(
         try:
             try:
                 message = stream_to_final(runnable, conversation)
-            except openai.BadRequestError as exc:
+            except _BAD_REQUEST_ERRORS as exc:
                 if runnable is client:
                     raise
                 record(

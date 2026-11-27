@@ -208,6 +208,13 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --prefix frontend --legacy-peer-deps
 
+      # The runner image ships Microsoft's apt repository (packages.microsoft.com),
+      # which no job here uses. When it answers 403 or loses its signature,
+      # `apt-get update` fails and `playwright install --with-deps` fails with it,
+      # on every mirror. Drop it before installing the browsers' system packages.
+      - name: Drop unused third-party apt sources
+        run: sudo grep -rlZ 'packages.microsoft.com' /etc/apt/sources.list.d/ 2>/dev/null | xargs -0 -r sudo rm -f
+
       # --with-deps installs system packages from the runner's apt mirror. The
       # Azure mirror sometimes serves them at a few kB/s and the job hit its
       # timeout before any spec ran (#146): one bounded attempt, then the
@@ -302,6 +309,13 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --prefix frontend --legacy-peer-deps
 
+      # The runner image ships Microsoft's apt repository (packages.microsoft.com),
+      # which no job here uses. When it answers 403 or loses its signature,
+      # `apt-get update` fails and `playwright install --with-deps` fails with it,
+      # on every mirror. Drop it before installing the browsers' system packages.
+      - name: Drop unused third-party apt sources
+        run: sudo grep -rlZ 'packages.microsoft.com' /etc/apt/sources.list.d/ 2>/dev/null | xargs -0 -r sudo rm -f
+
       - name: Install Playwright chromium
         run: npx playwright install chromium --with-deps
 
@@ -389,6 +403,13 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci --prefix frontend --legacy-peer-deps
+
+      # The runner image ships Microsoft's apt repository (packages.microsoft.com),
+      # which no job here uses. When it answers 403 or loses its signature,
+      # `apt-get update` fails and `playwright install --with-deps` fails with it,
+      # on every mirror. Drop it before installing the browsers' system packages.
+      - name: Drop unused third-party apt sources
+        run: sudo grep -rlZ 'packages.microsoft.com' /etc/apt/sources.list.d/ 2>/dev/null | xargs -0 -r sudo rm -f
 
       - name: Install Playwright chromium
         run: npx playwright install chromium --with-deps

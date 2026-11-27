@@ -30,6 +30,7 @@ configurazione la accende; una destinazione spenta resta elencata.
 | Chiave | Fornitore (default) | Host di default | Cosa riceve | Attiva quando | Compiti |
 |---|---|---|---|---|---|
 | `llm_chat` | OpenAI, o il fornitore di `OPENAI_BASE_URL` | `api.openai.com` | Interviste, testi dei documenti, messaggi di chat, piani di processo, scenari | `OPENAI_API_KEY` impostata | Tutti tranne embedding e trascrizione (vedi §2) |
+| `llm_claude` | Anthropic (Claude) | `api.anthropic.com` | Come `llm_chat`, per i soli compiti assegnati a un modello `claude-...` | `ANTHROPIC_API_KEY` impostata e almeno un compito in `LLM_TASK_MODELS_JSON` su Claude | Quelli di `LLM_TASK_MODELS_JSON` con un modello `claude-...`; mai la chat, l'embedding, l'audio o Mem0 |
 | `llm_embedding` | OpenAI | `api.openai.com` | Frammenti di documenti e interviste | `OPENAI_API_KEY` impostata | `embedding` |
 | `transcription` | OpenAI | `api.openai.com` | **File audio** delle interviste (voce = dato personale) | `OPENAI_API_KEY` impostata | `transcription` |
 | `transcription_live` | OpenAI Realtime | `api.openai.com` (wss) | **Audio dal microfono** in tempo reale | `OPENAI_API_KEY` impostata | `live_transcription` (WebSocket diretto; una riga nel registro per sessione, con i secondi di audio) |
@@ -50,9 +51,13 @@ configurazione la accende; una destinazione spenta resta elencata.
 2. **La trascrizione live non passa dal gateway**: apre un WebSocket diretto
    verso OpenAI Realtime. Ora l'URL viene dal registro e il permesso è
    controllato, ma l'audio esce comunque grezzo, prima di qualunque filtro PII.
-3. **LangSmith riceve tutto quello che riceve il modello.** Accenderlo in
+3. **Un compito su Claude lascia `llm_chat` ed esce verso Anthropic.** La tabella
+   del §2 indica la destinazione di default; con `LLM_TASK_MODELS_JSON` un compito
+   può passare a `llm_claude`, e `GET /v1/observability/egress` lo mostra. Anthropic va
+   registrato fra i subresponsabili prima di accenderlo in produzione.
+4. **LangSmith riceve tutto quello che riceve il modello.** Accenderlo in
    produzione aggiunge un subresponsabile con gli stessi dati del modello.
-4. **Il tracer locale** (`data/traces/*.jsonl`) scriveva i testi dei prompt anche
+5. **Il tracer locale** (`data/traces/*.jsonl`) scriveva i testi dei prompt anche
    in produzione. Dal 23/11/2026 i testi si scrivono solo con `DELIR_ENVIRONMENT`
    `dev`, `local` o `test`. In staging e prod restano solo tempi, token ed esiti, e
    `DELIR_LOCAL_TRACE_PAYLOAD=1` non li riaccende.
@@ -94,6 +99,7 @@ a memoria.
 | Fornitore | Ruolo | Dati | Destinazioni / uso | Regione | DPA | Conservazione e training | Trasferimento extra-SEE | Stato |
 |---|---|---|---|---|---|---|---|---|
 | OpenAI | Subresponsabile | Contenuti del cliente, audio | `llm_chat`, `llm_embedding`, `transcription`, `transcription_live`, `memory_*` | Da verificare (US di default; data residency UE da valutare) | Da firmare | API: niente training di default; conservazione per abuse monitoring da verificare, Zero Data Retention da richiedere | Sì, se US: SCC + valutazione | NOT VALIDATED |
+| Anthropic | Subresponsabile, se acceso | Contenuti del cliente dei compiti assegnati a Claude | `llm_claude` | Da verificare (US di default) | Da firmare | API: niente training di default; conservazione da verificare, Zero Data Retention da richiedere | Sì, se US: SCC + valutazione | NOT VALIDATED (spento senza `ANTHROPIC_API_KEY`) |
 | LangChain Inc. (LangSmith) | Subresponsabile, se acceso | Prompt e risposte interi | `tracing` | Da verificare (esiste un endpoint UE) | Da firmare | Conservazione delle tracce da configurare | Da verificare | NOT VALIDATED (spento in prod di default) |
 | Tavily | Subresponsabile, se acceso | Query di ricerca | `web_search` | Da verificare | Da verificare | Da verificare | Da verificare | NOT VALIDATED (spento senza chiave) |
 | Oracle (OCI) | Hosting | Tutto, a riposo | VM, Postgres, Neo4j, volumi | Da verificare (regione della VM) | Da verificare | — | Da verificare | NOT VALIDATED |

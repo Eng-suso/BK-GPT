@@ -37,6 +37,7 @@ dependencies = [
     "defusedxml>=0.7.1",
     "pyjwt[crypto]>=2.10",
     "mcp>=2,<3",
+    "langchain-anthropic==1.4.4",
 ]
 
 [dependency-groups]
