@@ -157,5 +157,12 @@ describe("waitingCausesFor (B3.2)", () => {
     expect(waitingCausesFor(summary, "Task_B")).toEqual({ kind: "none" });
     expect(waitingCausesFor(real({ waitingCauses: null }), "Task_B")).toEqual({ kind: "unavailable" });
     expect(waitingCausesFor(real(), "Task_B")).toEqual({ kind: "unavailable" });
+    expect(waitingCausesFor(summary, "Task_C")).toEqual({ kind: "unavailable" });
+  });
+
+  it("hides causes that would read 0%", () => {
+    const summary = real({ waitingCauses: { activities: [{ name: "Paga", el: "Task_B", executions: 4, waiting: 4, seconds: seconds(36000, 0, 0, 20) }] } });
+    const result = waitingCausesFor(summary, "Task_B");
+    expect(result.kind === "causes" && result.causes.map((c) => c.cause)).toEqual(["contention"]);
   });
 });

@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
+
+import pytest
 
 from backend.eventlog.kpi import summarize, waiting_causes
 from backend.eventlog.model import CanonicalEvent, EventLog
@@ -44,12 +47,19 @@ def test_without_start_times_the_causes_are_absent_not_zero():
     assert waiting_causes(_log(with_start=False), {}) is None
 
 
-def test_a_person_seen_once_a_day_gets_a_narrow_schedule():
-    """Limite noto (B3.2): l'orario si scopre da quando la persona compare nel log.
-
-    Chi compare solo alle 16 ha un orario 16-17, e l'attesa prima conta come fuori orario.
-    Seguito proposto in docs/vpt/LOG.md (orario comune per i gruppi con pochi eventi).
-    """
+@pytest.mark.xfail(strict=True, reason="limite noto di B3.2: orario scoperto solo da quando la persona compare (seguito in LOG.md)")
+def test_a_person_seen_once_a_day_is_not_called_off_shift():
+    """Chi compare solo alle 16 riceve oggi un orario 16-17 e l'attesa prima conta come fuori orario."""
     events = [e for e in _log().events if e.activity != "Archivia"]
     rows = {row["name"]: row for row in waiting_causes(EventLog(origin="real", events=tuple(events)), {})["activities"]}
-    assert rows["Paga"]["seconds"]["unavailability"] == 5 * 3 * 3600
+    assert rows["Paga"]["seconds"]["extraneous"] == 5 * 3 * 3600
+
+
+def test_working_hours_are_read_in_the_local_time_of_the_log():
+    rome = ZoneInfo("Europe/Rome")
+    local = EventLog(origin="real", events=tuple(
+        CanonicalEvent(e.case_id, e.activity, e.end.replace(tzinfo=rome), e.start.replace(tzinfo=rome), resource=e.resource)
+        for e in _log().events
+    ))
+    rows = {row["name"]: row for row in waiting_causes(local, {})["activities"]}
+    assert rows["Paga"]["seconds"]["extraneous"] == 5 * 3 * 3600  # stesse ore locali, stesso risultato

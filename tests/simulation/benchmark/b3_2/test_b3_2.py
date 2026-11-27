@@ -69,11 +69,29 @@ def test_idle_resource_on_shift_is_an_extraneous_delay():
 
 
 def test_executions_started_together_are_a_batch():
-    log = [ex(c, "A", at(0, 9 + n), at(0, 9.5 + n), "x") for n, c in enumerate("abc")]
-    log += [ex(c, "Send", at(0, 15), at(0, 15.2), "r") for c in "abc"]
+    log = [ex(c, "A", at(0, 9 + n) + 7.3, at(0, 9.5 + n), "x") for n, c in enumerate("abc")]
+    log += [ex(c, "Send", at(0, 15) + 0.4 * n, at(0, 15.2), "r") for n, c in enumerate("abc")]
     waits = attribute(log, calendars={"x": NINE_TO_FIVE, "r": NINE_TO_FIVE})[3:]
     assert [w.dominant() for w in waits] == ["batching"] * 3
     assert waits[0].seconds["batching"] == pytest.approx(5.5 * H)
+
+
+def test_starts_recorded_to_the_minute_are_never_a_batch():
+    log = [ex(c, "A", at(0, 9 + n), at(0, 9.5 + n), "x") for n, c in enumerate("abc")]
+    log += [ex(c, "Send", at(0, 15), at(0, 15.2), "r") for c in "abc"]
+    assert {w.dominant() for w in attribute(log, calendars={"x": NINE_TO_FIVE, "r": NINE_TO_FIVE})[3:]} == {"extraneous"}
+
+
+def test_an_execution_without_resource_still_enables_the_next_one():
+    log = [ex("a", "A", at(0, 9), at(0, 10), "x"), ex("a", "B", at(0, 10), at(0, 12), ""), ex("a", "C", at(0, 13), at(0, 14), "r")]
+    waits = attribute(log, calendars={"x": NINE_TO_FIVE, "r": NINE_TO_FIVE})
+    assert waits[1].enabled is None  # la sua attesa non si spiega
+    assert waits[2].enabled == at(0, 12) and waits[2].seconds["extraneous"] == pytest.approx(H)
+
+
+def test_a_recorded_enablement_is_used_as_is():
+    log = [ex("a", "A", at(0, 9), at(0, 10), "x"), Execution("a", "B", at(0, 13), at(0, 14), "r", enabled=at(0, 12))]
+    assert attribute(log, calendars={"x": NINE_TO_FIVE, "r": NINE_TO_FIVE})[1].enabled == at(0, 12)
 
 
 def test_first_execution_of_a_case_has_no_observable_enablement():

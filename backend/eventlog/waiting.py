@@ -38,11 +38,15 @@ CAUSES: tuple[Cause, ...] = ("contention", "unavailability", "extraneous", "batc
 
 @dataclass(frozen=True, slots=True)
 class Execution:
+    """Un'esecuzione del log. Gli istanti sono secondi su un asse continuo (epoch, o l'ora locale
+    del log: vedi ``executions_of``); orari e settimane si leggono su quell'asse come UTC."""
+
     case_id: str
     activity: str
-    start: float  # secondi epoch
+    start: float
     end: float
-    resource: str
+    resource: str  # "" se il log non la registra: l'esecuzione abilita le altre, la sua attesa non si spiega
+    enabled: float | None = None  # l'abilitazione, se il log la registra
 
 
 @dataclass(slots=True)
@@ -130,6 +134,9 @@ def enablements(executions: Sequence[Execution], concurrent: set[frozenset[str]]
     for indexes in by_case.values():
         for i in indexes:
             e = executions[i]
+            if e.enabled is not None:
+                enabled[i] = min(e.enabled, e.start)
+                continue
             best = None
             for j in indexes:
                 p = executions[j]
@@ -147,7 +154,8 @@ def resource_groups(executions: Sequence[Execution]) -> dict[str, str]:
     """Risorsa -> gruppo: le risorse che eseguono lo stesso insieme di attivita'."""
     activities: dict[str, set[str]] = defaultdict(set)
     for e in executions:
-        activities[e.resource].add(e.activity)
+        if e.resource:
+            activities[e.resource].add(e.activity)
     return {r: "|".join(sorted(acts)) for r, acts in activities.items()}
 
 
@@ -161,6 +169,8 @@ def discover_calendars(executions: Sequence[Execution], *, slot: int = 3600, sup
     slots: dict[str, dict[int, set[int]]] = defaultdict(lambda: defaultdict(set))
     per_day = 86400 // slot
     for e in executions:
+        if not e.resource:
+            continue
         g = group_of[e.resource]
         for t in (e.start, e.end):
             week = int((t - _week_offset(t)) // WEEK)
@@ -226,8 +236,14 @@ class BusyPeriods:
         return None
 
 
-def decompose(window: tuple[float, float], busy: BusyPeriods, calendar: Calendar, *, gap: float) -> dict[str, float]:
-    """Scompone ``[a, b]``: dalla fine all'indietro occupata/fuori orario senza buchi, poi ritardo esterno."""
+def decompose(window: tuple[float, float], busy: BusyPeriods, calendar: Calendar, *, gap: float,
+              simulator_shares: bool = False) -> dict[str, float]:
+    """Scompone ``[a, b]``: dalla fine all'indietro occupata/fuori orario senza buchi, poi ritardo esterno.
+
+    Con ``simulator_shares`` aggiunge ``idle`` e ``on_shift``: del ritardo esterno, i secondi con la
+    risorsa libera e in orario e quelli in orario. Non sono cause: servono agli scenari di ricerca
+    di B3.2 (v2-v5) e costano un giro sul lavoro della risorsa.
+    """
     a, b = window
     t = b
     contention = unavailable = 0.0
@@ -247,12 +263,12 @@ def decompose(window: tuple[float, float], busy: BusyPeriods, calendar: Calendar
         else:
             break
     extraneous = max(0.0, t - a)
-    # Del ritardo esterno, i secondi con la risorsa libera e in orario e quelli in orario
-    # (non sono cause: servono al simulatore, v2 e v3).
-    idle = calendar.on_within(a, t) - _busy_within(busy, a, t, calendar) if extraneous else 0.0
-    on_shift = calendar.on_within(a, t) if extraneous else 0.0
-    return {"contention": contention, "unavailability": unavailable, "extraneous": extraneous, "batching": 0.0,
-            "idle": max(0.0, idle), "on_shift": on_shift}
+    seconds = {"contention": contention, "unavailability": unavailable, "extraneous": extraneous, "batching": 0.0}
+    if simulator_shares:
+        on_shift = calendar.on_within(a, t) if extraneous else 0.0
+        seconds["idle"] = max(0.0, on_shift - _busy_within(busy, a, t, calendar)) if extraneous else 0.0
+        seconds["on_shift"] = on_shift
+    return seconds
 
 
 def _busy_within(busy: BusyPeriods, a: float, b: float, calendar: Calendar) -> float:
@@ -272,29 +288,45 @@ _EPS = 1e-3
 
 
 def attribute(executions: Sequence[Execution], *, gap: float = 1.0, concurrency: float = 0.5,
-              calendars: dict[str, Calendar] | None = None, batch_tolerance: float = 1.0) -> list[Waiting]:
+              calendars: dict[str, Calendar] | None = None, batch_tolerance: float = 1.0,
+              simulator_shares: bool = False) -> list[Waiting]:
     """Le attese di ogni esecuzione, per causa (secondi). ``calendars`` se gia' noti, altrimenti scoperti.
 
     Il lavoro della risorsa conta solo se iniziato prima dell'esecuzione: la propria e quelle
-    avviate insieme (batch) non la occupano.
+    avviate insieme (batch) non la occupano. Un'esecuzione senza risorsa abilita le altre ma la
+    sua attesa non si spiega (``enabled`` None). Se gli inizi sono registrati al minuto (quasi
+    tutti a secondi zero) il batching non si cerca: esecuzioni diverse avrebbero lo stesso inizio.
     """
     enabled = enablements(executions, concurrent_pairs(executions, concurrency))
     calendars = discover_calendars(executions) if calendars is None else calendars
     work: dict[str, list[tuple[float, float]]] = defaultdict(list)
     for e in executions:
-        work[e.resource].append((e.start, e.end))
+        if e.resource:
+            work[e.resource].append((e.start, e.end))
     busy = {r: BusyPeriods(intervals) for r, intervals in work.items()}
-    batched = _batches(executions, batch_tolerance)
+    batched = {} if _minute_resolution(executions) else _batches(executions, batch_tolerance)
     result: list[Waiting] = []
     for i, e in enumerate(executions):
+        if not e.resource:
+            result.append(Waiting(None, dict.fromkeys(CAUSES, 0.0)))
+            continue
         if enabled[i] is None or enabled[i] >= e.start:
             result.append(Waiting(enabled[i], dict.fromkeys(CAUSES, 0.0)))
             continue
-        seconds = decompose((enabled[i], e.start), busy[e.resource], calendars.get(e.resource, Calendar(always=True)), gap=gap)
+        seconds = decompose((enabled[i], e.start), busy[e.resource], calendars.get(e.resource, Calendar(always=True)), gap=gap,
+                            simulator_shares=simulator_shares)
         if i in batched:
-            seconds["batching"], seconds["extraneous"], seconds["idle"], seconds["on_shift"] = seconds["extraneous"], 0.0, 0.0, 0.0
+            seconds["batching"], seconds["extraneous"] = seconds["extraneous"], 0.0
+            if simulator_shares:
+                seconds["idle"] = seconds["on_shift"] = 0.0
         result.append(Waiting(enabled[i], seconds))
     return result
+
+
+def _minute_resolution(executions: Sequence[Execution], share: float = 0.95) -> bool:
+    """Inizi registrati al minuto: quasi tutti cadono a secondi zero."""
+    starts = [e.start for e in executions if e.resource]
+    return bool(starts) and sum(s % 60 == 0 for s in starts) / len(starts) >= share
 
 
 def _batches(executions: Sequence[Execution], tolerance: float) -> dict[int, int]:
@@ -358,12 +390,26 @@ def waiting_by_activity(executions: Sequence[Execution]) -> list[ActivityWaiting
     return sorted(result, key=lambda r: (-r.total, r.activity))
 
 
-def executions_of(events: Iterable[tuple[str, str, datetime | None, datetime, str | None]]) -> tuple[list[Execution], float]:
-    """Le esecuzioni con inizio e risorsa, e la quota degli eventi che li hanno."""
+def executions_of(events: Iterable[tuple[str, str, datetime | None, datetime, str | None, datetime | None]]) -> tuple[list[Execution], float]:
+    """Le esecuzioni con l'inizio, sull'ora locale del log, e la quota degli eventi con inizio e risorsa.
+
+    Gli istanti diventano secondi dell'ora locale di ogni timestamp (epoch piu' lo scarto dal
+    fuso), cosi' gli orari di lavoro si leggono come li vive l'azienda; al cambio dell'ora una
+    notte e' piu' corta o piu' lunga di un'ora. Le tuple sono (caso, attivita', inizio, fine,
+    risorsa, abilitazione registrata).
+    """
     executions: list[Execution] = []
-    total = 0
-    for case_id, activity, start, end, resource in events:
+    total = observed = 0
+    for case_id, activity, start, end, resource, enabled in events:
         total += 1
-        if start is not None and resource:
-            executions.append(Execution(case_id, activity, start.timestamp(), end.timestamp(), resource))
-    return executions, (len(executions) / total if total else 0.0)
+        if start is None:
+            continue
+        observed += bool(resource)
+        executions.append(Execution(case_id, activity, _local(start), _local(end), resource or "",
+                                    _local(enabled) if enabled is not None else None))
+    return executions, (observed / total if total else 0.0)
+
+
+def _local(moment: datetime) -> float:
+    offset = moment.utcoffset()
+    return moment.timestamp() + (offset.total_seconds() if offset else 0.0)

@@ -61,8 +61,11 @@ def timing(log: EventLog) -> Timing:
     return "complete_only" if with_start == 0 else "mixed"
 
 
-def summarize(log: EventLog, name_to_element_id: dict[str, str] | None = None) -> dict:
-    """I KPI del log, con ``timing`` e ``source`` per dire su cosa si basano."""
+def summarize(log: EventLog, name_to_element_id: dict[str, str] | None = None, *, with_waiting_causes: bool = True) -> dict:
+    """I KPI del log, con ``timing`` e ``source`` per dire su cosa si basano.
+
+    ``with_waiting_causes=False`` salta le cause delle attese (chi non le legge non le paga).
+    """
     if not log.events:
         raise ValueError("Il log non contiene eventi validi: niente da misurare.")
     summary = get_engine().summarize_events(to_log_events(log), name_to_element_id=name_to_element_id or {})
@@ -72,13 +75,14 @@ def summarize(log: EventLog, name_to_element_id: dict[str, str] | None = None) -
     summary["firstEnableObserved"] = all(events[0].enabled is not None for events in log.cases().values())
     summary["enablementObserved"] = all(event.enabled is not None for event in log.events)
     summary["source"] = log.origin
-    summary["waitingCauses"] = waiting_causes(log, name_to_element_id or {})
+    if with_waiting_causes:
+        summary["waitingCauses"] = waiting_causes(log, name_to_element_id or {})
     return summary
 
 
 def waiting_causes(log: EventLog, name_to_element_id: dict[str, str]) -> dict | None:
     """Le cause delle attese per attivita' (secondi totali), o None se il log non le fa vedere."""
-    executions, observed = executions_of((e.case_id, e.activity, e.start, e.end, e.resource) for e in log.events)
+    executions, observed = executions_of((e.case_id, e.activity, e.start, e.end, e.resource, e.enabled) for e in log.events)
     if observed < MIN_OBSERVED:
         return None
     return {

@@ -78,7 +78,7 @@ def attributed_delays(prepared: g3b.Prepared, config: str) -> tuple[Path, dict]:
         executions = [Execution(r.case_id, r.activity, (r.start or r.end).timestamp(), r.end.timestamp(), r.resource or "missing")
                       for r in prepared.source]
         measure, fit = ATTRIBUTED[config]
-        delays = extraneous_delays(executions, attribute(executions), measure=measure, fit=fit)
+        delays = extraneous_delays(executions, attribute(executions, simulator_shares=True), measure=measure, fit=fit)
         bpmn, events = add_timers((diff_folder / "model.bpmn").read_text(encoding="utf-8"), delays)
         scenario = json.loads((diff_folder / "scenario.json").read_text(encoding="utf-8"))
         scenario["event_distribution"] = events
@@ -123,7 +123,7 @@ def calibrated_delays(prepared: g3b.Prepared, seed: int) -> tuple[Path, dict]:
         began = time.perf_counter()
         executions = [Execution(r.case_id, r.activity, (r.start or r.end).timestamp(), r.end.timestamp(), r.resource or "missing")
                       for r in prepared.source]
-        waitings = attribute(executions)
+        waitings = attribute(executions, simulator_shares=True)
         _, holdout = protocol.train_validation(prepared.source_events)
         cases, start = len({e.case_id for e in holdout}), min(e.start for e in holdout)
         scores, peak = {}, 0.0

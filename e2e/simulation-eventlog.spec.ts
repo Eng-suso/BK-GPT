@@ -62,7 +62,6 @@ const ANALYSIS = {
     waitingCauses: {
       activities: [
         { name: "Approva richiesta", el: "B", executions: 3, waiting: 2, seconds: { contention: 9720, unavailability: 4320, extraneous: 3600, batching: 360 } },
-        { name: "Verifica documentazione", el: "A", executions: 3, waiting: 0, seconds: { contention: 0, unavailability: 0, extraneous: 0, batching: 0 } },
       ],
     },
   },
@@ -318,8 +317,9 @@ test("the activity inspector says why the real activity waits, in plain words", 
   expect(axe.violations).toEqual([]);
   await shoot(page, testInfo, "why-it-waits");
 
+  // Senza righe per l'elemento il log non lo dice: mai "non si aspetta" sotto un'attesa media.
   await page.getByLabel("Attività", { exact: true }).selectOption("A");
-  await expect(why).toContainText("Nel log questa attività parte appena può.");
+  await expect(why).toContainText("servono l'ora d'inizio e la persona");
 });
 
 test("without a mapped log the inspector leads to the import", async ({ page }) => {

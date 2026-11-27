@@ -266,7 +266,8 @@ export type WaitingCauseShare = { cause: WaitingCause; seconds: number; share: n
 
 /**
  * B3.2: perche' si aspetta prima di un elemento del modello, dalle attivita' del log abbinate.
- * `unavailable` se il log non lo dice (manca l'inizio o la persona), `none` se nessuno aspetta.
+ * `unavailable` se il log non lo dice (manca l'inizio o la persona, o nessuna esecuzione dell'elemento
+ * ha l'abilitazione osservabile), `none` se nessuna esecuzione osservata aspetta oltre un secondo.
  * Le cause con piu' secondi prima; quelle a zero non ci sono.
  */
 export function waitingCausesFor(
@@ -286,10 +287,13 @@ export function waitingCausesFor(
       totals.set(cause, (totals.get(cause) ?? 0) + seconds);
     }
   }
+  // Nessuna esecuzione osservata: il log non lo dice (non "non si aspetta").
+  if (executions === 0) return { kind: "unavailable" };
   const total = [...totals.values()].reduce((a, b) => a + b, 0);
-  if (total <= 0) return { kind: "none" };
+  if (total <= 0 || waiting === 0) return { kind: "none" };
   const causes = [...totals.entries()]
-    .filter(([, seconds]) => seconds > 0)
+    // Sotto lo 0,5% una causa si leggerebbe "0%": non si mostra.
+    .filter(([, seconds]) => seconds / total >= 0.005)
     .map(([cause, seconds]) => ({ cause, seconds, share: seconds / total }))
     .sort((a, b) => b.seconds - a.seconds);
   return { kind: "causes", causes, waiting, executions };
