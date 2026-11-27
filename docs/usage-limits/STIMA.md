@@ -216,7 +216,9 @@ pochi turni.
    Il costo non cambia: lo scopo è la qualità.
 4. **Haiku va chiamato con la cache accesa**, cioè con i segnalibri
    `cache_control` sulla parte fissa del prompt: senza, i modelli costano quasi
-   il doppio (vedi sopra).
+   il doppio (vedi sopra). E il listino del registro (`ModelPrice` in
+   `backend/llm/prices.py`) va esteso con il prezzo della scrittura in cache: oggi
+   non ce l'ha, e il registro sotto-conterebbe Haiku rispetto alla fattura.
 
 ## Rischi della stima
 
