@@ -93,11 +93,14 @@ export function daysUntil(iso: string, now: Date = new Date()): number {
  * scritte a mano da tradurre.
  */
 export function formatDuration(seconds: number, locale: string): string {
-  const minutes = Math.round(Math.max(0, seconds) / 60);
+  // Per difetto: "6 h su 6 h" deve voler dire finito, non "mancano 30 secondi".
+  const minutes = Math.floor(Math.max(0, seconds) / 60);
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   const unit = (value: number, which: "hour" | "minute") =>
     new Intl.NumberFormat(locale || "it", { style: "unit", unit: which, unitDisplay: "short" }).format(value);
+  // Qualche secondo non e' "0 min": e' meno di un minuto.
+  if (minutes === 0 && seconds > 0) return `< ${unit(1, "minute")}`;
   if (hours === 0) return unit(rest, "minute");
   if (rest === 0) return unit(hours, "hour");
   return `${unit(hours, "hour")} ${unit(rest, "minute")}`;

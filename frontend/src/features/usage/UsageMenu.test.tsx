@@ -172,6 +172,9 @@ describe("formatDuration", () => {
     expect(formatDuration(7_800, "it")).toBe("2 h 10 min");
     expect(formatDuration(2_700, "it")).toBe("45 min");
     expect(formatDuration(21_600, "it")).toBe("6 h");
+    expect(formatDuration(21_570, "it")).toBe("5 h 59 min");
+    expect(formatDuration(20, "it")).toBe("< 1 min");
+    expect(formatDuration(0, "it")).toBe("0 min");
   });
 });
 

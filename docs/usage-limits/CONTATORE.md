@@ -48,10 +48,19 @@ lo vede nel pannello come "2 h 10 min su 6 h". A ore finite si fermano solo le
 nuove registrazioni e trascrizioni; la chat e il resto continuano.
 
 - **Dal vivo:** si contano i secondi di audio mandati a OpenAI, cioè quello che
-  si paga. La sessione lascia una riga `live_transcription` nel registro alla
-  chiusura e controlla il tetto all'apertura.
-- **File:** la durata viene dalla risposta della trascrizione; il tetto si
-  controlla nella rotta (`require_audio_available`).
+  si paga. La riga `live_transcription` si apre all'inizio e si aggiorna ogni 30
+  secondi: un riavvio non perde minuti, e il pannello li vede mentre si
+  registra. Il tetto si controlla all'apertura. Una registrazione si chiude al
+  tetto più 10 minuti di margine, e ce n'è una sola alla volta per consulente.
+- **La seconda passata non conta due volte.** All'arresto il browser manda lo
+  stesso audio per la trascrizione con i nomi di chi parla. Se c'è una
+  registrazione dal vivo dello stesso consulente finita da meno di 15 minuti,
+  il file è la sua seconda passata: il costo resta nel registro
+  (`transcription_after_live`), non consuma ore e non viene mai rifiutato.
+- **File caricati a sé:** la durata viene dalla risposta della trascrizione
+  (`duration`, o `usage.seconds`), e il tetto si controlla nella rotta. Una
+  trascrizione di cui il fornitore non dice la durata resta nel budget in
+  dollari dei modelli, invece di sparire da entrambi.
 
 ## Le tre finestre
 
