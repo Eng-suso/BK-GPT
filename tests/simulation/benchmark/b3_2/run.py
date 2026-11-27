@@ -47,11 +47,12 @@ CONFIGS = {
     "simod_fixed_extr": "SIMOD senza ritardi + solo i ritardi estranei di SIMOD (risorse e calendari fissati)",
     "simod_attr_extr": "SIMOD senza ritardi + ritardi esterni dell'attribuzione delle attese (B3.2)",
     "simod_attr_idle": "SIMOD senza ritardi + ritardi esterni con la risorsa libera e in orario (B3.2 v2)",
+    "simod_attr_shift": "SIMOD senza ritardi + ritardi esterni senza il fuori orario della risorsa (B3.2 v3)",
     "simod_extr": g3b.CONFIGS["simod_extr"],
 }
 
 
-ATTRIBUTED = {"simod_attr_extr": "extraneous", "simod_attr_idle": "idle"}
+ATTRIBUTED = {"simod_attr_extr": "extraneous", "simod_attr_idle": "idle", "simod_attr_shift": "on_shift"}
 
 
 def attributed_delays(prepared: g3b.Prepared, config: str) -> tuple[Path, dict]:

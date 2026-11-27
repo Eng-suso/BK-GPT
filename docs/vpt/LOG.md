@@ -112,6 +112,14 @@ Modello:
   log e regola di GO della scheda 3): `simod_attr_idle`, il timer tiene solo i secondi del ritardo
   esterno con la risorsa libera e in orario (`extraneous_delays(..., measure="idle")`). L'attribuzione
   delle cause (scheda 2) non cambia. Valutazioni in validazione per i 3 log: 2 su 20.
+- **Esito scheda 3b, validazione: NO-GO (v2).** W1 e RED vincono su BPIC 2012 W (W1 28,1 ± 1,1 contro
+  113 ± 9,3; RED 24,2 ± 1,3 contro 57,5 ± 6,5) e su BPIC 2017 W (74,1 ± 1,4 contro 98,5 ± 3,6;
+  48,1 ± 0,74 contro 65,0 ± 2,4), ma la guardia AED perde su tutti e 3 i log (BPIC 2017 W 88,6 contro
+  48,9): con timer così corti gli eventi cadono troppo presto nel tempo assoluto.
+- **Scheda 3c — v3** (prima della misura; base, primarie, guardie, log e regola della scheda 3):
+  `simod_attr_shift`, il timer è il ritardo esterno di v1 meno il tempo fuori orario della risorsa
+  (`measure="on_shift"`): restano i tratti con la risorsa occupata altrove, che il simulatore non
+  rifà; esce la notte, che i calendari rifanno. Valutazioni in validazione per i 3 log: 3 su 20.
 - **Difetto del banco di G3b, da correggere con Sohayb:** `within_intervals` usa `<`, quindi due
   risultati identici con IC nullo (sintetici di un giorno) risultano diversi e `compare` dà
   "perde". In G3b: 246 confronti identici; sulle primarie, 4 RED "persi" della scheda Attese in

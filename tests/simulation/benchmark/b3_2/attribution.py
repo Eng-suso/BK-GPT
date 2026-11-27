@@ -244,10 +244,12 @@ def decompose(window: tuple[float, float], busy: _Busy, calendar: Calendar, *, g
         else:
             break
     extraneous = max(0.0, t - a)
-    # Del ritardo esterno, i secondi con la risorsa libera e in orario (non una causa: serve al simulatore).
+    # Del ritardo esterno, i secondi con la risorsa libera e in orario e quelli in orario
+    # (non sono cause: servono al simulatore, v2 e v3).
     idle = calendar.on_within(a, t) - _busy_within(busy, a, t, calendar) if extraneous else 0.0
+    on_shift = calendar.on_within(a, t) if extraneous else 0.0
     return {"contention": contention, "unavailability": unavailable, "extraneous": extraneous, "batching": 0.0,
-            "idle": max(0.0, idle)}
+            "idle": max(0.0, idle), "on_shift": on_shift}
 
 
 def _busy_within(busy: _Busy, a: float, b: float, calendar: Calendar) -> float:
@@ -287,7 +289,7 @@ def attribute(executions: Sequence[Execution], *, gap: float = 1.0, concurrency:
             continue
         seconds = decompose((enabled[i], e.start), busy[e.resource], calendars.get(e.resource, Calendar(always=True)), gap=gap)
         if i in batched:
-            seconds["batching"], seconds["extraneous"], seconds["idle"] = seconds["extraneous"], 0.0, 0.0
+            seconds["batching"], seconds["extraneous"], seconds["idle"], seconds["on_shift"] = seconds["extraneous"], 0.0, 0.0, 0.0
         result.append(Waiting(enabled[i], seconds))
     return result
 
@@ -327,7 +329,8 @@ def extraneous_delays(executions: Sequence[Execution], waitings: Sequence[Waitin
     ha un timer se piu' del ``min_share`` delle sue esecuzioni ha un ritardo (la stessa regola
     del lavoro di Chapela-Campa e Dumas). Il ritardo e' la quota ``extraneous`` (il batching no:
     lo spiega la risorsa). ``measure="idle"`` (v2) tiene solo i secondi del ritardo con la risorsa
-    libera e in orario: il resto lo rifa' il simulatore con le sue code e i suoi calendari.
+    libera e in orario: il resto lo rifa' il simulatore con le sue code e i suoi calendari;
+    ``measure="on_shift"`` (v3) toglie solo il tempo fuori orario della risorsa.
     """
     values: dict[str, list[float]] = defaultdict(list)
     for e, w in zip(executions, waitings, strict=True):

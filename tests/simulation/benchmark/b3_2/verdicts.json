@@ -129,5 +129,67 @@
         "costlier_than_double": []
       }
     }
+  },
+  "3b Attese attribuite v2: W1 / validation": {
+    "verdict": "NO-GO",
+    "reasons": [
+      "contro simod_extr: guardia AED perde su 3 log"
+    ],
+    "bases": {
+      "simod_extr": {
+        "paired": {
+          "vince": 2,
+          "pari": 0,
+          "perde": 0
+        },
+        "wins": 2,
+        "ties": 0,
+        "logs": 2,
+        "losses": [],
+        "missing": [],
+        "guard_losses": {
+          "AED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "BPIC_2017_W"
+          ],
+          "CAR": [
+            "BPIC_2012_W"
+          ]
+        },
+        "costlier_than_double": []
+      }
+    }
+  },
+  "3b Attese attribuite v2: RED / validation": {
+    "verdict": "NO-GO",
+    "reasons": [
+      "contro simod_extr: guardia AED perde su 3 log"
+    ],
+    "bases": {
+      "simod_extr": {
+        "paired": {
+          "vince": 2,
+          "pari": 0,
+          "perde": 0
+        },
+        "wins": 2,
+        "ties": 0,
+        "logs": 2,
+        "losses": [],
+        "missing": [],
+        "guard_losses": {
+          "AED": [
+            "AcademicCredentials",
+            "BPIC_2012_W",
+            "BPIC_2017_W"
+          ],
+          "CAR": [
+            "BPIC_2012_W"
+          ]
+        },
+        "costlier_than_double": []
+      }
+    }
   }
 }
