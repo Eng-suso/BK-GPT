@@ -75,6 +75,7 @@ class Totale:
     costo_noto: Decimal = Decimal(0)
     righe_senza_prezzo: int = 0
     token_senza_prezzo: int = 0
+    secondi_audio: int = 0
 
     @property
     def token_totali(self) -> int:
@@ -142,6 +143,11 @@ def _condizioni(inizio: str, fine: str, tenant_id: str | None, user_id: str | No
     return where
 
 
+#: I compiti che si pagano a minuto di audio. Il contatore d'uso li conta in ore,
+#: separati dal budget in dollari dei modelli.
+COMPITI_AUDIO = frozenset({"transcription", "live_transcription"})
+
+
 def _somma(righe) -> Totale:
     """Riduce righe grezze a un `Totale`, in Python e non in SQL.
 
@@ -182,6 +188,7 @@ def _somma(righe) -> Totale:
             costo_noto=totale.costo_noto + (costo or Decimal(0)),
             righe_senza_prezzo=totale.righe_senza_prezzo + (1 if senza_prezzo else 0),
             token_senza_prezzo=totale.token_senza_prezzo + (token_riga if senza_prezzo else 0),
+            secondi_audio=totale.secondi_audio + (r.audio_seconds or 0),
         )
     return totale
 
@@ -193,6 +200,7 @@ _COLONNE = (
     WorkspaceLlmUsage.reasoning_tokens,
     WorkspaceLlmUsage.cached_input_tokens,
     WorkspaceLlmUsage.cost_estimate,
+    WorkspaceLlmUsage.audio_seconds,
 )
 
 DIMENSIONI = {
@@ -231,7 +239,7 @@ def per_finestre(
     fine: str,
     tenant_id: str | None = None,
     user_id: str | None = None,
-) -> dict[str, Totale]:
+) -> tuple[dict[str, Totale], dict[str, Totale]]:
     """Il consumo di piu' finestre che finiscono insieme, con una sola lettura.
 
     E' la forma del contatore d'uso: sessione, settimana e prova finiscono
@@ -241,16 +249,26 @@ def per_finestre(
     Args:
         inizi: Nome della finestra -> inizio ISO UTC.
         fine: La fine comune, ISO UTC.
+
+    Returns:
+        `(modelli, audio)`: per ogni finestra, il totale dei compiti a token e
+        quello dei compiti a minuto (`COMPITI_AUDIO`). Il contatore li legge
+        separati: i modelli in dollari, l'audio in ore.
     """
     if not inizi:
-        return {}
+        return {}, {}
     with workspace_connection() as session:
         righe = session.execute(
-            select(WorkspaceLlmUsage.created_at, *_COLONNE).where(
+            select(WorkspaceLlmUsage.created_at, WorkspaceLlmUsage.task, *_COLONNE).where(
                 *_condizioni(min(inizi.values()), fine, tenant_id, user_id)
             )
         ).all()
-    return {nome: _somma(r for r in righe if r.created_at >= inizio) for nome, inizio in inizi.items()}
+    modelli = [r for r in righe if r.task not in COMPITI_AUDIO]
+    audio = [r for r in righe if r.task in COMPITI_AUDIO]
+    return (
+        {nome: _somma(r for r in modelli if r.created_at >= inizio) for nome, inizio in inizi.items()},
+        {nome: _somma(r for r in audio if r.created_at >= inizio) for nome, inizio in inizi.items()},
+    )
 
 
 def per(

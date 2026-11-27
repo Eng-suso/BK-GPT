@@ -181,6 +181,11 @@ class Settings(BaseSettings):
     # Il tetto assoluto della prova, e la sua durata. 0 = nessun tetto.
     usage_trial_budget_usd: float = 20.0
     usage_trial_days: int = 14
+    # L'audio (registrazioni dal vivo e file trascritti) ha un tetto in ore,
+    # separato dai dollari: e' prevedibile, costa piu' di tutto il resto, e il
+    # consulente lo capisce in ore. 0 = nessun tetto.
+    usage_week_audio_hours: float = 6.0
+    usage_trial_audio_hours: float = 10.0
     # Le righe del registro senza prezzo (modello non nel listino) si contano a
     # questo prezzo per milione di token. E' pessimista di proposito: un costo
     # sconosciuto contato alto fa scattare il limite prima, mai dopo.

@@ -811,6 +811,9 @@ class WorkspaceLlmUsage(WorkspaceBase):
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     reasoning_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     cached_input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # I secondi di audio, per i compiti che si pagano a minuto (trascrizione).
+    # E' anche cio' che il contatore d'uso mostra in ore al consulente.
+    audio_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     # `ok`, `timeout`, `error`, `cache_hit`, `refused`.
     outcome: Mapped[str] = mapped_column(String, nullable=False, index=True)
     error_kind: Mapped[str | None] = mapped_column(String)
@@ -843,6 +846,10 @@ class WorkspaceUsagePlan(WorkspaceBase):
     session_budget_usd: Mapped[str | None] = mapped_column(String)
     week_budget_usd: Mapped[str | None] = mapped_column(String)
     trial_budget_usd: Mapped[str | None] = mapped_column(String)
+    # Il tetto dell'audio in ore, separato dai dollari: il consulente lo legge
+    # come ore di registrazione. NULL = default, 0 = nessun tetto.
+    week_audio_hours: Mapped[str | None] = mapped_column(String)
+    trial_audio_hours: Mapped[str | None] = mapped_column(String)
     trial_started_at: Mapped[str] = mapped_column(String, nullable=False)
     # NULL = inizio della prova + `usage_trial_days`.
     trial_ends_at: Mapped[str | None] = mapped_column(String)

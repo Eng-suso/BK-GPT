@@ -48,6 +48,9 @@ class ModelPrice:
     input: Decimal
     output: Decimal
     cached_input: Decimal | None = None
+    # Per i modelli che si pagano a minuto di audio (la trascrizione dal vivo):
+    # il prezzo di un minuto. Si somma al costo dei token, se ce ne sono.
+    per_minute: Decimal | None = None
 
 
 def _decimal(value: object) -> Decimal | None:
@@ -92,13 +95,19 @@ def _parse(raw: str) -> dict[str, ModelPrice]:
             continue
         token_in = _decimal(entry.get("input"))
         token_out = _decimal(entry.get("output"))
+        per_minute = _decimal(entry.get("per_minute"))
+        # Un modello a minuto puo' non avere prezzi a token: valgono zero.
+        if per_minute is not None:
+            token_in = token_in if token_in is not None else Decimal(0)
+            token_out = token_out if token_out is not None else Decimal(0)
         if token_in is None or token_out is None:
-            logger.error("LLM_PRICES_JSON: %s deve avere `input` e `output` numerici", model)
+            logger.error("LLM_PRICES_JSON: %s deve avere `input` e `output` numerici (o `per_minute`)", model)
             continue
         prices[str(model).strip().lower()] = ModelPrice(
             input=token_in,
             output=token_out,
             cached_input=_decimal(entry.get("cached_input")),
+            per_minute=per_minute,
         )
     return prices
 
@@ -114,6 +123,7 @@ def estimate_cost(
     input_tokens: int,
     output_tokens: int,
     cached_input_tokens: int = 0,
+    audio_seconds: int = 0,
 ) -> Decimal | None:
     """Il costo stimato di una chiamata, o `None` se il modello non ha prezzo.
 
@@ -126,6 +136,7 @@ def estimate_cost(
         input_tokens: Token letti, **compresi** quelli serviti dalla cache.
         output_tokens: Token prodotti, ragionamento compreso.
         cached_input_tokens: Quanti degli `input_tokens` venivano dalla cache.
+        audio_seconds: I secondi di audio, per i modelli con un prezzo al minuto.
 
     Returns:
         Il costo, o `None` quando il prezzo non si sa - che e' un'informazione,
@@ -143,5 +154,7 @@ def estimate_cost(
         Decimal(full_price_input) * price.input
         + Decimal(cached) * cached_rate
         + Decimal(max(0, output_tokens)) * price.output
-    )
-    return total / _PER_MILLION
+    ) / _PER_MILLION
+    if price.per_minute is not None:
+        total += Decimal(max(0, audio_seconds)) / Decimal(60) * price.per_minute
+    return total

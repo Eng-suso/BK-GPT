@@ -69,6 +69,7 @@ def record(
     error_kind: str | None = None,
     attempt: int = 1,
     context_fingerprint: str | None = None,
+    audio_seconds: int = 0,
 ) -> None:
     """Scrive un evento di consumo. Non solleva mai.
 
@@ -94,6 +95,8 @@ def record(
             dice quale contesto: due turni con la stessa impronta hanno visto la
             stessa cosa, e un turno che costa il doppio si spiega guardando cosa
             gli e' stato mandato.
+        audio_seconds: I secondi di audio, per la trascrizione: si paga a
+            minuto, e il contatore d'uso li mostra in ore.
     """
     counted = tokens or TokenUsage()
     cost = estimate_cost(
@@ -101,6 +104,7 @@ def record(
         input_tokens=counted.input,
         output_tokens=counted.output,
         cached_input_tokens=counted.cached_input,
+        audio_seconds=audio_seconds,
     )
 
     try:
@@ -125,6 +129,7 @@ def record(
                     output_tokens=counted.output,
                     reasoning_tokens=counted.reasoning,
                     cached_input_tokens=counted.cached_input,
+                    audio_seconds=max(0, int(audio_seconds)),
                     outcome=outcome,
                     error_kind=error_kind,
                     duration_ms=max(0, duration_ms),
@@ -265,3 +270,16 @@ def extract_openai_chat_tokens(response: object) -> TokenUsage:
         reasoning=_count(getattr(completion_details, "reasoning_tokens", 0)),
         cached_input=_count(getattr(prompt_details, "cached_tokens", 0)),
     )
+
+
+def extract_audio_seconds(response: object) -> int:
+    """I secondi di audio di una trascrizione, dalla `duration` della risposta.
+
+    La trascrizione si paga a minuto: senza la durata, un'ora di audio sarebbe
+    una riga a zero. La risposta arriva come oggetto o come dizionario (vedi
+    `extract_transcription_tokens`); una durata assente o storta vale 0.
+    """
+    duration = response.get("duration") if isinstance(response, Mapping) else getattr(response, "duration", None)
+    if isinstance(duration, bool) or not isinstance(duration, (int, float)) or duration < 0:
+        return 0
+    return round(duration)
