@@ -139,10 +139,10 @@ def _client(profile: TaskProfile, input_characters: int | None):
         # Un compito che legge poco non guadagna niente da un timeout lungo:
         # lo allunga soltanto il tempo che ci vuole ad accorgersi del guasto.
         input_characters=input_characters if profile.scales_with_input else None,
+        # Il modello del compito, che puo' non essere quello di conversazione
+        # (`LLM_TASK_MODELS_JSON`).
+        model=profile.model,
     )
-    # Il modello del compito, che puo' non essere quello di conversazione
-    # (`LLM_TASK_MODELS_JSON`).
-    kwargs["model"] = profile.model
     kwargs["max_retries"] = _max_retries(profile)
     # Quando LangSmith e' spento - nei test, sempre - la traccia la scriviamo
     # noi su file. Senza, «cosa e' stato mandato e cosa e' tornato» resterebbe
@@ -516,7 +516,12 @@ def _run_free_json(
         raise OperationNotOpen(f"il compito {task.value} richiede un'operazione aperta")
     model = profile.model
     conversation = [*_as_message_list(messages), HumanMessage(content=_schema_instruction(output))]
-    runnable = client.bind(response_format={"type": "json_object"})
+    # Claude non ha `json_object`: langchain-anthropic lo rifiuta prima ancora di
+    # mandare la richiesta. Si parte dal testo, con lo schema nel prompt.
+    if provider_of(profile.model) == Provider.ANTHROPIC:
+        runnable = client
+    else:
+        runnable = client.bind(response_format={"type": "json_object"})
     last_error: Exception | None = None
 
     for attempt in range(_JSON_REPAIRS + 1):
