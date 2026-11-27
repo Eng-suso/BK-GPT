@@ -31,7 +31,9 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 
+from backend.llm.operation import OperationKind
 from backend.llm.prices import estimate_cost
+from backend.llm.tasks import LlmTask
 from backend.workspace_storage import WorkspaceLlmUsage, workspace_connection
 
 # `cache_hit` non e' una chiamata: e' una chiamata **evitata**. Tenerla dentro le
@@ -145,7 +147,7 @@ def _condizioni(inizio: str, fine: str, tenant_id: str | None, user_id: str | No
 
 #: I compiti che si pagano a minuto di audio. Il contatore d'uso li conta in ore,
 #: separati dal budget in dollari dei modelli.
-COMPITI_AUDIO = frozenset({"transcription", "live_transcription"})
+COMPITI_AUDIO = frozenset({LlmTask.TRANSCRIPTION.value, LlmTask.LIVE_TRANSCRIPTION.value})
 
 
 def _somma(righe) -> Totale:
@@ -259,12 +261,22 @@ def per_finestre(
         return {}, {}
     with workspace_connection() as session:
         righe = session.execute(
-            select(WorkspaceLlmUsage.created_at, WorkspaceLlmUsage.task, *_COLONNE).where(
+            select(
+                WorkspaceLlmUsage.created_at, WorkspaceLlmUsage.task, WorkspaceLlmUsage.operation_kind, *_COLONNE
+            ).where(
                 *_condizioni(min(inizi.values()), fine, tenant_id, user_id)
             )
         ).all()
-    modelli = [r for r in righe if r.task not in COMPITI_AUDIO]
-    audio = [r for r in righe if r.task in COMPITI_AUDIO]
+    def _ore(r) -> bool:
+        # Un compito a minuto senza durata (il fornitore non l'ha detta) resta nei
+        # dollari: altrimenti non conterebbe ne' li' ne' nelle ore.
+        return r.task in COMPITI_AUDIO and (r.audio_seconds or 0) > 0
+
+    # La passata col nome di chi parla dopo una registrazione dal vivo riguarda
+    # audio gia' contato: non entra ne' nelle ore ne' nei dollari dei modelli.
+    righe = [r for r in righe if r.operation_kind != OperationKind.TRANSCRIPTION_AFTER_LIVE]
+    modelli = [r for r in righe if not _ore(r)]
+    audio = [r for r in righe if _ore(r)]
     return (
         {nome: _somma(r for r in modelli if r.created_at >= inizio) for nome, inizio in inizi.items()},
         {nome: _somma(r for r in audio if r.created_at >= inizio) for nome, inizio in inizi.items()},

@@ -70,8 +70,8 @@ def record(
     attempt: int = 1,
     context_fingerprint: str | None = None,
     audio_seconds: int = 0,
-) -> None:
-    """Scrive un evento di consumo. Non solleva mai.
+) -> str | None:
+    """Scrive un evento di consumo. Non solleva mai. Restituisce l'id della riga.
 
     Args:
         operation: L'operazione dentro cui la chiamata e' avvenuta.
@@ -107,13 +107,14 @@ def record(
         audio_seconds=audio_seconds,
     )
 
+    row_id = uuid.uuid4().hex
     try:
         from backend.workspace_storage import WorkspaceLlmUsage, workspace_connection
 
         with workspace_connection() as session:
             session.add(
                 WorkspaceLlmUsage(
-                    id=uuid.uuid4().hex,
+                    id=row_id,
                     tenant_id=operation.tenant_id,
                     user_id=operation.user_id,
                     operation_kind=operation.kind,
@@ -144,6 +145,32 @@ def record(
         # il contatore di degradazione e' il posto dove questo si vede.
         degradation_counters.bump("llm_usage", "ledger_write_failed", detail=str(exc))
         logger.warning("registro dei consumi: evento perso (%s)", type(exc).__name__, exc_info=True)
+        return None
+    return row_id
+
+
+def update_audio_seconds(row_id: str | None, seconds: int) -> None:
+    """Aggiorna i secondi di audio (e il costo) di una riga gia' scritta. Non solleva mai.
+
+    Serve alla registrazione dal vivo: la riga si apre all'inizio e si aggiorna
+    mentre si registra, cosi' un riavvio del server non perde i minuti gia'
+    pagati, e il pannello li vede prima della fine.
+    """
+    if row_id is None:
+        return
+    try:
+        from backend.workspace_storage import WorkspaceLlmUsage, workspace_connection
+
+        with workspace_connection() as session:
+            row = session.get(WorkspaceLlmUsage, row_id)
+            if row is None:
+                return
+            row.audio_seconds = max(0, int(seconds))
+            cost = estimate_cost(row.model, input_tokens=0, output_tokens=0, audio_seconds=row.audio_seconds)
+            row.cost_estimate = str(cost) if cost is not None else None
+    except Exception as exc:  # noqa: BLE001
+        degradation_counters.bump("llm_usage", "ledger_update_failed", detail=str(exc))
+        logger.warning("registro dei consumi: secondi non aggiornati (%s)", type(exc).__name__, exc_info=True)
 
 
 def classify_failure(exc: BaseException) -> tuple[str, str]:
@@ -279,7 +306,17 @@ def extract_audio_seconds(response: object) -> int:
     una riga a zero. La risposta arriva come oggetto o come dizionario (vedi
     `extract_transcription_tokens`); una durata assente o storta vale 0.
     """
-    duration = response.get("duration") if isinstance(response, Mapping) else getattr(response, "duration", None)
-    if isinstance(duration, bool) or not isinstance(duration, (int, float)) or duration < 0:
-        return 0
-    return round(duration)
+    def _field(obj: object, name: str) -> object:
+        return obj.get(name) if isinstance(obj, Mapping) else getattr(obj, name, None)
+
+    def _seconds(value: object) -> int | None:
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            return None
+        return round(value)
+
+    # `duration` c'e' solo nei formati verbose/diarized; i modelli che rispondono
+    # in json la dicono come `usage.seconds` (usage di tipo "duration").
+    found = _seconds(_field(response, "duration"))
+    if found is None:
+        found = _seconds(_field(_field(response, "usage"), "seconds"))
+    return found or 0
