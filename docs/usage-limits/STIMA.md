@@ -3,8 +3,8 @@
 Data: 2026-11-26. Script: `uv run python scripts/usage_day_estimate.py`.
 
 **È una stima, non una misura.** Nessuna chiamata è partita. I pezzi fissi sono
-letti dal codice vero: prompt di sistema, schemi di output, definizioni dei tool di
-ogni specialista, memoria procedurale. I pezzi variabili sono ipotesi scritte in
+letti dal codice vero: prompt di sistema, schemi di output, definizioni dei tool e contratti
+di ogni specialista, memoria procedurale. I pezzi variabili sono ipotesi scritte in
 `SCENARIOS` nello script e si cambiano lì: quante interviste, quanti turni, quanto
 contesto. I token sono contati come caratteri / 4, quindi il risultato vale ±20%.
 
@@ -49,24 +49,87 @@ lunghi: 100K token per Haiku, 272K per Luna.
 
 ## Risultato
 
+Aggiornato il 2026-11-27: la chat ora si stima seguendo come il prompt è
+costruito davvero, e quindi come il fornitore lo mette in cache (sezione sotto).
+
 | | Tipica | Intensa |
 |---|---|---|
-| **Totale** | **$0.30** | **$4.34** |
-| di cui trascrizione dal vivo | — | $2.04 (47%) |
-| di cui file audio | — | $0.36 (8%) |
-| di cui modelli di linguaggio | $0.29 | $1.93 |
+| **Totale, GPT-6 Luna** | **$0.21** | **$3.50** |
+| **Totale, Claude Haiku 5.5**, quando il client metterà i segnalibri della cache | **$0.23** | **$3.63** |
+| di cui trascrizione dal vivo | — | $2.04 (58%) |
+| di cui file audio | — | $0.36 (10%) |
+| di cui modelli di linguaggio (Luna) | $0.21 | $1.10 |
+| di cui la chat (Luna) | $0.14 | $0.74 |
 | di cui embedding | $0.0004 | $0.002 |
 
-Il totale è identico per Luna e per Haiku. Senza cache la giornata intensa sale a
-$4.46.
+Senza cache la giornata intensa sale a $4.63, per entrambi i modelli. Haiku oggi
+non ha un client: la riga Haiku vale per il client che lo avrà, con i segnalibri.
 
-### Dove va la spesa dei modelli nella giornata intensa
+### La cache, e perché decide il costo della chat
+
+A ogni passo la chat rimanda lo stesso prompt allungato di un pezzo. Il fornitore
+fattura a un decimo del prezzo i token di un prefisso che ha già visto. Conta
+quindi **l'ordine** del prompt, non solo quanto è lungo:
+
+```
+[tool + memoria procedurale] [scope] [storia: ultimi 8 messaggi] [contratto]
+ fisso, uguale per tutti      per processo  scorre a ogni passo    in coda
+```
+
+- **Primo passo di un turno:** la parte fissa è in cache se lo stesso specialista
+  ha lavorato da poco, per un consulente qualsiasi; lo scope se è anche lo stesso
+  processo del turno prima.
+- **Passi successivi:** la storia è una finestra degli ultimi 8 messaggi. Finché
+  non è piena, il prompt del passo prima è un prefisso intero ed è tutto in cache.
+  In un thread lungo invece ogni passo fa uscire i messaggi più vecchi: cambia
+  tutto quello che segue lo scope, e la cache si ferma lì.
+- **Il contratto** dello specialista (le sue istruzioni, fino a 3.400 token) sta
+  in coda: non entra mai nel prefisso e si paga intero a ogni passo.
+
+I due fornitori non fanno la stessa cosa:
+
+| | GPT-6 Luna | Claude Haiku 5.5 |
+|---|---|---|
+| Come si accende | da sola, su ogni prefisso già visto | solo dove la richiesta mette `cache_control` |
+| Scrittura in cache | gratis | 1,25 volte l'ingresso (durata 5 minuti) |
+| Lettura dalla cache | $0.01 / M | $0.01 / M |
+| Prefisso minimo | 1.024 token | 512 token |
+
+**Un client Haiku senza segnalibri costerebbe circa $1 al giorno in più nella
+giornata intensa**: i modelli passerebbero da $1.23 a $2.23. I segnalibri vanno
+messi fin dal primo giorno.
+
+### Le leve sulla chat, misurate
+
+| Leva | Giornata intensa (Luna / Haiku) | Stato |
+|---|---|---|
+| La finestra della storia resta ferma per tutto il turno | −$0.11 / −$0.13 | da validare con gli eval |
+| Il contratto dello specialista in testa invece che in coda | −$0.09 / −$0.11 | da validare con gli eval |
+| I tool del piano solo nel passo che li usa | al massimo −$0.015 | non si fa |
+
+- **Le prime due insieme valgono circa un quarto della chat**, ma cambiano cosa
+  legge il modello. Con il contratto in testa, l'ultima istruzione prima della
+  risposta non è più il contratto ma lo scope. Con la finestra ferma, i messaggi
+  del turno si sommano a quelli di prima invece di farli uscire. Vanno quindi
+  accese solo dopo gli eval L1/L2 della chat, che fanno chiamate vere e costano.
+  Il contratto in testa è stato provato e tolto prima del merge per questo motivo.
+- **I due tool del piano** (`amend_process_plan` e
+  `prepare_process_understanding_review`, 13.000 token in tutto) stanno nella
+  parte fissa e sono quasi sempre in cache. Toglierli nei passi che non li usano
+  cambierebbe la lista dei tool da un passo all'altro e romperebbe la cache del
+  prompt intero, per risparmiare al massimo 1,5 centesimi al giorno. La stima di
+  prima ("un terzo della chat") contava quei token a prezzo pieno ed era sbagliata.
+- **Non sono contati** l'agente di regia del processo e quello della consulenza,
+  né lo specialista di validazione del canvas: i loro turni sono fuori da
+  `chat_mix`.
+
+### Dove va la spesa dei modelli nella giornata intensa (Luna)
 
 | Voce | Costo |
 |---|---|
-| Chat, modellazione / evidenze / scoperta | $0.93 |
-| Chat, canvas (macro, patch, costruzione) | $0.29 |
-| Chat, revisione e consulenza (home, clienti, setup) | $0.36 |
+| Chat, modellazione / evidenze / scoperta | $0.44 |
+| Chat, revisione e consulenza (home, clienti, setup) | $0.16 |
+| Chat, canvas (macro, patch, costruzione) | $0.14 |
 | Confronto con le fonti | $0.08 |
 | Estrazione del piano (comprese le riparazioni) | $0.08 |
 | Affermazioni e confronto fra fonti | $0.06 |
@@ -75,12 +138,14 @@ $4.46.
 
 **Due lezioni.**
 - **Quando c'è audio, l'audio pesa più di tutto il resto.** Due ore registrate dal
-  vivo costano più di 150 turni di chat.
-- **Senza audio, la chat è l'80% della spesa.** A ogni passo rimanda le definizioni
-  dei tool (fino a 14.000 token) e il contesto.
+  vivo costano più del doppio di tutti i modelli della giornata.
+- **Senza audio, la chat è circa i due terzi della spesa**, e quanto costa dipende
+  dall'ordine del prompt e dalla cache più che dalla lunghezza dei tool. La misura vera è la quota in
+  cache di `chat_turn` in `scripts/llm_spend.py`: una quota bassa vuol dire che
+  qualcosa cambia il prefisso fra un passo e l'altro.
 
-Il prompt più lungo della giornata intensa è di 43.670 token: sotto la soglia dei
-prompt lunghi di entrambi i modelli.
+Il prompt più lungo della giornata intensa è di circa 50.000 token: sotto la
+soglia dei prompt lunghi di entrambi i modelli.
 
 ## Un buco trovato con la stima (chiuso)
 
@@ -149,14 +214,20 @@ pochi turni.
      giudizio sulle entità, what-if, racconto, abbinamento delle affermazioni.
 
    Il costo non cambia: lo scopo è la qualità.
-4. **La leva più grossa sui modelli resta la chat.** Mandare le definizioni dei
-   tool pesanti (`prepare_process_understanding_review`, `amend_process_plan`)
-   solo nel passo che le usa taglierebbe circa un terzo della spesa della chat.
+4. **Haiku va chiamato con la cache accesa**, cioè con i segnalibri
+   `cache_control` sulla parte fissa del prompt: senza, i modelli costano quasi
+   il doppio (vedi sopra). E il listino del registro (`ModelPrice` in
+   `backend/llm/prices.py`) va esteso con il prezzo della scrittura in cache: oggi
+   non ce l'ha, e il registro sotto-conterebbe Haiku rispetto alla fattura.
 
 ## Rischi della stima
 
 - **Il ragionamento è stimato.** Si assume quanto l'uscita per `medium`, il 30%
   per `low`, zero per `none`.
+- **La cache è un'ipotesi.** Quanto spesso il primo passo trova la parte fissa e
+  lo scope già in cache (`head_cache_hit`, `scope_cache_hit` in `SCENARIOS`), e
+  quanti passi hanno la finestra della storia piena (`history_window_full`),
+  dipende da come si lavora: si legge dal registro, non dal codice.
 - **Il contesto di scope è un'ipotesi.** È a 12.000 o 24.000 token; un processo
   grande arriva al tetto di 48.000 e la chat costa fino al doppio.
 - **La trascrizione dei file è una stima a minuto.** Il modello diarize è
