@@ -36,13 +36,15 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from urllib.parse import urlparse
 
-from backend.llm.tasks import LlmTask
+from backend.llm.providers import Provider, provider_of
+from backend.llm.tasks import LlmTask, profile_for
 from backend.llm_config import MissingProviderKey
 from backend.settings import environment_is_open, langsmith_tracing_enabled, settings
 
 logger = logging.getLogger(__name__)
 
 OPENAI_API_URL = "https://api.openai.com/v1"
+ANTHROPIC_API_URL = "https://api.anthropic.com"
 OPENAI_REALTIME_URL = "wss://api.openai.com/v1/realtime?intent=transcription"
 TAVILY_API_URL = "https://api.tavily.com"
 
@@ -71,6 +73,7 @@ class Destination(StrEnum):
     """Le destinazioni conosciute. Il valore e' la chiave stabile nel registro."""
 
     LLM_CHAT = "llm_chat"
+    LLM_CLAUDE = "llm_claude"
     LLM_EMBEDDING = "llm_embedding"
     TRANSCRIPTION = "transcription"
     TRANSCRIPTION_LIVE = "transcription_live"
@@ -156,6 +159,8 @@ def _llm_url_for(task: LlmTask) -> str:
     """
     if task in _NON_CHAT_TASKS:
         return OPENAI_API_URL
+    if provider_of(profile_for(task).model) == Provider.ANTHROPIC:
+        return ANTHROPIC_API_URL
     return (settings.openai_base_url or OPENAI_API_URL).rstrip("/")
 
 
@@ -174,6 +179,7 @@ def routes() -> list[EgressRoute]:
     has_key = bool(settings.openai_api_key)
     mem0_on = has_key and bool(settings.mem0_database_url)
     chat_url = _llm_url_for(LlmTask.CHAT_TURN)
+    claude_tasks = _tasks_for(ANTHROPIC_API_URL, chat=True)
     return [
         EgressRoute(
             Destination.LLM_CHAT,
@@ -182,6 +188,14 @@ def routes() -> list[EgressRoute]:
             (DataCategory.CUSTOMER_CONTENT,),
             has_key,
             _tasks_for(chat_url, chat=True),
+        ),
+        EgressRoute(
+            Destination.LLM_CLAUDE,
+            "Modello linguistico Claude (Anthropic): i compiti scelti in LLM_TASK_MODELS_JSON",
+            ANTHROPIC_API_URL,
+            (DataCategory.CUSTOMER_CONTENT,),
+            bool(settings.anthropic_api_key) and bool(claude_tasks),
+            claude_tasks,
         ),
         EgressRoute(
             Destination.LLM_EMBEDDING,
@@ -305,6 +319,8 @@ def require_for_task(task: LlmTask) -> EgressRoute:
         return require(Destination.LLM_EMBEDDING)
     if task == LlmTask.TRANSCRIPTION:
         return require(Destination.TRANSCRIPTION)
+    if _llm_url_for(task) == ANTHROPIC_API_URL:
+        return require(Destination.LLM_CLAUDE)
     return require(Destination.LLM_CHAT)
 
 
