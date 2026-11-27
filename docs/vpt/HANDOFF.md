@@ -5,8 +5,8 @@ correzione di `DELIR_AUTH_PROVIDER` e RAD-01 + PROTO-02, PR #194).
 
 ## Punti attivi
 
-Nessuno in corso: G3b è fatto (12 schede NO-GO, sezione `## G3b`). Liberi, con dipendenze
-chiuse: **B3.1**, **B3.2**, **B3.3**, **PERF-01**, **RAD-02** (tutti dopo G3b), **LIC-01**
+B3.2 bloccato (sezione `## B3.2`, decide Sohayb). Liberi, con dipendenze
+chiuse: **B3.1**, **B3.3**, **PERF-01**, **RAD-02** (tutti dopo G3b), **LIC-01**
 (P0), **ANA-01**, **GT-01**. ENG-02 dopo LIC-01.
 
 ## Prompt per i prossimi agenti
@@ -16,38 +16,34 @@ Ognuno in una sessione nuova sul repository `eng-suso/bk-gpt`, dal `main` aggior
 Nessun prompt aperto: G3b e RAD-01 + PROTO-02 sono chiusi. Il prossimo punto parte da
 `PLAN.md` e dalla sezione `## G3b` qui sotto.
 
-## B3.2 (in corso dal 2026-11-26, `claude/discovery-attese-b3-2-goeah3`)
+## B3.2 (bloccato il 2026-11-27, `claude/discovery-attese-b3-2-goeah3`)
 
-Discovery delle attese. Tre schede nella voce B3.2 di [`LOG.md`](./LOG.md): 1 ablazione dei
-ritardi di SIMOD a scenario fissato; 2 attribuzione delle attese sui sintetici; 3 attese
-attribuite nel simulatore contro SIMOD con ritardi estranei sui reali. Passo 3 (prodotto) solo
-se 2 e 3 sono GO.
+Discovery delle attese. Sintetici **GO**, reali **NO-GO**: decide Sohayb. Tutto nella voce B3.2 di
+[`LOG.md`](./LOG.md) (schede 1, 2, 3-3e scritte prima delle misure).
 
 ```bash
 tests/simulation/benchmark/g3b/setup_envs.sh        # basta il venv simod
-uv run python tests/simulation/benchmark/b3_2/run.py --phases validation          # scheda 1: simod, simod_fixed_extr
-uv run python tests/simulation/benchmark/b3_2/run.py --phases validation --logs AcademicCredentials BPIC_2012_W BPIC_2017_W --configs simod_extr simod_attr_extr   # scheda 3
-uv run python tests/simulation/benchmark/b3_2/report.py                            # results.md, verdicts.json
-# scheda 2: verità rigenerata (26 s), poi l'attribuzione (secondi)
+uv run python tests/simulation/benchmark/b3_2/run.py                    # scheda 1: simod, simod_fixed_extr (val e test)
+uv run python tests/simulation/benchmark/b3_2/run.py --logs AcademicCredentials BPIC_2012_W BPIC_2017_W --configs simod_extr simod_attr_calibrated
+uv run python tests/simulation/benchmark/b3_2/report.py                 # results.md, verdicts.json
 /var/tmp/delir-g3b/envs/simod/bin/python tests/simulation/benchmark/b3_2/tools/truth_logs.py --inputs datasets/extraneous-delays/inputs/synthetic --out /var/tmp/delir-b32/truth/validation --seed 20261124 <i 20 nomi>
-uv run python tests/simulation/benchmark/b3_2/attribution_eval.py --phase validation
+uv run python tests/simulation/benchmark/b3_2/attribution_eval.py --phase validation   # scheda 2 (test: seed 20261125)
 ```
 
-- **Scheda 2: GO sui sintetici.** Validazione 95,0%, test 95,65% delle attese con la causa giusta
-  (16 log con timer); 4 log senza timer 99,6-99,7%. Valutazioni in validazione: 3 su 20.
-- **Scheda 1: NO-GO in validazione** (RED 4/18/0 su 22 log, CED perde su 2). La fase dei ritardi
-  di SIMOD a scenario fissato non mette timer su 15 sintetici su 20; dove li mette RED migliora
-  (BPIC 2017 W 130 → 66). Test dei sintetici in corso (`/var/tmp/b32logs/test_syn.log`), non sceglie.
-- **Scheda 3 (sui reali):** v1-v4 NO-GO in validazione (v1 ritardi troppo lunghi; v2-v4 troppo
-  corti, AED perde). **v5 `simod_attr_calibrated` GO in validazione** (β del fuori orario scelto
-  simulando l'ultimo 20% dell'input). Test dei 3 reali in corso (`/var/tmp/b32logs/test_real.log`),
-  poi verdetto. Valutazioni in validazione: 5 su 20.
-- Difetto di `within_intervals` in G3b (risultati identici = sconfitta): corretto solo nel report di
-  B3.2, da decidere con Sohayb (voce in LOG.md).
-- Cache in `/var/tmp/delir-g3b/work` (discovery senza ritardi rifatta in questo container) e
-  verità in `/var/tmp/delir-b32/truth/{validation,test}`; log dei giri in `/var/tmp/b32logs/`.
-- `g3b/run.py::evaluate` accetta `simulate_fn` e `label` (opzionali): le configurazioni di G3b
-  non cambiano.
+- **Attribuzione delle attese (scheda 2): GO.** Causa giusta nel 95,0% (validazione) e 95,65% (test)
+  delle attese dei 16 sintetici con timer; 99,7% senza timer. Codice in `b3_2/waiting.py`.
+- **Ablazione dei ritardi (scheda 1): NO-GO**, ma sui reali i ritardi di SIMOD a scenario fissato
+  sono forti in test (BPIC 2017 W RED 183 → 7,8, meglio di "B = A" 11,4). Sui sintetici la ricerca di
+  SIMOD non mette timer (15 log su 20).
+- **Attese attribuite nel simulatore (schede 3-3e): NO-GO.** v5 vince in validazione e perde in test:
+  la validazione (ultimo 20% del train) taglia i casi lunghi e premia ritardi corti.
+- **Per Sohayb:** (a) validazione di W1 e RED con casi completi (cambio del §5); (b) i ritardi di SIMOD a
+  scenario fissato come base delle attese di B3; (c) un criterio del §4 sui casi aperti; (d) se la
+  parte visibile («Perché si aspetta», gate UX fatto) può entrare con la sola meta dei sintetici: è
+  pronta su `claude/b3-2-perche-si-aspetta-prodotto`; (e) il difetto di `within_intervals` di G3b.
+- Seguiti: orario comune per gruppi di risorse con pochi eventi (limite noto, test `xfail` sul branch
+  del prodotto); budget di validazione rimasto: 15 (scheda 3), 17 (scheda 2).
+- `g3b/run.py::evaluate` accetta `simulate_fn` e `label` (opzionali): G3b invariato.
 
 ## G3b (fatto il 2026-11-26, `spike/sim-g3b-ablation`)
 

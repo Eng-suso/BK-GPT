@@ -18,7 +18,7 @@ Modello:
 
 ---
 
-## 2026-11-26 — B3.2 discovery delle attese — in corso
+## 2026-11-27 — B3.2 discovery delle attese — bloccato
 
 - Branch: `claude/discovery-attese-b3-2-goeah3` (il branch assegnato alla sessione cloud, al posto
   di `feat/sim-discovery-waiting`). Dipendenze chiuse: G3b (#195).
@@ -146,6 +146,63 @@ Modello:
   contro 57,5 ± 6,5; BPIC 2017 W W1 73,2 ± 2,8 contro 98,5 ± 3,6, RED 52,8 ± 2,2 contro 65,0 ± 2,4;
   nessuna guardia perde (AED 61 pari, 41,7 contro 48,9 vince; AcademicCredentials AED 177 pari).
   Test lanciato una volta sui 3 reali.
+- **Esito scheda 1, test: NO-GO** (RED 6/15/2 su 23 log; perde su AcademicCredentials, dove la fase
+  dei ritardi di SIMOD fallisce per overflow di date come in G3b, e su Procure_to_Pay_5_timers_after;
+  guardie AED e CED perdono su 3-4 log). **Ma sui reali l'effetto isolato dei ritardi è forte:** a
+  scenario fissato RED passa da 178 a 63,7 (BPIC 2012 W) e da 183 a 7,82 (BPIC 2017 W), W1 da 175 a
+  42,1 e da 253 a 17,9; su BPIC 2017 W i soli ritardi di SIMOD battono anche "B = A" (RED 7,82 ± 0,3
+  contro 11,4; W1 17,9 ± 1,6 contro 30,6). La NO-GO viene dai sintetici, dove la ricerca di SIMOD
+  sceglie "nessun timer" su 15 log su 20. In G3b "SIMOD con ritardi" era quasi pari a SIMOD senza
+  ritardi perché riottimizzava risorse e calendari: isolati, i ritardi contano sui reali.
+- **Esito scheda 3e, test: NO-GO (v5).** Contro `simod_extr`: BPIC 2012 W perde (W1 99,3 ± 1,5 contro
+  43,2 ± 2,0; RED 113 ± 1,3 contro 66,0 ± 1,5), BPIC 2017 W perde (W1 50,0 ± 1,4 contro 19,2 ± 2,3;
+  RED 45,4 ± 1,5 contro 8,57 ± 0,81); AcademicCredentials vince solo perché `simod_extr` fallisce
+  (overflow), e lo scenario v5 non supera VAL-01 lì (eredita il ciclo senza uscita della discovery
+  senza ritardi, come in G3b). β scelto: 0 (BPIC 2012 W), 0,5 (BPIC 2017 W), 0,25 (AcademicCredentials).
+- **Diagnosi (perché la validazione ha scelto male).** La validazione del §5 è l'ultimo 20% dei casi del
+  train, e la calibrazione di v5 simula l'ultimo 20% dell'input: in entrambe le finestre i casi lunghi
+  sono tagliati alla fine del train (BPIC 2017 W validazione: durata mediana reale 170 h, contro
+  casi del test molto più lunghi). Le finestre tagliate premiano ritardi corti: v2-v5 vincono in
+  validazione e perdono in test, mentre i ritardi lunghi di SIMOD perdono in validazione (W1 116 su
+  BPIC 2012 W) e vincono in test. Il controllo del §4 (tagliati a destra < 5%) guarda l'ultima
+  attività del caso, non i casi ancora aperti con attese lunghe: non lo vede.
+- **Decisione: B3.2 bloccato** (meta sui reali non raggiunta, meta sui sintetici raggiunta). Scegliere
+  altre varianti su questa validazione vorrebbe dire scegliere su una finestra distorta; il test non
+  sceglie. Sblocca Sohayb, con una di queste: (a) validazione per W1 e RED su log con casi lunghi
+  fatta di casi completi (finestra del fit che finisce prima, casi seguiti fino alla loro fine nel
+  train), cambio del §5; (b) per le attese, i ritardi di SIMOD a scenario fissato come base di B3 sui
+  reali (già misurati in test, scelta da fare prima di guardare altro); (c) un criterio del §4 sui
+  casi aperti a fine periodo. Valutazioni in validazione usate: 5 su 20 (scheda 3), 3 su 20 (scheda 2).
+- **Prodotto: niente in `main`.** Il porting dell'attribuzione (scheda 2, GO) è pronto sul branch
+  `claude/b3-2-perche-si-aspetta-prodotto`: `backend/eventlog/waiting.py` (solo libreria standard),
+  `waitingCauses` nei KPI del log reale quando inizio e persona ci sono sul 95% degli eventi, e
+  nell'ispettore dell'attività «Perché si aspetta» con le cause in linguaggio di business («Le persone
+  sono occupate in altro lavoro», «Fuori dall'orario di lavoro», «Si aspetta qualcosa da fuori:
+  clienti, fornitori, altri uffici», «Il lavoro si raccoglie e si fa a lotti»). Gate UX fatto lì
+  (Playwright desktop 1440 × 900 e Pixel 7, `docs/vpt/ux/B3.2/` sul branch): letti tutti gli
+  screenshot, niente gergo, risposta prima del dettaglio, niente testo tagliato né scroll
+  orizzontale, axe WCAG 2 A/AA senza violazioni; corretto un dato del fixture incoerente (30
+  esecuzioni accanto a «3 → 3»). Entra in `main` solo se Sohayb decide che la meta dei sintetici basta
+  per la parte visibile, o dopo il GO sui reali.
+- **Code review** (`code-review`, livello alto, sul diff contro `origin/main`): 10 rilievi. Corretti:
+  orari letti nell'ora locale del log (prima in UTC); abilitazione registrata usata così com'è; eventi
+  senza persona che abilitano le altre attività; niente batching con inizi registrati al minuto; quote
+  per il simulatore (`idle`, `on_shift`) solo a richiesta, costo ora lineare (160.000 eventi in 2,0 s,
+  prima 16,6 s); niente cause nei KPI di periodo; l'ispettore non dice «parte appena può» quando il log
+  non lo sa, nasconde le cause sotto lo 0,5% e non mostra «0 attese»; voce delle skill in LOG.
+  Motivato e lasciato come limite noto con test `xfail(strict)`: chi compare poco nel log ha un orario
+  stretto (cambiarlo ora cambierebbe l'algoritmo validato e misurato; seguito proposto: orario comune
+  per i gruppi con pochi eventi, con scheda). Motivato: la finestra delle cause usa la regola di
+  concorrenza, quella dell'attesa media dei KPI no (per costruzione diverse sui rami paralleli).
+- **`simplify`:** i 4 revisori in parallelo si sono fermati sul limite di uso dell'API; fatto a mano sul
+  codice di ricerca: tolto il riepilogo per attività dal banco (vive sul branch del prodotto),
+  nessuna funzione morta, nessun duplicato con G3b (il driver riusa `g3b/run.py`: `evaluate`, budget,
+  cache, misura). Il `compare` del report è sostituito solo dentro un `with` per non toccare G3b.
+- Nessun codice del prodotto in `main`: niente ast-grep del backend da applicare qui (lanciato sul
+  branch del prodotto: 0 rilievi), niente `security-review` (nessuna autenticazione né tenant).
+- Skill: `code-review`, `simplify` (a mano), `react-ui-patterns` per l'ispettore; gate UX con
+  Playwright e axe come da WORKFLOW (`ui-visual-validator` non caricata: lettura degli screenshot
+  fatta direttamente).
 - **Difetto del banco di G3b, da correggere con Sohayb:** `within_intervals` usa `<`, quindi due
   risultati identici con IC nullo (sintetici di un giorno) risultano diversi e `compare` dà
   "perde". In G3b: 246 confronti identici; sulle primarie, 4 RED "persi" della scheda Attese in
