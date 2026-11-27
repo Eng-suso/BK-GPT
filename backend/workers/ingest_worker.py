@@ -148,13 +148,21 @@ def _fail(consultant: str, job_id: int, error: str) -> None:
 
 
 def drain_once(limit: int = 20) -> int:
-    """Processa fino a `limit` job, consulente per consulente. Ritorna quanti ne ha completati."""
+    """Processa fino a `limit` job, consulente per consulente. Ritorna quanti ne ha completati.
+
+    Il limite si divide fra chi ha lavoro in coda: un account con cento
+    documenti da leggere non fa aspettare quello che ne ha caricato uno.
+    """
+    consultants = _consultants(("pending", "processing"))
+    if not consultants:
+        return 0
+    share = max(1, limit // len(consultants))
     done = 0
-    for consultant in _consultants(("pending", "processing")):
+    for consultant in consultants:
         if done >= limit:
             break
         with _working_for(consultant):
-            done += _drain_consultant(consultant, limit - done)
+            done += _drain_consultant(consultant, min(share, limit - done))
     return done
 
 

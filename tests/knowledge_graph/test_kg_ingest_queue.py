@@ -217,6 +217,22 @@ def test_worker_drains_every_account_each_in_its_own_space(scope, monkeypatch):
     ])
 
 
+def test_a_big_backlog_does_not_starve_another_account(monkeypatch):
+    """Il limite di una passata si divide: chi ha un job solo non aspetta cento job altrui."""
+    busy, quiet = str(uuid.uuid4()), str(uuid.uuid4())
+    asked: dict[str, int] = {}
+
+    def _drain(consultant, limit):
+        asked[consultant] = limit
+        return limit if consultant == busy else 1
+
+    monkeypatch.setattr(ingest_worker, "_consultants", lambda _s: [busy, quiet])
+    monkeypatch.setattr(ingest_worker, "_drain_consultant", _drain)
+
+    assert ingest_worker.drain_once(limit=20) == 11
+    assert asked == {busy: 10, quiet: 10}
+
+
 def test_worker_failure_path_retries_then_dead_letters(scope, monkeypatch):
     # write_evidence che solleva -> retry finche' 'failed' (dead-letter)
     def _boom(**_kw):
