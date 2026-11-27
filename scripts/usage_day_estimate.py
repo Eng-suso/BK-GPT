@@ -34,9 +34,23 @@ CHARS_PER_TOKEN = 4
 # - gpt-realtime-whisper: $0.017 al minuto (developers.openai.com/api/docs/models/gpt-realtime-whisper)
 # - gpt-4o-transcribe-diarize: tariffa a token di gpt-4o-transcribe, che OpenAI
 #   stima a $0.006 al minuto; il modello e' deprecato e non ha un prezzo al minuto suo.
+#
+# La cache dei due fornitori non funziona allo stesso modo, e per la chat e' la
+# differenza che conta:
+# - OpenAI mette in cache da solo ogni prefisso gia' visto, senza sovrapprezzo
+#   di scrittura (`cache_write` 1.0);
+# - Anthropic mette in cache solo dove la richiesta lo chiede (`cache_control`),
+#   e la scrittura costa 1,25 volte l'ingresso con la durata di 5 minuti.
+#   Senza segnalibri non c'e' cache: `marked=False` misura quel caso.
 PRICES = {
-    "gpt-6-luna": {"input": 0.10, "cached": 0.01, "output": 0.50, "long_context_tokens": 272_000},
-    "claude-haiku-5-5": {"input": 0.10, "cached": 0.01, "output": 0.50, "long_context_tokens": 100_000},
+    "gpt-6-luna": {
+        "input": 0.10, "cached": 0.01, "output": 0.50, "long_context_tokens": 272_000,
+        "cache_write": 1.0, "automatic_cache": True,
+    },
+    "claude-haiku-5-5": {
+        "input": 0.10, "cached": 0.01, "output": 0.50, "long_context_tokens": 100_000,
+        "cache_write": 1.25, "automatic_cache": False,
+    },
 }
 EMBEDDING_PER_M = 0.02
 TRANSCRIPTION_PER_MIN = 0.006
@@ -45,7 +59,7 @@ LIVE_TRANSCRIPTION_PER_MIN = 0.017
 # Token di ragionamento in rapporto all'uscita, per livello chiesto dal profilo.
 REASONING = {"none": 0.0, "low": 0.3, "medium": 1.0}
 
-# Gli specialisti della chat e i tool che ciascuno manda a ogni passo.
+# Gli specialisti della chat, con i tool e il contratto che ciascuno manda a ogni passo.
 CHAT_SPECIALISTS = (
     "home", "clients", "setup",  # consulenza
     "discovery", "evidence", "modeling",  # processo
@@ -67,7 +81,12 @@ SCENARIOS: dict[str, dict] = {
         "entity_resolutions": 20, "memory_facts": 10, "memory_infer": False,
         "playbook_extractions": 0, "playbook_generalizations": 0,
         "what_ifs": 3, "narratives": 2, "claim_matchings": 2,
-        "chat_cache_share": 0.6,
+        "tool_result_tokens": 1_200,
+        # Quanto spesso il pezzo fisso (memoria procedurale e tool) del primo passo
+        # e' gia' in cache: lo stesso specialista e' stato chiamato da un
+        # consulente qualsiasi negli ultimi minuti. E quanto spesso lo e' anche il
+        # contesto di scope: lo stesso processo al turno prima.
+        "head_cache_hit": 0.6, "scope_cache_hit": 0.3,
     },
     "intensa": {
         # Tre processi nello stesso giorno, tutte le fonti possibili, chat quasi
@@ -89,7 +108,8 @@ SCENARIOS: dict[str, dict] = {
         "entity_resolutions": 80, "memory_facts": 30, "memory_infer": True,
         "playbook_extractions": 3, "playbook_generalizations": 1,
         "what_ifs": 15, "narratives": 6, "claim_matchings": 6,
-        "chat_cache_share": 0.6,
+        "tool_result_tokens": 1_500,
+        "head_cache_hit": 0.9, "scope_cache_hit": 0.5,
     },
 }
 
@@ -119,6 +139,9 @@ class Line:
     effort: str = "none"
     cached_share: float = 0.0
     label: str = ""
+    # La parte nuova di questa chiamata viene scritta in cache: dove la scrittura
+    # ha un sovrapprezzo (Anthropic), lo paga.
+    cache_written: bool = False
 
     def per_day(self) -> tuple[float, float, float]:
         total_in = self.calls * self.input_tokens
@@ -132,14 +155,23 @@ def measure() -> dict[str, int]:
     from backend.agent import PROCEDURAL_MEMORY_PATH
     from backend.agents.conformance_audit import AUDITOR_PROMPT, SourceAuditVerdict
     from backend.agents.plan_consolidation import PlanUnificationVerdict
+    from backend.graphs.canvas_edit.graph import CANVAS_SUBGRAPH_CONTRACT
+    from backend.graphs.canvas_edit.subgraphs.construction.graph import CONSTRUCTION_SUBGRAPH_CONTRACT
+    from backend.graphs.canvas_edit.subgraphs.patch_edit.graph import PATCH_EDIT_SUBGRAPH_CONTRACT
     from backend.graphs.canvas_edit.tools import canvas_macro_tools, construction_tools, patch_edit_tools
+    from backend.graphs.consulting.subgraphs.clients.graph import CLIENTS_SUBGRAPH_CONTRACT
+    from backend.graphs.consulting.subgraphs.home.graph import HOME_SUBGRAPH_CONTRACT
+    from backend.graphs.consulting.subgraphs.setup.graph import SETUP_SUBGRAPH_CONTRACT
+    from backend.graphs.process.subgraphs.discovery.graph import DISCOVERY_SUBGRAPH_CONTRACT
+    from backend.graphs.process.subgraphs.evidence.graph import EVIDENCE_SUBGRAPH_CONTRACT
+    from backend.graphs.process.subgraphs.modeling.graph import MODELING_SUBGRAPH_CONTRACT
     from backend.graphs.consulting.subgraphs.clients.tools import clients_tools
     from backend.graphs.consulting.subgraphs.home.tools import home_tools
     from backend.graphs.consulting.subgraphs.setup.tools import setup_tools
     from backend.graphs.process.subgraphs.discovery.tools import discovery_tools
     from backend.graphs.process.subgraphs.evidence.tools import evidence_tools
     from backend.graphs.process.subgraphs.modeling.tools import modeling_tools
-    from backend.graphs.task_review import REVIEW_TOOLS
+    from backend.graphs.task_review import REVIEW_CONTRACT, REVIEW_TOOLS
     from backend.memory.consultant_context_classifier import SISTEMA_CLASSIFICAZIONE
     from backend.memory.knowledge_graph.entity_resolution import _SISTEMA as ER_SYSTEM
     from backend.memory.procedural.extraction import ExtractedPlaybook, GeneralizedPlaybook
@@ -162,9 +194,17 @@ def measure() -> dict[str, int]:
         "canvas_macro": canvas_macro_tools, "canvas_patch": patch_edit_tools,
         "canvas_construction": construction_tools, "review": REVIEW_TOOLS,
     }
+    contracts = {
+        "home": HOME_SUBGRAPH_CONTRACT, "clients": CLIENTS_SUBGRAPH_CONTRACT,
+        "setup": SETUP_SUBGRAPH_CONTRACT, "discovery": DISCOVERY_SUBGRAPH_CONTRACT,
+        "evidence": EVIDENCE_SUBGRAPH_CONTRACT, "modeling": MODELING_SUBGRAPH_CONTRACT,
+        "canvas_macro": CANVAS_SUBGRAPH_CONTRACT, "canvas_patch": PATCH_EDIT_SUBGRAPH_CONTRACT,
+        "canvas_construction": CONSTRUCTION_SUBGRAPH_CONTRACT, "review": REVIEW_CONTRACT,
+    }
     return {
         "procedural": tokens(PROCEDURAL_MEMORY_PATH.read_text(encoding="utf-8")),
         **{f"tools_{name}": tool_tokens(group) for name, group in tools.items()},
+        **{f"contract_{name}": tokens(text) for name, text in contracts.items()},
         "routing_system": tokens(SISTEMA_CLASSIFICAZIONE),
         "plan_prompt": tokens(_PROCESS_UNDERSTANDING_PROMPT) + schema_tokens(ProcessUnderstanding),
         "quality_prompt": tokens(_PROCESS_UNDERSTANDING_QUALITY_PROMPT) + schema_tokens(ProcessUnderstandingQualityReport),
@@ -180,8 +220,14 @@ def measure() -> dict[str, int]:
     }
 
 
-def build_day(m: dict[str, int], d: dict) -> tuple[list[Line], dict[str, float]]:
-    """Le voci della giornata, e le spese non a token (embedding, audio)."""
+def build_day(
+    m: dict[str, int], d: dict, *, contract_at_tail: bool = False
+) -> tuple[list[Line], dict[str, float]]:
+    """Le voci della giornata, e le spese non a token (embedding, audio).
+
+    `contract_at_tail` rimette il contratto dello specialista in coda al prompt,
+    dov'era fino al 2026-11-27: serve a misurare quanto ha reso spostarlo.
+    """
     interview, document = tokens(d["interview_chars"]), tokens(d["document_chars"])
     sources = d["interviews"] + d["documents"]
     source_tokens = d["interviews"] * interview + d["documents"] * document
@@ -203,14 +249,40 @@ def build_day(m: dict[str, int], d: dict) -> tuple[list[Line], dict[str, float]]
     add(Line("conformance_audit", audits, m["audit_prompt"] + 6_000 + int(mean_source / 2), 2_000, "medium"))
     add(Line("plan_extraction", d["conformance_repairs"], m["plan_prompt"] + int(per_process), 6_000, "medium", label="plan_extraction (riparazione)"))
 
-    # Chat: ogni passo rimanda memoria procedurale, tool dello specialista, contesto e storia.
+    # Chat: il prompt di un passo, nell'ordine in cui `build_tool_chat_subgraph`
+    # lo costruisce. Il fornitore mette in cache un prefisso, quindi conta
+    # l'ordine, non solo la dimensione:
+    #
+    #   [tool + contratto + memoria procedurale] [scope] [storia] [passi gia' fatti]
+    #    fisso, uguale per tutti                  per processo     cresce a ogni passo
+    #
+    # - primo passo del turno: il pezzo fisso e' in cache se lo stesso specialista
+    #   ha girato da poco (per un consulente qualsiasi), lo scope se e' lo stesso
+    #   processo del turno prima; la storia e' nuova;
+    # - passi successivi: e' in cache tutto il prompt del passo prima; nuovo e'
+    #   solo l'ultimo tool con il suo risultato.
+    #
+    # Con `contract_at_tail` il contratto torna in coda: non entra mai nel
+    # prefisso e si paga intero a ogni passo.
     turns, steps = d["chat_turns"], d["steps_per_turn"]
-    variable = d["scope_context_tokens"] + d["history_tokens"]
+    scope, history, result = d["scope_context_tokens"], d["history_tokens"], d["tool_result_tokens"]
+    later_steps = max(0.0, steps - 1)
     for specialist, share in d["chat_mix"].items():
-        static = m["procedural"] + m[f"tools_{specialist}"]
-        # Il primo passo di ogni turno paga tutto; gli altri trovano in cache il prefisso statico.
-        cached = (1 - 1 / steps) * d["chat_cache_share"] * static / (static + variable)
-        add(Line("chat_turn", turns * steps * share, static + variable, d["step_output_tokens"], "none", cached, f"chat_turn ({specialist})"))
+        head = m["procedural"] + m[f"tools_{specialist}"] + m[f"contract_{specialist}"]
+        contract = 0
+        if contract_at_tail:
+            head, contract = head - m[f"contract_{specialist}"], m[f"contract_{specialist}"]
+        first_in = head + scope + history + contract
+        first_cached = d["head_cache_hit"] * head + d["scope_cache_hit"] * scope
+        # In media un passo successivo ha dietro di se' meta' dei passi gia' fatti.
+        later_in = head + scope + history + result * (1 + later_steps / 2) + contract
+        later_cached = later_in - result - contract
+        calls = turns * share
+        add(Line("chat_turn", calls, first_in, d["step_output_tokens"], "none",
+                 first_cached / first_in, f"chat_turn ({specialist})", cache_written=True))
+        if later_steps:
+            add(Line("chat_turn", calls * later_steps, int(later_in), d["step_output_tokens"], "none",
+                     later_cached / later_in, f"chat_turn ({specialist})", cache_written=True))
     add(Line("context_routing", turns, m["routing_system"] + 800, 80))
     add(Line("thread_summary", turns / d["summary_every_turns"], 4_000, 600))
     add(Line("retrieval_rerank", turns * d["rerank_per_turn"], 2_000, 100))
@@ -254,16 +326,33 @@ def check_coverage(lines: list[Line], extras: dict[str, float]) -> None:
         raise SystemExit(f"compiti senza stima: {sorted(missing)}")
 
 
-def cost(lines: list[Line], extras: dict[str, float], model: str) -> tuple[float, dict[str, float]]:
+def cost(
+    lines: list[Line], extras: dict[str, float], model: str, *, cache: bool = True
+) -> tuple[float, dict[str, float]]:
+    """Il costo della giornata. `cache=False` e' il caso senza cache: per Haiku,
+    un client che non mette i segnalibri `cache_control`."""
     p = PRICES[model]
     by_label: dict[str, float] = {}
     for line in lines:
         fresh, cached, out = line.per_day()
-        c = (fresh * p["input"] + cached * p["cached"] + out * p["output"]) / 1e6
+        if not cache:
+            fresh, cached = fresh + cached, 0.0
+        write = p["cache_write"] if cache and line.cache_written else 1.0
+        c = (fresh * p["input"] * write + cached * p["cached"] + out * p["output"]) / 1e6
         key = line.label or line.task
         by_label[key] = by_label.get(key, 0.0) + c
     by_label.update(extras)
     return sum(by_label.values()), by_label
+
+
+def heavy_plan_tools_tokens() -> int:
+    """I due tool che portano lo schema intero del piano: la leva "tool per passo"."""
+    from backend.graphs.process.subgraphs.modeling.tools import (
+        amend_process_plan,
+        prepare_process_understanding_review,
+    )
+
+    return tool_tokens([amend_process_plan, prepare_process_understanding_review])
 
 
 def main() -> None:
@@ -272,13 +361,15 @@ def main() -> None:
     for key, value in m.items():
         print(f"  {key:26s} {value:>8,}")
 
+    heavy = heavy_plan_tools_tokens()
     for name, scenario in SCENARIOS.items():
         lines, extras = build_day(m, scenario)
         check_coverage(lines, extras)
-        worst_lines, worst_extras = build_day(m, {**scenario, "chat_cache_share": 0.0})
         for model in PRICES:
             total, rows = cost(lines, extras, model)
-            print(f"\n[{name}] {model}: ${total:.3f} al giorno (senza cache ${cost(worst_lines, worst_extras, model)[0]:.3f})")
+            uncached = cost(lines, extras, model, cache=False)[0]
+            how = "cache automatica" if PRICES[model]["automatic_cache"] else "con i segnalibri cache_control"
+            print(f"\n[{name}] {model}: ${total:.3f} al giorno ({how}; senza cache ${uncached:.3f})")
             for label, c in sorted(rows.items(), key=lambda r: -r[1]):
                 if c:
                     print(f"  {label:34s} ${c:.4f}  {c / total:5.1%}")
@@ -286,6 +377,13 @@ def main() -> None:
             limit = PRICES[model]["long_context_tokens"]
             note = "OLTRE la soglia: prezzo maggiorato" if biggest > limit else "sotto la soglia"
             print(f"  prompt piu' lungo: {biggest:,} token (soglia {limit:,}: {note})")
+
+            # Le leve sulla chat, misurate sullo stesso modello.
+            tail = cost(*build_day(m, scenario, contract_at_tail=True), model)[0]
+            trimmed_m = {**m, "tools_modeling": m["tools_modeling"] - heavy}
+            trimmed = cost(*build_day(trimmed_m, scenario), model)[0]
+            print(f"  leva: contratto in testa invece che in coda (fatto)  -${tail - total:.3f}")
+            print(f"  leva: tool del piano tolti dalla modellazione (tetto massimo)  -${total - trimmed:.3f}")
 
 
 if __name__ == "__main__":
