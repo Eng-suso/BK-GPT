@@ -81,12 +81,14 @@ SCENARIOS: dict[str, dict] = {
         "entity_resolutions": 20, "memory_facts": 10, "memory_infer": False,
         "playbook_extractions": 0, "playbook_generalizations": 0,
         "what_ifs": 3, "narratives": 2, "claim_matchings": 2,
-        "tool_result_tokens": 1_200,
-        # Quanto spesso il pezzo fisso (memoria procedurale e tool) del primo passo
-        # e' gia' in cache: lo stesso specialista e' stato chiamato da un
-        # consulente qualsiasi negli ultimi minuti. E quanto spesso lo e' anche il
-        # contesto di scope: lo stesso processo al turno prima.
+        "tool_result_tokens": 1_200, "tool_call_tokens": 150,
+        # Quanto spesso il primo passo trova in cache la parte fissa (lo stesso
+        # specialista ha lavorato da poco, per un consulente qualsiasi), e quanto
+        # spesso anche lo scope (stesso processo del turno prima). La seconda e'
+        # una probabilita' congiunta: lo scope viene dopo, non puo' superarla.
         "head_cache_hit": 0.6, "scope_cache_hit": 0.3,
+        # Quota dei passi con la finestra della storia gia' piena (thread lunghi).
+        "history_window_full": 0.6,
     },
     "intensa": {
         # Tre processi nello stesso giorno, tutte le fonti possibili, chat quasi
@@ -108,8 +110,9 @@ SCENARIOS: dict[str, dict] = {
         "entity_resolutions": 80, "memory_facts": 30, "memory_infer": True,
         "playbook_extractions": 3, "playbook_generalizations": 1,
         "what_ifs": 15, "narratives": 6, "claim_matchings": 6,
-        "tool_result_tokens": 1_500,
+        "tool_result_tokens": 1_500, "tool_call_tokens": 200,
         "head_cache_hit": 0.9, "scope_cache_hit": 0.5,
+        "history_window_full": 0.8,
     },
 }
 
@@ -221,12 +224,14 @@ def measure() -> dict[str, int]:
 
 
 def build_day(
-    m: dict[str, int], d: dict, *, contract_at_tail: bool = False
+    m: dict[str, int], d: dict, *, contract_in_head: bool = False, stable_window: bool = False
 ) -> tuple[list[Line], dict[str, float]]:
     """Le voci della giornata, e le spese non a token (embedding, audio).
 
-    `contract_at_tail` rimette il contratto dello specialista in coda al prompt,
-    dov'era fino al 2026-11-27: serve a misurare quanto ha reso spostarlo.
+    I due flag misurano leve che il codice non ha ancora, perche' cambiano cio'
+    che il modello legge e vanno prima validate con gli eval della chat:
+    `contract_in_head` mette il contratto dello specialista nella parte fissa in
+    testa; `stable_window` tiene ferma per tutto il turno la finestra della storia.
     """
     interview, document = tokens(d["interview_chars"]), tokens(d["document_chars"])
     sources = d["interviews"] + d["documents"]
@@ -253,30 +258,37 @@ def build_day(
     # lo costruisce. Il fornitore mette in cache un prefisso, quindi conta
     # l'ordine, non solo la dimensione:
     #
-    #   [tool + contratto + memoria procedurale] [scope] [storia] [passi gia' fatti]
-    #    fisso, uguale per tutti                  per processo     cresce a ogni passo
+    #   [tool + memoria procedurale] [scope] [storia: ultimi 8 messaggi] [contratto]
+    #    fisso, uguale per tutti      per processo  scorre a ogni passo    in coda
     #
-    # - primo passo del turno: il pezzo fisso e' in cache se lo stesso specialista
-    #   ha girato da poco (per un consulente qualsiasi), lo scope se e' lo stesso
-    #   processo del turno prima; la storia e' nuova;
-    # - passi successivi: e' in cache tutto il prompt del passo prima; nuovo e'
-    #   solo l'ultimo tool con il suo risultato.
-    #
-    # Con `contract_at_tail` il contratto torna in coda: non entra mai nel
-    # prefisso e si paga intero a ogni passo.
+    # - primo passo del turno: la parte fissa e' in cache se lo stesso specialista
+    #   ha girato da poco, per un consulente qualsiasi; lo scope se e' anche lo
+    #   stesso processo del turno prima (quindi `scope_cache_hit` <= `head_cache_hit`);
+    # - passi successivi: la storia e' una finestra degli ultimi 8 messaggi
+    #   (`RECENT_MESSAGE_LIMIT`). A finestra piena ogni passo ne fa uscire i piu'
+    #   vecchi, tutto cio' che segue lo scope cambia e la cache si ferma li'.
+    #   Solo a finestra non ancora piena il passo prima e' un prefisso intero;
+    # - il contratto sta in coda: non entra mai nel prefisso e si paga intero.
     turns, steps = d["chat_turns"], d["steps_per_turn"]
-    scope, history, result = d["scope_context_tokens"], d["history_tokens"], d["tool_result_tokens"]
+    scope, history = d["scope_context_tokens"], d["history_tokens"]
+    # Un passo aggiunge la chiamata del tool e il suo risultato.
+    step_added = d["tool_result_tokens"] + d["tool_call_tokens"]
+    head_hit, scope_hit = d["head_cache_hit"], d["scope_cache_hit"]
+    if scope_hit > head_hit:
+        raise SystemExit("scope_cache_hit non puo' superare head_cache_hit: lo scope viene dopo")
+    window_full = 0.0 if stable_window else d["history_window_full"]
     later_steps = max(0.0, steps - 1)
     for specialist, share in d["chat_mix"].items():
-        head = m["procedural"] + m[f"tools_{specialist}"] + m[f"contract_{specialist}"]
-        contract = 0
-        if contract_at_tail:
-            head, contract = head - m[f"contract_{specialist}"], m[f"contract_{specialist}"]
+        head = m["procedural"] + m[f"tools_{specialist}"]
+        contract = m[f"contract_{specialist}"]
+        if contract_in_head:
+            head, contract = head + contract, 0
         first_in = head + scope + history + contract
-        first_cached = d["head_cache_hit"] * head + d["scope_cache_hit"] * scope
-        # In media un passo successivo ha dietro di se' meta' dei passi gia' fatti.
-        later_in = head + scope + history + result * (1 + later_steps / 2) + contract
-        later_cached = later_in - result - contract
+        first_cached = head_hit * head + scope_hit * scope
+        # Il passo k (2..S) porta k-1 chiamate fatte: in media S/2.
+        later_in = head + scope + history + step_added * steps / 2 + contract
+        extends_previous = later_in - step_added - contract
+        later_cached = window_full * (head + scope) + (1 - window_full) * extends_previous
         calls = turns * share
         add(Line("chat_turn", calls, first_in, d["step_output_tokens"], "none",
                  first_cached / first_in, f"chat_turn ({specialist})", cache_written=True))
@@ -379,10 +391,12 @@ def main() -> None:
             print(f"  prompt piu' lungo: {biggest:,} token (soglia {limit:,}: {note})")
 
             # Le leve sulla chat, misurate sullo stesso modello.
-            tail = cost(*build_day(m, scenario, contract_at_tail=True), model)[0]
+            in_head = cost(*build_day(m, scenario, contract_in_head=True), model)[0]
+            window = cost(*build_day(m, scenario, stable_window=True), model)[0]
             trimmed_m = {**m, "tools_modeling": m["tools_modeling"] - heavy}
             trimmed = cost(*build_day(trimmed_m, scenario), model)[0]
-            print(f"  leva: contratto in testa invece che in coda (fatto)  -${tail - total:.3f}")
+            print(f"  leva: contratto in testa (da validare con gli eval)  -${total - in_head:.3f}")
+            print(f"  leva: finestra della storia ferma per il turno (da validare)  -${total - window:.3f}")
             print(f"  leva: tool del piano tolti dalla modellazione (tetto massimo)  -${total - trimmed:.3f}")
 
 
