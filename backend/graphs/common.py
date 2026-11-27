@@ -346,13 +346,8 @@ def build_tool_chat_subgraph(
 
         messages = build_context_messages(state)
 
-        # Il contratto e' testo fisso dello specialista: va in testa, prima del
-        # contesto che cambia. Il fornitore mette in cache un prefisso identico,
-        # quindi qui fa parte del pezzo che a ogni passo si paga un decimo; in
-        # coda veniva rimandato a prezzo pieno a ogni passo, dietro la storia.
-        # E Claude accetta le istruzioni di sistema solo in testa.
         if subgraph_contract:
-            messages = [SystemMessage(content=subgraph_contract), *messages]
+            messages = [*messages, SystemMessage(content=subgraph_contract)]
 
         # Le passate precedenti non sono nel transcript: senza questo, ogni
         # specialista ripartirebbe da zero e rifarebbe il lavoro appena fatto.
