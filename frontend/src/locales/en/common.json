@@ -361,5 +361,58 @@
     "quarter": "This quarter",
     "year": "This year",
     "scoped": "{{period}}"
+  },
+  "usage": {
+    "label": "Usage: {{percent}}% of the nearest limit",
+    "title": "Usage",
+    "refresh": "Refresh",
+    "used": "{{percent}}% used",
+    "limitsHeading": "Trial limits",
+    "session": {
+      "title": "Current session",
+      "resets": "Resets {{when}}",
+      "notStarted_one": "Starts with your next request and lasts {{count}} hour",
+      "notStarted_other": "Starts with your next request and lasts {{count}} hours"
+    },
+    "week": {
+      "title": "Weekly limit",
+      "resets": "Renews {{when}}"
+    },
+    "trial": {
+      "title": "Trial",
+      "ends_one": "Ends {{day}} · {{count}} day left",
+      "ends_other": "Ends {{day}} · {{count}} days left",
+      "over": "The trial has ended"
+    },
+    "when": {
+      "today": "at {{time}}",
+      "tomorrow": "tomorrow at {{time}}",
+      "weekday": "{{day}} at {{time}}"
+    },
+    "forecast": {
+      "title": "Watch your pace",
+      "session": "At this pace you'll use up the session {{when}}, before it resets {{reset}}.",
+      "week": "At this pace you'll reach the weekly limit {{when}}, before it renews {{reset}}.",
+      "trial": "At this pace you'll use up the trial credit {{when}}, before the trial ends."
+    },
+    "blocked": {
+      "session": {
+        "title": "Session used up",
+        "body": "Your work is saved. You can continue {{when}}."
+      },
+      "week": {
+        "title": "Weekly limit reached",
+        "body": "Your work is saved. Continue {{when}}, when the week renews."
+      },
+      "trial": {
+        "title": "Trial credit used up",
+        "body": "Your work stays available. To keep working, contact the DeliR team."
+      },
+      "trialOver": {
+        "title": "Trial ended",
+        "body": "Your work stays available. To keep working, contact the DeliR team."
+      }
+    },
+    "explainer": "The count covers chat, document reading, the knowledge map and simulations. Work that has started always finishes: the limit only stops the next request."
   }
 }

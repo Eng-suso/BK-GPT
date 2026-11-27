@@ -50,6 +50,7 @@ from backend.schemas.workspace import (
     WorkspaceNotificationsResponse,
     WorkspaceSearchHit,
 )
+from backend.llm.budget import require_usage_available
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
 from backend.workspace_services.bpmn_draft import (
     generate_bpmn_draft,
@@ -1128,7 +1129,7 @@ def review_workspace_process_element(
     )
 
 
-@router.post("/processes/{process_id}/bpmn-draft")
+@router.post("/processes/{process_id}/bpmn-draft", dependencies=[Depends(require_usage_available)])
 def generate_workspace_bpmn_draft(process_id: str) -> BpmnDraftResponse:
     """Genera la bozza BPMN di un processo dal piano gia' materializzato.
 
@@ -1227,7 +1228,7 @@ def get_workspace_process_conformance(process_id: str) -> ConformanceStatusRespo
     )
 
 
-@router.post("/processes/{process_id}/conformance/repair")
+@router.post("/processes/{process_id}/conformance/repair", dependencies=[Depends(require_usage_available)])
 def repair_workspace_process_from_conformance(process_id: str) -> BpmnDraftResponse:
     """Riporta nel piano i punti che le fonti dicono e il disegno non mostra.
 

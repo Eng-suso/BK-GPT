@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from backend.bpmn import BPMNSemanticModel
 from backend.bpmn.soundness import analyze_control_flow
+from backend.bpmn.xml_behavior import analyze_canvas_xml_behavior
 from backend.process_understanding import ProcessUnderstanding
 from backend.workspace_services.bpmn_canvas_edit import (
     BPMN_NS,
@@ -79,6 +80,11 @@ def validate_canvas_against_process(
     }
 
     root = _parse_xml(xml)
+    behavioral = analyze_canvas_xml_behavior(xml)
+    issues.extend(behavioral["issues"])
+    warnings.extend(behavioral["warnings"])
+    coverage["xml_behavioral_scope"] = behavioral["behavioral_scope"]
+    coverage["xml_processes_analyzed"] = behavioral["processes_analyzed"]
     semantic_payload = _extract_semantic_payload(root)
     gateway_issues = _gateway_path_issues(root)
     issues.extend(gateway_issues)
@@ -126,6 +132,8 @@ def validate_canvas_against_process(
     return {
         "valid": not issues,
         "technical": technical,
+        "behavioral_valid": behavioral["valid"],
+        "behavioral_scope": behavioral["behavioral_scope"],
         "semantic_valid": not issues,
         "issues": _unique(issues),
         "warnings": _unique(warnings),

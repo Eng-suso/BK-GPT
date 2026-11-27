@@ -168,6 +168,24 @@ class Settings(BaseSettings):
     # plausibile e falso, su cui poi si fanno i budget. Vedi backend/llm/prices.py.
     llm_prices_json: str = ""
 
+    # --- limiti d'uso della prova (backend/llm/budget.py) ------------------
+    # Spenti di default: si accendono quando il budget della prova e' deciso.
+    # Le soglie sono in dollari stimati dal listino, cioe' nella stessa unita'
+    # in cui il fornitore fattura. Al consulente si mostrano come percentuale.
+    usage_limits_enabled: bool = False
+    # La sessione parte dal primo uso e dura queste ore (come Claude e Codex).
+    usage_session_hours: float = 5.0
+    usage_session_budget_usd: float = 1.5
+    # La settimana parte dall'inizio della prova (o dal primo uso) e dura 7 giorni.
+    usage_week_budget_usd: float = 6.0
+    # Il tetto assoluto della prova, e la sua durata. 0 = nessun tetto.
+    usage_trial_budget_usd: float = 20.0
+    usage_trial_days: int = 14
+    # Le righe del registro senza prezzo (modello non nel listino) si contano a
+    # questo prezzo per milione di token. E' pessimista di proposito: un costo
+    # sconosciuto contato alto fa scattare il limite prima, mai dopo.
+    usage_unpriced_usd_per_million_tokens: float = 10.0
+
     # --- budget del runtime agentico ---------------------------------------
     # L'agente decide cosa fare, il runtime decide per quanto. Senza questi
     # limiti il ciclo agente -> tool -> agente finisce quando il modello decide

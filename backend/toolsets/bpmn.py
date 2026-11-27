@@ -7,6 +7,7 @@ from langgraph.types import Command
 
 from backend import workspace_database
 from backend.bpmn import BPMNSemanticModel, semantic_model_to_bpmn_xml
+from backend.bpmn.edit_integrity import assert_local_edit_integrity
 from backend.graphs.routing_contracts import minimum_readiness_score, uncovered_missing_information
 from backend.toolsets.common import format_workspace_result
 from backend.toolsets.workspace import tool_state_write
@@ -39,6 +40,7 @@ from backend.workspace_services.canvas_business_report import (
 CanvasBpmnOperation = Literal[
     "inspect",
     "list_elements",
+    "map",
     "update_element",
     "add_element",
     "delete_element",
@@ -63,6 +65,7 @@ CanvasConstructionOperation = Literal[
 
 CanvasValidationOperation = Literal[
     "xml_validation",
+    "behavior_validation",
     "semantic_validation",
     "readiness_validation",
     "traceability_validation",
@@ -225,7 +228,7 @@ def manage_canvas_bpmn_model(
 
     Use this as the primary canvas operation tool instead of selecting many
     low-level BPMN edit tools directly. Patch/Edit agents should use local
-    operations only: inspect, list_elements, update_element, add_element,
+    operations only: inspect, list_elements, map, update_element, add_element,
     delete_element, connect_elements, reconnect_flow, layout and validate.
 
     """
@@ -259,6 +262,21 @@ def manage_canvas_bpmn_model(
             },
         )
 
+    if operation == "map":
+        from backend.bpmn.compact_canvas_map import compact_canvas_map
+
+        xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        return _canvas_facade_result(
+            tool_call_id,
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "source": source,
+                "map": compact_canvas_map(xml),
+                "note": "Indice di navigazione: metadati e documentazione restano nel BPMN canonico.",
+            },
+        )
+
     if operation == "update_element":
         if not element_id:
             raise ValueError("element_id obbligatorio per update_element.")
@@ -268,6 +286,10 @@ def manage_canvas_bpmn_model(
             element_id=element_id,
             name=name,
             documentation=documentation,
+        )
+        assert_local_edit_integrity(
+            before_xml=xml, after_xml=updated_xml, operation=operation,
+            change=change, element_id=element_id,
         )
         model = workspace_database.update_bpmn_model(
             bpmn_model_id,
@@ -300,6 +322,9 @@ def manage_canvas_bpmn_model(
             element_id=element_id,
             documentation=documentation,
         )
+        assert_local_edit_integrity(
+            before_xml=xml, after_xml=updated_xml, operation=operation, change=change,
+        )
         model = workspace_database.update_bpmn_model(
             bpmn_model_id,
             updated_xml,
@@ -325,6 +350,9 @@ def manage_canvas_bpmn_model(
             raise ValueError("element_id obbligatorio per delete_element.")
         xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
         updated_xml, change = delete_bpmn_element(xml=xml, element_id=element_id)
+        assert_local_edit_integrity(
+            before_xml=xml, after_xml=updated_xml, operation=operation, change=change,
+        )
         model = workspace_database.update_bpmn_model(
             bpmn_model_id,
             updated_xml,
@@ -348,6 +376,9 @@ def manage_canvas_bpmn_model(
     if operation == "clear_canvas":
         xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
         updated_xml, change = clear_bpmn_process(xml=xml)
+        assert_local_edit_integrity(
+            before_xml=xml, after_xml=updated_xml, operation=operation, change=change,
+        )
         model = workspace_database.update_bpmn_model(
             bpmn_model_id,
             updated_xml,
@@ -380,6 +411,9 @@ def manage_canvas_bpmn_model(
             flow_id=flow_id,
             name=name,
         )
+        assert_local_edit_integrity(
+            before_xml=xml, after_xml=updated_xml, operation=operation, change=change,
+        )
         model = workspace_database.update_bpmn_model(
             bpmn_model_id,
             updated_xml,
@@ -410,6 +444,9 @@ def manage_canvas_bpmn_model(
             source_id=source_id,
             target_id=target_id,
         )
+        assert_local_edit_integrity(
+            before_xml=xml, after_xml=updated_xml, operation=operation, change=change,
+        )
         model = workspace_database.update_bpmn_model(
             bpmn_model_id,
             updated_xml,
@@ -433,6 +470,9 @@ def manage_canvas_bpmn_model(
     if operation == "layout":
         xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
         updated_xml, layout_optimization = optimize_bpmn_layout(xml)
+        assert_local_edit_integrity(
+            before_xml=xml, after_xml=updated_xml, operation=operation,
+        )
         layout_validation = layout_optimization.get("selected_report") or validate_bpmn_layout(updated_xml)
         model = workspace_database.update_bpmn_model(
             bpmn_model_id,
@@ -780,6 +820,10 @@ def manage_canvas_validation(
 
     if operation == "xml_validation":
         result = validate_bpmn_xml(xml)
+    elif operation == "behavior_validation":
+        from backend.bpmn.xml_behavior import analyze_canvas_xml_behavior
+
+        result = analyze_canvas_xml_behavior(xml)
     elif operation in {"semantic_validation", "full_report"}:
         result = validate_canvas_against_process(
             xml=xml,
@@ -828,8 +872,14 @@ def manage_canvas_validation(
     report = {
         "objective": objective,
         "operation": operation,
-        "xml_valid": bool(result.get("technical", {}).get("valid", result.get("valid"))),
-        "semantic_valid": result.get("semantic_valid", result.get("valid")),
+        "xml_valid": bool(validate_bpmn_xml(xml)["valid"])
+        if operation == "behavior_validation"
+        else bool(result.get("technical", {}).get("valid", result.get("valid"))),
+        "semantic_valid": None if operation == "behavior_validation"
+        else result.get("semantic_valid", result.get("valid")),
+        "behavioral_valid": result.get("behavioral_valid", result.get("valid"))
+        if operation in {"behavior_validation", "semantic_validation", "full_report"} else None,
+        "behavioral_scope": result.get("behavioral_scope"),
         "issues": issues,
         "warnings": warnings,
         "next_actions": issues,

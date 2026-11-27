@@ -291,6 +291,29 @@ def is_internal_stream_metadata(metadata: dict[str, Any]) -> bool:
     return _has_tag(metadata, INTERNAL_STREAM_METADATA_VALUE)
 
 
+USAGE_LIMIT_CODE = "usage_limit_reached"
+
+
+def usage_limit_error(context: TraceContext) -> ApiError | None:
+    """L'errore da mostrare se il consulente ha esaurito il suo limite d'uso."""
+    from backend.llm import current_user_id
+    from backend.llm.budget import UsageLimitReached, check
+
+    try:
+        check(current_user_id())
+    except UsageLimitReached as exc:
+        return ApiError(
+            code=USAGE_LIMIT_CODE,
+            message=str(exc),
+            detail=f"window={exc.window}",
+            request_id=context.request_id,
+            trace_id=context.trace_id,
+            origin="agent",
+            retryable=False,
+        )
+    return None
+
+
 def is_turn_metered(metadata: dict[str, Any]) -> bool:
     """Se il pezzo viene da un client della chat, la cui spesa la scrive il turno.
 
@@ -685,6 +708,19 @@ def stream_agent_events(
         thread_id=thread_id,
         payload=trace_event(context, "request_start", message="Agent stream started.").model_dump(),
     )
+
+    # Il limite d'uso si guarda qui, all'inizio: un turno iniziato finisce sempre
+    # (fermarlo a meta' butterebbe la spesa gia' fatta). Si ferma il prossimo.
+    limit_error = usage_limit_error(context)
+    if limit_error is not None:
+        yield AgentStreamEvent(
+            type="error",
+            request_id=context.request_id,
+            trace_id=context.trace_id,
+            thread_id=thread_id,
+            error=limit_error,
+        )
+        return
 
     acquired = thread_lock.acquire(timeout=THREAD_LOCK_TIMEOUT_SECONDS)
     if not acquired:

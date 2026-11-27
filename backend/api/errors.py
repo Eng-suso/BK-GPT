@@ -119,6 +119,23 @@ def setup_api_error_handlers(app: FastAPI) -> None:
             detail=str(exc.errors()),
         )
 
+    from backend.llm.budget import UsageLimitReached
+
+    @app.exception_handler(UsageLimitReached)
+    async def usage_limit_handler(request: Request, exc: UsageLimitReached):
+        """Il limite d'uso della prova: un 429 con un messaggio per il consulente.
+
+        Non e' ritentabile a breve: si ripristina con la sessione o la settimana,
+        e il pannello Utilizzo dice quando.
+        """
+        return api_error_response(
+            request,
+            status_code=429,
+            code="usage_limit_reached",
+            message=str(exc),
+            detail=f"window={exc.window}",
+        )
+
     from backend.eventlog.service import ConformanceUnavailable
     from backend.simulation.ir.soundness import UnsoundProcessError
     from backend.workspace_database import UnreadableReviewError

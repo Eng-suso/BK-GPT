@@ -225,6 +225,34 @@ def totale(
     return _somma(righe)
 
 
+def per_finestre(
+    inizi: dict[str, str],
+    *,
+    fine: str,
+    tenant_id: str | None = None,
+    user_id: str | None = None,
+) -> dict[str, Totale]:
+    """Il consumo di piu' finestre che finiscono insieme, con una sola lettura.
+
+    E' la forma del contatore d'uso: sessione, settimana e prova finiscono
+    tutte adesso e cominciano in momenti diversi. Leggere dal primo inizio e
+    smistare le righe costa una query invece di una per finestra.
+
+    Args:
+        inizi: Nome della finestra -> inizio ISO UTC.
+        fine: La fine comune, ISO UTC.
+    """
+    if not inizi:
+        return {}
+    with workspace_connection() as session:
+        righe = session.execute(
+            select(WorkspaceLlmUsage.created_at, *_COLONNE).where(
+                *_condizioni(min(inizi.values()), fine, tenant_id, user_id)
+            )
+        ).all()
+    return {nome: _somma(r for r in righe if r.created_at >= inizio) for nome, inizio in inizi.items()}
+
+
 def per(
     dimensione: str,
     *,

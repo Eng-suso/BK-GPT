@@ -124,6 +124,8 @@ def create_bpmn_version(
     xml: str,
     change_summary: str,
     source: str,
+    *,
+    already_prepared: bool = False,
 ) -> WorkspaceBpmnVersion:
     """Create and stage a BPMN version snapshot for a model.
     
@@ -133,6 +135,8 @@ def create_bpmn_version(
         xml (str): Untrusted BPMN XML content to store.
         change_summary (str): Untrusted description of the change; blank values use a default.
         source (str): Untrusted version source; blank values use ``"manual"``.
+        already_prepared (bool): The caller already applied the write policy to
+            this exact XML, so the version must preserve it without a second layout.
     
     Returns:
         WorkspaceBpmnVersion: The newly created, unsaved version entity.
@@ -144,7 +148,8 @@ def create_bpmn_version(
     the session but is not committed.
     """
     assert_write_allowed("create_bpmn_version")
-    xml = _canvas_xml_for_write(xml, source=source, process_name=model.name)
+    if not already_prepared:
+        xml = _canvas_xml_for_write(xml, source=source, process_name=model.name)
     version = WorkspaceBpmnVersion(
         tenant_id=getattr(model, "tenant_id", tenant_id()),
         bpmn_model_id=model.id,
@@ -249,6 +254,13 @@ def update_bpmn_model(
         _assert_bpmn_not_changed_underneath(session, model.id, expected_version_id)
 
         clean_xml = _canvas_xml_for_write(clean_xml, source=source, process_name=model.name)
+        from backend.bpmn.omg_conformance import assert_agent_bpmn_xsd_transition
+
+        assert_agent_bpmn_xsd_transition(
+            previous_xml=model.xml,
+            proposed_xml=clean_xml,
+            source=source,
+        )
         model.xml = clean_xml
         # Il disegno e' cambiato: il confronto con le fonti che risultava prima
         # non descrive piu' cio' che si vede. Va rifatto, e lo fa il worker.
@@ -261,6 +273,7 @@ def update_bpmn_model(
             xml=clean_xml,
             change_summary=change_summary,
             source=source,
+            already_prepared=True,
         )
         session.flush()
         _remember_turn_write(model.id, version.id)
@@ -338,6 +351,7 @@ def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
             xml=model.xml,
             change_summary=f"Ripristino versione {version_id}",
             source="restore",
+            already_prepared=True,
         )
         session.flush()
         _remember_turn_write(model.id, restored.id)
