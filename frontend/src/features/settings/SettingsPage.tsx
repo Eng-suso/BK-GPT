@@ -141,14 +141,19 @@ function AccessPanel(): React.JSX.Element {
 
   const data = identity.data;
   const loading = t("identity.loading");
+  const personal = Boolean(data?.hasUserIdentity);
   const rows: Array<[string, string]> = [
-    [t("identity.section.workspace"), data?.tenantId ?? loading],
+    personal
+      ? [t("identity.section.account"), data?.email || t("identity.myAccount")]
+      : [t("identity.section.workspace"), data?.tenantId ?? loading],
     [
       t("identity.section.mode"),
       data
-        ? data.authEnabled
-          ? t("identity.access.shared")
-          : t("identity.access.open")
+        ? personal
+          ? t("identity.access.personal")
+          : data.authEnabled
+            ? t("identity.access.shared")
+            : t("identity.access.open")
         : loading,
     ],
     [

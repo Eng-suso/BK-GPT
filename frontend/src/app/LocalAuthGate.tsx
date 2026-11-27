@@ -104,7 +104,8 @@ export function LocalAuthGate({ children }: { children: ReactNode }): React.JSX.
       setError(result === "invalid" ? t("localAuth.invalidLogin") : t("localAuth.unavailable"));
       return;
     }
-    setSessionTenant(tenant.trim());
+    // Lo spazio di lavoro e' l'account: lo decide il server dal token.
+    setSessionTenant("");
     try {
       await fetchIdentity();
       setPassword("");
@@ -150,10 +151,12 @@ export function LocalAuthGate({ children }: { children: ReactNode }): React.JSX.
         )}
         {state === "locked" && (
           <form className="space-y-4" onSubmit={(event) => void submit(event)} aria-busy={submitting}>
-            <div className="space-y-1.5">
-              <label htmlFor="local-auth-tenant" className="text-sm font-medium">{t("localAuth.tenant")}</label>
-              <Input id="local-auth-tenant" autoComplete="off" required value={tenant} onChange={(event) => setTenant(event.target.value)} />
-            </div>
+            {!personal && (
+              <div className="space-y-1.5">
+                <label htmlFor="local-auth-tenant" className="text-sm font-medium">{t("localAuth.tenant")}</label>
+                <Input id="local-auth-tenant" autoComplete="off" required value={tenant} onChange={(event) => setTenant(event.target.value)} />
+              </div>
+            )}
             {personal ? (
               <>
                 <div className="space-y-1.5">

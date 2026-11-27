@@ -18,6 +18,7 @@ export const apiIdentitySchema = z.object({
   is_admin: z.boolean(),
   caller_id: z.string(),
   has_user_identity: z.boolean(),
+  email: z.string().nullish(),
 });
 
 export type Identity = {
@@ -28,8 +29,10 @@ export type Identity = {
   authEnabled: boolean;
   isAdmin: boolean;
   callerId: string;
-  /** Falso finche' non esiste l'identita' per persona (Track B). */
+  /** Vero con il login personale: lo spazio di lavoro e' l'account della persona. */
   hasUserIdentity: boolean;
+  /** L'email della persona, se il token la porta. */
+  email: string | null;
 };
 
 export async function fetchIdentity(): Promise<Identity> {
@@ -42,6 +45,7 @@ export async function fetchIdentity(): Promise<Identity> {
     isAdmin: parsed.is_admin,
     callerId: parsed.caller_id,
     hasUserIdentity: parsed.has_user_identity,
+    email: parsed.email ?? null,
   };
 }
 

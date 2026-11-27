@@ -50,12 +50,12 @@
     "enter": "Entra",
     "invalid": "Tenant o token non valido per questo ambiente.",
     "unavailable": "Il backend non risponde. Verifica che l'ambiente sia avviato e riprova.",
-    "personalDescription": "Accedi con il tuo account DeliR e indica lo spazio di lavoro. La sessione resta in questa scheda del browser.",
+    "personalDescription": "Accedi con il tuo account DeliR. Clienti, conversazioni e memoria sono solo tuoi; la sessione resta in questa scheda del browser.",
     "email": "Email",
     "password": "Password",
     "entering": "Accesso in corso…",
     "invalidLogin": "Email o password non validi.",
-    "invalidTenant": "Accesso riuscito, ma questo spazio di lavoro non è autorizzato per te in questo ambiente."
+    "invalidTenant": "Accesso riuscito, ma questo ambiente non accetta il tuo account. Scrivi a chi ti ha invitato."
   },
   "home": {
     "description": "Panoramica operativa di clienti, progetti e processi nel workspace.",
@@ -348,11 +348,14 @@
       "adminNo": "No",
       "caller": "Identificativo del chiamante",
       "pending": "L’identità per persona — chi ha validato un modello, chi ha risposto a una domanda — arriva con l’autenticazione vera. Finché non c’è, ogni azione risulta fatta dallo spazio di lavoro, non da qualcuno.",
-      "failed": "Impossibile leggere lo stato dell’accesso."
+      "failed": "Impossibile leggere lo stato dell’accesso.",
+      "account": "Account"
     },
     "loading": "Lettura in corso…",
     "signOut": "Esci",
-    "personalHint": "Sei riconosciuto come persona: le azioni portano il tuo identificativo."
+    "personalHint": "Sei riconosciuto come persona: le azioni portano il tuo identificativo.",
+    "myAccount": "Il tuo account",
+    "accountHint": "Clienti, conversazioni e memoria di questo account sono solo tuoi."
   },
   "period": {
     "label": "Periodo: {{period}}",
