@@ -213,7 +213,7 @@ def period_summary(event_log_id: str, *, since: date | None = None, before: date
     canonical, _ = map_table(table, log.mapping, source_name=log.name)
     period = cases_started(canonical, since=since, before=before)
     cases = len({event.case_id for event in period.events})
-    return PeriodSummary(event_log=log, cases=cases, summary=summarize(period, with_waiting_causes=False) if period.events else None)
+    return PeriodSummary(event_log=log, cases=cases, summary=summarize(period) if period.events else None)
 
 
 class ConformanceUnavailable(ValueError):

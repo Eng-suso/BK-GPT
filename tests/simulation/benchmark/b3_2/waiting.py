@@ -16,7 +16,7 @@ l'ha eseguita, dall'inizio all'indietro:
 Le sospensioni richiedono un ciclo di vita (sospeso/ripreso) che i log importati non hanno.
 Gli orari delle risorse si scoprono dal log per gruppo di risorse con le stesse attivita'.
 
-Verifica (B3.2, scheda 2 in ``docs/vpt/LOG.md``): sui 16 sintetici con timer di Chapela-Campa
+Ricerca di B3.2, non ancora nel prodotto (il GO dei reali manca). Verifica (scheda 2 in ``docs/vpt/LOG.md``): sui 16 sintetici con timer di Chapela-Campa
 e Dumas, rigenerati con la verita', la causa giusta nel 95,0% delle attese in validazione e nel
 95,65% in test; ``tests/simulation/benchmark/b3_2/attribution_eval.py``.
 """

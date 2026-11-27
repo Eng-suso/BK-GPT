@@ -85,11 +85,6 @@
 .sim-real-activity dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; font-size: var(--font-size-100); }
 .sim-real-activity dt { color: var(--muted-foreground); }
 .sim-real-activity dd { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-variant-numeric: tabular-nums; }
-/* B3.2: perche' si aspetta, sotto i numeri dell'attivita'. */
-.sim-real-causes { display: grid; gap: 6px; }
-.sim-real-causes h5 { font-size: var(--font-size-100); font-weight: 600; }
-.sim-real-causes dl > div { align-items: baseline; }
-.sim-real-causes dt { flex: 1 1 12rem; min-width: 0; }
 /* Aderenza al processo (CONF-02): i percorsi reali che escono dal disegno. */
 .sim-conformance-paths { display: grid; gap: 6px; font-size: var(--font-size-100); }
 .sim-conformance-paths li { display: grid; gap: 2px; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); }

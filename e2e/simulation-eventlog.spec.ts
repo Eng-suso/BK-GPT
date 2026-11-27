@@ -58,12 +58,6 @@ const ANALYSIS = {
     casesCompleted: 3, cycle: { avg: 4000, p50: 3900, p90: 6000, p95: 6200 }, waiting: { avg: 1400, p95: 1800, share: 0.35 },
     processing: { avg: 2600, p95: 3000 }, throughputPerHour: 2, cost: null, timing: "start_and_end", source: "real",
     byActivity: [activity("A", "Verifica documentazione", 800, 1150), activity("B", "Approva richiesta", 600, 900), activity(null, "Archivia", 0, 60), activity("End", "Chiusura pratica", 0, 30)],
-    // B3.2: le cause delle attese che calcola il server (secondi totali per attivita').
-    waitingCauses: {
-      activities: [
-        { name: "Approva richiesta", el: "B", executions: 3, waiting: 2, seconds: { contention: 9720, unavailability: 4320, extraneous: 3600, batching: 360 } },
-      ],
-    },
   },
 };
 
@@ -297,29 +291,6 @@ test("the activity inspector shows the same activity in the real log", async ({ 
   await expect(real).toContainText("10 min → 10 min");
   const axe = await new AxeBuilder({ page }).include(".sim-real-activity").withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(axe.violations).toEqual([]);
-});
-
-test("the activity inspector says why the real activity waits, in plain words", async ({ page }, testInfo) => {
-  await fixture(page, [ANALYSIS.event_log]);
-  await page.goto(`${studio}/workspace/42?panel=activity`);
-  await page.getByLabel("Attività", { exact: true }).selectOption("B");
-  const why = page.getByRole("region", { name: "Perché si aspetta", exact: true });
-  await expect(why.locator("dt")).toHaveText([
-    "Le persone sono occupate in altro lavoro",
-    "Fuori dall'orario di lavoro",
-    "Si aspetta qualcosa da fuori: clienti, fornitori, altri uffici",
-    "Il lavoro si raccoglie e si fa a lotti",
-  ]);
-  await expect(why.locator("dd")).toHaveText(["54%", "24%", "20%", "2%"]);
-  await expect(why).toContainText("Su 2 attese delle 3 esecuzioni osservate");
-  await expectPlainLanguage(why);
-  const axe = await new AxeBuilder({ page }).include(".sim-real-activity").withTags(["wcag2a", "wcag2aa"]).analyze();
-  expect(axe.violations).toEqual([]);
-  await shoot(page, testInfo, "why-it-waits");
-
-  // Senza righe per l'elemento il log non lo dice: mai "non si aspetta" sotto un'attesa media.
-  await page.getByLabel("Attività", { exact: true }).selectOption("A");
-  await expect(why).toContainText("servono l'ora d'inizio e la persona");
 });
 
 test("without a mapped log the inspector leads to the import", async ({ page }) => {

@@ -132,22 +132,6 @@ export type ResourceReport = z.infer<typeof resourceReportSchema>;
  * I KPI del log reale: lo stesso calcolo dei run simulati, ma un log reale puo'
  * non sapere il costo (`cost: null`) ne' l'inizio delle attivita' (`timing`).
  */
-/** B3.2: secondi di attesa per causa, sulle esecuzioni con l'abilitazione osservabile. */
-export const waitingCauseSchema = z.enum(["contention", "unavailability", "extraneous", "batching"]);
-export type WaitingCause = z.infer<typeof waitingCauseSchema>;
-
-const waitingCausesSchema = z.object({
-  activities: z.array(
-    z.object({
-      name: z.string(),
-      el: z.string().nullable(),
-      executions: z.number(),
-      waiting: z.number(),
-      seconds: z.record(waitingCauseSchema, z.number()),
-    }),
-  ),
-});
-
 export const eventLogSummarySchema = z
   .object({
     casesCompleted: z.number(),
@@ -159,8 +143,6 @@ export const eventLogSummarySchema = z
     timing: z.enum(["start_and_end", "complete_only", "mixed"]),
     firstEnableObserved: z.boolean().optional(),
     enablementObserved: z.boolean().optional(),
-    /** null: il log non ha inizio e persona su quasi tutti gli eventi; assente nei log importati prima di B3.2. */
-    waitingCauses: waitingCausesSchema.nullable().optional(),
   })
   .loose();
 export type EventLogSummary = z.infer<typeof eventLogSummarySchema>;

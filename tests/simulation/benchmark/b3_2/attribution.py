@@ -1,6 +1,6 @@
 """B3.2: le attese attribuite messe nel simulatore (ricerca).
 
-L'attribuzione delle attese per causa e' quella del prodotto (``backend/eventlog/waiting.py``),
+L'attribuzione delle attese per causa e' in ``waiting.py`` (pronta per il prodotto, solo libreria standard),
 riesportata qui per il banco. Qui ci sono solo le parti per gli scenari di ricerca: la quota
 del ritardo esterno da simulare (v1-v5, schede 3-3e di ``docs/vpt/LOG.md``), la scelta della
 distribuzione per Prosimos e i timer nel BPMN. Solo libreria standard (LIC-01).
@@ -12,7 +12,7 @@ import math
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 
-from backend.eventlog.waiting import (  # l'attribuzione e' quella del prodotto, una sola
+from tests.simulation.benchmark.b3_2.waiting import (  # una sola attribuzione
     CAUSES,
     BusyPeriods,
     Calendar,

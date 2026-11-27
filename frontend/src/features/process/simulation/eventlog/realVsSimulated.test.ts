@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SimulationSummary } from "../simulationTypes";
 import type { EventLogSummary } from "./eventLogTypes";
-import { compareRealToSimulated, fidelityOf, relativeGap, waitingCausesFor, withComparableKpis, worstFidelity } from "./realVsSimulated";
+import { compareRealToSimulated, fidelityOf, relativeGap, withComparableKpis, worstFidelity } from "./realVsSimulated";
 
 const activity = (el: string | null, name: string, wait: number, processing: number, count = 10) => ({
   el,
@@ -125,44 +125,5 @@ describe("compareRealToSimulated", () => {
     const uncounted = real({ byActivity: [activity("Task_A", "Approva", 600, 1200, 0)] } as Partial<EventLogSummary>);
     const [row] = compareRealToSimulated(uncounted, simulated()).activities;
     expect(row).toMatchObject({ realCount: 0, realWait: null, realProcessing: null, processingGap: null, fidelity: null });
-  });
-});
-
-describe("waitingCausesFor (B3.2)", () => {
-  const seconds = (contention: number, unavailability: number, extraneous: number, batching = 0) => ({ contention, unavailability, extraneous, batching });
-
-  it("sums the log activities of the element and puts the heaviest cause first", () => {
-    const summary = real({
-      waitingCauses: {
-        activities: [
-          { name: "Approva", el: "Task_A", executions: 10, waiting: 6, seconds: seconds(100, 0, 300) },
-          { name: "Approva (2° livello)", el: "Task_A", executions: 5, waiting: 2, seconds: seconds(100, 0, 0) },
-          { name: "Paga", el: "Task_B", executions: 9, waiting: 9, seconds: seconds(0, 900, 0) },
-        ],
-      },
-    });
-    expect(waitingCausesFor(summary, "Task_A")).toEqual({
-      kind: "causes",
-      waiting: 8,
-      executions: 15,
-      causes: [
-        { cause: "extraneous", seconds: 300, share: 0.6 },
-        { cause: "contention", seconds: 200, share: 0.4 },
-      ],
-    });
-  });
-
-  it("says when nobody waits and when the log cannot tell", () => {
-    const summary = real({ waitingCauses: { activities: [{ name: "Paga", el: "Task_B", executions: 4, waiting: 0, seconds: seconds(0, 0, 0) }] } });
-    expect(waitingCausesFor(summary, "Task_B")).toEqual({ kind: "none" });
-    expect(waitingCausesFor(real({ waitingCauses: null }), "Task_B")).toEqual({ kind: "unavailable" });
-    expect(waitingCausesFor(real(), "Task_B")).toEqual({ kind: "unavailable" });
-    expect(waitingCausesFor(summary, "Task_C")).toEqual({ kind: "unavailable" });
-  });
-
-  it("hides causes that would read 0%", () => {
-    const summary = real({ waitingCauses: { activities: [{ name: "Paga", el: "Task_B", executions: 4, waiting: 4, seconds: seconds(36000, 0, 0, 20) }] } });
-    const result = waitingCausesFor(summary, "Task_B");
-    expect(result.kind === "causes" && result.causes.map((c) => c.cause)).toEqual(["contention"]);
   });
 });

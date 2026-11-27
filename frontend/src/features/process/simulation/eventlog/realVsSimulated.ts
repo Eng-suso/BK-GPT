@@ -8,7 +8,7 @@
  * Cio' che il log non sa (inizio delle attivita', costo) non diventa uno zero:
  * la riga resta, marcata come non confrontabile.
  */
-import type { EventLogSummary, WaitingCause } from "./eventLogTypes";
+import type { EventLogSummary } from "./eventLogTypes";
 import type { SimulationSummary } from "../simulationTypes";
 import { formatCount } from "../simulationResults";
 
@@ -260,41 +260,4 @@ export function latestMappedLog<T extends { status: string; mapped_at: string | 
   return (logs ?? [])
     .filter((log) => log.status === "mapped" && log.mapped_at)
     .sort((a, b) => (b.mapped_at ?? "").localeCompare(a.mapped_at ?? ""))[0] ?? null;
-}
-
-export type WaitingCauseShare = { cause: WaitingCause; seconds: number; share: number };
-
-/**
- * B3.2: perche' si aspetta prima di un elemento del modello, dalle attivita' del log abbinate.
- * `unavailable` se il log non lo dice (manca l'inizio o la persona, o nessuna esecuzione dell'elemento
- * ha l'abilitazione osservabile), `none` se nessuna esecuzione osservata aspetta oltre un secondo.
- * Le cause con piu' secondi prima; quelle a zero non ci sono.
- */
-export function waitingCausesFor(
-  summary: EventLogSummary,
-  elementId: string,
-): { kind: "unavailable" } | { kind: "none" } | { kind: "causes"; causes: WaitingCauseShare[]; waiting: number; executions: number } {
-  const data = summary.waitingCauses;
-  if (!data) return { kind: "unavailable" };
-  const totals = new Map<WaitingCause, number>();
-  let waiting = 0;
-  let executions = 0;
-  for (const row of data.activities) {
-    if (row.el !== elementId) continue;
-    waiting += row.waiting;
-    executions += row.executions;
-    for (const [cause, seconds] of Object.entries(row.seconds) as [WaitingCause, number][]) {
-      totals.set(cause, (totals.get(cause) ?? 0) + seconds);
-    }
-  }
-  // Nessuna esecuzione osservata: il log non lo dice (non "non si aspetta").
-  if (executions === 0) return { kind: "unavailable" };
-  const total = [...totals.values()].reduce((a, b) => a + b, 0);
-  if (total <= 0 || waiting === 0) return { kind: "none" };
-  const causes = [...totals.entries()]
-    // Sotto lo 0,5% una causa si leggerebbe "0%": non si mostra.
-    .filter(([, seconds]) => seconds / total >= 0.005)
-    .map(([cause, seconds]) => ({ cause, seconds, share: seconds / total }))
-    .sort((a, b) => b.seconds - a.seconds);
-  return { kind: "causes", causes, waiting, executions };
 }

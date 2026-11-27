@@ -1576,18 +1576,7 @@
         "processing": "Lavorazione media, reale → simulata",
         "waiting": "Attesa media, reale → simulata",
         "executions": "Esecuzioni, log → run",
-        "noStart": "Il log registra solo i completamenti: lavorazione e attesa reali non si separano.",
-        "causes": {
-          "title": "Perché si aspetta",
-          "contention": "Le persone sono occupate in altro lavoro",
-          "unavailability": "Fuori dall'orario di lavoro",
-          "extraneous": "Si aspetta qualcosa da fuori: clienti, fornitori, altri uffici",
-          "batching": "Il lavoro si raccoglie e si fa a lotti",
-          "unavailable": "Per dire perché si aspetta servono l'ora d'inizio e la persona di ogni attività nel log.",
-          "none": "Nel log questa attività parte appena può.",
-          "how_one": "Su {{count}} attesa delle {{total}} esecuzioni osservate, guardando cosa faceva chi poi ha svolto l'attività.",
-          "how_other": "Su {{count}} attese delle {{total}} esecuzioni osservate, guardando cosa faceva chi poi ha svolto l'attività."
-        }
+        "noStart": "Il log registra solo i completamenti: lavorazione e attesa reali non si separano."
       },
       "conformance": {
         "intro": "I casi reali rigiocati sul disegno del processo: quanti lo seguono, quali passi vengono saltati o fatti fuori ordine.",

@@ -1,0 +1,168 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "Procure_to_Pay_5_timers_after",
+  "category": "sintetico con verita nota",
+  "phase": "test",
+  "config": "simod_fixed_extr",
+  "label": "SIMOD senza ritardi + solo i ritardi estranei di SIMOD (risorse e calendari fissati)",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 500,
+    "target": 500
+  },
+  "identifiability": {
+    "cycle_time_w1": "identificabile",
+    "ngram": "identificabile",
+    "relative_event": "identificabile",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "identificabile",
+    "true_parameters": "identificabile",
+    "counterfactual": "identificabile"
+  },
+  "status": "measured",
+  "simulated_cases": [
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500
+  ],
+  "metrics": {
+    "cycle_time_w1": {
+      "mean": 509.808,
+      "ci95": 17.00423018717071,
+      "replicas": [
+        508.158,
+        468.088,
+        481.372,
+        516.116,
+        483.832,
+        526.502,
+        519.312,
+        531.728,
+        535.322,
+        527.65
+      ]
+    },
+    "ngram": {
+      "mean": 0.24668988049872853,
+      "ci95": 0.002071972678764317,
+      "replicas": [
+        0.24646410325356277,
+        0.24141648250956718,
+        0.2512765385649019,
+        0.24355795148247977,
+        0.24998653960049536,
+        0.24808790261768826,
+        0.24656870660423058,
+        0.24711068107294523,
+        0.24492426683854335,
+        0.24750563244287094
+      ]
+    },
+    "relative_event": {
+      "mean": 233.40063730710057,
+      "ci95": 9.820669184255054,
+      "replicas": [
+        236.83659665460522,
+        206.08566191310965,
+        219.17934776176781,
+        241.5090186861595,
+        221.69574397360356,
+        243.88067775350777,
+        231.60752639194246,
+        238.7070032243467,
+        249.2959658546309,
+        245.20883085733217
+      ]
+    },
+    "absolute_event": {
+      "mean": 217.7030754479768,
+      "ci95": 9.481756839137997,
+      "replicas": [
+        220.51364225963863,
+        188.92060457806,
+        207.20916627542954,
+        224.60260336934763,
+        208.82775447756381,
+        223.62487139547747,
+        213.9341301488236,
+        226.2037973501654,
+        231.0027992937691,
+        232.1913853314928
+      ]
+    },
+    "circadian_event": {
+      "mean": 0.17644121874533264,
+      "ci95": 0.022684899409890654,
+      "replicas": [
+        0.1713536365986652,
+        0.18998408630323727,
+        0.14956959941005257,
+        0.17423787055909148,
+        0.25138553666863617,
+        0.14867855894148901,
+        0.16266406092579108,
+        0.1540352542720257,
+        0.20348569000083702,
+        0.15901789377350067
+      ]
+    },
+    "case_arrival": {
+      "mean": 15.543200000000002,
+      "ci95": 2.1830411467766084,
+      "replicas": [
+        16.642,
+        15.37,
+        11.38,
+        16.446,
+        12.962,
+        20.044,
+        19.94,
+        12.362,
+        17.11,
+        13.176
+      ]
+    }
+  },
+  "cost": {
+    "discovery_seconds": 187.5,
+    "discovery_peak_mb": 1098.8,
+    "delays_seconds": 57.9,
+    "delays": {
+      "Amend Purchase Requisition": 3486.6,
+      "Amend Request for Quotation Requester": 14076.9,
+      "Amend Request for Quotation Requester Manager": 47893.7,
+      "Confirm Purchase Order": 41762.8,
+      "Create Request for Quotation Requester Manager": 14627.3,
+      "Pay invoice": 100697.7,
+      "Send Request for Quotation to Supplier": 1622.9,
+      "Send invoice": 192903.1
+    },
+    "simulation_seconds": [
+      0.953,
+      0.938,
+      0.945,
+      0.936,
+      0.967,
+      0.933,
+      0.944,
+      0.977,
+      1.215,
+      1.272
+    ],
+    "simulation_peak_mb": 182.2,
+    "val01": "supera"
+  },
+  "b3_2": "tests/simulation/benchmark/b3_2/run.py"
+}

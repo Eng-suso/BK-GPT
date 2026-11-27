@@ -1576,18 +1576,7 @@
         "processing": "Average processing, real → simulated",
         "waiting": "Average waiting, real → simulated",
         "executions": "Executions, log → run",
-        "noStart": "The log records completions only: real processing and waiting cannot be separated.",
-        "causes": {
-          "title": "Why it waits",
-          "contention": "People are busy with other work",
-          "unavailability": "Outside working hours",
-          "extraneous": "Waiting for something outside: customers, suppliers, other teams",
-          "batching": "Work is collected and done in batches",
-          "unavailable": "To say why it waits, the log needs the start time and the person of every activity.",
-          "none": "In the log this activity starts as soon as it can.",
-          "how_one": "From {{count}} wait out of {{total}} observed executions, looking at what the person who then did the activity was doing.",
-          "how_other": "From {{count}} waits out of {{total}} observed executions, looking at what the person who then did the activity was doing."
-        }
+        "noStart": "The log records completions only: real processing and waiting cannot be separated."
       },
       "conformance": {
         "intro": "Real cases replayed on the process design: how many follow it, which steps are skipped or done out of order.",

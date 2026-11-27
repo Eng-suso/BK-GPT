@@ -8,7 +8,7 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 | Scheda | Componente | Fase | Verdetto | V / P / P | Motivi |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Ablazione dei ritardi estranei | validation | **NO-GO** | 4 / 18 / 0 | contro simod: RED vince su 4/22 log; contro simod: guardia CED perde su 2 log |
-| 1 | Ablazione dei ritardi estranei | test | **NO-GO** | 0 / 6 / 0 | contro simod: RED vince su 0/6 log; candidato non misurato (fallito, fuori budget o non applicabile) su 17 log (AcademicCredentials, BPIC_2012_W, BPIC_2017_W, ...) |
+| 1 | Ablazione dei ritardi estranei | test | **NO-GO** | 6 / 15 / 2 | contro simod: RED vince su 6/23 log; contro simod: RED perde su AcademicCredentials, Procure_to_Pay_5_timers_after; contro simod: guardia W1 perde su 2 log; contro simod: guardia AED perde su 3 log; contro simod: guardia CED perde su 4 log; candidato non misurato (fallito, fuori budget o non applicabile) su AcademicCredentials |
 | 3 | Attese attribuite: W1 | validation | **NO-GO** | 0 / 1 / 1 | contro simod_extr: W1 vince su 0/2 log; contro simod_extr: W1 perde su BPIC_2017_W |
 | 3 | Attese attribuite: RED | validation | **NO-GO** | 0 / 1 / 1 | contro simod_extr: RED vince su 0/2 log; contro simod_extr: RED perde su BPIC_2017_W |
 | 3b | Attese attribuite v2: W1 | validation | **NO-GO** | 2 / 0 / 0 | contro simod_extr: guardia AED perde su 3 log |
@@ -18,7 +18,9 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 | 3d | Attese attribuite v4: W1 | validation | **NO-GO** | 2 / 0 / 0 | contro simod_extr: guardia AED perde su 2 log |
 | 3d | Attese attribuite v4: RED | validation | **NO-GO** | 2 / 0 / 0 | contro simod_extr: guardia AED perde su 2 log |
 | 3e | Attese attribuite v5: W1 | validation | **GO** | 2 / 0 / 0 | — |
+| 3e | Attese attribuite v5: W1 | test | **NO-GO** | 1 / 0 / 2 | contro simod_extr: W1 vince su 1/3 log; contro simod_extr: W1 perde su BPIC_2012_W, BPIC_2017_W; contro simod_extr: guardia RED perde su 2 log; contro simod_extr: guardia AED perde su 2 log; VAL-01 non superato su AcademicCredentials |
 | 3e | Attese attribuite v5: RED | validation | **GO** | 2 / 0 / 0 | — |
+| 3e | Attese attribuite v5: RED | test | **NO-GO** | 1 / 0 / 2 | contro simod_extr: RED vince su 1/3 log; contro simod_extr: RED perde su BPIC_2012_W, BPIC_2017_W; contro simod_extr: guardia W1 perde su 2 log; contro simod_extr: guardia AED perde su 2 log; VAL-01 non superato su AcademicCredentials |
 
 ## Metriche, fase validation
 
@@ -204,6 +206,33 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 
 ## Metriche, fase test
 
+### AcademicCredentials
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 306 ± 1.4 | 0.487 ± 0.068 | 6.58e+03 ± 1.4e+03 | 6.84e+03 ± 1.4e+03 | 4.31 ± 0.19 | 227 ± 58 | 128 s, 1097 MB, 0.8 s/replica | — |
+| simod_fixed_extr | fallito | fallito | fallito | fallito | fallito | fallito | 12 s, 834 MB, 0.0 s/replica | — |
+| simod_attr_calibrated | 628 ± 2.4e+02 | 0.396 ± 0.061 | 2.83e+04 ± 8.8e+03 | 2.86e+04 ± 8.8e+03 | 3.84 ± 0.12 | 229 ± 57 | 146 s, 1097 MB, 1.5 s/replica | Validar solicitud / pre-homologacion: 351408, Cancelar Solicitud: 23140, Notificacion estudiante cancelacion soli: 293702, Cancelar curso: 212128 … |
+| simod_extr | fallito | fallito | fallito | fallito | fallito | fallito | 74 s, 1102 MB, 0.0 s/replica | — |
+
+### BPIC_2012_W
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 175 ± 0.051 | 0.531 ± 0.0034 | 178 ± 0.072 | 202 ± 12 | 1.24 ± 0.083 | 67.3 ± 11 | 613 s, 1242 MB, 3.3 s/replica | — |
+| simod_fixed_extr | 42.1 ± 1.8 | 0.501 ± 0.0022 | 63.7 ± 2 | 91.6 ± 12 | 1.99 ± 0.015 | 65.8 ± 10 | 889 s, 1242 MB, 5.0 s/replica | W_Afhandelen leads: 552, W_Beoordelen fraude: 38211, W_Completeren aanvraag: 24213, W_Nabellen incomplete dossiers: 36650 … |
+| simod_attr_calibrated | 99.3 ± 1.5 | 0.505 ± 0.0032 | 113 ± 1.3 | 135 ± 14 | 1.76 ± 0.015 | 65.9 ± 10 | 652 s, 1242 MB, 5.1 s/replica | W_Nabellen incomplete dossiers: 16743, W_Afhandelen leads: 2004, W_Beoordelen fraude: 14266, W_Completeren aanvraag: 18555 … |
+| simod_extr | 43.2 ± 2 | 0.502 ± 0.0046 | 66 ± 1.5 | 69.7 ± 8.8 | 2 ± 0.025 | 38.5 ± 6.2 | 1079 s, 1242 MB, 5.2 s/replica | — |
+
+### BPIC_2017_W
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 253 ± 0.029 | 0.279 ± 0.0015 | 183 ± 0.041 | 276 ± 6.9 | 0.922 ± 0.026 | 144 ± 6.6 | 1723 s, 10823 MB, 7.3 s/replica | — |
+| simod_fixed_extr | 17.9 ± 1.6 | 0.28 ± 0.001 | 7.82 ± 0.3 | 85.6 ± 6.5 | 2.32 ± 0.013 | 133 ± 6.1 | 2441 s, 10823 MB, 11.4 s/replica | W_Assess potential fraud: 80716, W_Call after offers: 189637, W_Call incomplete files: 91314, W_Complete application: 33290 … |
+| simod_attr_calibrated | 50 ± 1.4 | 0.28 ± 0.0019 | 45.4 ± 1.5 | 118 ± 9.4 | 2.38 ± 0.012 | 130 ± 6.1 | 1808 s, 10823 MB, 11.7 s/replica | W_Call after offers: 146591, W_Handle leads: 2120, W_Validate application: 167228, W_Assess potential fraud: 54789 … |
+| simod_extr | 19.2 ± 2.3 | 0.279 ± 0.0012 | 8.57 ± 0.81 | 77.4 ± 6.8 | 2.32 ± 0.0088 | 125 ± 6 | 2823 s, 10823 MB, 12.3 s/replica | — |
+
 ### Insurance_Claims
 
 | Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
@@ -245,3 +274,101 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | simod | 31.3 ± 7.9 | 0.129 ± 0.0091 | 21 ± 5.5 | 20.1 ± 5.2 | 0.342 ± 0.021 | 7.03 ± 1.3 | 141 s, 1122 MB, 0.8 s/replica | — |
 | simod_fixed_extr | 28.9 ± 6.4 | 0.11 ± 0.0076 | 17.2 ± 4.1 | 16.9 ± 1.7 | 0.333 ± 0.02 | 7.08 ± 1.1 | 203 s, 1122 MB, 0.9 s/replica | Approve application: 12732, Cancel application: 6482, Prepare home insurance quote: 333, Reject application: 2423 |
+
+### Loan_Application_1_timer
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 37.5 ± 4.4 | 0.192 ± 0.0093 | 24.5 ± 3 | 18.2 ± 3.2 | 0.158 ± 0.015 | 6.26 ± 1.6 | 875 s, 2152 MB, 0.6 s/replica | — |
+| simod_fixed_extr | 23.2 ± 3.9 | 0.198 ± 0.012 | 16.5 ± 3 | 9.16 ± 1.4 | 0.156 ± 0.0092 | 6.18 ± 1.7 | 924 s, 2152 MB, 0.7 s/replica | Approve application: 8186, Assess loan risk: 25658, Cancel application: 3282, Prepare home insurance quote: 1892 … |
+
+### Loan_Application_3_timers
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 37.3 ± 4.6 | 0.205 ± 0.0066 | 24.1 ± 2.7 | 35.9 ± 2.6 | 0.311 ± 0.028 | 11.1 ± 2.8 | 133 s, 1076 MB, 0.6 s/replica | — |
+| simod_fixed_extr | 17.7 ± 2.5 | 0.201 ± 0.0063 | 13.4 ± 2.2 | 23.7 ± 3.4 | 0.329 ± 0.038 | 11.9 ± 2.9 | 182 s, 1076 MB, 0.7 s/replica | Applicant completes form: 10737, Approve application: 28323, Assess loan risk: 45822, Cancel application: 2765 … |
+
+### Loan_Application_5_timers
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 29.5 ± 2.2 | 0.217 ± 0.0048 | 20.2 ± 1.6 | 21.4 ± 1.9 | 0.423 ± 0.018 | 12.2 ± 2 | 120 s, 1086 MB, 0.5 s/replica | — |
+| simod_fixed_extr | 20.5 ± 2.1 | 0.215 ± 0.0088 | 16.7 ± 1.8 | 16.5 ± 2.2 | 0.423 ± 0.027 | 12.3 ± 2 | 163 s, 1086 MB, 0.6 s/replica | Applicant completes form: 12263, Approve application: 32757, Assess loan risk: 8182, Cancel application: 2666 … |
+
+### Loan_Application_5_timers_after
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 56.7 ± 4.9 | 0.159 ± 0.0061 | 35.8 ± 3.6 | 40.2 ± 2.5 | 0.232 ± 0.028 | 7.2 ± 2.2 | 112 s, 1092 MB, 0.7 s/replica | — |
+| simod_fixed_extr | 24.9 ± 4.2 | 0.171 ± 0.0063 | 20.8 ± 3 | 21.2 ± 3.6 | 0.305 ± 0.021 | 6.75 ± 1.8 | 165 s, 1092 MB, 0.8 s/replica | Approve application: 50719, Assess loan risk: 33716, Cancel application: 24221, Check  application  form completeness: 2687 … |
+
+### Pharmacy
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 1.71 ± 0.2 | 0.0349 ± 0.0014 | 0.788 ± 0.15 | 133 ± 0.13 | 7.43 ± 0.0025 | 132 ± 0.11 | 82 s, 1047 MB, 0.3 s/replica | — |
+| simod_fixed_extr | 1.71 ± 0.2 | 0.0349 ± 0.0014 | 0.788 ± 0.15 | 133 ± 0.13 | 7.43 ± 0.0025 | 132 ± 0.11 | 95 s, 1047 MB, 0.4 s/replica | — |
+
+### Pharmacy_1_timer
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 1.75 ± 0.23 | 0.0351 ± 0.0031 | 0.771 ± 0.12 | 133 ± 0.092 | 7.43 ± 0.002 | 132 ± 0.11 | 82 s, 1047 MB, 0.4 s/replica | — |
+| simod_fixed_extr | 1.82 ± 0.18 | 0.0341 ± 0.0015 | 0.868 ± 0.13 | 133 ± 0.096 | 7.43 ± 0.0036 | 132 ± 0.11 | 114 s, 1047 MB, 0.4 s/replica | Pick-up: 67 |
+
+### Pharmacy_3_timers
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 1.48 ± 0.099 | 0.0367 ± 0.0029 | 0.636 ± 0.079 | 133 ± 0.06 | 7.43 ± 0.0021 | 133 ± 0.00045 | 95 s, 1042 MB, 0.4 s/replica | — |
+| simod_fixed_extr | 1.48 ± 0.099 | 0.0367 ± 0.0029 | 0.636 ± 0.079 | 133 ± 0.06 | 7.43 ± 0.0021 | 133 ± 0.00045 | 129 s, 1042 MB, 0.4 s/replica | — |
+
+### Pharmacy_5_timers
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 1.38 ± 0.23 | 0.0291 ± 0.0031 | 0.661 ± 0.14 | 133 ± 0.11 | 7.44 ± 0.0042 | 132 ± 0.12 | 96 s, 1047 MB, 0.4 s/replica | — |
+| simod_fixed_extr | 1.38 ± 0.23 | 0.0291 ± 0.0031 | 0.661 ± 0.14 | 133 ± 0.11 | 7.44 ± 0.0042 | 132 ± 0.12 | 128 s, 1047 MB, 0.4 s/replica | — |
+
+### Pharmacy_5_timers_after
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 1.04 ± 0.016 | 0.0302 ± 0.0035 | 0.378 ± 0.066 | 133 ± 0.091 | 7.44 ± 0.0016 | 133 ± 0 | 110 s, 1047 MB, 0.4 s/replica | — |
+| simod_fixed_extr | 1.04 ± 0.016 | 0.0302 ± 0.0035 | 0.378 ± 0.066 | 133 ± 0.091 | 7.44 ± 0.0016 | 133 ± 0 | 144 s, 1047 MB, 0.4 s/replica | — |
+
+### Procure_to_Pay
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 556 ± 32 | 0.242 ± 0.0018 | 299 ± 16 | 283 ± 15 | 0.187 ± 0.012 | 13.7 ± 2.8 | 157 s, 1094 MB, 0.8 s/replica | — |
+| simod_fixed_extr | 557 ± 39 | 0.242 ± 0.0017 | 299 ± 20 | 284 ± 18 | 0.186 ± 0.012 | 13.8 ± 2.8 | 208 s, 1094 MB, 0.8 s/replica | Settle dispute with supplier Purchasing Agent: 14918 |
+
+### Procure_to_Pay_1_timer
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 351 ± 26 | 0.25 ± 0.0014 | 180 ± 17 | 162 ± 13 | 0.145 ± 0.016 | 15.6 ± 4.8 | 111 s, 1101 MB, 0.7 s/replica | — |
+| simod_fixed_extr | 366 ± 28 | 0.248 ± 0.00083 | 188 ± 16 | 170 ± 13 | 0.144 ± 0.018 | 15.6 ± 4.6 | 162 s, 1101 MB, 0.8 s/replica | Send invoice: 4063 |
+
+### Procure_to_Pay_3_timers
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 318 ± 14 | 0.219 ± 0.00069 | 160 ± 5.5 | 138 ± 4.2 | 0.165 ± 0.018 | 14.5 ± 3.8 | 128 s, 1086 MB, 0.8 s/replica | — |
+| simod_fixed_extr | 349 ± 36 | 0.22 ± 0.0017 | 173 ± 19 | 152 ± 19 | 0.159 ± 0.015 | 14.2 ± 4 | 188 s, 1086 MB, 0.9 s/replica | Analyze Purchase Requisition: 2485, Confirm Purchase Order: 6316, Send invoice: 16789 |
+
+### Procure_to_Pay_5_timers
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 360 ± 41 | 0.228 ± 0.0019 | 186 ± 24 | 180 ± 21 | 0.164 ± 0.013 | 14.7 ± 3.7 | 120 s, 1091 MB, 0.7 s/replica | — |
+| simod_fixed_extr | 360 ± 41 | 0.228 ± 0.0019 | 186 ± 24 | 180 ± 21 | 0.164 ± 0.013 | 14.7 ± 3.7 | 180 s, 1091 MB, 0.7 s/replica | — |
+
+### Procure_to_Pay_5_timers_after
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 372 ± 36 | 0.25 ± 0.0026 | 190 ± 22 | 174 ± 20 | 0.155 ± 0.017 | 15.3 ± 2.3 | 136 s, 1099 MB, 0.7 s/replica | — |
+| simod_fixed_extr | 510 ± 17 | 0.247 ± 0.0021 | 233 ± 9.8 | 218 ± 9.5 | 0.176 ± 0.023 | 15.5 ± 2.2 | 198 s, 1099 MB, 1.3 s/replica | Amend Purchase Requisition: 3487, Amend Request for Quotation Requester: 14077, Amend Request for Quotation Requester Manager: 47894, Confirm Purchase Order: 41763 … |
