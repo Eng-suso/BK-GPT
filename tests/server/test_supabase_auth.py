@@ -326,3 +326,12 @@ def test_the_provider_is_read_in_one_form_everywhere(monkeypatch, raw):
     monkeypatch.setenv("DELIR_AUTH_PROVIDER", raw)
 
     assert Settings(_env_file=None).delir_auth_provider == "supabase"
+
+
+def test_the_account_is_named_by_the_persons_email(client, supabase_api, signing_key):
+    """Il menu chiama l'account con l'email: `acct-<id>` non dice niente al consulente."""
+    response = client.get(
+        "/v1/auth/me", headers=_headers(_token(signing_key[0], email="anna@studio.it"))
+    )
+
+    assert response.json()["email"] == "anna@studio.it"

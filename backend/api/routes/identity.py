@@ -42,6 +42,9 @@ class CurrentIdentity(BaseModel):
     caller_id: str
     #: Se l'identita' per persona esiste: vero solo con `supabase`.
     has_user_identity: bool = False
+    #: L'email della persona, quando il token la porta: e' il nome dell'account
+    #: che il consulente riconosce (lo spazio `acct-<id>` non dice niente a lui).
+    email: str | None = None
 
 
 @router.get("/auth/me")
@@ -58,6 +61,7 @@ def get_current_identity(
         # Solo un access token Supabase prova una persona; il token condiviso
         # prova un client, e allora l'unica cosa vera da mostrare e' lo spazio.
         has_user_identity=principal.auth_mode == "supabase",
+        email=principal.email,
     )
 
 

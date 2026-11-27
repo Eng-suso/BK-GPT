@@ -33,6 +33,8 @@ class AuthPrincipal(BaseModel):
     tenant_id: str = Field(min_length=1)
     is_admin: bool = False
     auth_mode: str = "local"
+    #: L'email della persona, se il token la porta: solo per mostrarla, mai per decidere.
+    email: str | None = None
 
 
 def get_current_tenant_id() -> str:
@@ -172,8 +174,8 @@ _UNAUTHORIZED = HTTPException(
 )
 
 
-def _authenticate_bearer(supplied_token: str | None) -> tuple[str | None, str]:
-    """Chi prova di essere il portatore del token: `(user_id, auth_mode)`.
+def _authenticate_bearer(supplied_token: str | None) -> tuple[str | None, str, str | None]:
+    """Chi prova di essere il portatore del token: `(user_id, auth_mode, email)`.
 
     Con il token condiviso l'identita' non esiste (`None`): il token prova solo
     di essere un client autorizzato. Con Supabase l'identita' e' il `sub` del
@@ -203,20 +205,22 @@ def _authenticate_bearer(supplied_token: str | None) -> tuple[str | None, str]:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Verifica dell'identita' non disponibile.",
             ) from exc
-        return identity.subject, SUPABASE_PROVIDER
+        return identity.subject, SUPABASE_PROVIDER, identity.email
 
     if not compare_digest(supplied_token, _configured_api_token()):
         raise _UNAUTHORIZED
-    return None, "bearer"
+    return None, "bearer", None
 
 
-def _account_principal(subject: str) -> AuthPrincipal:
+def _account_principal(subject: str, email: str | None = None) -> AuthPrincipal:
     """Una persona autenticata: il suo spazio di lavoro e' il suo account."""
     try:
         tenant_id = account_tenant_id(subject)
     except ValueError as exc:
         raise _UNAUTHORIZED from exc
-    return AuthPrincipal(user_id=subject, tenant_id=tenant_id, auth_mode=SUPABASE_PROVIDER)
+    return AuthPrincipal(
+        user_id=subject, tenant_id=tenant_id, auth_mode=SUPABASE_PROVIDER, email=email
+    )
 
 
 def _resolve_principal(
@@ -225,10 +229,10 @@ def _resolve_principal(
     x_delir_user_id: str | None,
 ) -> AuthPrincipal:
     if settings.delir_auth_enabled:
-        subject, auth_mode = _authenticate_bearer(_token_from_credentials(credentials))
+        subject, auth_mode, email = _authenticate_bearer(_token_from_credentials(credentials))
         if auth_mode == SUPABASE_PROVIDER and subject:
             # L'header del tenant non conta: chi sei decide anche dove lavori.
-            return _account_principal(subject)
+            return _account_principal(subject, email)
 
     tenant_id = requested_tenant_id(x_delir_tenant_id)
 
@@ -369,9 +373,9 @@ async def authenticate_websocket(websocket: WebSocket) -> AuthPrincipal | None:
 def _websocket_principal(supplied_tenant: str, supplied_token: str) -> AuthPrincipal:
     """Come `_resolve_principal`, con il token nel primo messaggio invece che nell'header."""
     if settings.delir_auth_enabled:
-        subject, auth_mode = _authenticate_bearer(supplied_token)
+        subject, auth_mode, email = _authenticate_bearer(supplied_token)
         if auth_mode == SUPABASE_PROVIDER and subject:
-            return _account_principal(subject)
+            return _account_principal(subject, email)
         return AuthPrincipal(
             user_id="api-client", tenant_id=requested_tenant_id(supplied_tenant), auth_mode=auth_mode
         )
