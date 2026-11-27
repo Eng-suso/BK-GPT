@@ -46,6 +46,7 @@ class LlmTask(StrEnum):
     MEMORY_EXTRACTION = "memory_extraction"
     MEMORY_EMBEDDING = "memory_embedding"
     THREAD_SUMMARY = "thread_summary"
+    LIVE_TRANSCRIPTION = "live_transcription"
 
 
 @dataclass(frozen=True, slots=True)
@@ -242,6 +243,15 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
     # "quanto costa riassumere" non aveva risposta. Stesso profilo della chat.
     LlmTask.THREAD_SUMMARY: TaskProfile(
         LlmTask.THREAD_SUMMARY, reasoning_effort="none", retry=True, scales_with_input=False
+    ),
+    # La registrazione dal vivo: un WebSocket diretto con OpenAI Realtime, non
+    # una chiamata del gateway. Il profilo dice quale modello scrivere nella
+    # riga che la sessione lascia nel registro, con i suoi secondi di audio.
+    LlmTask.LIVE_TRANSCRIPTION: TaskProfile(
+        LlmTask.LIVE_TRANSCRIPTION,
+        reasoning_effort="none",
+        scales_with_input=False,
+        model_setting="openai_live_transcription_model",
     ),
 }
 

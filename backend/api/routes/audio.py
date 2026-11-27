@@ -7,10 +7,11 @@ from typing import Any
 import websockets
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 
-from backend.llm import LlmTask, OperationKind, operation, profile_for, transcribe
+from backend.llm import LlmTask, OperationKind, Outcome, operation, profile_for, transcribe
+from backend.llm.usage import record
 from backend.schemas.chat_api import TranscriptionResponse
 from backend.llm.egress import Destination, EgressBlocked, require
-from backend.llm.budget import require_usage_available
+from backend.llm.budget import UsageLimitReached, check_audio, require_audio_available
 from backend.security import AuthPrincipal, authenticate_websocket, require_principal
 from backend.services.transcription import (
     build_live_transcription_options,
@@ -77,7 +78,7 @@ async def send_ws_event(websocket: WebSocket, event_type: str, **payload) -> Non
     await websocket.send_text(json.dumps({"type": event_type, **payload}, ensure_ascii=False))
 
 
-@router.post("/transcriptions", dependencies=[Depends(require_usage_available)])
+@router.post("/transcriptions", dependencies=[Depends(require_audio_available)])
 async def transcribe_audio(
     file: UploadFile = File(...),
     language: str | None = Form(default=None),
@@ -173,6 +174,49 @@ async def transcribe_audio(
     )
 
 
+#: L'audio dal vivo arriva come PCM a 16 bit, mono, a 24 kHz (vedi `session.update`).
+_PCM_BYTES_PER_SECOND = 24_000 * 2
+
+
+class LiveAudioMeter:
+    """Conta i secondi di audio mandati al fornitore: e' cio' che si paga.
+
+    Dai byte e non dall'orologio: una registrazione in pausa non costa, e un
+    secondo di audio mandato costa anche se la sessione cade subito dopo.
+    """
+
+    def __init__(self) -> None:
+        self._bytes = 0
+
+    def add(self, audio_base64: str) -> None:
+        # La lunghezza decodificata di un base64, senza decodificarlo.
+        padding = audio_base64[-2:].count("=")
+        self._bytes += max(0, len(audio_base64) * 3 // 4 - padding)
+
+    @property
+    def seconds(self) -> int:
+        return round(self._bytes / _PCM_BYTES_PER_SECOND)
+
+
+def record_live_session(principal: AuthPrincipal, seconds: int) -> None:
+    """La riga di una registrazione dal vivo nel registro dei consumi.
+
+    Il WebSocket va diretto a OpenAI Realtime e non passa dal gateway: senza
+    questa riga le ore di registrazione - la voce piu' cara di una giornata
+    intensa - erano spesa invisibile, e fuori dal contatore d'uso.
+    """
+    if seconds <= 0:
+        return
+    with operation(OperationKind.TRANSCRIPTION, tenant_id=principal.tenant_id, user_id=principal.user_id) as opened:
+        record(
+            operation=opened,
+            task=LlmTask.LIVE_TRANSCRIPTION.value,
+            model=profile_for(LlmTask.LIVE_TRANSCRIPTION).model,
+            outcome=Outcome.OK,
+            audio_seconds=seconds,
+        )
+
+
 @router.websocket("/live-transcription")
 async def live_audio_transcription(websocket: WebSocket):
     """Manage an authenticated live audio transcription session over a WebSocket.
@@ -196,6 +240,16 @@ async def live_audio_transcription(websocket: WebSocket):
     principal = await authenticate_websocket(websocket)
     if principal is None:
         return
+
+    # Il tetto delle ore di audio si guarda all'apertura, mai a meta': una
+    # registrazione iniziata arriva in fondo.
+    try:
+        await asyncio.to_thread(check_audio, principal.user_id, tenant_id=principal.tenant_id)
+    except UsageLimitReached as exc:
+        await send_ws_event(websocket, "error", detail=str(exc), code="usage_limit_reached")
+        await websocket.close(code=1008)
+        return
+    meter = LiveAudioMeter()
 
     if not settings.openai_api_key:
         await send_ws_event(websocket, "error", detail="OPENAI_API_KEY non configurata.")
@@ -223,6 +277,26 @@ async def live_audio_transcription(websocket: WebSocket):
         threshold=settings.openai_live_vad_threshold,
     )
 
+    try:
+        await _live_session(websocket, principal, meter, openai_url, headers, target_language,
+                            live_transcription_options, turn_detection)
+    finally:
+        # Una riga per registrazione, anche se e' finita male: i secondi mandati
+        # a OpenAI si pagano comunque.
+        await asyncio.to_thread(record_live_session, principal, meter.seconds)
+
+
+async def _live_session(
+    websocket: WebSocket,
+    principal: AuthPrincipal,
+    meter: LiveAudioMeter,
+    openai_url: str,
+    headers: dict[str, str],
+    target_language: str,
+    live_transcription_options: dict,
+    turn_detection: dict,
+) -> None:
+    """La sessione col fornitore: inoltra l'audio e rimanda le trascrizioni."""
     try:
         async with websockets.connect(
             openai_url,
@@ -275,6 +349,7 @@ async def live_audio_transcription(websocket: WebSocket):
                     if event_type == "audio":
                         audio = event.get("audio")
                         if audio:
+                            meter.add(audio)
                             await openai_ws.send(
                                 json.dumps(
                                     {

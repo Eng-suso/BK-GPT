@@ -32,7 +32,7 @@ configurazione la accende; una destinazione spenta resta elencata.
 | `llm_chat` | OpenAI, o il fornitore di `OPENAI_BASE_URL` | `api.openai.com` | Interviste, testi dei documenti, messaggi di chat, piani di processo, scenari | `OPENAI_API_KEY` impostata | Tutti tranne embedding e trascrizione (vedi §2) |
 | `llm_embedding` | OpenAI | `api.openai.com` | Frammenti di documenti e interviste | `OPENAI_API_KEY` impostata | `embedding` |
 | `transcription` | OpenAI | `api.openai.com` | **File audio** delle interviste (voce = dato personale) | `OPENAI_API_KEY` impostata | `transcription` |
-| `transcription_live` | OpenAI Realtime | `api.openai.com` (wss) | **Audio dal microfono** in tempo reale | `OPENAI_API_KEY` impostata | — (WebSocket diretto, non passa dal gateway) |
+| `transcription_live` | OpenAI Realtime | `api.openai.com` (wss) | **Audio dal microfono** in tempo reale | `OPENAI_API_KEY` impostata | `live_transcription` (WebSocket diretto; una riga nel registro per sessione, con i secondi di audio) |
 | `memory_extraction` | OpenAI, o il fornitore di `MEM0_LLM_BASE_URL` | `api.openai.com` | Fatti estratti dalle conversazioni (Mem0) | `OPENAI_API_KEY` + `MEM0_DATABASE_URL` | `memory_extraction` (client di Mem0, contato da `backend/llm/mem0_meter.py`) |
 | `memory_embedding` | OpenAI | `api.openai.com` | Testi delle memorie (Mem0) | come sopra | `memory_embedding` (come sopra) |
 | `tracing` | LangSmith (LangChain Inc.) | `api.smith.langchain.com` | **Prompt e risposte interi** di ogni chiamata al modello | `LANGSMITH_TRACING=true` | Tutti quelli che passano da LangChain |
@@ -83,6 +83,7 @@ cosa porta con sé. La destinazione è quella risolta da `egress.py`.
 | `simulation_narrative` | `llm_chat` | KPI già calcolati (segnaposti) | Non scrive cifre proprie |
 | `embedding` | `llm_embedding` | Frammenti di testo | |
 | `transcription` | `transcription` | Audio | |
+| `live_transcription` | `transcription_live` | Audio dal microfono | WebSocket diretto, non passa dal gateway |
 
 ## 3. Registro dei fornitori
 
