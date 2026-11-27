@@ -18,6 +18,7 @@ from backend.graphs.agent_budget import (
     exhausted_reason,
     run_started_at,
 )
+from backend.llm_streaming import unstreamed_config
 from backend.memory.procedural.skill_loader import message_content_to_text
 
 logger = logging.getLogger(__name__)
@@ -357,7 +358,10 @@ def build_tool_chat_subgraph(
 
         response = None
 
-        for chunk in llm_with_tools.stream(messages, config=config):
+        # Una passata muta (findings_channel) non scrive al consulente: i suoi
+        # token restano fuori dallo stream del turno, alla fonte.
+        call_config = unstreamed_config(config) if findings_channel else config
+        for chunk in llm_with_tools.stream(messages, config=call_config):
             response = chunk if response is None else response + chunk
 
         response = response or AIMessage(content="")

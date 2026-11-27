@@ -50,6 +50,27 @@ def _internal_stream_config(config: RunnableConfig | None) -> RunnableConfig:
     return base
 
 
+def unstreamed_config(config: RunnableConfig | None) -> RunnableConfig:
+    """La stessa config, con i token del modello tenuti fuori dallo stream del turno.
+
+    Il runtime chiede a LangGraph anche i token dei sotto-grafi
+    (`subgraphs=True`): e' cosi' che la risposta arriva parola per parola. Una
+    chiamata il cui testo **non** e' la risposta al consulente (una passata di
+    uno specialista, una bozza che un controllo puo' far riscrivere) va marcata
+    qui, alla fonte, con il tag `nostream` di LangGraph. Filtrarla dopo non
+    basta: LangGraph segnerebbe il messaggio come gia' consegnato e, se poi
+    finisce nello stato, non lo consegnerebbe piu' a fine nodo.
+    """
+    from langgraph.constants import TAG_NOSTREAM
+
+    base: dict[str, Any] = dict(config or {})
+    tags = list(base.get("tags") or [])
+    if TAG_NOSTREAM not in tags:
+        tags.append(TAG_NOSTREAM)
+    base["tags"] = tags
+    return base
+
+
 def stream_to_final(
     runnable: StreamableRunnable,
     input: Any,

@@ -5,6 +5,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 
 from backend.graphs.agent_budget import TURN_BUDGET_KEYS
+from backend.llm_streaming import unstreamed_config
 from backend.graphs.common import (
     artifact_field,
     artifact_for_prompt,
@@ -900,7 +901,10 @@ def build_process_report(llm):
             )
         )
         messages = [SystemMessage(content=PROCESS_REPORT_PROMPT), brief]
-        response = llm.invoke(messages, config=config)
+        # La prima stesura puo' essere riscritta dal controllo delle fonti qui
+        # sotto: al consulente arriva solo quella finale, a fine nodo.
+        report_config = unstreamed_config(config)
+        response = llm.invoke(messages, config=report_config)
 
         # Il controllo di composizione viveva solo dentro il tool di sintesi,
         # che l'agente puo' non chiamare: la frase multi-fonte tornava a
@@ -914,7 +918,7 @@ def build_process_report(llm):
                     response,
                     HumanMessage(content=_attribution_correction(violations)),
                 ],
-                config=config,
+                config=report_config,
             )
             violations = provenance.audit_answer(message_text(response), ledger)
 
