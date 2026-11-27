@@ -47,6 +47,16 @@ def test_day_blocks_keep_weekday_hour_and_rate():
     assert arrivals.day_blocks(phase, seed=7) == got  # stesso seed, stessi arrivi
 
 
+def test_recent_day_blocks_skip_the_quiet_past():
+    quiet = [datetime(2025, 6, 2, 9, tzinfo=ROME).astimezone(UTC)]  # un caso un anno prima, poi niente
+    busy = _weekday_log(weeks=5)
+    start = busy[-1] + timedelta(hours=1)
+    phase = FakePhase(_events(quiet + busy), cases=30, start=start)
+    got = arrivals.recent_day_blocks(phase, seed=3)
+    assert len(got) == 30 and (got[-1] - got[0]) < timedelta(days=14)  # tre al giorno feriale, non giorni vuoti
+    assert {g.astimezone(ROME).hour for g in got} <= {9, 10, 11}
+
+
 def test_day_blocks_fall_back_to_gaps_for_logs_of_a_few_hours():
     begin = datetime(2026, 3, 2, 9, tzinfo=UTC)
     phase = FakePhase(_events([begin + timedelta(minutes=2 * n) for n in range(50)]), cases=10,

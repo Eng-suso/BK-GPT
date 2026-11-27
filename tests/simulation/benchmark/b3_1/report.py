@@ -41,6 +41,7 @@ class Card:
 CARDS = (
     Card("B3.1-C1 arrivi di A rigiocati", "simod_extr_replay"),
     Card("B3.1-C2 giorni dell'input ricampionati", "simod_extr_days"),
+    Card("B3.1-C3 giorni delle ultime 4 settimane", "simod_extr_recent"),
 )
 
 

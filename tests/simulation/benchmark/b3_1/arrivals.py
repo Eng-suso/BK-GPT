@@ -20,6 +20,8 @@ from tests.simulation.benchmark.log_distance import Event, cases
 # Sotto questi giorni interi nell'input non si ricampiona per giorno della settimana (C2).
 WEEKDAY_MIN_FULL_DAYS = 7
 DAY_MIN_FULL_DAYS = 2
+# C3: i giorni donatori sono solo gli ultimi giorni interi dell'input, quattro per giorno della settimana.
+RECENT_FULL_DAYS = 28
 
 
 class Phase(Protocol):
@@ -42,7 +44,7 @@ def case_starts(events: Sequence[Event]) -> list[datetime]:
     return sorted(min(e.start for e in group) for group in cases(events).values())
 
 
-def day_blocks(phase: Phase, seed: int) -> list[datetime]:
+def day_blocks(phase: Phase, seed: int, recent: int | None = None) -> list[datetime]:
     """C2: giorni interi dell'input ricampionati dal primo inizio del periodo da prevedere.
 
     Ogni giorno del periodo prende gli arrivi (ora locale) di un giorno intero dell'input
@@ -50,6 +52,7 @@ def day_blocks(phase: Phase, seed: int) -> list[datetime]:
     sono tutti arrivati. Il primo e l'ultimo giorno dell'input sono parziali e non si
     estraggono. Con meno di 7 giorni interi si estrae fra tutti, senza guardare il giorno
     della settimana; con meno di 2 (log di poche ore) si ricampionano i tempi fra arrivi.
+    Con ``recent`` (C3) si estrae solo fra gli ultimi ``recent`` giorni interi dell'input.
     """
     starts = case_starts(phase.source_events)
     by_day: dict[date, list[timedelta]] = {}
@@ -58,6 +61,8 @@ def day_blocks(phase: Phase, seed: int) -> list[datetime]:
         by_day.setdefault(local.date(), []).append(local - _midnight(local.date(), phase.zone))
     first, last = min(by_day), max(by_day)
     full = [first + timedelta(days=n) for n in range(1, (last - first).days)]
+    if recent is not None:
+        full = full[-recent:]
     if len(full) < DAY_MIN_FULL_DAYS or not any(by_day.get(d) for d in full):
         return gap_bootstrap(starts, phase, seed)
     donors = {w: [d for d in full if d.weekday() == w] for w in range(7)} if len(full) >= WEEKDAY_MIN_FULL_DAYS else {}
@@ -70,6 +75,11 @@ def day_blocks(phase: Phase, seed: int) -> list[datetime]:
         arrivals += [i for i in (midnight + offset for offset in by_day.get(donor, [])) if i >= phase.start]
         day += timedelta(days=1)
     return [a.astimezone(UTC) for a in sorted(arrivals)[: phase.cases]]
+
+
+def recent_day_blocks(phase: Phase, seed: int) -> list[datetime]:
+    """C3: come C2, con i giorni donatori presi solo dalle ultime quattro settimane intere."""
+    return day_blocks(phase, seed, recent=RECENT_FULL_DAYS)
 
 
 def gap_bootstrap(starts: list[datetime], phase: Phase, seed: int) -> list[datetime]:
@@ -89,4 +99,6 @@ def _midnight(day: date, zone: ZoneInfo) -> datetime:
 
 VARIANTS: dict[str, Variant] = {
     "simod_extr_days": Variant("SIMOD con ritardi estranei + giorni dell'input ricampionati (B3.1-C2)", day_blocks),
+    "simod_extr_recent": Variant(
+        "SIMOD con ritardi estranei + giorni delle ultime 4 settimane dell'input ricampionati (B3.1-C3)", recent_day_blocks),
 }

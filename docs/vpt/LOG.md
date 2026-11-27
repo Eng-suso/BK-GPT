@@ -101,6 +101,35 @@ Uguale a C1 (basi, primarie, guardie, log, regole, letture dichiarate, misura) t
   Loan_Application 5,5, Pharmacy 7,3, Procure_to_Pay 0,0. La conto come una valutazione.
   Nessuna scelta di C2 è venuta da quei numeri (le regole erano già scritte nel codice).
 
+### Diagnosi di C2 in validazione (risultati parziali, 2026-11-27)
+
+- Visti i risultati di C2 su 11 log di validazione (gli altri in corso). Contro `simod_extr`
+  CAR vince o pareggia quasi ovunque, AED perde su BPIC 2017 W e bpic2013_incidents.
+- **bpic2013_incidents: CAR 2462 h** (SIMOD 63,6, C1 54,4). L'input della validazione va dal
+  2010-03 al 2012-05, ma 2700 dei suoi 3021 casi arrivano nelle ultime cinque settimane (aprile
+  2012: 2039; nel 2011 da 1 a 12 al mese). C2 estrae i giorni donatori uniformemente fra tutti i
+  giorni interi: quasi sempre giorni vuoti di due anni prima, così i 755 casi si spargono su
+  mesi. È l'andamento (trend) che la diagnosi di C1 non copriva.
+- Contro "B = A" AED perde sui log Insurance_Claims anche dove CAR di C2 è ~0: gli arrivi sono
+  giusti, la distanza viene dalle durate e dalle attese di SIMOD (`simod_extr` 145-166 h, C2
+  22-33, "B = A" 1,3). È il resto del twin; contro "B = A" il verdetto resta NO-GO e si scrive
+  così, come da lettura dichiarata in C1.
+
+### Scheda B3.1-C3 (scritta il 2026-11-27, prima della misura di C3)
+
+Uguale a C2 (basi, primarie, guardie, log, regole, letture dichiarate, misura) tranne il candidato.
+
+| Campo | Contenuto |
+| --- | --- |
+| Ipotesi | il ritmo che serve è quello recente: estraendo i giorni donatori solo dalle ultime settimane dell'input, gli arrivi seguono l'andamento (log in crescita come bpic2013_incidents) e non pescano giorni vuoti di un passato lontano |
+| Candidato | `simod_extr_recent` (`b3_1/arrivals.py`, `recent_day_blocks`): C2 con i giorni donatori ristretti agli ultimi 28 giorni interi dell'input (quattro per giorno della settimana); con meno di 28 giorni interi è identico a C2 |
+| Basi | `simod_extr`; `naive` |
+
+- **Valutazione sulla validazione n. 4 di 20.** Il parametro (28 giorni) è scelto prima della
+  misura, come il minimo che lascia quattro donatori per giorno della settimana, senza provare
+  altri valori. Limite di selezione: la restrizione nasce dal fallimento di C2 su
+  bpic2013_incidents in validazione (lecito per il §6, che sceglie sulla validazione).
+
 ---
 
 ## 2026-11-26 — G3b benchmark dei motori scientifici — fatto
