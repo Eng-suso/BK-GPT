@@ -46,11 +46,15 @@ CONFIGS = {
     "simod": "SIMOD senza ritardi (scenario fissato, base dell'ablazione)",
     "simod_fixed_extr": "SIMOD senza ritardi + solo i ritardi estranei di SIMOD (risorse e calendari fissati)",
     "simod_attr_extr": "SIMOD senza ritardi + ritardi esterni dell'attribuzione delle attese (B3.2)",
+    "simod_attr_idle": "SIMOD senza ritardi + ritardi esterni con la risorsa libera e in orario (B3.2 v2)",
     "simod_extr": g3b.CONFIGS["simod_extr"],
 }
 
 
-def attributed_delays(prepared: g3b.Prepared) -> tuple[Path, dict]:
+ATTRIBUTED = {"simod_attr_extr": "extraneous", "simod_attr_idle": "idle"}
+
+
+def attributed_delays(prepared: g3b.Prepared, config: str) -> tuple[Path, dict]:
     """Lo scenario senza ritardi con i timer dell'attribuzione; costo = discovery senza ritardi + attribuzione."""
     diff_folder, diff = g3b.simod_diff(prepared)
 
@@ -58,7 +62,7 @@ def attributed_delays(prepared: g3b.Prepared) -> tuple[Path, dict]:
         began = time.perf_counter()
         executions = [Execution(r.case_id, r.activity, (r.start or r.end).timestamp(), r.end.timestamp(), r.resource or "missing")
                       for r in prepared.source]
-        delays = extraneous_delays(executions, attribute(executions))
+        delays = extraneous_delays(executions, attribute(executions), measure=ATTRIBUTED[config])
         bpmn, events = add_timers((diff_folder / "model.bpmn").read_text(encoding="utf-8"), delays)
         scenario = json.loads((diff_folder / "scenario.json").read_text(encoding="utf-8"))
         scenario["event_distribution"] = events
@@ -69,7 +73,7 @@ def attributed_delays(prepared: g3b.Prepared) -> tuple[Path, dict]:
         # Gira nel processo del driver: il picco e' la memoria residente del driver a fine calcolo.
         return {"seconds": round(time.perf_counter() - began, 1), "peak_mb": round(psutil.Process().memory_info().rss / 2**20, 1)}
 
-    folder, attr = g3b._cached(prepared, "simod_attr_extr", build)
+    folder, attr = g3b._cached(prepared, config, build)
     return folder, {"seconds": diff["seconds"] + attr["seconds"], "peak_mb": diff["peak_mb"], "delays_seconds": attr["seconds"]}
 
 
@@ -104,8 +108,8 @@ def simulate(config: str, prepared: g3b.Prepared, out: Path, seed: int, replicas
     if config == "simod":
         folder, meta = g3b.simod_diff(prepared)
         cost = {"discovery_seconds": meta["seconds"], "discovery_peak_mb": meta["peak_mb"]}
-    elif config in ("simod_fixed_extr", "simod_attr_extr"):
-        folder, meta = fixed_delays(prepared, seed) if config == "simod_fixed_extr" else attributed_delays(prepared)
+    elif config == "simod_fixed_extr" or config in ATTRIBUTED:
+        folder, meta = fixed_delays(prepared, seed) if config == "simod_fixed_extr" else attributed_delays(prepared, config)
         cost = {"discovery_seconds": meta["seconds"], "discovery_peak_mb": meta["peak_mb"], "delays_seconds": meta["delays_seconds"],
                 "delays": json.loads((folder / "delays.json").read_text(encoding="utf-8"))}
     else:

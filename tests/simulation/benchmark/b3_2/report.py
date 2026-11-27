@@ -34,6 +34,8 @@ CARDS = (
     ("1", Card("Ablazione dei ritardi estranei", "simod_fixed_extr", ("simod",), "relative_event", "scenario"), None),
     ("3", Card("Attese attribuite: W1", "simod_attr_extr", ("simod_extr",), "cycle_time_w1", "scenario"), REAL),
     ("3", Card("Attese attribuite: RED", "simod_attr_extr", ("simod_extr",), "relative_event", "scenario"), REAL),
+    ("3b", Card("Attese attribuite v2: W1", "simod_attr_idle", ("simod_extr",), "cycle_time_w1", "scenario"), REAL),
+    ("3b", Card("Attese attribuite v2: RED", "simod_attr_idle", ("simod_extr",), "relative_event", "scenario"), REAL),
 )
 
 

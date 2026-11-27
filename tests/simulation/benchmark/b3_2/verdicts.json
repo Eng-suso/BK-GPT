@@ -33,27 +33,60 @@
       }
     }
   },
-  "3 Attese attribuite: W1 / validation": {
-    "verdict": "INCOMPLETO",
+  "1 Ablazione dei ritardi estranei / test": {
+    "verdict": "NO-GO",
     "reasons": [
-      "contro simod_extr: base mancante su BPIC_2017_W",
-      "contro simod_extr: W1 vince su 0/2 log"
+      "contro simod: RED vince su 0/6 log",
+      "candidato non misurato (fallito, fuori budget o non applicabile) su 17 log (AcademicCredentials, BPIC_2012_W, BPIC_2017_W, ...)"
+    ],
+    "bases": {
+      "simod": {
+        "paired": {
+          "vince": 2,
+          "pari": 3,
+          "perde": 1
+        },
+        "wins": 0,
+        "ties": 6,
+        "logs": 6,
+        "losses": [],
+        "missing": [],
+        "guard_losses": {
+          "AED": [
+            "Insurance_Claims_3_timers"
+          ]
+        },
+        "costlier_than_double": []
+      }
+    }
+  },
+  "3 Attese attribuite: W1 / validation": {
+    "verdict": "NO-GO",
+    "reasons": [
+      "contro simod_extr: W1 vince su 0/2 log",
+      "contro simod_extr: W1 perde su BPIC_2017_W"
     ],
     "bases": {
       "simod_extr": {
         "paired": {
           "vince": 0,
           "pari": 0,
-          "perde": 1
+          "perde": 2
         },
         "wins": 0,
         "ties": 1,
         "logs": 2,
-        "losses": [],
-        "missing": [
+        "losses": [
           "BPIC_2017_W"
         ],
+        "missing": [],
         "guard_losses": {
+          "RED": [
+            "BPIC_2017_W"
+          ],
+          "CED": [
+            "BPIC_2017_W"
+          ],
           "CAR": [
             "BPIC_2012_W"
           ]
@@ -63,26 +96,32 @@
     }
   },
   "3 Attese attribuite: RED / validation": {
-    "verdict": "INCOMPLETO",
+    "verdict": "NO-GO",
     "reasons": [
-      "contro simod_extr: base mancante su BPIC_2017_W",
-      "contro simod_extr: RED vince su 0/2 log"
+      "contro simod_extr: RED vince su 0/2 log",
+      "contro simod_extr: RED perde su BPIC_2017_W"
     ],
     "bases": {
       "simod_extr": {
         "paired": {
           "vince": 0,
           "pari": 1,
-          "perde": 0
+          "perde": 1
         },
         "wins": 0,
         "ties": 1,
         "logs": 2,
-        "losses": [],
-        "missing": [
+        "losses": [
           "BPIC_2017_W"
         ],
+        "missing": [],
         "guard_losses": {
+          "W1": [
+            "BPIC_2017_W"
+          ],
+          "CED": [
+            "BPIC_2017_W"
+          ],
           "CAR": [
             "BPIC_2012_W"
           ]

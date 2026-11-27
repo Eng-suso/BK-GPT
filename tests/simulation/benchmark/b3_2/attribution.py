@@ -198,7 +198,7 @@ class Waiting:
 
     @property
     def total(self) -> float:
-        return sum(self.seconds.values())
+        return sum(self.seconds.get(c, 0.0) for c in CAUSES)
 
     def dominant(self, tolerance: float = 1.0) -> str:
         if self.total <= tolerance:
@@ -243,7 +243,24 @@ def decompose(window: tuple[float, float], busy: _Busy, calendar: Calendar, *, g
             t = lo
         else:
             break
-    return {"contention": contention, "unavailability": unavailable, "extraneous": max(0.0, t - a), "batching": 0.0}
+    extraneous = max(0.0, t - a)
+    # Del ritardo esterno, i secondi con la risorsa libera e in orario (non una causa: serve al simulatore).
+    idle = calendar.on_within(a, t) - _busy_within(busy, a, t, calendar) if extraneous else 0.0
+    return {"contention": contention, "unavailability": unavailable, "extraneous": extraneous, "batching": 0.0,
+            "idle": max(0.0, idle)}
+
+
+def _busy_within(busy: _Busy, a: float, b: float, calendar: Calendar) -> float:
+    """Secondi in orario in cui la risorsa lavora in ``[a, b]``."""
+    k = max(0, bisect.bisect_right(busy.starts, a) - 1)
+    total = 0.0
+    for lo, hi in busy.intervals[k:]:
+        if lo >= b:
+            break
+        lo, hi = max(lo, a), min(hi, b)
+        if lo < hi:
+            total += calendar.on_within(lo, hi)
+    return total
 
 
 _EPS = 1e-3
@@ -270,7 +287,7 @@ def attribute(executions: Sequence[Execution], *, gap: float = 1.0, concurrency:
             continue
         seconds = decompose((enabled[i], e.start), busy[e.resource], calendars.get(e.resource, Calendar(always=True)), gap=gap)
         if i in batched:
-            seconds["batching"], seconds["extraneous"] = seconds["extraneous"], 0.0
+            seconds["batching"], seconds["extraneous"], seconds["idle"] = seconds["extraneous"], 0.0, 0.0
         result.append(Waiting(enabled[i], seconds))
     return result
 
@@ -302,18 +319,20 @@ def _batches(executions: Sequence[Execution], tolerance: float) -> dict[int, int
 # --------------------------------------------------------------------------- ritardi esterni per il simulatore
 
 
-def extraneous_delays(executions: Sequence[Execution], waitings: Sequence[Waiting], *, min_share: float = 0.05) -> dict[str, dict]:
+def extraneous_delays(executions: Sequence[Execution], waitings: Sequence[Waiting], *, min_share: float = 0.05,
+                      measure: str = "extraneous") -> dict[str, dict]:
     """Per attivita' la distribuzione del ritardo esterno (formato Prosimos ``event_distribution``).
 
     Si considerano le esecuzioni con l'abilitazione osservabile, zeri compresi; un'attivita'
     ha un timer se piu' del ``min_share`` delle sue esecuzioni ha un ritardo (la stessa regola
     del lavoro di Chapela-Campa e Dumas). Il ritardo e' la quota ``extraneous`` (il batching no:
-    lo spiega la risorsa).
+    lo spiega la risorsa). ``measure="idle"`` (v2) tiene solo i secondi del ritardo con la risorsa
+    libera e in orario: il resto lo rifa' il simulatore con le sue code e i suoi calendari.
     """
     values: dict[str, list[float]] = defaultdict(list)
     for e, w in zip(executions, waitings, strict=True):
         if w.enabled is not None:
-            values[e.activity].append(w.seconds["extraneous"])
+            values[e.activity].append(w.seconds.get(measure, 0.0))
     delays = {}
     for activity, xs in values.items():
         if sum(x > 0 for x in xs) / len(xs) > min_share:

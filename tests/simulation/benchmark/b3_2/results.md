@@ -8,8 +8,9 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 | Scheda | Componente | Fase | Verdetto | V / P / P | Motivi |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Ablazione dei ritardi estranei | validation | **NO-GO** | 4 / 18 / 0 | contro simod: RED vince su 4/22 log; contro simod: guardia CED perde su 2 log |
-| 3 | Attese attribuite: W1 | validation | **INCOMPLETO** | 0 / 1 / 0 | contro simod_extr: base mancante su BPIC_2017_W; contro simod_extr: W1 vince su 0/2 log |
-| 3 | Attese attribuite: RED | validation | **INCOMPLETO** | 0 / 1 / 0 | contro simod_extr: base mancante su BPIC_2017_W; contro simod_extr: RED vince su 0/2 log |
+| 1 | Ablazione dei ritardi estranei | test | **NO-GO** | 0 / 6 / 0 | contro simod: RED vince su 0/6 log; candidato non misurato (fallito, fuori budget o non applicabile) su 17 log (AcademicCredentials, BPIC_2012_W, BPIC_2017_W, ...) |
+| 3 | Attese attribuite: W1 | validation | **NO-GO** | 0 / 1 / 1 | contro simod_extr: W1 vince su 0/2 log; contro simod_extr: W1 perde su BPIC_2017_W |
+| 3 | Attese attribuite: RED | validation | **NO-GO** | 0 / 1 / 1 | contro simod_extr: RED vince su 0/2 log; contro simod_extr: RED perde su BPIC_2017_W |
 
 ## Metriche, fase validation
 
@@ -38,6 +39,7 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 | simod | 199 ± 0.043 | 0.371 ± 0.0031 | 130 ± 0.057 | 184 ± 4.6 | 1.09 ± 0.062 | 78.8 ± 4.5 | 1608 s, 8775 MB, 2.0 s/replica | — |
 | simod_fixed_extr | 97.4 ± 3.7 | 0.369 ± 0.0025 | 66.2 ± 2.8 | 50.7 ± 2 | 1.98 ± 0.018 | 68.8 ± 4.4 | 2383 s, 8775 MB, 4.0 s/replica | W_Assess potential fraud: 81620, W_Call after offers: 190754, W_Call incomplete files: 94720, W_Complete application: 36015 … |
 | simod_attr_extr | 111 ± 4.4 | 0.371 ± 0.0035 | 79.7 ± 5.5 | 54.5 ± 3.9 | 2.1 ± 0.017 | 59.9 ± 3.9 | 1621 s, 8775 MB, 3.6 s/replica | W_Call after offers: 198671, W_Shortened completion: 29003, W_Assess potential fraud: 81751, W_Call incomplete files: 94537 … |
+| simod_extr | 98.5 ± 3.6 | 0.37 ± 0.002 | 65 ± 2.4 | 48.9 ± 1.9 | 1.94 ± 0.018 | 70.5 ± 3.5 | 2808 s, 8775 MB, 3.1 s/replica | — |
 
 ### Insurance_Claims
 
@@ -181,3 +183,45 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 
 
 ## Metriche, fase test
+
+### Insurance_Claims
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 14.9 ± 1.1 | 0.187 ± 0 | 10.8 ± 0.97 | 144 ± 0.19 | 0.363 ± 0.0009 | 133 ± 1.1 | 127 s, 1078 MB, 0.5 s/replica | — |
+| simod_fixed_extr | 14.9 ± 1.1 | 0.187 ± 0 | 10.8 ± 0.97 | 144 ± 0.19 | 0.363 ± 0.0009 | 133 ± 1.1 | 139 s, 1078 MB, 0.4 s/replica | — |
+
+### Insurance_Claims_1_timer
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 13.8 ± 0.9 | 0.206 ± 2.1e-17 | 10.7 ± 0.73 | 141 ± 0.42 | 0.372 ± 0.0012 | 130 ± 0.71 | 121 s, 1079 MB, 0.4 s/replica | — |
+| simod_fixed_extr | 13.8 ± 0.9 | 0.206 ± 2.1e-17 | 10.7 ± 0.73 | 141 ± 0.42 | 0.372 ± 0.0012 | 130 ± 0.71 | 155 s, 1079 MB, 0.4 s/replica | — |
+
+### Insurance_Claims_3_timers
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 13.6 ± 0.5 | 0.199 ± 0 | 10.3 ± 0.42 | 143 ± 0.13 | 0.374 ± 0.00056 | 133 ± 0.38 | 120 s, 1076 MB, 0.4 s/replica | — |
+| simod_fixed_extr | 14 ± 0.58 | 0.199 ± 0 | 10.4 ± 0.45 | 143 ± 0.12 | 0.361 ± 0.00078 | 133 ± 0.42 | 160 s, 1076 MB, 0.6 s/replica | Close Claim: 153, Determine likelihood of the claim: 475, Initiate Payment: 86 |
+
+### Insurance_Claims_5_timers
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 12.3 ± 1.1 | 0.189 ± 0 | 9.75 ± 0.94 | 143 ± 0.36 | 0.388 ± 0.00085 | 134 ± 1.2 | 120 s, 1083 MB, 0.5 s/replica | — |
+| simod_fixed_extr | 12 ± 1.2 | 0.189 ± 0 | 9.57 ± 0.95 | 143 ± 0.39 | 0.362 ± 0.0011 | 134 ± 1.2 | 161 s, 1083 MB, 0.6 s/replica | Advise Claimant on Reimbursement: 98, Assess Claim: 281, Close Claim: 160, Determine likelihood of the claim: 482 … |
+
+### Insurance_Claims_5_timers_after
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 12.9 ± 0.82 | 0.184 ± 0 | 10 ± 0.7 | 141 ± 0.23 | 0.376 ± 0.00095 | 131 ± 0.69 | 112 s, 1077 MB, 0.4 s/replica | — |
+| simod_fixed_extr | 12.6 ± 0.75 | 0.184 ± 0 | 9.9 ± 0.62 | 141 ± 0.19 | 0.357 ± 0.00075 | 131 ± 0.65 | 149 s, 1077 MB, 0.5 s/replica | Assess Claim: 263, Close Claim: 400, Determine likelihood of the claim: 474 |
+
+### Loan_Application
+
+| Configurazione | W1 | NGD | RED | AED | CED | CAR | Costo | Ritardi (s, media) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simod | 31.3 ± 7.9 | 0.129 ± 0.0091 | 21 ± 5.5 | 20.1 ± 5.2 | 0.342 ± 0.021 | 7.03 ± 1.3 | 141 s, 1122 MB, 0.8 s/replica | — |
+| simod_fixed_extr | 28.9 ± 6.4 | 0.11 ± 0.0076 | 17.2 ± 4.1 | 16.9 ± 1.7 | 0.333 ± 0.02 | 7.08 ± 1.1 | 203 s, 1122 MB, 0.9 s/replica | Approve application: 12732, Cancel application: 6482, Prepare home insurance quote: 333, Reject application: 2423 |

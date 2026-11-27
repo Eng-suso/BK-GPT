@@ -103,6 +103,15 @@ Modello:
   Insurance_Claims): il candidato è identico alla base. In G3b "SIMOD con ritardi" vinceva o perdeva
   su quei log per le risorse e i calendari riottimizzati, non per i ritardi. Test lanciato per
   completezza (non sceglie).
+- **Esito scheda 3, validazione: NO-GO (v1).** Contro `simod_extr` rifatto qui: BPIC 2012 W pari
+  (W1 126 ± 6,3 contro 113 ± 9,3; RED 61,9 ± 7,3 contro 57,5 ± 6,5); BPIC 2017 W perde (W1 111 ± 4,4
+  contro 98,5 ± 3,6; RED 79,7 ± 5,5 contro 65,0 ± 2,4). Diagnosi: il ritardo di v1 va dall'abilitazione
+  all'ultimo istante libero della risorsa e comprende tratti in cui era occupata o fuori orario, che il
+  simulatore rifà da sé con le sue code e i calendari di SIMOD: attese contate due volte, casi lunghi.
+- **Scheda 3b — v2** (prima della misura; stessa base, stesse primarie W1 e RED, stesse guardie, stessi
+  log e regola di GO della scheda 3): `simod_attr_idle`, il timer tiene solo i secondi del ritardo
+  esterno con la risorsa libera e in orario (`extraneous_delays(..., measure="idle")`). L'attribuzione
+  delle cause (scheda 2) non cambia. Valutazioni in validazione per i 3 log: 2 su 20.
 - **Difetto del banco di G3b, da correggere con Sohayb:** `within_intervals` usa `<`, quindi due
   risultati identici con IC nullo (sintetici di un giorno) risultano diversi e `compare` dà
   "perde". In G3b: 246 confronti identici; sulle primarie, 4 RED "persi" della scheda Attese in
