@@ -10,6 +10,10 @@ from backend.search_text import like_patterns, search_terms, snippet
 from backend.security import get_current_tenant_id
 
 
+class ChatSessionNotAvailable(ValueError):
+    """La conversazione esiste, ma in un altro spazio di lavoro: per chi chiede non c'e'."""
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -124,7 +128,7 @@ def create_chat_session(
     with chat_connection() as session:
         existing_session = session.get(ChatSession, thread_id)
         if existing_session is not None and existing_session.tenant_id != tenant_id:
-            raise ValueError("Sessione non disponibile per il tenant corrente.")
+            raise ChatSessionNotAvailable("Sessione non disponibile per il tenant corrente.")
 
         if existing_session is None:
             session.add(
@@ -355,7 +359,7 @@ def append_chat_message(
         chat_session = session.get(ChatSession, thread_id)
 
         if chat_session is not None and chat_session.tenant_id != tenant_id:
-            raise ValueError("Sessione non disponibile per il tenant corrente.")
+            raise ChatSessionNotAvailable("Sessione non disponibile per il tenant corrente.")
 
         if chat_session is None:
             chat_session = ChatSession(

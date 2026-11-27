@@ -137,6 +137,7 @@ def setup_api_error_handlers(app: FastAPI) -> None:
         )
 
     from backend.eventlog.service import ConformanceUnavailable
+    from backend.database import ChatSessionNotAvailable
     from backend.simulation.ir.soundness import UnsoundProcessError
     from backend.workspace_database import UnreadableReviewError
 
@@ -152,6 +153,13 @@ def setup_api_error_handlers(app: FastAPI) -> None:
             code="process_cannot_finish",
             message=str(exc),
             detail=exc.detail,
+        )
+
+    @app.exception_handler(ChatSessionNotAvailable)
+    async def chat_session_not_available_handler(request: Request, exc: ChatSessionNotAvailable):
+        """La conversazione di un altro account: si risponde come se non esistesse."""
+        return api_error_response(
+            request, status_code=404, code="not_found", message="Conversazione non trovata."
         )
 
     @app.exception_handler(ConformanceUnavailable)
