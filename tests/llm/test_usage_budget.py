@@ -402,3 +402,223 @@ class TestIlMessaggioArrivaAlConsulente:
 
         assert response.status_code == 429
         assert response.json()["error"]["code"] == "usage_limit_reached"
+
+
+def _listen(user_id: str, when: datetime, seconds: int, task: str = "live_transcription") -> None:
+    with workspace_connection() as session:
+        session.add(
+            WorkspaceLlmUsage(
+                id=uuid.uuid4().hex,
+                tenant_id=get_current_tenant_id(),
+                user_id=user_id,
+                operation_kind="transcription",
+                operation_id=uuid.uuid4().hex,
+                task=task,
+                model="gpt-realtime-whisper",
+                input_tokens=0,
+                output_tokens=0,
+                reasoning_tokens=0,
+                cached_input_tokens=0,
+                audio_seconds=seconds,
+                outcome="ok",
+                duration_ms=1,
+                attempt=1,
+                cost_estimate="0.5000",
+                created_at=when.isoformat(),
+            )
+        )
+
+
+class TestAudioInOre:
+    """L'audio ha un tetto in ore, separato dai dollari dei modelli."""
+
+    @pytest.fixture(autouse=True)
+    def ore(self, monkeypatch):
+        monkeypatch.setattr(settings, "usage_week_audio_hours", 2.0)
+        monkeypatch.setattr(settings, "usage_trial_audio_hours", 3.0)
+
+    def test_l_audio_si_conta_in_secondi_e_non_entra_nei_dollari(self, limits, user):
+        _start_trial(user, NOW - timedelta(days=1), session_started=NOW - timedelta(hours=1))
+        _listen(user, NOW - timedelta(minutes=30), 3_600)
+        _listen(user, NOW - timedelta(minutes=20), 1_800, task="transcription")
+
+        current = budget.status(user, now=NOW)
+
+        assert current.audio_week.used_seconds == 5_400
+        assert current.audio_week.limit_seconds == 7_200
+        assert current.session.used_usd == 0  # il costo dell'audio non tocca la sessione
+
+    def test_ore_finite_fermano_le_registrazioni_non_la_chat(self, limits, user):
+        _start_trial(user, NOW - timedelta(days=1))
+        _listen(user, NOW - timedelta(hours=2), 7_200)
+
+        budget.check(user)  # la chat passa
+        with pytest.raises(budget.UsageLimitReached) as exc:
+            budget.check_audio(user)
+
+        assert exc.value.window == "audio_week"
+        assert "registrazione" in str(exc.value)
+
+    def test_le_ore_della_settimana_si_rinnovano(self, limits, user):
+        _start_trial(user, NOW - timedelta(days=8))
+        _listen(user, NOW - timedelta(days=7, hours=12), 7_200)  # settimana scorsa
+
+        current = budget.status(user, now=NOW)
+
+        assert current.audio_week.used_seconds == 0
+        assert current.audio_trial.used_seconds == 7_200
+        assert current.audio_blocking is None
+
+    def test_zero_ore_vuol_dire_nessun_tetto(self, limits, user):
+        budget.update_plan(user, week_audio_hours=Decimal(0), trial_audio_hours=Decimal(0))
+        _listen(user, NOW - timedelta(minutes=5), 99_999)
+
+        current = budget.status(user)
+
+        assert current.audio_week.limit_seconds is None
+        assert current.audio_blocking is None
+
+    def test_il_pannello_riceve_le_ore(self, limits, user, monkeypatch):
+        from backend.app import app
+
+        monkeypatch.setattr(settings, "delir_auth_enabled", False)
+        _start_trial(user, NOW - timedelta(days=1))
+        _listen(user, NOW - timedelta(minutes=10), 1_800)
+
+        body = TestClient(app).get("/v1/usage/me", headers={"X-DeliR-User-ID": user}).json()
+
+        assert body["audio"]["week"]["used_seconds"] == 1_800
+        assert body["audio"]["week"]["limit_seconds"] == 7_200
+        assert body["audio"]["blocking"] is None
+
+    def test_la_trascrizione_di_un_file_risponde_429_a_ore_finite(self, limits, user, monkeypatch):
+        from backend.app import app
+
+        monkeypatch.setattr(settings, "delir_auth_enabled", False)
+        monkeypatch.setattr(settings, "openai_api_key", "sk-test-non-usata")
+        _start_trial(user, NOW - timedelta(days=1))
+        # Ore finite con file caricati, non con una registrazione appena chiusa:
+        # quella renderebbe questo file la sua seconda passata, che non si rifiuta.
+        _listen(user, NOW - timedelta(hours=3), 7_200, task="transcription")
+
+        response = TestClient(app).post(
+            "/v1/audio/transcriptions",
+            headers={"X-DeliR-User-ID": user},
+            files={"file": ("a.wav", b"RIFF0000", "audio/wav")},
+        )
+
+        assert response.status_code == 429
+        assert response.json()["error"]["code"] == "usage_limit_reached"
+
+
+class TestMisuraDellAudio:
+    def test_il_contatore_dal_vivo_conta_i_byte_mandati(self):
+        import base64
+
+        from backend.api.routes.audio import LiveAudioMeter
+
+        meter = LiveAudioMeter()
+        one_second = base64.b64encode(b"\x00" * 48_000).decode()
+        for _ in range(90):
+            meter.add(one_second)
+
+        assert meter.seconds == 90
+
+    def test_una_registrazione_ha_una_riga_aperta_all_inizio_e_aggiornata(self, user):
+        from sqlalchemy import select
+
+        from backend.api.routes.audio import LiveSessionLedger
+        from backend.security import AuthPrincipal
+
+        ledger = LiveSessionLedger(AuthPrincipal(user_id=user, tenant_id=get_current_tenant_id()))
+        ledger.open()
+        assert not ledger.due(10) and ledger.due(30)
+        ledger.flush(754)
+
+        with workspace_connection() as session:
+            row = session.scalars(select(WorkspaceLlmUsage).where(WorkspaceLlmUsage.user_id == user)).one()
+        assert (row.task, row.audio_seconds) == ("live_transcription", 754)
+
+    def test_una_registrazione_si_ferma_al_tetto(self):
+        from backend.api.routes.audio import LiveAudioMeter
+
+        meter = LiveAudioMeter()
+        meter.cap_seconds = 2
+        meter.add("A" * (64_000 * 4 // 3))  # 64.000 byte, poco piu' di un secondo
+        assert not meter.over_cap
+        meter.add("A" * (64_000 * 4 // 3))
+        assert meter.over_cap
+
+    def test_la_durata_di_un_file_viene_dalla_risposta(self):
+        from backend.llm.usage import extract_audio_seconds
+
+        assert extract_audio_seconds({"duration": 61.6}) == 62
+        assert extract_audio_seconds(type("R", (), {"duration": 30})()) == 30
+        assert extract_audio_seconds({}) == 0
+        assert extract_audio_seconds({"duration": True}) == 0
+        # I modelli che rispondono in json la dicono come usage.seconds.
+        assert extract_audio_seconds({"usage": {"type": "duration", "seconds": 42}}) == 42
+
+    def test_il_prezzo_al_minuto(self, monkeypatch):
+        from backend.llm.prices import estimate_cost
+
+        monkeypatch.setattr(settings, "llm_prices_json", '{"gpt-realtime-whisper": {"per_minute": 0.017}}')
+
+        assert estimate_cost("gpt-realtime-whisper", input_tokens=0, output_tokens=0, audio_seconds=600) == Decimal("0.17")
+
+
+class TestAudioDallaReview:
+    @pytest.fixture(autouse=True)
+    def ore(self, monkeypatch):
+        monkeypatch.setattr(settings, "usage_week_audio_hours", 2.0)
+        monkeypatch.setattr(settings, "usage_trial_audio_hours", 3.0)
+
+    def test_la_seconda_passata_dopo_il_vivo_non_consuma_ore(self, limits, user):
+        _start_trial(user, NOW - timedelta(days=1))
+        _listen(user, NOW - timedelta(minutes=70), 3_600)  # registrazione finita 10 minuti fa
+        with workspace_connection() as session:
+            session.add(
+                WorkspaceLlmUsage(
+                    id=uuid.uuid4().hex, tenant_id=get_current_tenant_id(), user_id=user,
+                    operation_kind="transcription_after_live", operation_id=uuid.uuid4().hex,
+                    task="transcription", model="gpt-4o-transcribe-diarize", input_tokens=0,
+                    output_tokens=0, reasoning_tokens=0, cached_input_tokens=0, audio_seconds=3_600,
+                    outcome="ok", duration_ms=1, attempt=1, cost_estimate="0.36",
+                    created_at=(NOW - timedelta(minutes=5)).isoformat(),
+                )
+            )
+
+        current = budget.status(user, now=NOW)
+
+        assert current.audio_week.used_seconds == 3_600  # un'ora, non due
+        assert current.week.used_usd == 0
+
+    def test_si_riconosce_la_seconda_passata_dal_registro(self, user):
+        _listen(user, NOW - timedelta(minutes=70), 3_600)
+
+        assert budget.follows_live_recording(user, now=NOW)
+        assert not budget.follows_live_recording(user, now=NOW + timedelta(minutes=30))
+
+    def test_una_trascrizione_senza_durata_resta_nei_dollari(self, limits, user):
+        _start_trial(user, NOW - timedelta(days=1), session_started=NOW - timedelta(hours=1))
+        _listen(user, NOW - timedelta(minutes=10), 0, task="transcription")
+
+        current = budget.status(user, now=NOW)
+
+        assert current.session.used_usd == Decimal("0.5000")
+
+    def test_un_tetto_sotto_il_secondo_non_rompe_niente(self, limits, user):
+        budget.update_plan(user, week_audio_hours=Decimal("0.0001"))
+
+        assert budget.status(user).audio_week.limit_seconds is None
+
+    def test_registrare_non_apre_la_sessione_dei_modelli(self, limits, user):
+        budget.check_audio(user)
+
+        assert budget.status(user).session.started_at is None
+
+    def test_quanto_audio_resta(self, limits, user):
+        _start_trial(user, NOW - timedelta(days=1))
+        _listen(user, NOW - timedelta(hours=1), 6_000)
+
+        assert budget.remaining_audio_seconds(user) == 1_200

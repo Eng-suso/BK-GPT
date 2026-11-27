@@ -87,6 +87,9 @@ class OperationKind:
     SOURCE_RECONCILE = "source_reconcile"
     MEMORY_PROJECTION = "memory_projection"
     TRANSCRIPTION = "transcription"
+    # La passata col nome di chi parla che segue una registrazione dal vivo: si
+    # paga, ma l'audio e' lo stesso gia' contato dal vivo, quindi non consuma ore.
+    TRANSCRIPTION_AFTER_LIVE = "transcription_after_live"
     EVAL = "eval"
     CLAIM_MATCHING = "claim_matching"
     SIMULATION_WHAT_IF = "simulation_what_if"

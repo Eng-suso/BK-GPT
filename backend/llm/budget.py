@@ -86,6 +86,32 @@ class Forecast:
 
 
 @dataclass(frozen=True, slots=True)
+class AudioWindow:
+    """Una finestra dell'audio: secondi usati e tetto in secondi.
+
+    L'audio ha un tetto suo, in ore, separato dai dollari dei modelli: costa piu'
+    di tutto il resto, e' prevedibile, e il consulente lo legge come ore di
+    registrazione. Quando e' esaurito si fermano solo le registrazioni e le
+    trascrizioni: la chat e il resto continuano.
+    """
+
+    name: str
+    used_seconds: int
+    limit_seconds: int | None
+    resets_at: datetime | None
+
+    @property
+    def used_share(self) -> float:
+        if not self.limit_seconds:
+            return 0.0
+        return min(1.0, self.used_seconds / self.limit_seconds)
+
+    @property
+    def exhausted(self) -> bool:
+        return self.limit_seconds is not None and self.used_seconds >= self.limit_seconds
+
+
+@dataclass(frozen=True, slots=True)
 class UsageStatus:
     """Lo stato d'uso di un consulente, cosi' come lo vede il pannello."""
 
@@ -94,12 +120,23 @@ class UsageStatus:
     session: Window
     week: Window
     trial: Window
+    audio_week: AudioWindow
+    audio_trial: AudioWindow
     trial_over: bool = False
     forecast: Forecast | None = None
 
     @property
     def windows(self) -> tuple[Window, ...]:
         return (self.session, self.week, self.trial)
+
+    @property
+    def audio_blocking(self) -> AudioWindow | None:
+        """La finestra dell'audio che ferma registrazioni e trascrizioni nuove."""
+        if not self.enabled:
+            return None
+        if self.trial_over:
+            return self.audio_trial
+        return next((w for w in (self.audio_trial, self.audio_week) if w.exhausted), None)
 
     @property
     def blocking(self) -> Window | None:
@@ -139,6 +176,13 @@ class UsageLimitReached(Exception):
         return cls(_MESSAGES[name], name)
 
 
+def _audio_limit_reached(status: UsageStatus) -> UsageLimitReached:
+    window = status.audio_blocking
+    assert window is not None, "si chiama solo con una finestra dell'audio che blocca"
+    name = "trial_over" if status.trial_over else f"audio_{window.name}"
+    return UsageLimitReached(_MESSAGES[name], name)
+
+
 # Linguaggio del consulente, non del fornitore: niente token, niente dollari.
 # L'ora del ripristino la mostra il pannello, nel fuso del consulente.
 _MESSAGES = {
@@ -153,6 +197,15 @@ _MESSAGES = {
     "trial": (
         "Hai usato tutto il credito della prova. Quello che hai fatto resta "
         "consultabile; per continuare a lavorare contatta il team DeliR."
+    ),
+    "audio_week": (
+        "Hai usato tutte le ore di registrazione di questa settimana. La chat e il "
+        "resto continuano; le registrazioni riprendono quando la settimana si "
+        "rinnova (vedi Utilizzo, in alto)."
+    ),
+    "audio_trial": (
+        "Hai usato tutte le ore di registrazione della prova. La chat e il resto "
+        "continuano; per registrare ancora contatta il team DeliR."
     ),
     "trial_over": (
         "La prova e' terminata. Quello che hai fatto resta consultabile; per "
@@ -190,25 +243,37 @@ def _live_session_start(plan, now: datetime) -> datetime | None:
     return started if started is not None and now < started + _session_length() else None
 
 
-def _spent(tenant_id: str, user_id: str, starts: dict[str, datetime], now: datetime) -> dict[str, Decimal]:
-    """La spesa stimata di un consulente in piu' finestre, con una sola lettura del registro.
+def _spent(
+    tenant_id: str, user_id: str, starts: dict[str, datetime], now: datetime
+) -> tuple[dict[str, Decimal], dict[str, int]]:
+    """Spesa dei modelli in dollari e audio in secondi, con una sola lettura del registro.
 
-    Le righe senza prezzo (modello non nel listino) si contano al prezzo di
-    ripiego, pessimista: un costo sconosciuto non deve far sforare il budget.
+    Le righe dei modelli senza prezzo si contano al prezzo di ripiego,
+    pessimista: un costo sconosciuto non deve far sforare il budget. L'audio non
+    entra nei dollari: ha il suo tetto in ore.
     """
     from backend.llm import ledger
 
-    totals = ledger.per_finestre(
+    models, audio = ledger.per_finestre(
         {name: start.isoformat() for name, start in starts.items()},
         fine=now.isoformat(),
         tenant_id=tenant_id,
         user_id=user_id,
     )
     unpriced_rate = Decimal(str(settings.usage_unpriced_usd_per_million_tokens))
-    return {
+    usd = {
         name: total.costo_noto + Decimal(total.token_senza_prezzo) * unpriced_rate / _MILLION
-        for name, total in totals.items()
+        for name, total in models.items()
     }
+    return usd, {name: total.secondi_audio for name, total in audio.items()}
+
+
+def _hours_limit(value: str | None, default: float) -> int | None:
+    """Il tetto dell'audio in secondi, da ore. Zero vuol dire «nessun tetto»."""
+    hours = Decimal(value) if value is not None else Decimal(str(default))
+    seconds = int(hours * 3600)
+    # Un tetto sotto il secondo non e' un tetto: vale "nessun tetto", come lo zero.
+    return seconds if seconds > 0 else None
 
 
 def _new_plan_values(tenant_id: str, user_id: str, now: datetime) -> dict:
@@ -311,7 +376,7 @@ def _status_of(plan, user_id: str, now: datetime) -> UsageStatus:
     starts = {"week": week_start, "trial": trial_start}
     if session_start is not None:
         starts["session"] = session_start
-    spent = _spent(plan.tenant_id, user_id, starts, now)
+    spent, audio_seconds = _spent(plan.tenant_id, user_id, starts, now)
 
     session = Window(
         name="session",
@@ -341,6 +406,18 @@ def _status_of(plan, user_id: str, now: datetime) -> UsageStatus:
         session=session,
         week=week,
         trial=trial,
+        audio_week=AudioWindow(
+            name="week",
+            used_seconds=audio_seconds["week"],
+            limit_seconds=_hours_limit(plan.week_audio_hours, settings.usage_week_audio_hours),
+            resets_at=week_start + _WEEK,
+        ),
+        audio_trial=AudioWindow(
+            name="trial",
+            used_seconds=audio_seconds["trial"],
+            limit_seconds=_hours_limit(plan.trial_audio_hours, settings.usage_trial_audio_hours),
+            resets_at=trial_end,
+        ),
         trial_over=now >= trial_end,
         forecast=_forecast(windows, now),
     )
@@ -371,30 +448,108 @@ def status(
 _cache: dict[tuple[str, str], tuple[float, UsageStatus]] = {}
 
 
-def check(user_id: str | None, *, tenant_id: str | None = None) -> None:
-    """Ferma una richiesta nuova oltre il limite. Apre la sessione se non c'e'.
+def _current(user_id: str, tenant_id: str | None, *, open_session: bool) -> UsageStatus:
+    """Lo stato per un controllo, tenuto per pochi secondi per processo.
 
-    Lo stato si tiene per pochi secondi per processo: un turno di chat che apre
-    il pannello subito dopo non rilegge il registro.
-
-    Raises:
-        UsageLimitReached: Se una finestra e' esaurita o la prova e' finita.
+    Con `open_session` apre la sessione dei modelli se non c'e': lo fa solo chi
+    sta per spendere sui modelli. Una registrazione no: l'audio ha il suo tetto,
+    e non deve far partire il cronometro della chat.
     """
-    if not settings.usage_limits_enabled or not user_id:
-        return
     tenant = _tenant(tenant_id)
     now_mono = time.monotonic()
     cached = _cache.get((tenant, user_id))
-    if cached is not None and now_mono - cached[0] < _CACHE_SECONDS:
-        current = cached[1]
-    else:
-        current = status(user_id, tenant_id=tenant, open_session=True)
-        # Le voci scadute si buttano qui: il dizionario non cresce per sempre.
-        for key in [k for k, (at, _) in _cache.items() if now_mono - at >= _CACHE_SECONDS]:
-            del _cache[key]
-        _cache[(tenant, user_id)] = (now_mono, current)
+    # Uno stato letto senza aprire la sessione non basta a chi deve aprirla.
+    if cached is not None and now_mono - cached[0] < _CACHE_SECONDS and (
+        not open_session or cached[1].session.started_at is not None
+    ):
+        return cached[1]
+    current = status(user_id, tenant_id=tenant, open_session=open_session)
+    # Le voci scadute si buttano qui: il dizionario non cresce per sempre.
+    for key in [k for k, (at, _) in _cache.items() if now_mono - at >= _CACHE_SECONDS]:
+        del _cache[key]
+    _cache[(tenant, user_id)] = (now_mono, current)
+    return current
+
+
+def check(user_id: str | None, *, tenant_id: str | None = None) -> None:
+    """Ferma una richiesta nuova ai modelli oltre il limite.
+
+    Raises:
+        UsageLimitReached: Se una finestra dei modelli e' esaurita o la prova e' finita.
+    """
+    if not settings.usage_limits_enabled or not user_id:
+        return
+    current = _current(user_id, tenant_id, open_session=True)
     if current.blocking is not None:
         raise UsageLimitReached.from_status(current)
+
+
+def check_audio(user_id: str | None, *, tenant_id: str | None = None) -> None:
+    """Ferma una registrazione o una trascrizione nuova oltre il tetto dell'audio.
+
+    Raises:
+        UsageLimitReached: Se le ore della settimana o della prova sono finite,
+            o la prova e' terminata.
+    """
+    if not settings.usage_limits_enabled or not user_id:
+        return
+    current = _current(user_id, tenant_id, open_session=False)
+    if current.audio_blocking is not None:
+        raise _audio_limit_reached(current)
+
+
+def remaining_audio_seconds(user_id: str | None, *, tenant_id: str | None = None) -> int | None:
+    """Quanti secondi di audio restano prima del tetto, o `None` se non c'e' tetto.
+
+    Serve alla registrazione dal vivo, che si ferma dopo questo (piu' un
+    margine): il controllo all'apertura da solo lascerebbe registrare per ore
+    con un minuto di budget.
+    """
+    if not settings.usage_limits_enabled or not user_id:
+        return None
+    current = _current(user_id, tenant_id, open_session=False)
+    left = [w.limit_seconds - w.used_seconds for w in (current.audio_week, current.audio_trial) if w.limit_seconds]
+    return max(0, min(left)) if left else None
+
+
+#: Quanto dopo la fine di una registrazione dal vivo il file della stessa
+#: intervista arriva ancora come "seconda passata" (trascrizione con i nomi).
+_AFTER_LIVE_WINDOW = timedelta(minutes=15)
+
+
+def follows_live_recording(user_id: str | None, *, tenant_id: str | None = None, now: datetime | None = None) -> bool:
+    """Se un file audio e' la seconda passata di una registrazione dal vivo appena finita.
+
+    Il browser registra dal vivo e, all'arresto, manda lo stesso audio per la
+    trascrizione con i nomi di chi parla. E' lo stesso audio: contarlo due volte
+    raddoppierebbe le ore, e rifiutarlo lascerebbe l'intervista senza nomi. Si
+    riconosce dal registro, non da un'etichetta del client: una riga
+    `live_transcription` dello stesso consulente finita da poco.
+    """
+    if not user_id:
+        return False
+    from sqlalchemy import select
+
+    from backend.llm.tasks import LlmTask
+    from backend.workspace_storage import WorkspaceLlmUsage, workspace_connection
+
+    now = now or _now()
+    with workspace_connection() as session:
+        rows = session.execute(
+            select(WorkspaceLlmUsage.created_at, WorkspaceLlmUsage.audio_seconds).where(
+                WorkspaceLlmUsage.tenant_id == _tenant(tenant_id),
+                WorkspaceLlmUsage.user_id == user_id,
+                WorkspaceLlmUsage.task == LlmTask.LIVE_TRANSCRIPTION.value,
+                WorkspaceLlmUsage.created_at >= (now - timedelta(days=1)).isoformat(),
+            )
+        ).all()
+    # La riga nasce all'apertura: la registrazione e' finita dopo i suoi secondi.
+    ends = (
+        started + timedelta(seconds=row.audio_seconds or 0)
+        for row in rows
+        if (started := _parse(row.created_at)) is not None
+    )
+    return any(end + _AFTER_LIVE_WINDOW >= now for end in ends)
 
 
 def reset_cache() -> None:
@@ -409,6 +564,8 @@ def update_plan(
     week_budget_usd: Decimal | None = None,
     trial_budget_usd: Decimal | None = None,
     trial_ends_at: datetime | None = None,
+    week_audio_hours: Decimal | None = None,
+    trial_audio_hours: Decimal | None = None,
     reset_session: bool = False,
 ) -> UsageStatus:
     """Cambia il piano di un consulente (amministrazione). I campi omessi restano.
@@ -432,6 +589,10 @@ def update_plan(
             plan.trial_budget_usd = str(trial_budget_usd)
         if trial_ends_at is not None:
             plan.trial_ends_at = _utc(trial_ends_at).astimezone(UTC).isoformat()
+        if week_audio_hours is not None:
+            plan.week_audio_hours = str(week_audio_hours)
+        if trial_audio_hours is not None:
+            plan.trial_audio_hours = str(trial_audio_hours)
         if reset_session:
             plan.session_started_at = None
         plan.updated_at = now.isoformat()

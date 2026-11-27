@@ -31,6 +31,23 @@ const windowSchema = z
     resetsAt: raw.resets_at,
   }));
 
+const audioWindowSchema = z
+  .object({
+    used_seconds: z.number().int().nonnegative(),
+    limit_seconds: z.number().int().positive().nullable(),
+    exhausted: z.boolean(),
+    resets_at: z.string().nullable(),
+  })
+  .transform((raw) => ({
+    usedSeconds: raw.used_seconds,
+    limitSeconds: raw.limit_seconds,
+    // La stessa forma delle altre finestre: il pannello le disegna uguali.
+    usedShare: raw.limit_seconds ? Math.min(1, raw.used_seconds / raw.limit_seconds) : 0,
+    limited: raw.limit_seconds !== null,
+    exhausted: raw.exhausted,
+    resetsAt: raw.resets_at,
+  }));
+
 const enabledSchema = z
   .object({
     enabled: z.literal(true),
@@ -42,6 +59,12 @@ const enabledSchema = z
     forecast: z
       .object({ window: windowNameSchema, exhausts_at: z.string(), resets_at: z.string() })
       .nullable(),
+    // Le ore di registrazione: un tetto separato dai modelli, in secondi.
+    audio: z.object({
+      week: audioWindowSchema,
+      trial: audioWindowSchema,
+      blocking: z.enum(["week", "trial"]).nullable(),
+    }),
   })
   .transform((raw) => ({
     enabled: true as const,
@@ -56,6 +79,7 @@ const enabledSchema = z
     forecast: raw.forecast
       ? { window: raw.forecast.window, exhaustsAt: raw.forecast.exhausts_at, resetsAt: raw.forecast.resets_at }
       : null,
+    audio: raw.audio,
   }));
 
 // Con i limiti spenti il backend non legge niente e manda il minimo.
@@ -68,6 +92,7 @@ const usageSchema = z.union([enabledSchema, disabledSchema]);
 export type UsageWindowName = z.infer<typeof windowNameSchema>;
 export type ActiveUsage = z.output<typeof enabledSchema>;
 export type UsageWindow = ActiveUsage["session"];
+export type AudioWindow = ActiveUsage["audio"]["week"];
 export type Usage = z.output<typeof usageSchema>;
 
 export async function fetchUsage(): Promise<Usage> {

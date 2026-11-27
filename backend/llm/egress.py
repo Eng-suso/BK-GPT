@@ -122,7 +122,7 @@ class EgressBlocked(MissingProviderKey):
     """
 
 
-_NON_CHAT_TASKS = {LlmTask.EMBEDDING, LlmTask.TRANSCRIPTION}
+_NON_CHAT_TASKS = {LlmTask.EMBEDDING, LlmTask.TRANSCRIPTION, LlmTask.LIVE_TRANSCRIPTION}
 # I compiti di Mem0 non passano dal client della chat: li esegue la libreria con
 # i suoi client, verso le sue destinazioni (`MEMORY_EXTRACTION`,
 # `MEMORY_EMBEDDING`). Elencarli sotto `llm_chat` direbbe un fornitore sbagliato.
@@ -205,6 +205,7 @@ def routes() -> list[EgressRoute]:
             OPENAI_REALTIME_URL,
             (DataCategory.AUDIO, DataCategory.CUSTOMER_CONTENT),
             has_key,
+            (LlmTask.LIVE_TRANSCRIPTION,),
         ),
         EgressRoute(
             Destination.MEMORY_EXTRACTION,

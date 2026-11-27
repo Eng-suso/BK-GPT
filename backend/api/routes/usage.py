@@ -30,6 +30,16 @@ def _window(window: budget.Window) -> dict:
     }
 
 
+def _audio(window: budget.AudioWindow) -> dict:
+    """L'audio in secondi: il pannello lo mostra in ore e minuti."""
+    return {
+        "used_seconds": window.used_seconds,
+        "limit_seconds": window.limit_seconds,
+        "exhausted": window.exhausted,
+        "resets_at": _iso(window.resets_at),
+    }
+
+
 def _status(current: budget.UsageStatus) -> dict:
     blocking = current.blocking
     forecast = current.forecast
@@ -42,6 +52,11 @@ def _status(current: budget.UsageStatus) -> dict:
         "week": _window(current.week),
         "trial": {**_window(current.trial), "over": current.trial_over},
         "blocking": blocking.name if blocking else None,
+        "audio": {
+            "week": _audio(current.audio_week),
+            "trial": _audio(current.audio_trial),
+            "blocking": current.audio_blocking.name if current.audio_blocking else None,
+        },
         "forecast": (
             {
                 "window": forecast.window,
@@ -73,6 +88,8 @@ class PlanUpdate(BaseModel):
     week_budget_usd: Decimal | None = Field(default=None, ge=0)
     trial_budget_usd: Decimal | None = Field(default=None, ge=0)
     trial_ends_at: datetime | None = None
+    week_audio_hours: Decimal | None = Field(default=None, ge=0)
+    trial_audio_hours: Decimal | None = Field(default=None, ge=0)
     reset_session: bool = False
 
 

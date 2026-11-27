@@ -18,6 +18,14 @@ USAGE_WEEK_BUDGET_USD=6
 USAGE_TRIAL_BUDGET_USD=20     # 0 = nessun tetto sulla prova
 USAGE_TRIAL_DAYS=14
 USAGE_UNPRICED_USD_PER_MILLION_TOKENS=10
+USAGE_WEEK_AUDIO_HOURS=6      # ore di registrazione a settimana; 0 = nessun tetto
+USAGE_TRIAL_AUDIO_HOURS=10    # ore di registrazione nella prova
+```
+
+Il listino dell'audio va a minuto:
+
+```bash
+LLM_PRICES_JSON={..., "gpt-realtime-whisper": {"per_minute": 0.017}, "gpt-4o-transcribe-diarize": {"per_minute": 0.006}}
 ```
 
 Note:
@@ -31,6 +39,28 @@ Note:
   dei consumi continua a contare.
 - **Il limite per persona va acceso solo con l'identità Supabase.** Con il token
   condiviso, chi è il consulente lo dice un header scelto dal client.
+
+## L'audio, in ore
+
+Registrazioni dal vivo e file audio trascritti hanno un tetto **in ore**,
+separato dai dollari dei modelli: per la settimana e per la prova. Il consulente
+lo vede nel pannello come "2 h 10 min su 6 h". A ore finite si fermano solo le
+nuove registrazioni e trascrizioni; la chat e il resto continuano.
+
+- **Dal vivo:** si contano i secondi di audio mandati a OpenAI, cioè quello che
+  si paga. La riga `live_transcription` si apre all'inizio e si aggiorna ogni 30
+  secondi: un riavvio non perde minuti, e il pannello li vede mentre si
+  registra. Il tetto si controlla all'apertura. Una registrazione si chiude al
+  tetto più 10 minuti di margine, e ce n'è una sola alla volta per consulente.
+- **La seconda passata non conta due volte.** All'arresto il browser manda lo
+  stesso audio per la trascrizione con i nomi di chi parla. Se c'è una
+  registrazione dal vivo dello stesso consulente finita da meno di 15 minuti,
+  il file è la sua seconda passata: il costo resta nel registro
+  (`transcription_after_live`), non consuma ore e non viene mai rifiutato.
+- **File caricati a sé:** la durata viene dalla risposta della trascrizione
+  (`duration`, o `usage.seconds`), e il tetto si controlla nella rotta. Una
+  trascrizione di cui il fornitore non dice la durata resta nel budget in
+  dollari dei modelli, invece di sparire da entrambi.
 
 ## Le tre finestre
 

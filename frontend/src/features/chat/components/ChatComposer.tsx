@@ -261,6 +261,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const uploading = uploads.inFlight.some((upload) => !upload.error);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  // Una registrazione rifiutata all'apertura (ore finite) non si carica: non
+  // c'e' niente da trascrivere, e il caricamento sarebbe rifiutato anche lui.
+  const discardRecordingRef = useRef(false);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<AudioWorkletNode | ScriptProcessorNode | null>(null);
@@ -574,6 +577,16 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         }
 
         if (message.type === "error") {
+          if (message.code === "usage_limit_reached") {
+            // Ore di registrazione finite: il microfono si spegne subito, invece
+            // di registrare un'intervista che poi nessuno potrebbe trascrivere.
+            discardRecordingRef.current = true;
+            stopRecording();
+          } else if (message.code === "usage_limit_cut") {
+            // Il tetto e' arrivato durante la registrazione: si chiude come un
+            // arresto normale, e il file parte per la trascrizione con i nomi.
+            stopRecording();
+          }
           setAudioStatus(message.detail || t("composer.audio.liveError"));
         }
       };
@@ -603,6 +616,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       };
 
       recorder.onstop = () => {
+        if (discardRecordingRef.current) {
+          discardRecordingRef.current = false;
+          audioChunksRef.current = [];
+          return;
+        }
         const type = mimeType || "audio/webm";
         const blob = new Blob(audioChunksRef.current, { type });
         const file = new File([blob], `intervista-${Date.now()}.webm`, { type });

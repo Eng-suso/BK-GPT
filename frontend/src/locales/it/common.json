@@ -413,6 +413,19 @@
         "body": "Il lavoro fatto resta consultabile. Per continuare contatta il team DeliR."
       }
     },
-    "explainer": "Il conteggio comprende la chat, la lettura dei documenti, la mappa delle conoscenze e le simulazioni. Un lavoro iniziato arriva sempre in fondo: il limite ferma solo la richiesta successiva."
+    "explainer": "Il conteggio comprende la chat, la lettura dei documenti, la mappa delle conoscenze e le simulazioni; le registrazioni hanno le loro ore. Un lavoro iniziato arriva sempre in fondo: il limite ferma solo la richiesta successiva.",
+    "audio": {
+      "heading": "Registrazioni",
+      "week": "Ore di registrazione questa settimana",
+      "trial": "Ore di registrazione nella prova",
+      "trialCaption": "Registrazioni dal vivo e file audio trascritti",
+      "usedOf": "{{used}} su {{limit}}",
+      "usedNoLimit": "{{used}} usate",
+      "blocked": {
+        "title": "Ore di registrazione finite",
+        "week": "La chat e il resto continuano. Puoi registrare di nuovo {{when}}.",
+        "trial": "La chat e il resto continuano. Per registrare ancora contatta il team DeliR."
+      }
+    }
   }
 }

@@ -41,6 +41,7 @@ from backend.llm.tasks import LlmTask, TaskProfile, profile_for
 from backend.llm.usage import (
     Outcome,
     classify_failure,
+    extract_audio_seconds,
     TokenUsage,
     extract_embedding_tokens,
     extract_tokens,
@@ -795,6 +796,7 @@ async def transcribe(*, file: Any, options: dict[str, Any]) -> Any:
         tokens=extract_transcription_tokens(risposta),
         duration_ms=int((time.perf_counter() - started) * 1000),
         reasoning_effort=profile.reasoning_effort,
+        audio_seconds=extract_audio_seconds(risposta),
     )
     return risposta
 
