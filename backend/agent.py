@@ -60,6 +60,12 @@ SUMMARY_NODE = "summarize"
 NODE_TASKS = {
     CONTEXT_ROUTER_NODE: LlmTask.CONTEXT_ROUTING,
     SUMMARY_NODE: LlmTask.THREAD_SUMMARY,
+    # I router dei sotto-grafi: con `subgraphs=True` la loro spesa arriva al
+    # turno, e resta instradamento, non risposta.
+    "consult_router": LlmTask.CONTEXT_ROUTING,
+    "project_router": LlmTask.CONTEXT_ROUTING,
+    "process_router": LlmTask.CONTEXT_ROUTING,
+    "canvas_router": LlmTask.CONTEXT_ROUTING,
 }
 
 PROCEDURAL_MEMORY_PATH = Path(__file__).parent / "memory" / "procedural" / "how_to_act.md"

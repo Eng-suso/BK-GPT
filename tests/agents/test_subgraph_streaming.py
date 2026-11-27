@@ -103,3 +103,40 @@ def test_what_is_not_for_the_consultant_never_reaches_the_stream(monkeypatch):
     assert DRAFT not in text
     # Il rapporto finale arriva intero a fine nodo, dopo la risposta.
     assert text == ANSWER + REPORT
+
+
+def _metered_model(text: str) -> GenericFakeChatModel:
+    from backend.llm_streaming import TURN_METERED_TAG
+
+    usage = {"input_tokens": 120, "output_tokens": 30, "total_tokens": 150}
+    return GenericFakeChatModel(
+        messages=iter([AIMessage(content=text, usage_metadata=usage)]), tags=[TURN_METERED_TAG]
+    )
+
+
+def test_a_call_kept_out_of_the_stream_still_counts_for_the_spending_limit():
+    """La passata muta e' pagata: entra nella spesa del turno, cioe' nel limite della persona."""
+    meter = agent_runtime.UnstreamedUsageMeter()
+    config = {"callbacks": [meter], "metadata": {"langgraph_node": "process_discovery_agent"}}
+
+    _metered_model(FINDING).invoke("x", config=unstreamed_config(config))
+
+    assert meter.usage_by_node["process_discovery_agent"]["input_tokens"] == 120
+    assert meter.usage_by_node["process_discovery_agent"]["output_tokens"] == 30
+
+
+def test_a_streamed_call_is_left_to_the_stream_so_it_is_not_counted_twice():
+    meter = agent_runtime.UnstreamedUsageMeter()
+
+    _metered_model(ANSWER).invoke("x", config={"callbacks": [meter]})
+
+    assert meter.usage_by_node == {}
+
+
+def test_the_routers_of_the_subgraphs_are_routing_not_answer():
+    from backend.llm import LlmTask
+
+    for node in ("consult_router", "project_router", "process_router", "canvas_router"):
+        assert agent_runtime.task_for_node(node) is LlmTask.CONTEXT_ROUTING
+    assert agent_runtime.is_internal_agent_node("tools")
+    assert agent_runtime.is_internal_agent_node("consult_router")
