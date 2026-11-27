@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     # chat. In produzione resta vuoto: lo impostano i test che girano su un
     # modello gratuito o economico (Gemini, Ollama), vedi `tests/live_llm.py`.
     openai_base_url: str | None = None
+    # `prompt_cache_key` di OpenAI per compito (backend/llm_config.py): alza il
+    # riuso della cache dei prompt fra persone diverse. Spento da solo quando
+    # OPENAI_BASE_URL punta a un altro fornitore.
+    llm_prompt_cache_key: bool = True
     openai_transcription_model: str = "gpt-4o-transcribe-diarize"
     openai_live_transcription_model: str = "gpt-realtime-whisper"
     # Lingua attesa dell'audio (ISO-639-1). Passata all'API su entrambi i path e

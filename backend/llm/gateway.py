@@ -51,7 +51,7 @@ from backend.llm.usage import (
 )
 from backend.llm.egress import Destination, EgressBlocked, require
 from backend.llm.local_tracer import local_callbacks
-from backend.llm_config import MissingProviderKey, chat_openai_kwargs, timeout_for_input
+from backend.llm_config import MissingProviderKey, chat_openai_kwargs, prompt_cache_body, timeout_for_input
 from backend.services import degradation_counters
 from backend.settings import settings
 
@@ -122,6 +122,9 @@ def _client(profile: TaskProfile, input_characters: int | None):
         input_characters=input_characters if profile.scales_with_input else None,
     )
     kwargs["max_retries"] = _max_retries(profile)
+    cache_body = prompt_cache_body(profile.task.value)
+    if cache_body:
+        kwargs["extra_body"] = cache_body
     # Quando LangSmith e' spento - nei test, sempre - la traccia la scriviamo
     # noi su file. Senza, «cosa e' stato mandato e cosa e' tornato» resterebbe
     # senza risposta proprio dove serve di piu': dentro un test che fallisce.
