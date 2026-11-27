@@ -323,5 +323,59 @@
         "costlier_than_double": []
       }
     }
+  },
+  "3e Attese attribuite v5: W1 / validation": {
+    "verdict": "GO",
+    "reasons": [],
+    "bases": {
+      "simod_extr": {
+        "paired": {
+          "vince": 2,
+          "pari": 0,
+          "perde": 0
+        },
+        "wins": 2,
+        "ties": 0,
+        "logs": 2,
+        "losses": [],
+        "missing": [],
+        "guard_losses": {
+          "CED": [
+            "BPIC_2017_W"
+          ],
+          "CAR": [
+            "BPIC_2012_W"
+          ]
+        },
+        "costlier_than_double": []
+      }
+    }
+  },
+  "3e Attese attribuite v5: RED / validation": {
+    "verdict": "GO",
+    "reasons": [],
+    "bases": {
+      "simod_extr": {
+        "paired": {
+          "vince": 2,
+          "pari": 0,
+          "perde": 0
+        },
+        "wins": 2,
+        "ties": 0,
+        "logs": 2,
+        "losses": [],
+        "missing": [],
+        "guard_losses": {
+          "CED": [
+            "BPIC_2017_W"
+          ],
+          "CAR": [
+            "BPIC_2012_W"
+          ]
+        },
+        "costlier_than_double": []
+      }
+    }
   }
 }

@@ -17,6 +17,8 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 | 3c | Attese attribuite v3: RED | validation | **NO-GO** | 2 / 0 / 0 | contro simod_extr: guardia AED perde su 2 log |
 | 3d | Attese attribuite v4: W1 | validation | **NO-GO** | 2 / 0 / 0 | contro simod_extr: guardia AED perde su 2 log |
 | 3d | Attese attribuite v4: RED | validation | **NO-GO** | 2 / 0 / 0 | contro simod_extr: guardia AED perde su 2 log |
+| 3e | Attese attribuite v5: W1 | validation | **GO** | 2 / 0 / 0 | — |
+| 3e | Attese attribuite v5: RED | validation | **GO** | 2 / 0 / 0 | — |
 
 ## Metriche, fase validation
 
@@ -30,6 +32,7 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 | simod_attr_idle | 35.4 ± 2.9 (NV) | 0.295 ± 0.0066 (NV) | 18.4 ± 1.6 (NV) | 220 ± 12 | 5.13 ± 0.73 | 219 ± 12 (NV) | 134 s, 1102 MB, 0.1 s/replica | Validar solicitud: 19743, Evaluacion curso: 10647, Notificacion estudiante cancelacion soli: 247339, Validacion final: 160821 … |
 | simod_attr_shift | 38 ± 4.3 (NV) | 0.294 ± 0.013 (NV) | 18.7 ± 1.9 (NV) | 221 ± 14 | 4.89 ± 0.86 | 219 ± 12 (NV) | 134 s, 1102 MB, 0.2 s/replica | Validar solicitud: 20089, Evaluacion curso: 10941, Notificacion estudiante cancelacion soli: 252065, Validacion final: 161781 … |
 | simod_attr_closest | 36.7 ± 4.5 (NV) | 0.302 ± 0.013 (NV) | 19.3 ± 2 (NV) | 216 ± 11 | 4.29 ± 0.82 | 219 ± 12 (NV) | 134 s, 1102 MB, 0.1 s/replica | Validar solicitud: 20089, Evaluacion curso: 10941, Notificacion estudiante cancelacion soli: 252065, Validacion final: 161781 … |
+| simod_attr_calibrated | 187 ± 13 (NV) | 0.307 ± 0.0092 (NV) | 82.4 ± 3.1 (NV) | 177 ± 12 | 4.19 ± 0.81 | 219 ± 12 (NV) | 141 s, 1102 MB, 0.1 s/replica | Validar solicitud: 41425, Evaluacion curso: 23584, Notificacion estudiante cancelacion soli: 582605, Validacion final: 330917 … |
 | simod_extr | 231 ± 19 (NV) | 0.3 ± 0.011 (NV) | 99.4 ± 16 (NV) | 173 ± 12 | 4.35 ± 0.8 | 220 ± 12 (NV) | 224 s, 1102 MB, 0.3 s/replica | — |
 
 ### BPIC_2012_W
@@ -42,6 +45,7 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 | simod_attr_idle | 28.1 ± 1.1 | 0.596 ± 0.0066 | 24.2 ± 1.3 | 73.4 ± 2.9 | 4.3 ± 0.049 | 94.6 ± 3.5 | 529 s, 1215 MB, 1.0 s/replica | W_Nabellen offertes: 108192, W_Valideren aanvraag: 51205, W_Completeren aanvraag: 15965, W_Nabellen incomplete dossiers: 13894 … |
 | simod_attr_shift | 36.7 ± 4 | 0.602 ± 0.007 | 22.1 ± 1.5 | 66.7 ± 2.6 | 4.35 ± 0.044 | 94.3 ± 3.5 | 529 s, 1215 MB, 1.1 s/replica | W_Nabellen offertes: 126193, W_Valideren aanvraag: 64370, W_Completeren aanvraag: 19479, W_Nabellen incomplete dossiers: 16708 … |
 | simod_attr_closest | 36.7 ± 4 | 0.602 ± 0.007 | 22.1 ± 1.5 | 66.7 ± 2.6 | 4.35 ± 0.044 | 94.3 ± 3.5 | 529 s, 1215 MB, 1.1 s/replica | W_Nabellen offertes: 126193, W_Valideren aanvraag: 64370, W_Completeren aanvraag: 19479, W_Nabellen incomplete dossiers: 16708 … |
+| simod_attr_calibrated | 82.2 ± 5.2 | 0.588 ± 0.0074 | 38.1 ± 2.7 | 61 ± 2.3 | 4.55 ± 0.034 | 93.2 ± 3.5 | 546 s, 1215 MB, 1.0 s/replica | W_Nabellen offertes: 191784, W_Valideren aanvraag: 93631, W_Completeren aanvraag: 27182, W_Nabellen incomplete dossiers: 27674 … |
 | simod_extr | 113 ± 9.3 | 0.587 ± 0.0072 | 57.5 ± 6.5 | 62 ± 3.9 | 4.75 ± 0.044 | 82.6 ± 4.9 | 1042 s, 1215 MB, 1.6 s/replica | — |
 
 ### BPIC_2017_W
@@ -54,6 +58,7 @@ semiampiezza IC 95% su 10 repliche; (NV) = NOT VALIDATED. Più basso è meglio. 
 | simod_attr_idle | 74.1 ± 1.4 | 0.371 ± 0.0034 | 48.1 ± 0.74 | 88.6 ± 4.1 | 1.82 ± 0.022 | 69.3 ± 4.4 | 1613 s, 8775 MB, 2.3 s/replica | W_Call after offers: 86327, W_Shortened completion: 15829, W_Assess potential fraud: 24678, W_Call incomplete files: 36857 … |
 | simod_attr_shift | 62.9 ± 2.8 | 0.371 ± 0.0039 | 42.6 ± 1.8 | 82.4 ± 3.9 | 1.85 ± 0.02 | 68.4 ± 4.3 | 1614 s, 8775 MB, 2.4 s/replica | W_Call after offers: 92820, W_Shortened completion: 17270, W_Assess potential fraud: 25595, W_Call incomplete files: 40816 … |
 | simod_attr_closest | 62.9 ± 2.8 | 0.371 ± 0.0039 | 42.6 ± 1.8 | 82.4 ± 3.9 | 1.85 ± 0.02 | 68.4 ± 4.3 | 1614 s, 8775 MB, 2.4 s/replica | W_Call after offers: 92820, W_Shortened completion: 17270, W_Assess potential fraud: 25595, W_Call incomplete files: 40816 … |
+| simod_attr_calibrated | 73.2 ± 2.8 | 0.371 ± 0.0028 | 52.8 ± 2.2 | 41.7 ± 1.4 | 2.05 ± 0.022 | 61.8 ± 4.1 | 1648 s, 8775 MB, 2.4 s/replica | W_Call after offers: 172208, W_Shortened completion: 26070, W_Assess potential fraud: 67712, W_Call incomplete files: 81107 … |
 | simod_extr | 98.5 ± 3.6 | 0.37 ± 0.002 | 65 ± 2.4 | 48.9 ± 1.9 | 1.94 ± 0.018 | 70.5 ± 3.5 | 2808 s, 8775 MB, 3.1 s/replica | — |
 
 ### Insurance_Claims
