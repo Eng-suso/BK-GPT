@@ -271,7 +271,9 @@ def _spent(
 def _hours_limit(value: str | None, default: float) -> int | None:
     """Il tetto dell'audio in secondi, da ore. Zero vuol dire «nessun tetto»."""
     hours = Decimal(value) if value is not None else Decimal(str(default))
-    return int(hours * 3600) if hours > 0 else None
+    seconds = int(hours * 3600)
+    # Un tetto sotto il secondo non e' un tetto: vale "nessun tetto", come lo zero.
+    return seconds if seconds > 0 else None
 
 
 def _new_plan_values(tenant_id: str, user_id: str, now: datetime) -> dict:
@@ -446,18 +448,22 @@ def status(
 _cache: dict[tuple[str, str], tuple[float, UsageStatus]] = {}
 
 
-def _current(user_id: str, tenant_id: str | None) -> UsageStatus:
+def _current(user_id: str, tenant_id: str | None, *, open_session: bool) -> UsageStatus:
     """Lo stato per un controllo, tenuto per pochi secondi per processo.
 
-    Apre la sessione se non c'e': chi passa di qui sta per spendere. Un turno
-    di chat che apre il pannello subito dopo non rilegge il registro.
+    Con `open_session` apre la sessione dei modelli se non c'e': lo fa solo chi
+    sta per spendere sui modelli. Una registrazione no: l'audio ha il suo tetto,
+    e non deve far partire il cronometro della chat.
     """
     tenant = _tenant(tenant_id)
     now_mono = time.monotonic()
     cached = _cache.get((tenant, user_id))
-    if cached is not None and now_mono - cached[0] < _CACHE_SECONDS:
+    # Uno stato letto senza aprire la sessione non basta a chi deve aprirla.
+    if cached is not None and now_mono - cached[0] < _CACHE_SECONDS and (
+        not open_session or cached[1].session.started_at is not None
+    ):
         return cached[1]
-    current = status(user_id, tenant_id=tenant, open_session=True)
+    current = status(user_id, tenant_id=tenant, open_session=open_session)
     # Le voci scadute si buttano qui: il dizionario non cresce per sempre.
     for key in [k for k, (at, _) in _cache.items() if now_mono - at >= _CACHE_SECONDS]:
         del _cache[key]
@@ -473,7 +479,7 @@ def check(user_id: str | None, *, tenant_id: str | None = None) -> None:
     """
     if not settings.usage_limits_enabled or not user_id:
         return
-    current = _current(user_id, tenant_id)
+    current = _current(user_id, tenant_id, open_session=True)
     if current.blocking is not None:
         raise UsageLimitReached.from_status(current)
 
@@ -487,9 +493,63 @@ def check_audio(user_id: str | None, *, tenant_id: str | None = None) -> None:
     """
     if not settings.usage_limits_enabled or not user_id:
         return
-    current = _current(user_id, tenant_id)
+    current = _current(user_id, tenant_id, open_session=False)
     if current.audio_blocking is not None:
         raise _audio_limit_reached(current)
+
+
+def remaining_audio_seconds(user_id: str | None, *, tenant_id: str | None = None) -> int | None:
+    """Quanti secondi di audio restano prima del tetto, o `None` se non c'e' tetto.
+
+    Serve alla registrazione dal vivo, che si ferma dopo questo (piu' un
+    margine): il controllo all'apertura da solo lascerebbe registrare per ore
+    con un minuto di budget.
+    """
+    if not settings.usage_limits_enabled or not user_id:
+        return None
+    current = _current(user_id, tenant_id, open_session=False)
+    left = [w.limit_seconds - w.used_seconds for w in (current.audio_week, current.audio_trial) if w.limit_seconds]
+    return max(0, min(left)) if left else None
+
+
+#: Quanto dopo la fine di una registrazione dal vivo il file della stessa
+#: intervista arriva ancora come "seconda passata" (trascrizione con i nomi).
+_AFTER_LIVE_WINDOW = timedelta(minutes=15)
+
+
+def follows_live_recording(user_id: str | None, *, tenant_id: str | None = None, now: datetime | None = None) -> bool:
+    """Se un file audio e' la seconda passata di una registrazione dal vivo appena finita.
+
+    Il browser registra dal vivo e, all'arresto, manda lo stesso audio per la
+    trascrizione con i nomi di chi parla. E' lo stesso audio: contarlo due volte
+    raddoppierebbe le ore, e rifiutarlo lascerebbe l'intervista senza nomi. Si
+    riconosce dal registro, non da un'etichetta del client: una riga
+    `live_transcription` dello stesso consulente finita da poco.
+    """
+    if not user_id:
+        return False
+    from sqlalchemy import select
+
+    from backend.llm.tasks import LlmTask
+    from backend.workspace_storage import WorkspaceLlmUsage, workspace_connection
+
+    now = now or _now()
+    with workspace_connection() as session:
+        rows = session.execute(
+            select(WorkspaceLlmUsage.created_at, WorkspaceLlmUsage.audio_seconds).where(
+                WorkspaceLlmUsage.tenant_id == _tenant(tenant_id),
+                WorkspaceLlmUsage.user_id == user_id,
+                WorkspaceLlmUsage.task == LlmTask.LIVE_TRANSCRIPTION.value,
+                WorkspaceLlmUsage.created_at >= (now - timedelta(days=1)).isoformat(),
+            )
+        ).all()
+    # La riga nasce all'apertura: la registrazione e' finita dopo i suoi secondi.
+    ends = (
+        started + timedelta(seconds=row.audio_seconds or 0)
+        for row in rows
+        if (started := _parse(row.created_at)) is not None
+    )
+    return any(end + _AFTER_LIVE_WINDOW >= now for end in ends)
 
 
 def reset_cache() -> None:
@@ -552,8 +612,3 @@ def require_usage_available(principal: AuthPrincipal = Depends(require_principal
     cache per la richiesta: non si verifica il token due volte.
     """
     check(principal.user_id, tenant_id=principal.tenant_id)
-
-
-def require_audio_available(principal: AuthPrincipal = Depends(require_principal)) -> None:
-    """Dipendenza FastAPI della trascrizione dei file: il tetto delle ore di audio."""
-    check_audio(principal.user_id, tenant_id=principal.tenant_id)
