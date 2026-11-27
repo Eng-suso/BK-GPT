@@ -131,26 +131,44 @@ class TestIlClientClaude:
         assert client.thinking == {"type": "disabled"}
         assert client.effort == "low"
 
-    def test_un_compito_di_giudizio_ragiona(self, monkeypatch):
+    def test_un_compito_di_giudizio_spende_di_piu_ma_non_ragiona(self, monkeypatch):
+        """Con il ragionamento acceso il tool dell'output strutturato non e' piu'
+        forzato, e il ragionamento consuma `max_tokens`: il livello resta come
+        `effort`."""
         monkeypatch.setattr(settings, "llm_task_models_json", '{"plan_extraction": "claude-haiku-5-5"}')
         monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-non-usata")
         client = claude_client(profile_for(LlmTask.PLAN_EXTRACTION), input_characters=10_000, max_retries=0)
-        assert client.thinking == {"type": "adaptive"}
+        assert client.thinking == {"type": "disabled"}
         assert client.effort == "medium"
+
+    def test_l_host_e_quello_dichiarato_anche_con_una_variabile_d_ambiente(self, monkeypatch, rerank_on_haiku):
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://proxy.example.com")
+        client = claude_client(profile_for(LlmTask.RETRIEVAL_RERANK), input_characters=None, max_retries=0)
+        assert client.anthropic_api_url == ANTHROPIC_API_URL
 
 
 class TestLaParteFissaInCache:
-    def test_i_messaggi_di_sistema_si_uniscono_in_testa_con_il_segnalibro(self):
+    def test_i_messaggi_di_sistema_iniziali_si_uniscono_con_il_segnalibro(self):
         prepared = with_cached_system([
             SystemMessage(content="Sei un revisore."),
-            HumanMessage(content="Il caso."),
             SystemMessage(content="Rispondi in JSON."),
+            HumanMessage(content="Il caso."),
         ])
         assert [type(m) for m in prepared] == [SystemMessage, HumanMessage]
         blocks = prepared[0].content
         assert [b["text"] for b in blocks] == ["Sei un revisore.", "Rispondi in JSON."]
         assert blocks[-1]["cache_control"] == CACHE_BREAKPOINT
         assert "cache_control" not in blocks[0]
+
+    def test_un_sistema_dopo_la_conversazione_resta_al_suo_posto(self):
+        prepared = with_cached_system([
+            SystemMessage(content="Base."),
+            HumanMessage(content="Documento."),
+            AIMessage(content="Bozza."),
+            SystemMessage(content="Correggi il campo X."),
+        ])
+        assert [type(m) for m in prepared] == [SystemMessage, HumanMessage, AIMessage, HumanMessage]
+        assert prepared[-1].content == "Correggi il campo X."
 
     def test_senza_sistema_la_richiesta_passa_com_e(self):
         messages = [HumanMessage(content="ciao")]
@@ -165,7 +183,9 @@ class TestLaParteFissaInCache:
             HumanMessage(content="Domanda e frammenti."),
             SystemMessage(content="Schema."),
         ])
-        assert payload["system"][-1] == {"type": "text", "text": "Schema.", "cache_control": CACHE_BREAKPOINT}
+        assert payload["system"] == [
+            {"type": "text", "text": "Ordina i frammenti.", "cache_control": CACHE_BREAKPOINT}
+        ]
         assert [m["role"] for m in payload["messages"]] == ["user"]
         assert "temperature" not in payload or payload["temperature"] is None
 
@@ -195,3 +215,57 @@ class TestIlGatewaySuClaude:
         assert built == ["claude-haiku-5-5"]
         assert written[-1]["model"] == "claude-haiku-5-5"
         assert written[-1]["tokens"].cache_write_input == 1_200
+
+
+    def test_il_json_libero_su_claude_non_chiede_json_object(self, monkeypatch, rerank_on_haiku):
+        """Lo schema nativo rifiutato porta al JSON libero: su Claude senza
+        `response_format`, che langchain-anthropic non sa mandare."""
+        import anthropic
+        import httpx
+        from pydantic import BaseModel
+
+        from backend.llm.gateway import reset_structured_output_memory
+
+        class _Answer(BaseModel):
+            answer: str
+
+        monkeypatch.setattr("backend.llm.gateway.record", lambda **kw: None)
+        reset_structured_output_memory()
+        bound: list[dict] = []
+
+        class _FakeClaude:
+            def with_structured_output(self, *_a, **_k):
+                return self
+
+            def bind(self, **kwargs):
+                bound.append(kwargs)
+                return self
+
+            def stream(self, messages, *_a, **_k):
+                if not any("JSON Schema" in str(getattr(m, "content", "")) for m in messages):
+                    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+                    raise anthropic.BadRequestError(
+                        "schema", response=httpx.Response(400, request=request), body=None
+                    )
+                yield AIMessage(content='{"answer": "ok"}')
+
+        monkeypatch.setattr("backend.llm.claude_client.claude_client", lambda *_a, **_k: _FakeClaude())
+
+        with operation(OperationKind.PLAN_SYNTHESIS):
+            parsed = run(task=LlmTask.RETRIEVAL_RERANK, messages=[HumanMessage(content="x")], output=_Answer)
+
+        assert parsed.answer == "ok"
+        assert bound == []
+        reset_structured_output_memory()
+
+
+def test_il_client_openai_decide_i_parametri_sul_modello_del_compito(monkeypatch):
+    """Un compito su un modello OpenAI senza ragionamento non riceve i parametri
+    di ragionamento del modello di conversazione."""
+    from backend.llm_config import chat_openai_kwargs
+
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test-non-usata")
+    monkeypatch.setattr(settings, "openai_model", "gpt-5.6-luna")
+    kwargs = chat_openai_kwargs(model="gpt-4.1-mini")
+    assert kwargs["model"] == "gpt-4.1-mini"
+    assert "reasoning_effort" not in kwargs

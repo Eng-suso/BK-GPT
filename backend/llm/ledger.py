@@ -74,6 +74,8 @@ class Totale:
     output: int = 0
     reasoning: int = 0
     cached: int = 0
+    #: Token scritti in cache: Anthropic li fattura a parte (1,25x l'ingresso).
+    cache_write: int = 0
     costo_noto: Decimal = Decimal(0)
     righe_senza_prezzo: int = 0
     token_senza_prezzo: int = 0
@@ -187,6 +189,7 @@ def _somma(righe) -> Totale:
             output=totale.output + r.output_tokens,
             reasoning=totale.reasoning + r.reasoning_tokens,
             cached=totale.cached + r.cached_input_tokens,
+            cache_write=totale.cache_write + (r.cache_write_input_tokens or 0),
             costo_noto=totale.costo_noto + (costo or Decimal(0)),
             righe_senza_prezzo=totale.righe_senza_prezzo + (1 if senza_prezzo else 0),
             token_senza_prezzo=totale.token_senza_prezzo + (token_riga if senza_prezzo else 0),
@@ -201,6 +204,7 @@ _COLONNE = (
     WorkspaceLlmUsage.output_tokens,
     WorkspaceLlmUsage.reasoning_tokens,
     WorkspaceLlmUsage.cached_input_tokens,
+    WorkspaceLlmUsage.cache_write_input_tokens,
     WorkspaceLlmUsage.cost_estimate,
     WorkspaceLlmUsage.audio_seconds,
 )
