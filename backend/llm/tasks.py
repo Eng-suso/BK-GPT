@@ -12,10 +12,15 @@ il costo dal registro dei consumi, la qualita' dal golden set.
 
 from __future__ import annotations
 
+import json
+import logging
 from dataclasses import dataclass
 from enum import StrEnum
+from functools import lru_cache
 
 from backend.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 class LlmTask(StrEnum):
@@ -100,6 +105,9 @@ class TaskProfile:
         scritti (un contratto, non un parametro), e la trascrizione, che ha un
         modello suo configurabile.
         """
+        chosen = task_models().get(self.task)
+        if chosen:
+            return chosen
         if self.model_setting:
             return str(getattr(settings, self.model_setting, "") or settings.openai_model)
         return self.model_name or settings.openai_model
@@ -254,6 +262,62 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
         model_setting="openai_live_transcription_model",
     ),
 }
+
+
+#: I compiti il cui modello non si sceglie in `LLM_TASK_MODELS_JSON`:
+#: l'embedding (il modello e' il contratto dei vettori gia' scritti, INV-4),
+#: l'audio (modelli suoi, con i loro settings), Mem0 (li esegue la libreria) e i
+#: tre compiti del client della chat, che oggi parla solo OpenAI: la versione di
+#: langchain-core del progetto non regge Claude nella chat.
+FIXED_MODEL_TASKS = frozenset({
+    LlmTask.EMBEDDING,
+    LlmTask.TRANSCRIPTION,
+    LlmTask.LIVE_TRANSCRIPTION,
+    LlmTask.MEMORY_EXTRACTION,
+    LlmTask.MEMORY_EMBEDDING,
+    LlmTask.CHAT_TURN,
+    LlmTask.CONTEXT_ROUTING,
+    LlmTask.THREAD_SUMMARY,
+})
+
+
+def task_models() -> dict[LlmTask, str]:
+    """I modelli scelti per compito in `LLM_TASK_MODELS_JSON`."""
+    return _parse_task_models((settings.llm_task_models_json or "").strip())
+
+
+@lru_cache(maxsize=4)
+def _parse_task_models(raw: str) -> dict[LlmTask, str]:
+    """Come il listino: una voce sbagliata si dice forte e si salta.
+
+    Un compito sconosciuto o fisso non ferma il prodotto: quel compito resta sul
+    modello di conversazione, che costa e funziona come prima.
+    """
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.error("LLM_TASK_MODELS_JSON non e' JSON valido: ogni compito resta sul modello di conversazione")
+        return {}
+    if not isinstance(parsed, dict):
+        logger.error("LLM_TASK_MODELS_JSON deve essere un oggetto {compito: modello}")
+        return {}
+    chosen: dict[LlmTask, str] = {}
+    for name, model in parsed.items():
+        try:
+            task = LlmTask(str(name).strip())
+        except ValueError:
+            logger.error("LLM_TASK_MODELS_JSON: compito sconosciuto %r", name)
+            continue
+        if task in FIXED_MODEL_TASKS:
+            logger.error("LLM_TASK_MODELS_JSON: il modello di %s non si sceglie qui", task.value)
+            continue
+        if not isinstance(model, str) or not model.strip():
+            logger.error("LLM_TASK_MODELS_JSON: il modello di %s deve essere un nome", task.value)
+            continue
+        chosen[task] = model.strip()
+    return chosen
 
 
 def profile_for(task: LlmTask) -> TaskProfile:
