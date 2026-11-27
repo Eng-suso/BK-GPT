@@ -212,8 +212,42 @@ def _authenticate_bearer(supplied_token: str | None) -> tuple[str | None, str, s
     return None, "bearer", None
 
 
+def allowed_email_rules() -> set[str]:
+    return {
+        item.strip().casefold()
+        for item in (settings.delir_allowed_emails or "").split(",")
+        if item.strip()
+    }
+
+
+def email_is_allowed(email: str | None) -> bool:
+    """Se questa persona puo' entrare: email esatta o dominio (`@studio.it`) in lista.
+
+    Lista vuota: solo su una macchina di sviluppo si entra comunque (fuori da
+    dev l'avvio si rifiuta prima, vedi `auth_configuration_problems`).
+    """
+    rules = allowed_email_rules()
+    if not rules:
+        return environment_is_open()
+    normalized = (email or "").strip().casefold()
+    if "@" not in normalized:
+        return False
+    domain = normalized[normalized.rindex("@"):]
+    return normalized in rules or domain in rules
+
+
 def _account_principal(subject: str, email: str | None = None) -> AuthPrincipal:
-    """Una persona autenticata: il suo spazio di lavoro e' il suo account."""
+    """Una persona autenticata: il suo spazio di lavoro e' il suo account.
+
+    Raises:
+        HTTPException: 401 se il `sub` non e' un UUID; 403 se la persona non e'
+            fra quelle ammesse in questo ambiente (`DELIR_ALLOWED_EMAILS`).
+    """
+    if not email_is_allowed(email):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Questo account non e' abilitato in questo ambiente.",
+        )
     try:
         tenant_id = account_tenant_id(subject)
     except ValueError as exc:

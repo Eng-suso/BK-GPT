@@ -177,7 +177,14 @@ def auth_configuration_problems() -> list[str]:
 
     allowed = _allowed_tenants()
     if not uses_shared_token:
-        pass  # ogni persona lavora nel suo account: il tenant non lo sceglie il client
+        # Ogni persona lavora nel suo account: il tenant non lo sceglie il client,
+        # ma chi puo' entrare lo decide il backend, non solo Supabase.
+        if not settings.delir_allowed_emails.strip():
+            problems.append(
+                "DELIR_ALLOWED_EMAILS vuota: con gli account personali chiunque abbia "
+                "un account nel progetto Supabase entrerebbe e spenderebbe. Elenca le "
+                "email (o i domini, `@studio.it`) delle persone ammesse."
+            )
     elif not allowed:
         problems.append(
             "DELIR_ALLOWED_TENANT_IDS vuota: il tenant lo sceglierebbe il client "
@@ -185,6 +192,13 @@ def auth_configuration_problems() -> list[str]:
         )
     elif settings.delir_default_tenant_id.strip() not in allowed:
         problems.append("DELIR_DEFAULT_TENANT_ID non compare in DELIR_ALLOWED_TENANT_IDS.")
+
+    if settings.usage_limits_enabled and not settings.llm_prices_json.strip():
+        problems.append(
+            "USAGE_LIMITS_ENABLED senza LLM_PRICES_JSON: ogni token si conterebbe al "
+            "prezzo pessimista e i limiti di spesa scatterebbero dopo pochi turni. "
+            "Imposta il listino dei modelli usati."
+        )
 
     origins = [o.strip() for o in settings.delir_cors_origins.split(",") if o.strip()]
     if not origins or "*" in origins:

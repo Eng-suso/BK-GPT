@@ -103,7 +103,8 @@ def test_a_supabase_session_is_a_person(client, supabase_api, signing_key):
     assert body["caller_id"] == SUBJECT
     assert body["auth_mode"] == "supabase"
     assert body["has_user_identity"] is True
-    assert body["is_admin"] is False
+    # Padrona del proprio account: puo' cancellare le sue cose.
+    assert body["is_admin"] is True
 
 
 def test_the_user_header_cannot_change_who_you_are(client, supabase_api, signing_key):
@@ -335,3 +336,62 @@ def test_the_account_is_named_by_the_persons_email(client, supabase_api, signing
     )
 
     assert response.json()["email"] == "anna@studio.it"
+
+
+@pytest.mark.parametrize(
+    ("rules", "email", "allowed"),
+    [
+        ("anna@studio.it", "anna@studio.it", True),
+        ("anna@studio.it", "ANNA@Studio.it", True),
+        ("@studio.it", "bruno@studio.it", True),
+        ("anna@studio.it,@partner.it", "carla@partner.it", True),
+        ("anna@studio.it", "bruno@studio.it", False),
+        ("@studio.it", "anna@studio.it.evil.com", False),
+        ("anna@studio.it", None, False),
+    ],
+)
+def test_only_the_admitted_people_get_in(
+    client, supabase_api, signing_key, monkeypatch, rules, email, allowed
+):
+    """Il cancello del backend: un token Supabase valido non basta, serve essere in lista."""
+    monkeypatch.setattr(settings_module(), "delir_allowed_emails", rules)
+    claims = {"email": email} if email else {}
+    response = client.get("/v1/auth/me", headers=_headers(_token(signing_key[0], **claims)))
+
+    assert response.status_code == (200 if allowed else 403)
+
+
+def test_outside_dev_an_empty_list_lets_nobody_in(monkeypatch):
+    from backend.security import email_is_allowed
+
+    monkeypatch.setattr(settings_module(), "delir_allowed_emails", "")
+    monkeypatch.setattr(settings_module(), "delir_environment", "prod")
+
+    assert email_is_allowed("anna@studio.it") is False
+
+
+def test_a_person_in_their_account_is_told_they_can_delete(client, supabase_api, signing_key):
+    """Settings deve dire il vero: nel proprio account si cancellano le proprie cose."""
+    response = client.get("/v1/auth/me", headers=_headers(_token(signing_key[0])))
+
+    assert response.json()["is_admin"] is True
+
+
+def test_a_plan_id_is_normalised_like_the_token_writes_it(client, supabase_api, signing_key):
+    from backend.settings import settings
+
+    admin = {"X-DeliR-Admin-Token": settings.delir_admin_token}
+    response = client.put(
+        f"/v1/usage/plans/{SUBJECT.upper()}",
+        headers=_headers(_token(signing_key[0]), **admin),
+        json={"week_budget_usd": "33"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["user_id"] == SUBJECT
+
+
+def settings_module():
+    from backend.settings import settings
+
+    return settings

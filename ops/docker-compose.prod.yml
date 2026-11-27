@@ -85,6 +85,9 @@ services:
       DELIR_AUTH_PROVIDER: ${DELIR_AUTH_PROVIDER:-supabase}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
+      # Le persone ammesse: email esatte o domini (`@studio.it`). Vuota = l'app
+      # non parte con gli account personali.
+      DELIR_ALLOWED_EMAILS: ${DELIR_ALLOWED_EMAILS:-}
       # Il limite di spesa per persona (docs/usage-limits/CONTATORE.md). Le
       # soglie sono in dollari stimati dal listino LLM_PRICES_JSON; un modello
       # senza prezzo si conta alto di proposito.
