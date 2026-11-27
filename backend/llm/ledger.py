@@ -717,6 +717,7 @@ def ricalcola_costi_mancanti(
                 input_tokens=riga.input_tokens,
                 output_tokens=riga.output_tokens,
                 cached_input_tokens=riga.cached_input_tokens,
+                cache_write_input_tokens=riga.cache_write_input_tokens,
             )
             if costo is None:
                 ancora += 1
