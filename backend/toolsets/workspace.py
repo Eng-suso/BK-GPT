@@ -7,6 +7,7 @@ from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
+from backend.security import get_current_consultant_id
 from backend.agents.scope_guard import assert_project_in_scope
 from backend.toolsets.common import format_workspace_result
 from backend.schemas.workspace import IsoDate
@@ -335,7 +336,6 @@ def _gate_workspace_write(tool_name: str, arguments: dict[str, Any], preview: st
     except WriteNeedsApproval:
         from backend.agents.run_context import active_thread_id
         from backend.memory import pending_actions
-        from backend.settings import settings
 
         thread_id = active_thread_id()
         if not thread_id:
@@ -346,7 +346,7 @@ def _gate_workspace_write(tool_name: str, arguments: dict[str, Any], preview: st
                 summary="Serve l'approvazione del consulente, ma questa chiamata non appartiene a una conversazione.",
             )
         open_action = pending_actions.open_action(
-            consultant_id=settings.default_consultant_id, thread_id=thread_id
+            consultant_id=get_current_consultant_id(), thread_id=thread_id
         )
         if open_action is not None and open_action.get("action") != PENDING_WORKSPACE_WRITE:
             # Un thread ha una sola conferma aperta: una proposta nuova non deve
@@ -367,7 +367,7 @@ def _gate_workspace_write(tool_name: str, arguments: dict[str, Any], preview: st
         previews = [*(previous.get("previews") or []), preview]
         combined = "; ".join(previews)
         action = pending_actions.propose(
-            consultant_id=settings.default_consultant_id,
+            consultant_id=get_current_consultant_id(),
             thread_id=thread_id,
             action=PENDING_WORKSPACE_WRITE,
             params={"writes": writes, "previews": previews},
@@ -1352,10 +1352,9 @@ def confirm_workspace_write(operation: str) -> str:
     from backend.agents.chat_mode import bind_approved_write
     from backend.agents.run_context import active_thread_id
     from backend.memory import pending_actions
-    from backend.settings import settings
 
     normalized_operation = (operation or "").strip().lower()
-    consultant_id = settings.default_consultant_id
+    consultant_id = get_current_consultant_id()
     thread_id = active_thread_id() or "unbound"
     pending = pending_actions.open_action(
         consultant_id=consultant_id, thread_id=thread_id, action=PENDING_WORKSPACE_WRITE

@@ -17,7 +17,7 @@ primi 3–5 clienti pilota senza affidarsi a isolamento "per convenzione".
 | Track | Cosa | Stato |
 |---|---|---|
 | **A — Infra hardening + deploy** | tunnel, chiusura porte, Kamal, build GHCR, zero-downtime | 🟡 in corso — A2, A3 fatti (pilota: compose, Kamal rimandato) |
-| **B — Tenant boundary end-to-end** | Supabase Auth + membership + kill `default_consultant_id` + code/worker tenant-aware + RLS workspace | 🟡 in corso — B1 nel codice; progetti cloud staging/prod da creare |
+| **B — Tenant boundary end-to-end** | Supabase Auth + membership + kill `default_consultant_id` + code/worker tenant-aware + RLS workspace | 🟡 in corso — B1, B3, B4, B5 (ingestione), B8 (namespace) nel codice con un **account per persona** (`acct-<sub>`, 2026-11-27); progetti cloud staging/prod da creare; B6 (inviti), B7 (RLS workspace), B10 aperti |
 
 **Gate cliente #1** = Track B chiusa. Fino ad allora staging/prod possono girare
 con token condiviso + Cloudflare Access (allowlist email).
@@ -704,4 +704,5 @@ pgvector). Mem0 è il più sensibile: il recall entra nel prompt LLM.
 | _(brainstorm, +Mem0)_ | Sohayb + Claude | Mem0 aggiunto come terzo datastore tenant-sensitive: nuovo step **B8** (isolamento tenant), `mem0_user_id` nel kill-list di B4, `mem0_worker` in B5, backup A8 esteso ai 3 db, GDPR B10 purga anche Mem0, snapshot + alternative aggiornati. |
 | 2026-09-03 | Codex | Blocker 3 confermato da Sohayb: `develop` deploya staging, label `deploy-staging` su PR per on-demand, `main` + CI verde + approval deploya prod. Restano aperti i blocker VM Oracle A1 e dominio Cloudflare. |
 | 2026-10-31 | Claude | Pilota fase 1: A2 + A3 fatti. Immagine ARM64 con frontend dentro, migratore unico sotto lock, `/health/ready`, overlay `ops/docker-compose.prod.yml` (app + Prosimos + volume `delir_appdata` + tetti di memoria 11 GB su 12, controllati da `tests/server/test_prod_compose.py`). Kamal (A5) rimandato: per un consulente basta compose con downtime breve al rilascio. |
+| 2026-11-27 | Claude | Un account per persona: con Supabase lo spazio di lavoro e' `acct-<sub>` dal token (header ignorato, prefisso riservato), da cui derivano consulente canonical, spazio Mem0, chiave del checkpointer e piano di spesa. `DELIR_ALLOWED_EMAILS` e' il cancello del backend; produzione con Supabase e limiti di spesa accesi (listino obbligatorio). Ingestione per account (migrazione 0020). Test `tests/server/test_account_isolation.py`. |
 | 2026-11-24 | Claude | Fail closed all'avvio sulla configurazione d'accesso (#182). B1 nel codice: verifier Supabase ES256, login per persona nel frontend, Supabase locale per dev/CI, E2E `e2e-auth`. Progetti cloud ancora da creare. |

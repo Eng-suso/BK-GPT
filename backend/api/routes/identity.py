@@ -19,7 +19,7 @@ from typing import Literal, cast
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from backend.security import AuthPrincipal, require_principal
+from backend.security import AuthPrincipal, owns_its_workspace, require_principal
 from backend.settings import settings
 
 router = APIRouter(prefix="/v1", tags=["identity"], dependencies=[Depends(require_principal)])
@@ -42,6 +42,9 @@ class CurrentIdentity(BaseModel):
     caller_id: str
     #: Se l'identita' per persona esiste: vero solo con `supabase`.
     has_user_identity: bool = False
+    #: L'email della persona, quando il token la porta: e' il nome dell'account
+    #: che il consulente riconosce (lo spazio `acct-<id>` non dice niente a lui).
+    email: str | None = None
 
 
 @router.get("/auth/me")
@@ -53,11 +56,13 @@ def get_current_identity(
         tenant_id=principal.tenant_id,
         auth_mode=principal.auth_mode,
         auth_enabled=bool(settings.delir_auth_enabled),
-        is_admin=principal.is_admin,
+        # Nel proprio account una persona cancella le sue cose da sola.
+        is_admin=principal.is_admin or owns_its_workspace(principal),
         caller_id=principal.user_id,
         # Solo un access token Supabase prova una persona; il token condiviso
         # prova un client, e allora l'unica cosa vera da mostrare e' lo spazio.
         has_user_identity=principal.auth_mode == "supabase",
+        email=principal.email,
     )
 
 

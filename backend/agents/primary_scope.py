@@ -113,10 +113,10 @@ def _open_pending_action(thread_id: str | None) -> dict | None:
         return None
     try:
         from backend.memory import pending_actions
-        from backend.settings import settings
+        from backend.security import get_current_consultant_id
 
         return pending_actions.open_action(
-            consultant_id=settings.default_consultant_id, thread_id=thread_id
+            consultant_id=get_current_consultant_id(), thread_id=thread_id
         )
     except Exception:  # noqa: BLE001 — mai bloccare un turno per l'anteprima
         return None

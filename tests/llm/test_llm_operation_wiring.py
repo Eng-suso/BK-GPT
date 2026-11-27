@@ -11,6 +11,8 @@ perche' i `ContextVar` non si ereditano.
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 
 from backend.llm import OperationKind, current_operation
@@ -292,7 +294,7 @@ def test_the_ingestion_worker_opens_its_operation(monkeypatch):
         vista["process_id"] = op.process_id if op else None
         return {}
 
-    monkeypatch.setattr(ingest_worker, "_consultant", lambda: "c1")
+    monkeypatch.setattr(ingest_worker, "_consultants", lambda _statuses: [str(uuid.uuid4())])
     monkeypatch.setattr(ingest_worker, "_requeue_stuck", lambda *_a, **_k: None)
     monkeypatch.setattr(ingest_worker, "_claim", lambda *_a, **_k: [_Row()])
     monkeypatch.setattr(ingest_worker, "_mark_done", lambda *_a, **_k: True)

@@ -50,12 +50,12 @@
     "enter": "Continue",
     "invalid": "Invalid tenant or token for this environment.",
     "unavailable": "The backend is unavailable. Check that this environment is running and retry.",
-    "personalDescription": "Sign in with your DeliR account and choose the workspace. The session stays in this browser tab.",
+    "personalDescription": "Sign in with your DeliR account. Clients, conversations and memory are yours alone; the session stays in this browser tab.",
     "email": "Email",
     "password": "Password",
     "entering": "Signing in…",
     "invalidLogin": "Invalid email or password.",
-    "invalidTenant": "Signed in, but this workspace is not authorised for you in this environment."
+    "invalidTenant": "Signed in, but this environment does not accept your account. Contact whoever invited you."
   },
   "home": {
     "description": "Operational overview of clients, projects and processes in the workspace.",
@@ -348,11 +348,14 @@
       "adminNo": "No",
       "caller": "Caller identifier",
       "pending": "Per-person identity — who validated a model, who answered a question — comes with real authentication. Until then every action is recorded as the workspace, not as someone.",
-      "failed": "The access state could not be read."
+      "failed": "The access state could not be read.",
+      "account": "Account"
     },
     "loading": "Loading…",
     "signOut": "Sign out",
-    "personalHint": "You are recognised as a person: your actions carry your identifier."
+    "personalHint": "You are recognised as a person: your actions carry your identifier.",
+    "myAccount": "Your account",
+    "accountHint": "The clients, conversations and memory in this account are yours alone."
   },
   "period": {
     "label": "Period: {{period}}",

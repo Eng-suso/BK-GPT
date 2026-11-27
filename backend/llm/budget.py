@@ -567,8 +567,12 @@ def update_plan(
     week_audio_hours: Decimal | None = None,
     trial_audio_hours: Decimal | None = None,
     reset_session: bool = False,
+    tenant_id: str | None = None,
 ) -> UsageStatus:
     """Cambia il piano di un consulente (amministrazione). I campi omessi restano.
+
+    `tenant_id` e' lo spazio di lavoro del consulente; omesso, quello della
+    richiesta. Per un account personale e' il suo, non quello di chi amministra.
 
     Zero su una soglia vuol dire «nessun tetto». `reset_session` chiude la
     sessione in corso: la prossima richiesta ne apre una nuova, a contatore
@@ -578,7 +582,7 @@ def update_plan(
     from backend.workspace_storage import workspace_connection
 
     now = _now()
-    tenant = _tenant(None)
+    tenant = _tenant(tenant_id)
     with workspace_connection() as session:
         plan = _locked_plan(session, tenant, user_id, now)
         if session_budget_usd is not None:

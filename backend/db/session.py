@@ -19,6 +19,9 @@ from backend.settings import settings
 
 _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
+# I consulenti di cui questo processo ha gia' visto la riga: la si crea una
+# volta sola, alla prima sessione di un account nuovo.
+_known_consultants: set[str] = set()
 
 
 def canonical_engine() -> Engine:
@@ -87,10 +90,41 @@ def canonical_session(
             text("SELECT set_config('app.current_client_id', :v, true)"),
             {"v": client_value},
         )
+        _ensure_consultant(session, str(consultant_id))
         yield session
         session.commit()
+        # Dopo il commit: se la transazione si annulla, la riga non c'e'.
+        _known_consultants.add(str(consultant_id))
     except Exception:
         session.rollback()
         raise
     finally:
         session.close()
+
+
+def _ensure_consultant(session: Session, consultant_id: str) -> None:
+    """La riga `consultant` di un account personale, se ancora non c'e'.
+
+    Ogni scope canonical (cliente, progetto, memoria, coda) punta al suo
+    consulente: la prima volta che una persona lavora la riga deve gia' esserci.
+    La policy `consultant_self` (0005) lascia inserire solo la propria riga.
+    L'email e' un segnaposto unico: l'identita' vera sta in Supabase, non qui.
+    Il consulente di default lo semina la migrazione 0007.
+    """
+    if consultant_id in _known_consultants:
+        return
+    from backend.security import tenant_id_for_consultant
+
+    try:
+        workspace_id = tenant_id_for_consultant(consultant_id)
+    except ValueError:  # non e' un UUID: la sessione fallira' comunque sul cast
+        return
+    if workspace_id is not None:
+        session.execute(
+            text(
+                "INSERT INTO consultant (id, email, display_name, workspace_id) "
+                "VALUES (CAST(:id AS uuid), :email, 'Account', :ws) "
+                "ON CONFLICT (id) DO NOTHING"
+            ),
+            {"id": consultant_id, "email": f"{consultant_id}@account.delir", "ws": workspace_id},
+        )

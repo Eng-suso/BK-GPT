@@ -379,6 +379,7 @@
         "auth_enabled": "boolean",
         "auth_mode": "string",
         "caller_id": "string",
+        "email": "string?",
         "has_user_identity": "boolean",
         "is_admin": "boolean",
         "tenant_id": "string"

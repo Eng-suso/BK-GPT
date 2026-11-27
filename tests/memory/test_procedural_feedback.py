@@ -133,7 +133,9 @@ def test_bad_outcome_is_rejected(consultant):
 
 def test_build_playbook_context_records_usage(consultant, monkeypatch):
     playbook = _active_playbook(consultant, "Revisione modello AS-IS con lo sponsor")
-    monkeypatch.setattr(playbook_context.settings, "default_consultant_id", consultant)
+    from backend.settings import settings
+
+    monkeypatch.setattr(settings, "default_consultant_id", consultant)
 
     block = playbook_context.build_playbook_context(
         "come conviene rivedere il modello AS-IS con lo sponsor"

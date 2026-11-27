@@ -21,6 +21,8 @@ export function localSupabase(): LocalSupabase {
 
 /** L'utente di prova: esiste solo nel Supabase locale, creato dal global setup. */
 export const CONSULTANT = { email: 'consulente.e2e@delir.test', password: 'password-e2e-lunga-123' };
+/** Ha un account in Supabase ma non e' fra le persone ammesse (`DELIR_ALLOWED_EMAILS`). */
+export const OUTSIDER = { email: 'esterno.e2e@altro.test', password: 'password-e2e-lunga-456' };
 export const TENANT = 'local';
 /** Il token condiviso del pilota: con Supabase acceso non deve aprire niente. */
 export const SHARED_TOKEN = 'token-condiviso-che-con-supabase-non-apre-niente';

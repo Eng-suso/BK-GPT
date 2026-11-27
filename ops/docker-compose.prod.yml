@@ -77,12 +77,27 @@ services:
       DELIR_API_TOKEN: ${DELIR_API_TOKEN:?serve DELIR_API_TOKEN}
       # Chiave distinta dal token API per le cancellazioni: senza, l'app non parte.
       DELIR_ADMIN_TOKEN: ${DELIR_ADMIN_TOKEN:?serve DELIR_ADMIN_TOKEN}
-      # Login per persona (Track B): `supabase` + URL e publishable key del
-      # progetto. Default `token`, il token condiviso del pilota. Con supabase
-      # l'host del progetto va anche in DELIR_EGRESS_ALLOWED_HOSTS.
-      DELIR_AUTH_PROVIDER: ${DELIR_AUTH_PROVIDER:-token}
+      # Produzione = un account per persona: ognuno col suo spazio di lavoro,
+      # la sua memoria e il suo limite di spesa. Serve il progetto Supabase
+      # (URL e publishable key); senza, l'app non parte. L'host del progetto va
+      # anche in DELIR_EGRESS_ALLOWED_HOSTS. `token` resta per gli stack locali
+      # (docker-compose.staging.yml), non per le persone.
+      DELIR_AUTH_PROVIDER: ${DELIR_AUTH_PROVIDER:-supabase}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
+      # Le persone ammesse: email esatte o domini (`@studio.it`). Vuota = l'app
+      # non parte con gli account personali.
+      DELIR_ALLOWED_EMAILS: ${DELIR_ALLOWED_EMAILS:-}
+      # Il limite di spesa per persona (docs/usage-limits/CONTATORE.md). Le
+      # soglie sono in dollari stimati dal listino LLM_PRICES_JSON; un modello
+      # senza prezzo si conta alto di proposito.
+      USAGE_LIMITS_ENABLED: ${USAGE_LIMITS_ENABLED:-true}
+      LLM_PRICES_JSON: ${LLM_PRICES_JSON:-}
+      USAGE_SESSION_HOURS: ${USAGE_SESSION_HOURS:-5}
+      USAGE_SESSION_BUDGET_USD: ${USAGE_SESSION_BUDGET_USD:-1.5}
+      USAGE_WEEK_BUDGET_USD: ${USAGE_WEEK_BUDGET_USD:-6}
+      USAGE_TRIAL_BUDGET_USD: ${USAGE_TRIAL_BUDGET_USD:-20}
+      USAGE_TRIAL_DAYS: ${USAGE_TRIAL_DAYS:-14}
       # Compatibilita' col pilota a tenant singolo. Un deploy multi-tenant puo'
       # configurare default e allowlist separatamente.
       DELIR_DEFAULT_TENANT_ID: ${DELIR_DEFAULT_TENANT_ID:-${DELIR_TENANT_ID:?serve DELIR_TENANT_ID o DELIR_DEFAULT_TENANT_ID}}

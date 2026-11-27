@@ -11,9 +11,10 @@ Ciclo di vita di una riga: `pending` -> (claim) `processing` -> `done` |
 `failed` (dopo `_MAX_ATTEMPTS`). Un `processing` appeso da piu' di
 `_STUCK_MINUTES` (worker morto) torna `pending`.
 
-MVP mono-consultant: drena per `settings.default_consultant_id`. Il contesto
-RLS solo-consultant, col pattern strict-client della 0013, vede tutte le righe
-di quel consulente.
+Un consulente per account: il worker chiede prima, come `delir_worker`, quali
+consulenti hanno job in coda (solo id e stato, mai il payload: 0020), poi drena
+ognuno nel suo contesto RLS solo-consultant, che col pattern strict-client della
+0013 vede tutte le righe di quel consulente, e nel suo spazio di lavoro.
 """
 
 from __future__ import annotations
@@ -21,12 +22,19 @@ from __future__ import annotations
 import json
 import logging
 import time
+from contextlib import contextmanager
+from functools import lru_cache
 
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 
 from backend.db import canonical_session
 from backend.llm import OperationKind, operation
 from backend.memory.knowledge_graph import canonical
+from backend.security import (
+    reset_current_tenant_id,
+    set_current_tenant_id,
+    tenant_id_for_consultant,
+)
 from backend.services import degradation_counters
 from backend.settings import settings
 
@@ -36,8 +44,43 @@ _MAX_ATTEMPTS = 5
 _STUCK_MINUTES = 30
 
 
-def _consultant() -> str | None:
-    return str(settings.default_consultant_id) if settings.default_consultant_id else None
+@lru_cache(maxsize=1)
+def _owners_engine():
+    return create_engine(settings.canonical_worker_url, future=True, pool_pre_ping=True)
+
+
+def _consultants(statuses: tuple[str, ...]) -> list[str]:
+    """I consulenti con almeno un job in uno di questi stati.
+
+    Senza la DSN di `delir_worker` (sviluppo minimo) resta il solo consulente
+    di default, come prima degli account.
+    """
+    if not settings.canonical_database_url:
+        return []
+    if not settings.canonical_worker_url:
+        default = settings.default_consultant_id
+        return [str(default)] if default else []
+    with _owners_engine().connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT DISTINCT consultant_id FROM kg_ingest_queue "
+                "WHERE status = ANY(:s) ORDER BY consultant_id"
+            ),
+            {"s": list(statuses)},
+        ).all()
+    return [str(row.consultant_id) for row in rows]
+
+
+@contextmanager
+def _working_for(consultant: str):
+    """Il lavoro di un consulente gira nel suo spazio: consumi e letture sono suoi."""
+    tenant_id = tenant_id_for_consultant(consultant)
+    token = set_current_tenant_id(tenant_id) if tenant_id else None
+    try:
+        yield
+    finally:
+        if token is not None:
+            reset_current_tenant_id(token)
 
 
 def _requeue_stuck(consultant: str) -> None:
@@ -105,11 +148,25 @@ def _fail(consultant: str, job_id: int, error: str) -> None:
 
 
 def drain_once(limit: int = 20) -> int:
-    """Processa fino a `limit` job. Ritorna quanti ne ha completati."""
-    consultant = _consultant()
-    if not consultant or not settings.canonical_database_url:
-        return 0
+    """Processa fino a `limit` job, consulente per consulente. Ritorna quanti ne ha completati.
 
+    Il limite si divide fra chi ha lavoro in coda: un account con cento
+    documenti da leggere non fa aspettare quello che ne ha caricato uno.
+    """
+    consultants = _consultants(("pending", "processing"))
+    if not consultants:
+        return 0
+    share = max(1, limit // len(consultants))
+    done = 0
+    for consultant in consultants:
+        if done >= limit:
+            break
+        with _working_for(consultant):
+            done += _drain_consultant(consultant, min(share, limit - done))
+    return done
+
+
+def _drain_consultant(consultant: str, limit: int) -> int:
     _requeue_stuck(consultant)
     claimed = _claim(consultant, limit)
     if not claimed:
@@ -176,36 +233,42 @@ def _mark_done(consultant: str, job_id: int, counts: dict, *, tries: int = 3) ->
 
 def queue_stats() -> dict[str, int]:
     """`pending` = da processare, `stuck` = falliti troppe volte (dead-letter)."""
-    consultant = _consultant()
-    if not consultant or not settings.canonical_database_url:
+    sql = text(
+        "SELECT "
+        "  count(*) FILTER (WHERE status IN ('pending','processing') AND attempts < :m) AS pending, "
+        "  count(*) FILTER (WHERE status = 'failed') AS stuck "
+        "FROM kg_ingest_queue"
+    )
+    if not settings.canonical_database_url:
         return {"pending": 0, "stuck": 0}
-    with canonical_session(consultant) as session:
-        row = session.execute(
-            text(
-                "SELECT "
-                "  count(*) FILTER (WHERE status IN ('pending','processing') AND attempts < :m) AS pending, "
-                "  count(*) FILTER (WHERE status = 'failed') AS stuck "
-                "FROM kg_ingest_queue"
-            ),
-            {"m": _MAX_ATTEMPTS},
-        ).one()
-    return {"pending": int(row.pending), "stuck": int(row.stuck)}
+    if settings.canonical_worker_url:
+        # Il worker vede stato e tentativi di tutti i job (0020): un conteggio solo.
+        with _owners_engine().connect() as conn:
+            row = conn.execute(sql, {"m": _MAX_ATTEMPTS}).one()
+        return {"pending": int(row.pending), "stuck": int(row.stuck)}
+    totals = {"pending": 0, "stuck": 0}
+    for consultant in _consultants(("pending", "processing", "failed")):
+        with canonical_session(consultant) as session:
+            row = session.execute(sql, {"m": _MAX_ATTEMPTS}).one()
+        totals["pending"] += int(row.pending)
+        totals["stuck"] += int(row.stuck)
+    return totals
 
 
 def prune(older_than_days: int = 14) -> int:
     """Cancella i job `done` piu' vecchi di N giorni (l'input grezzo resta in
     `kg_source.content`)."""
-    consultant = _consultant()
-    if not consultant or not settings.canonical_database_url:
-        return 0
-    with canonical_session(consultant) as session:
-        return session.execute(
-            text(
-                "DELETE FROM kg_ingest_queue WHERE status = 'done' "
-                "  AND processed_at < now() - make_interval(days => :d)"
-            ),
-            {"d": older_than_days},
-        ).rowcount
+    removed = 0
+    for consultant in _consultants(("done",)):
+        with canonical_session(consultant) as session:
+            removed += session.execute(
+                text(
+                    "DELETE FROM kg_ingest_queue WHERE status = 'done' "
+                    "  AND processed_at < now() - make_interval(days => :d)"
+                ),
+                {"d": older_than_days},
+            ).rowcount
+    return removed
 
 
 def run_forever(idle_sleep: float = 1.0) -> None:

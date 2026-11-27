@@ -192,6 +192,30 @@ def supabase_guarded(guarded, monkeypatch):
     monkeypatch.setattr(settings, "delir_auth_provider", "supabase")
     monkeypatch.setattr(settings, "supabase_url", "https://progetto.supabase.co")
     monkeypatch.setattr(settings, "supabase_publishable_key", "sb_publishable_chiave-del-browser")
+    monkeypatch.setattr(settings, "delir_allowed_emails", "@studio.it")
+
+
+def test_personal_accounts_need_the_list_of_admitted_people(supabase_guarded, monkeypatch):
+    """Registrazioni chiuse in Supabase non bastano: il backend decide chi entra."""
+    monkeypatch.setattr(settings, "delir_allowed_emails", " ")
+
+    with pytest.raises(RuntimeError, match="DELIR_ALLOWED_EMAILS vuota"):
+        assert_environment_is_defensible()
+
+
+def test_personal_accounts_do_not_need_a_tenant_allowlist(supabase_guarded, monkeypatch):
+    monkeypatch.setattr(settings, "delir_allowed_tenant_ids", "")
+
+    assert assert_environment_is_defensible() == "guarded"
+
+
+def test_spending_limits_need_a_price_list(guarded, monkeypatch):
+    """Senza listino ogni token costa il prezzo pessimista: limiti dopo pochi turni."""
+    monkeypatch.setattr(settings, "usage_limits_enabled", True)
+    monkeypatch.setattr(settings, "llm_prices_json", "")
+
+    with pytest.raises(RuntimeError, match="LLM_PRICES_JSON"):
+        assert_environment_is_defensible()
 
 
 def test_supabase_replaces_the_shared_token(supabase_guarded, monkeypatch):

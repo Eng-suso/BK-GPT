@@ -1,0 +1,129 @@
+{
+  "users": 1,
+  "minutes": 3.0,
+  "wall_s": 191.1,
+  "fake_llm": {
+    "ttft_ms": "800",
+    "tokens_per_s": "40"
+  },
+  "operations": {
+    "auth_me": {
+      "ok": 1,
+      "errors": 0,
+      "p50_s": 0.013,
+      "p95_s": 0.013,
+      "max_s": 0.013,
+      "error_examples": []
+    },
+    "chat_first_token": {
+      "ok": 12,
+      "errors": 0,
+      "p50_s": 6.547,
+      "p95_s": 10.382,
+      "max_s": 10.587,
+      "error_examples": []
+    },
+    "chat_turn": {
+      "ok": 12,
+      "errors": 0,
+      "p50_s": 6.556,
+      "p95_s": 10.392,
+      "max_s": 10.603,
+      "error_examples": []
+    },
+    "create_chat": {
+      "ok": 1,
+      "errors": 0,
+      "p50_s": 0.011,
+      "p95_s": 0.011,
+      "max_s": 0.011,
+      "error_examples": []
+    },
+    "create_client": {
+      "ok": 1,
+      "errors": 0,
+      "p50_s": 0.013,
+      "p95_s": 0.013,
+      "max_s": 0.013,
+      "error_examples": []
+    },
+    "create_process": {
+      "ok": 1,
+      "errors": 0,
+      "p50_s": 0.012,
+      "p95_s": 0.012,
+      "max_s": 0.012,
+      "error_examples": []
+    },
+    "create_project": {
+      "ok": 1,
+      "errors": 0,
+      "p50_s": 0.011,
+      "p95_s": 0.011,
+      "max_s": 0.011,
+      "error_examples": []
+    },
+    "list_chats": {
+      "ok": 12,
+      "errors": 0,
+      "p50_s": 0.005,
+      "p95_s": 0.006,
+      "max_s": 0.007,
+      "error_examples": []
+    },
+    "list_clients": {
+      "ok": 12,
+      "errors": 0,
+      "p50_s": 0.007,
+      "p95_s": 0.008,
+      "max_s": 0.008,
+      "error_examples": []
+    },
+    "list_projects": {
+      "ok": 12,
+      "errors": 0,
+      "p50_s": 0.01,
+      "p95_s": 0.014,
+      "max_s": 0.017,
+      "error_examples": []
+    },
+    "simulation_poll": {
+      "ok": 4,
+      "errors": 0,
+      "p50_s": 0.01,
+      "p95_s": 0.016,
+      "max_s": 0.016,
+      "error_examples": []
+    },
+    "simulation_start": {
+      "ok": 4,
+      "errors": 0,
+      "p50_s": 0.016,
+      "p95_s": 0.018,
+      "max_s": 0.018,
+      "error_examples": []
+    },
+    "simulation_total": {
+      "ok": 4,
+      "errors": 0,
+      "p50_s": 2.028,
+      "p95_s": 2.031,
+      "max_s": 2.031,
+      "error_examples": []
+    },
+    "usage_me": {
+      "ok": 12,
+      "errors": 0,
+      "p50_s": 0.005,
+      "p95_s": 0.006,
+      "max_s": 0.007,
+      "error_examples": []
+    }
+  },
+  "peak": {
+    "app_rss_mb": 574,
+    "app_threads": 43,
+    "pg_connections": 19,
+    "pg_active": 3
+  }
+}

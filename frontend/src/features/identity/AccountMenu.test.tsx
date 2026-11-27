@@ -24,6 +24,7 @@ type ApiIdentity = {
   caller_id: string;
   has_user_identity: boolean;
   allowed_tenants: string[];
+  email?: string | null;
 };
 
 function identity(overrides: Partial<ApiIdentity> = {}): ApiIdentity {
@@ -123,5 +124,24 @@ describe("AccountMenu", () => {
 
     await user.click(await screen.findByRole("button", { name: /Spazio di lavoro/ }, { timeout: 5000 }));
     expect(screen.queryByRole("menuitem", { name: "Esci" })).not.toBeInTheDocument();
+  });
+
+  it("con il login personale chiama l'account con l'email, non con il suo id tecnico", async () => {
+    http.mockResolvedValue(
+      identity({
+        tenant_id: "acct-6f1c2b0e-0000-4000-8000-000000000001",
+        auth_mode: "supabase",
+        caller_id: "6f1c2b0e-0000-4000-8000-000000000001",
+        has_user_identity: true,
+        email: "anna@studio.it",
+      }),
+    );
+    renderMenu();
+    const user = setupUser();
+
+    await user.click(await screen.findByRole("button", { name: /anna@studio\.it/ }));
+
+    expect(await screen.findByText("Clienti, conversazioni e memoria di questo account sono solo tuoi.")).toBeInTheDocument();
+    expect(screen.queryByText(/acct-/)).not.toBeInTheDocument();
   });
 });

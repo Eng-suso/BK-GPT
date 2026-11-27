@@ -33,10 +33,14 @@ export function AccountMenu({ compact = false, onOpenSettings }: AccountMenuProp
   const identity = useIdentityQuery();
   const data = identity.data;
 
-  const workspace = data?.tenantId ?? t(identity.isError ? "identity.unknown" : "identity.loading");
   // Quando l'identita' non si legge, "Non disponibile" si dice una volta sola:
   // ripeterlo sotto il nome dello spazio di lavoro non aggiunge niente.
   const personal = Boolean(data?.hasUserIdentity);
+  // Con il login personale lo spazio e' l'account: lo si chiama con l'email,
+  // non con il suo identificativo tecnico.
+  const workspace = personal
+    ? data?.email || t("identity.myAccount")
+    : data?.tenantId ?? t(identity.isError ? "identity.unknown" : "identity.loading");
   const accessLabel = data
     ? personal
       ? t("identity.access.personal")
@@ -73,7 +77,7 @@ export function AccountMenu({ compact = false, onOpenSettings }: AccountMenuProp
           <span className="min-w-0">
             <span className="block text-xs font-semibold text-foreground">{workspace}</span>
             <span className="block text-micro font-normal text-muted-foreground">
-              {t("identity.workspaceHint")}
+              {t(personal ? "identity.accountHint" : "identity.workspaceHint")}
             </span>
           </span>
         </DropdownMenuLabel>

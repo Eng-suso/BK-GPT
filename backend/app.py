@@ -28,8 +28,8 @@ from backend.api.routes.shared import router as shared_router
 from backend.api.routes.workspace import router as workspace_router
 from backend.llm.egress import assert_egress_is_defensible
 from backend.security import (
-    assert_allowed_tenant,
-    normalize_tenant_id,
+    SUPABASE_PROVIDER,
+    requested_tenant_id,
     reset_current_tenant_id,
     set_current_tenant_id,
 )
@@ -176,13 +176,29 @@ def auth_configuration_problems() -> list[str]:
         )
 
     allowed = _allowed_tenants()
-    if not allowed:
+    if not uses_shared_token:
+        # Ogni persona lavora nel suo account: il tenant non lo sceglie il client,
+        # ma chi puo' entrare lo decide il backend, non solo Supabase.
+        if not settings.delir_allowed_emails.strip():
+            problems.append(
+                "DELIR_ALLOWED_EMAILS vuota: con gli account personali chiunque abbia "
+                "un account nel progetto Supabase entrerebbe e spenderebbe. Elenca le "
+                "email (o i domini, `@studio.it`) delle persone ammesse."
+            )
+    elif not allowed:
         problems.append(
             "DELIR_ALLOWED_TENANT_IDS vuota: il tenant lo sceglierebbe il client "
             "con un header, senza nessun limite."
         )
     elif settings.delir_default_tenant_id.strip() not in allowed:
         problems.append("DELIR_DEFAULT_TENANT_ID non compare in DELIR_ALLOWED_TENANT_IDS.")
+
+    if settings.usage_limits_enabled and not settings.llm_prices_json.strip():
+        problems.append(
+            "USAGE_LIMITS_ENABLED senza LLM_PRICES_JSON: ogni token si conterebbe al "
+            "prezzo pessimista e i limiti di spesa scatterebbero dopo pochi turni. "
+            "Imposta il listino dei modelli usati."
+        )
 
     origins = [o.strip() for o in settings.delir_cors_origins.split(",") if o.strip()]
     if not origins or "*" in origins:
@@ -327,9 +343,12 @@ async def tenant_context_middleware(request: Request, call_next):
     # link stesso, nel servizio. Qui non c'e' nulla da controllare.
     if request.url.path.startswith("/v1/shared/") or request.url.path in PUBLIC_PATHS:
         return await call_next(request)
+    # Con gli account personali lo spazio di lavoro lo decide il token, in
+    # `require_principal`: l'header, se c'e', non conta e non si valida.
+    if settings.delir_auth_enabled and settings.delir_auth_provider == SUPABASE_PROVIDER:
+        return await call_next(request)
     try:
-        tenant_id = normalize_tenant_id(request.headers.get("X-DeliR-Tenant-ID"))
-        assert_allowed_tenant(tenant_id)
+        tenant_id = requested_tenant_id(request.headers.get("X-DeliR-Tenant-ID"))
     except HTTPException as exc:
         return JSONResponse(
             status_code=exc.status_code,

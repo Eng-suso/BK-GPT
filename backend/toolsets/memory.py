@@ -8,7 +8,9 @@ from backend.memory.models import (
     ConsultingGraphRetrievalRequest,
     EpisodeMemory,
 )
+from backend.memory.mem0_client import mem0_user_id
 from backend.memory.semantic import semantic_store
+from backend.security import get_current_consultant_id
 from backend.toolsets.workspace import enterprise_tool_result, get_workspace_overview
 
 
@@ -305,10 +307,9 @@ def manage_consultant_memory(
     """
     from backend.agents.run_context import active_thread_id
     from backend.memory import forget, pending_actions
-    from backend.settings import settings
 
     normalized_operation = (operation or "").strip().lower()
-    consultant_id = settings.default_consultant_id
+    consultant_id = get_current_consultant_id()
     thread_id = active_thread_id() or "unbound"
 
     if normalized_operation in {"list", "search"}:
@@ -324,7 +325,7 @@ def manage_consultant_memory(
     if normalized_operation == "forget":
         resolved = forget.resolve_targets(
             consultant_id=consultant_id,
-            mem0_user_id=settings.mem0_user_id,
+            mem0_user_id=mem0_user_id(consultant_id),
             memory_ids=memory_ids or [],
             query=query,
             limit=min(limit, 25),
@@ -420,7 +421,7 @@ def manage_consultant_memory(
     params = claimed["params"] or {}
     result = forget.execute_forget(
         consultant_id=consultant_id,
-        mem0_user_id=settings.mem0_user_id,
+        mem0_user_id=mem0_user_id(consultant_id),
         targets=params.get("targets") or [],
         reason=params.get("reason") or "",
     )
@@ -661,10 +662,9 @@ def manage_consultant_playbook(
     from backend.agents.run_context import active_thread_id
     from backend.memory import canonical_memory, gateway, pending_actions
     from backend.memory import scope as canonical_scope
-    from backend.settings import settings
 
     normalized_operation = (operation or "").strip().lower()
-    consultant_id = settings.default_consultant_id
+    consultant_id = get_current_consultant_id()
     thread_id = active_thread_id() or "unbound"
     scope_value = (scope or "").strip().lower()
     # `project` = si opera nello scope di quel cliente (necessario per vedere /
@@ -1020,9 +1020,8 @@ def extract_playbook_from_episodes(project: str, limit: int = 8) -> str:
     from backend.memory import canonical_memory
     from backend.memory import scope as canonical_scope
     from backend.memory.procedural import extraction
-    from backend.settings import settings
 
-    consultant_id = settings.default_consultant_id
+    consultant_id = get_current_consultant_id()
     try:
         resolved = canonical_scope.resolve(project)
     except Exception as exc:  # noqa: BLE001

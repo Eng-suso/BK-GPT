@@ -28,6 +28,20 @@ from urllib.parse import urlparse
 
 from backend.settings import settings
 
+def mem0_user_id(consultant_id: str) -> str:
+    """Lo spazio Mem0 di un consulente: Mem0 non ha tenant ACL, l'isolamento e' l'`user_id`.
+
+    Ogni account ha il suo UUID come namespace. Il consulente di default resta
+    su `settings.mem0_user_id`, dove sta lo storico salvato prima degli account.
+    Scritture e letture passano tutte da qui: se divergessero, una memoria
+    salvata non si ritroverebbe piu'.
+    """
+    normalized = str(consultant_id or "").strip()
+    if not normalized or normalized == str(settings.default_consultant_id):
+        return settings.mem0_user_id
+    return normalized
+
+
 # Self-hosted: niente telemetria verso l'esterno (coerente con la logica B+).
 os.environ.setdefault("MEM0_TELEMETRY", "False")
 

@@ -257,6 +257,11 @@ class Settings(BaseSettings):
     # browser per costruzione e il frontend la legge da /v1/auth/config. Mai la
     # secret key: l'avvio la riconosce e si rifiuta di partire.
     supabase_publishable_key: str = ""
+    # Chi puo' entrare con un account personale: email esatte o interi domini
+    # (`@studio.it`), separati da virgola. E' il cancello del backend, oltre
+    # alle registrazioni chiuse in Supabase: un token valido di qualcuno fuori
+    # lista riceve 403. Fuori da dev una lista vuota blocca l'avvio.
+    delir_allowed_emails: str = ""
     supabase_jwt_audience: str = "authenticated"
     # Ogni quanto si rileggono le chiavi pubbliche. Un `kid` sconosciuto le fa
     # rileggere subito (rotazione), al massimo una volta ogni 30 secondi.

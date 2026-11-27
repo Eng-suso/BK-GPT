@@ -15,19 +15,6 @@ from backend.settings import settings
 # --------------------------------------------------------------------------- #
 
 
-def _mem0_user_id(consultant_id: str) -> str:
-    """Mem0 non ha tenant ACL: lo scope consulente e' l'`user_id`.
-
-    Per compatibilita', il consulente MVP di default continua a leggere lo
-    storico salvato sotto `settings.mem0_user_id`. Gli altri consulenti usano il
-    proprio UUID come namespace, coerente con `canonical_memory`/worker.
-    """
-    normalized = str(consultant_id or "").strip()
-    if not normalized or normalized == str(settings.default_consultant_id):
-        return settings.mem0_user_id
-    return normalized
-
-
 def _mem0_items(raw: Any) -> list:
     if isinstance(raw, dict):
         return raw.get("results") or raw.get("memories") or []
@@ -101,7 +88,7 @@ def memory_search(
     try:
         raw = memory.search(
             query=search_query,
-            filters={"user_id": _mem0_user_id(consultant_id)},
+            filters={"user_id": mem0_client.mem0_user_id(consultant_id)},
             top_k=max(limit * 4, 20),
             threshold=settings.memory_recall_threshold,
         )

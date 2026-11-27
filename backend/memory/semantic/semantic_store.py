@@ -24,6 +24,7 @@ from backend.memory import mem0_client
 from backend.memory.mem0_client import Mem0Disabled
 from backend.memory.models import ConsultantSemanticMemory, semantic_memory_to_mem0_content
 from backend.settings import settings
+from backend.security import get_current_consultant_id
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ def _mirror_semantic(memory: ConsultantSemanticMemory, mem0_id: str | None) -> N
         from backend.memory import canonical_memory
 
         canonical_memory.write_semantic_memory(
-            settings.default_consultant_id,
+            get_current_consultant_id(),
             kind=_KIND_BY_DURABILITY.get(memory.durability, "fact"),
             statement=memory.statement,
             category=memory.category,
@@ -83,7 +84,7 @@ def mirror_episodic_to_canonical(
         from backend.memory import canonical_memory
 
         canonical_memory.write_episodic_memory(
-            settings.default_consultant_id,
+            get_current_consultant_id(),
             episode_type=episode_type,
             title=title,
             summary=summary,
@@ -191,7 +192,7 @@ def add_mem0_memory_with_id(
     try:
         result = memory.add(
             content,
-            user_id=settings.mem0_user_id,
+            user_id=mem0_client.mem0_user_id(get_current_consultant_id()),
             metadata=metadata,
             infer=should_infer,
         )
@@ -245,7 +246,7 @@ def search_consultant_memory(
     from backend.memory import gateway
 
     result = gateway.memory_search(
-        consultant_id=settings.default_consultant_id,
+        consultant_id=get_current_consultant_id(),
         client_id=client_id,
         project_id=project_id,
         query=query,
@@ -284,7 +285,7 @@ def list_consultant_memories(
     if isinstance(memory, Mem0Disabled):
         return {"status": "not_configured", "memories": [], "reason": memory.reason}
 
-    filters = {"user_id": settings.mem0_user_id}
+    filters = {"user_id": mem0_client.mem0_user_id(get_current_consultant_id())}
     try:
         if (query or "").strip():
             raw = memory.search(
@@ -299,7 +300,7 @@ def list_consultant_memories(
         return {"status": "error", "memories": [], "reason": str(exc)}
 
     forgotten_ids, forgotten_hashes = forget.tombstones(
-        settings.default_consultant_id, client_id
+        get_current_consultant_id(), client_id
     )
     items = raw.get("results") or raw.get("memories") or [] if isinstance(raw, dict) else raw
     memories = []

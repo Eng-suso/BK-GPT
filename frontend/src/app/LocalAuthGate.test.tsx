@@ -44,9 +44,8 @@ function mount() {
   return render(<I18nextProvider i18n={i18n}><LocalAuthGate><p>Workspace pronto</p></LocalAuthGate></I18nextProvider>);
 }
 
-async function signIn(tenant: string, email: string, password: string) {
-  fireEvent.change(await screen.findByLabelText("Tenant"), { target: { value: tenant } });
-  fireEvent.change(screen.getByLabelText("Email"), { target: { value: email } });
+async function signIn(email: string, password: string) {
+  fireEvent.change(await screen.findByLabelText("Email"), { target: { value: email } });
   fireEvent.change(screen.getByLabelText("Password"), { target: { value: password } });
   fireEvent.click(screen.getByRole("button", { name: "Entra" }));
 }
@@ -100,6 +99,8 @@ describe("LocalAuthGate", () => {
       expect(await screen.findByLabelText("Email")).toBeInTheDocument();
       expect(screen.getByLabelText("Password")).toHaveAttribute("type", "password");
       expect(screen.queryByLabelText("Token API")).not.toBeInTheDocument();
+      // Lo spazio di lavoro e' l'account: non lo sceglie la persona.
+      expect(screen.queryByLabelText("Tenant")).not.toBeInTheDocument();
       expect(screen.queryByText("Workspace pronto")).not.toBeInTheDocument();
     });
 
@@ -112,12 +113,11 @@ describe("LocalAuthGate", () => {
       });
       fetchIdentity.mockResolvedValue({ tenantId: "pilot" });
       mount();
-      await signIn("pilot", "consulente@delir.test", "password-di-prova-123");
+      await signIn("consulente@delir.test", "password-di-prova-123");
 
       await waitFor(() => expect(screen.getByText("Workspace pronto")).toBeInTheDocument());
       expect(signInWithSupabase).toHaveBeenCalledWith(SUPABASE, "consulente@delir.test", "password-di-prova-123");
       expect(authHeaders().get("Authorization")).toBe("Bearer jwt-della-sessione");
-      expect(authHeaders().get("X-DeliR-Tenant-ID")).toBe("pilot");
       // L'access token non finisce nello slot del token condiviso.
       expect(window.sessionStorage.getItem("delir:session-api-token")).toBeNull();
     });
@@ -127,22 +127,22 @@ describe("LocalAuthGate", () => {
       restoreSupabaseSession.mockResolvedValue(false);
       signInWithSupabase.mockResolvedValue("invalid");
       mount();
-      await signIn("pilot", "consulente@delir.test", "sbagliata-sbagliata");
+      await signIn("consulente@delir.test", "sbagliata-sbagliata");
 
       expect(await screen.findByRole("alert")).toHaveTextContent("Email o password non validi.");
       expect(fetchIdentity).not.toHaveBeenCalled();
     });
 
-    it("se il backend rifiuta lo spazio di lavoro, esce dalla sessione appena aperta", async () => {
+    it("se l'ambiente rifiuta l'account, esce dalla sessione appena aperta", async () => {
       fetchAuthConfig.mockResolvedValue(SUPABASE);
       restoreSupabaseSession.mockResolvedValue(false);
       signInWithSupabase.mockResolvedValue("ok");
       signOutOfSupabase.mockResolvedValue();
       fetchIdentity.mockRejectedValue(new HttpError(403, "forbidden"));
       mount();
-      await signIn("altro", "consulente@delir.test", "password-di-prova-123");
+      await signIn("consulente@delir.test", "password-di-prova-123");
 
-      expect(await screen.findByRole("alert")).toHaveTextContent("non è autorizzato");
+      expect(await screen.findByRole("alert")).toHaveTextContent("non accetta il tuo account");
       expect(signOutOfSupabase).toHaveBeenCalledOnce();
       expect(screen.queryByText("Workspace pronto")).not.toBeInTheDocument();
     });

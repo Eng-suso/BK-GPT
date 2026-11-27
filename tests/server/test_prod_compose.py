@@ -80,3 +80,18 @@ def test_production_does_not_start_without_an_admin_token():
     prod = yaml.safe_load(PROD.read_text(encoding="utf-8"))["services"]["app"]["environment"]
     assert prod["DELIR_ADMIN_TOKEN"].startswith("${DELIR_ADMIN_TOKEN:?")
     assert prod["DELIR_CORS_ORIGINS"].startswith("${DELIR_PUBLIC_ORIGIN:?")
+
+
+def test_production_gives_every_person_an_account_and_a_spending_limit():
+    """In produzione si entra da persona (Supabase) e ognuno ha il suo limite."""
+    prod = yaml.safe_load(PROD.read_text(encoding="utf-8"))["services"]["app"]["environment"]
+    assert prod["DELIR_AUTH_PROVIDER"] == "${DELIR_AUTH_PROVIDER:-supabase}"
+    assert prod["USAGE_LIMITS_ENABLED"] == "${USAGE_LIMITS_ENABLED:-true}"
+
+
+def test_local_stacks_keep_the_shared_token_unless_told_otherwise():
+    """STAGING e PROD-SIM locali non hanno un progetto Supabase: restano col token."""
+    staging_path = PROD.with_name("docker-compose.staging.yml")
+    staging = yaml.safe_load(staging_path.read_text(encoding="utf-8"))["services"]["app"]["environment"]
+    assert staging["DELIR_AUTH_PROVIDER"] == "${DELIR_AUTH_PROVIDER:-token}"
+    assert staging["USAGE_LIMITS_ENABLED"] == "${USAGE_LIMITS_ENABLED:-false}"
