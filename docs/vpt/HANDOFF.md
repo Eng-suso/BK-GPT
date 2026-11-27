@@ -38,9 +38,10 @@ uv run python tests/simulation/benchmark/b3_2/attribution_eval.py --phase valida
 - **Scheda 1: NO-GO in validazione** (RED 4/18/0 su 22 log, CED perde su 2). La fase dei ritardi
   di SIMOD a scenario fissato non mette timer su 15 sintetici su 20; dove li mette RED migliora
   (BPIC 2017 W 130 → 66). Test dei sintetici in corso (`/var/tmp/b32logs/test_syn.log`), non sceglie.
-- **Scheda 3:** validazione dei 3 reali in corso (`/var/tmp/b32logs/val_card3.log`, rifà
-  `simod_extr` qui). Parziale BPIC 2012 W: `simod_attr_extr` W1 126, RED 61,9, quasi uguale ai
-  ritardi di SIMOD a scenario fissato.
+- **Scheda 3 (sui reali):** v1-v4 NO-GO in validazione (v1 ritardi troppo lunghi; v2-v4 troppo
+  corti, AED perde). **v5 `simod_attr_calibrated` GO in validazione** (β del fuori orario scelto
+  simulando l'ultimo 20% dell'input). Test dei 3 reali in corso (`/var/tmp/b32logs/test_real.log`),
+  poi verdetto. Valutazioni in validazione: 5 su 20.
 - Difetto di `within_intervals` in G3b (risultati identici = sconfitta): corretto solo nel report di
   B3.2, da decidere con Sohayb (voce in LOG.md).
 - Cache in `/var/tmp/delir-g3b/work` (discovery senza ritardi rifatta in questo container) e

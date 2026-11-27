@@ -141,6 +141,11 @@ Modello:
   a β = 0. La validazione e il test non entrano nella scelta; come nella fase dei ritardi di SIMOD,
   lo scenario è scoperto sull'input intero. Il costo della calibrazione conta. Valutazioni in
   validazione per i 3 log: 5 su 20.
+- **Esito scheda 3e, validazione: GO (v5).** β scelto sull'input: 0,5 (BPIC 2012 W), 0,75 (BPIC 2017 W,
+  AcademicCredentials). Contro `simod_extr`: BPIC 2012 W W1 82,2 ± 5,2 contro 113 ± 9,3, RED 38,1 ± 2,7
+  contro 57,5 ± 6,5; BPIC 2017 W W1 73,2 ± 2,8 contro 98,5 ± 3,6, RED 52,8 ± 2,2 contro 65,0 ± 2,4;
+  nessuna guardia perde (AED 61 pari, 41,7 contro 48,9 vince; AcademicCredentials AED 177 pari).
+  Test lanciato una volta sui 3 reali.
 - **Difetto del banco di G3b, da correggere con Sohayb:** `within_intervals` usa `<`, quindi due
   risultati identici con IC nullo (sintetici di un giorno) risultano diversi e `compare` dà
   "perde". In G3b: 246 confronti identici; sulle primarie, 4 RED "persi" della scheda Attese in
