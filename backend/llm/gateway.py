@@ -38,7 +38,7 @@ import openai
 from pydantic import BaseModel
 
 from backend.llm.operation import current_operation
-from backend.llm.providers import Provider, provider_of
+from backend.llm.providers import Provider
 from backend.llm.tasks import LlmTask, TaskProfile, profile_for
 from backend.llm.usage import (
     Outcome,
@@ -126,7 +126,7 @@ def _client(profile: TaskProfile, input_characters: int | None):
     kwargs alla chiamata API, e il fornitore rifiuterebbe un parametro che non
     conosce. E' una policy del client, non un argomento della richiesta.
     """
-    if provider_of(profile.model) == Provider.ANTHROPIC:
+    if profile.provider is Provider.ANTHROPIC:
         from backend.llm.claude_client import claude_client
 
         return claude_client(profile, input_characters=input_characters, max_retries=_max_retries(profile))
@@ -327,7 +327,7 @@ _JSON_REPAIRS = 1
 
 def _provider_key(profile: TaskProfile) -> tuple[str, str]:
     """Chi ha rifiutato lo schema: l'endpoint e il modello del compito."""
-    if provider_of(profile.model) == Provider.ANTHROPIC:
+    if profile.provider is Provider.ANTHROPIC:
         return (Provider.ANTHROPIC.value, profile.model)
     return (settings.openai_base_url or "", profile.model)
 
@@ -518,7 +518,7 @@ def _run_free_json(
     conversation = [*_as_message_list(messages), HumanMessage(content=_schema_instruction(output))]
     # Claude non ha `json_object`: langchain-anthropic lo rifiuta prima ancora di
     # mandare la richiesta. Si parte dal testo, con lo schema nel prompt.
-    if provider_of(profile.model) == Provider.ANTHROPIC:
+    if profile.provider is Provider.ANTHROPIC:
         runnable = client
     else:
         runnable = client.bind(response_format={"type": "json_object"})

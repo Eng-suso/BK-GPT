@@ -36,8 +36,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from urllib.parse import urlparse
 
-from backend.llm.providers import Provider, provider_of
-from backend.llm.tasks import LlmTask, profile_for
+from backend.llm.providers import Provider
+from backend.llm.tasks import MEM0_TASKS, NON_CHAT_TASKS, LlmTask, profile_for
 from backend.llm_config import MissingProviderKey
 from backend.settings import environment_is_open, langsmith_tracing_enabled, settings
 
@@ -125,11 +125,11 @@ class EgressBlocked(MissingProviderKey):
     """
 
 
-_NON_CHAT_TASKS = {LlmTask.EMBEDDING, LlmTask.TRANSCRIPTION, LlmTask.LIVE_TRANSCRIPTION}
+_NON_CHAT_TASKS = NON_CHAT_TASKS
 # I compiti di Mem0 non passano dal client della chat: li esegue la libreria con
 # i suoi client, verso le sue destinazioni (`MEMORY_EXTRACTION`,
 # `MEMORY_EMBEDDING`). Elencarli sotto `llm_chat` direbbe un fornitore sbagliato.
-_MEM0_TASKS = {LlmTask.MEMORY_EXTRACTION, LlmTask.MEMORY_EMBEDDING}
+_MEM0_TASKS = MEM0_TASKS
 
 
 def is_internal_host(host: str) -> bool:
@@ -159,7 +159,7 @@ def _llm_url_for(task: LlmTask) -> str:
     """
     if task in _NON_CHAT_TASKS:
         return OPENAI_API_URL
-    if provider_of(profile_for(task).model) == Provider.ANTHROPIC:
+    if profile_for(task).provider is Provider.ANTHROPIC:
         return ANTHROPIC_API_URL
     return (settings.openai_base_url or OPENAI_API_URL).rstrip("/")
 
@@ -319,7 +319,7 @@ def require_for_task(task: LlmTask) -> EgressRoute:
         return require(Destination.LLM_EMBEDDING)
     if task == LlmTask.TRANSCRIPTION:
         return require(Destination.TRANSCRIPTION)
-    if _llm_url_for(task) == ANTHROPIC_API_URL:
+    if task not in _NON_CHAT_TASKS and profile_for(task).provider is Provider.ANTHROPIC:
         return require(Destination.LLM_CLAUDE)
     return require(Destination.LLM_CHAT)
 

@@ -39,10 +39,11 @@ from backend.settings import settings
 #: Il segnalibro della cache: 5 minuti, la durata che costa 1,25x in scrittura.
 CACHE_BREAKPOINT = {"type": "ephemeral"}
 
-#: Il livello del profilo, nei termini di Claude. Con il ragionamento spento
-#: Haiku 5.5 accetta fino a `high`. Un livello sconosciuto vale `low`: costa meno,
-#: e non e' mai il caso di spendere di piu' per un nome sbagliato.
-_EFFORT = {"none": "low", "minimal": "low", "low": "low", "medium": "medium", "high": "high"}
+#: I livelli del profilo che Claude conosce con lo stesso nome. Con il
+#: ragionamento spento Haiku 5.5 accetta fino a `high`. Gli altri (`none`, o un
+#: nome che Claude non conosce) valgono `low`: costa meno, e non e' mai il caso
+#: di spendere di piu' per un nome sbagliato.
+_CLAUDE_EFFORTS = frozenset({"low", "medium", "high"})
 
 
 class DeliRChatAnthropic(ChatAnthropic):
@@ -108,7 +109,7 @@ def claude_client(profile: TaskProfile, *, input_characters: int | None, max_ret
         "max_tokens": profile.max_output_tokens or settings.model_max_tokens,
         "timeout": timeout_for_input(input_characters if profile.scales_with_input else None),
         "max_retries": max_retries,
-        "effort": _EFFORT.get(profile.reasoning_effort, "low"),
+        "effort": profile.reasoning_effort if profile.reasoning_effort in _CLAUDE_EFFORTS else "low",
         "thinking": {"type": "disabled"},
     }
     callbacks = local_callbacks()

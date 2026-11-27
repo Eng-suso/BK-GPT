@@ -9,9 +9,18 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import anthropic
+import httpx
 import pytest
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from pydantic import BaseModel
 
+from backend.llm import LlmTask, OperationKind, operation, profile_for, run
+from backend.llm.claude_client import CACHE_BREAKPOINT, DeliRChatAnthropic, claude_client, with_cached_system
+from backend.llm.egress import ANTHROPIC_API_URL, Destination, route
+from backend.llm.gateway import reset_structured_output_memory
 from backend.llm.prices import estimate_cost
+from backend.llm_config import MissingProviderKey, chat_openai_kwargs
 from backend.llm.usage import tokens_from_usage_metadata
 from backend.settings import settings
 
@@ -73,13 +82,6 @@ class TestTokenDiClaude:
 
 
 # --- Il compito su Claude: modello, destinazione, client -----------------------
-
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage  # noqa: E402
-
-from backend.llm import LlmTask, OperationKind, operation, profile_for, run  # noqa: E402
-from backend.llm.claude_client import CACHE_BREAKPOINT, DeliRChatAnthropic, claude_client, with_cached_system  # noqa: E402
-from backend.llm.egress import ANTHROPIC_API_URL, Destination, route  # noqa: E402
-from backend.llm_config import MissingProviderKey  # noqa: E402
 
 RERANK_ON_HAIKU = '{"retrieval_rerank": "claude-haiku-5-5", "entity_resolution": "claude-haiku-5-5"}'
 
@@ -220,12 +222,6 @@ class TestIlGatewaySuClaude:
     def test_il_json_libero_su_claude_non_chiede_json_object(self, monkeypatch, rerank_on_haiku):
         """Lo schema nativo rifiutato porta al JSON libero: su Claude senza
         `response_format`, che langchain-anthropic non sa mandare."""
-        import anthropic
-        import httpx
-        from pydantic import BaseModel
-
-        from backend.llm.gateway import reset_structured_output_memory
-
         class _Answer(BaseModel):
             answer: str
 
@@ -262,8 +258,6 @@ class TestIlGatewaySuClaude:
 def test_il_client_openai_decide_i_parametri_sul_modello_del_compito(monkeypatch):
     """Un compito su un modello OpenAI senza ragionamento non riceve i parametri
     di ragionamento del modello di conversazione."""
-    from backend.llm_config import chat_openai_kwargs
-
     monkeypatch.setattr(settings, "openai_api_key", "sk-test-non-usata")
     monkeypatch.setattr(settings, "openai_model", "gpt-5.6-luna")
     kwargs = chat_openai_kwargs(model="gpt-4.1-mini")

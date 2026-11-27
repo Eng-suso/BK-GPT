@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
 
+from backend.llm.providers import Provider, provider_of
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -111,6 +112,11 @@ class TaskProfile:
         if self.model_setting:
             return str(getattr(settings, self.model_setting, "") or settings.openai_model)
         return self.model_name or settings.openai_model
+
+    @property
+    def provider(self) -> Provider:
+        """Il fornitore del modello del compito, cioe' quale client lo esegue."""
+        return provider_of(self.model)
 
 
 # Profili di partenza. Le note dicono *perche'* un valore e' quello: senza la
@@ -264,21 +270,16 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
 }
 
 
-#: I compiti il cui modello non si sceglie in `LLM_TASK_MODELS_JSON`:
-#: l'embedding (il modello e' il contratto dei vettori gia' scritti, INV-4),
-#: l'audio (modelli suoi, con i loro settings), Mem0 (li esegue la libreria) e i
-#: tre compiti del client della chat, che oggi parla solo OpenAI: la versione di
-#: langchain-core del progetto non regge Claude nella chat.
-FIXED_MODEL_TASKS = frozenset({
-    LlmTask.EMBEDDING,
-    LlmTask.TRANSCRIPTION,
-    LlmTask.LIVE_TRANSCRIPTION,
-    LlmTask.MEMORY_EXTRACTION,
-    LlmTask.MEMORY_EMBEDDING,
-    LlmTask.CHAT_TURN,
-    LlmTask.CONTEXT_ROUTING,
-    LlmTask.THREAD_SUMMARY,
-})
+#: I compiti che non passano dal client della chat: l'embedding (il modello e'
+#: il contratto dei vettori gia' scritti, INV-4) e l'audio (modelli suoi).
+NON_CHAT_TASKS = frozenset({LlmTask.EMBEDDING, LlmTask.TRANSCRIPTION, LlmTask.LIVE_TRANSCRIPTION})
+#: I compiti che esegue Mem0 con i suoi client (`backend/llm/mem0_meter.py`).
+MEM0_TASKS = frozenset({LlmTask.MEMORY_EXTRACTION, LlmTask.MEMORY_EMBEDDING})
+#: I compiti del client della chat (`chat_client.py`), che oggi parla solo
+#: OpenAI: la versione di langchain-core del progetto non regge Claude nella chat.
+CHAT_CLIENT_TASKS = frozenset({LlmTask.CHAT_TURN, LlmTask.CONTEXT_ROUTING, LlmTask.THREAD_SUMMARY})
+#: I compiti il cui modello non si sceglie in `LLM_TASK_MODELS_JSON`.
+FIXED_MODEL_TASKS = NON_CHAT_TASKS | MEM0_TASKS | CHAT_CLIENT_TASKS
 
 
 def task_models() -> dict[LlmTask, str]:
