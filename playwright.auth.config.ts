@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-import { BACKEND_PORT, FRONTEND_PORT, SHARED_TOKEN, TENANT, localSupabase } from './e2e-auth/supabase';
+import { BACKEND_PORT, CONSULTANT, FRONTEND_PORT, SHARED_TOKEN, TENANT, localSupabase } from './e2e-auth/supabase';
 
 /**
  * Il login per persona, attraverso il prodotto: browser, Supabase Auth locale
@@ -50,6 +50,8 @@ export default defineConfig({
         DELIR_API_TOKEN: SHARED_TOKEN,
         DELIR_ADMIN_TOKEN: 'chiave-admin-e2e-distinta-dal-token-api-000',
         DELIR_ALLOWED_TENANT_IDS: TENANT,
+        // Le persone ammesse: chi ha un account Supabase ma non e' qui riceve 403.
+        DELIR_ALLOWED_EMAILS: CONSULTANT.email,
         DELIR_DEFAULT_TENANT_ID: TENANT,
         DELIR_CORS_ORIGINS: FRONTEND_URL,
         DELIR_FAKE_LLM: '1',

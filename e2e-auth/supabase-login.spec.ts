@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { BACKEND_PORT, CONSULTANT, SHARED_TOKEN, TENANT } from './supabase';
+import { BACKEND_PORT, CONSULTANT, OUTSIDER, SHARED_TOKEN, TENANT } from './supabase';
 
 /**
  * Il login per persona, da cima a fondo: nessuna `page.route`, il token che il
@@ -9,8 +9,7 @@ import { BACKEND_PORT, CONSULTANT, SHARED_TOKEN, TENANT } from './supabase';
 
 const CLIENTE = 'Esaote S.p.A.';
 
-async function signIn(page: Page, tenant: string, email: string, password: string) {
-  await page.getByLabel('Tenant').fill(tenant);
+async function signIn(page: Page, email: string, password: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Entra' }).click();
@@ -31,18 +30,20 @@ test.describe('Login Supabase', () => {
 
     await expect(page.getByLabel('Email')).toBeVisible();
     await expect(page.getByLabel('Token API')).toHaveCount(0);
+    // Lo spazio di lavoro e' l'account: non si sceglie al login.
+    await expect(page.getByLabel('Tenant')).toHaveCount(0);
     expect(workspaceCalls).toEqual([]);
   });
 
   test('una password sbagliata non apre niente', async ({ page }) => {
     await page.goto('/clients');
-    await signIn(page, TENANT, CONSULTANT.email, 'password-sbagliata-000');
+    await signIn(page, CONSULTANT.email, 'password-sbagliata-000');
 
     await expect(page.getByRole('alert')).toHaveText('Email o password non validi.');
     await expect(page.getByLabel('Email')).toBeVisible();
   });
 
-  test('con le credenziali giuste il backend riconosce la persona', async ({ page }) => {
+  test('con le credenziali giuste la persona entra nel suo account', async ({ page }) => {
     const authorizations: string[] = [];
     page.on('request', (request) => {
       const value = request.headers().authorization;
@@ -50,15 +51,18 @@ test.describe('Login Supabase', () => {
     });
 
     await page.goto('/clients');
-    await signIn(page, TENANT, CONSULTANT.email, CONSULTANT.password);
+    await signIn(page, CONSULTANT.email, CONSULTANT.password);
 
     await expect(page.getByRole('heading', { name: 'Clienti', level: 1 })).toBeVisible();
-    await expect(page.getByText(CLIENTE).first()).toBeVisible();
+    // Il cliente seminato nello spazio condiviso non e' suo: non lo vede.
+    await expect(page.getByText(CLIENTE)).toHaveCount(0);
     // Al backend arriva il JWT firmato da Supabase, non un token condiviso.
     expect(authorizations.length).toBeGreaterThan(0);
     expect(authorizations.every((value) => /^Bearer [\w-]+\.[\w-]+\.[\w-]+$/.test(value))).toBe(true);
 
     await page.getByRole('button', { name: /Spazio di lavoro/ }).click();
+    // L'account si chiama con l'email della persona, non con il suo id tecnico.
+    await expect(page.getByRole('menu').getByText(CONSULTANT.email)).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Esci' })).toBeVisible();
     await expect(page.getByText('Accesso personale').first()).toBeVisible();
 
@@ -70,11 +74,11 @@ test.describe('Login Supabase', () => {
 
   test('la sessione resta al reload e finisce con Esci', async ({ page }) => {
     await page.goto('/clients');
-    await signIn(page, TENANT, CONSULTANT.email, CONSULTANT.password);
-    await expect(page.getByText(CLIENTE).first()).toBeVisible();
+    await signIn(page, CONSULTANT.email, CONSULTANT.password);
+    await expect(page.getByRole('heading', { name: 'Clienti', level: 1 })).toBeVisible();
 
     await page.reload();
-    await expect(page.getByText(CLIENTE).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Clienti', level: 1 })).toBeVisible();
     await expect(page.getByLabel('Email')).toHaveCount(0);
 
     await page.getByRole('button', { name: /Spazio di lavoro/ }).click();
@@ -83,11 +87,11 @@ test.describe('Login Supabase', () => {
     expect(await supabaseSession(page)).toBeNull();
   });
 
-  test('uno spazio di lavoro fuori dalla allowlist chiude la sessione appena aperta', async ({ page }) => {
+  test('una persona fuori dalle email ammesse chiude la sessione appena aperta', async ({ page }) => {
     await page.goto('/clients');
-    await signIn(page, 'altro-spazio', CONSULTANT.email, CONSULTANT.password);
+    await signIn(page, OUTSIDER.email, OUTSIDER.password);
 
-    await expect(page.getByRole('alert')).toContainText('non è autorizzato');
+    await expect(page.getByRole('alert')).toContainText('non accetta il tuo account');
     await expect(page.getByLabel('Email')).toBeVisible();
     expect(await supabaseSession(page)).toBeNull();
   });
