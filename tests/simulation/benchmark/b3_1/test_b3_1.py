@@ -99,3 +99,20 @@ def test_val01_is_compared_with_the_base():
     assert report.verdict(CARD, "validation", unsound, ["a", "b", "c"])["verdict"] == "GO"
     differs = _results({"case_arrival": 0.5, "absolute_event": 0.5}, val01="non supera: ciclo")
     assert report.verdict(CARD, "validation", differs, ["a", "b", "c"])["verdict"] == "NO-GO"
+
+
+def test_meta_needs_car_and_no_aed_loss_against_simod_only():
+    found = _results({"case_arrival": 0.5})  # CAR vince, AED pari, contro "B = A" non conta
+    assert report.verdict_meta(CARD, "validation", found, ["a", "b", "c"])["verdict"] == "GO"
+    found[("c", "validation", "simod_extr_days")]["metrics"]["absolute_event"]["mean"] = 2.0
+    meta = report.verdict_meta(CARD, "validation", found, ["a", "b", "c"])
+    assert meta["verdict"] == "NO-GO" and any("AED perde su c" in r for r in meta["reasons"])
+
+
+def test_meta_skips_logs_where_the_base_is_not_measured():
+    found = _results({"case_arrival": 0.5})
+    found[("c", "validation", "simod_extr")] = {"status": "out_of_budget", "label": "simod_extr", "reason": "oltre 12 GB"}
+    found[("c", "validation", "simod_extr_days")] = {"status": "out_of_budget", "label": "simod_extr_days", "reason": "oltre 12 GB"}
+    meta = report.verdict_meta(CARD, "validation", found, ["a", "b", "c"])
+    assert meta["verdict"] == "GO", meta["reasons"]
+    assert any("esclusi, base non misurata: c" in r for r in meta["reasons"])

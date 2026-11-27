@@ -130,6 +130,29 @@ Uguale a C2 (basi, primarie, guardie, log, regole, letture dichiarate, misura) t
   altri valori. Limite di selezione: la restrizione nasce dal fallimento di C2 su
   bpic2013_incidents in validazione (lecito per il §6, che sceglie sulla validazione).
 
+### Cambio di meta (decisione di Sohayb, 2026-11-27)
+
+- **Prima:** il componente batte gli arrivi di SIMOD su CAR **e** AED. **Ora:** contro
+  `simod_extr` CAR vince sulla maggioranza dei log dove è identificabile e non perde su
+  nessuno; **AED non perde su nessun log**; W1, NGD, RED, CED non perdono su più di un log;
+  costo al massimo il doppio; VAL-01 uguale a quello della base. Prima validazione, poi test,
+  IC 95% separati. Il requisito "vince su AED" passa a B3 (twin intero), riga di `PLAN.md`.
+- **Perché.** AED misura il tempo di tutti gli eventi: dipende da arrivi, attese (B3.2), percorso
+  (B3.3) e durate (B3.4). Dove gli arrivi sono giusti (CAR di C2 ~0 su Insurance_Claims) AED
+  resta 22-33 h per le durate e le attese di SIMOD; su 12 dei 18 log misurati C2 e SIMOD sono
+  pari su AED. Un componente degli arrivi non può vincere AED sulla maggioranza da solo.
+- **"B = A"** non è più una base della meta: si riporta per informazione (il NO-GO contro "B = A"
+  viene dal resto del twin SIMOD, come già scritto nella lettura dichiarata di C1).
+- **Log dove la base non è misurata** (bpic2012: discovery SIMOD oltre 12 GB, noto da G3b prima
+  delle schede) si escludono e si scrivono: senza scenario non c'è confronto, e il componente nel
+  prodotto userà la discovery di DeliR, non quella di SIMOD.
+- **Limite, dichiarato.** La decisione viene **dopo** aver visto C1 e C2 su 19 log di validazione
+  (non C3, non ancora misurato). Con la nuova regola C2 risulterebbe NO-GO in validazione (CAR
+  perde su Insurance_Claims_5_timers, AED su BPIC 2017 W e bpic2013_incidents), quindi il cambio
+  non fa passare nulla di già misurato. `report.py` scrive entrambi i verdetti per ogni scheda
+  ("regola delle schede" e "meta del 2026-11-27"); il test si misura solo per una variante GO in
+  validazione con la meta nuova.
+
 ---
 
 ## 2026-11-26 — G3b benchmark dei motori scientifici — fatto

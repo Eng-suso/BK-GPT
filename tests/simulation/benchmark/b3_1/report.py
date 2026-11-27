@@ -9,6 +9,11 @@ CED) non perdono su piu' di un log, il costo e' al massimo il doppio di ``simod_
 VAL-01, lettura dichiarata nella scheda: lo scenario simulato e' quello della base, quindi
 la condizione e' "VAL-01 uguale a quello di ``simod_extr``" (lo stesso scenario in cache).
 Scrive ``results.md`` e ``verdicts.json``.
+
+Due verdetti per scheda. "Regola delle schede": quella scritta nelle schede, contro
+``simod_extr`` e "B = A", CAR e AED co-primarie. "Meta del 2026-11-27" (decisione di Sohayb,
+LOG.md): solo contro ``simod_extr``, CAR primaria con la regola del §7, AED non perde su nessun
+log, le altre guardie come sopra, e si contano solo i log dove la base e' misurata.
 """
 
 from __future__ import annotations
@@ -63,15 +68,39 @@ def verdict(card: Card, phase: str, results: dict, logs: list[str]) -> dict:
         reasons += [r for r in one["reasons"] if r not in reasons]
     found = {one["verdict"] for one in per_primary.values()}
     outcome = next((v for v in ("INCOMPLETO", "NOT VALIDATED", "NO-GO") if v in found), "GO")
-    differs = [
-        log for log in logs
-        if (c := results.get((log, phase, card.candidate))) and (b := results.get((log, phase, "simod_extr")))
-        and c.get("cost", {}).get("val01") != b.get("cost", {}).get("val01")
-    ]
+    differs = _val01_differs(card, phase, results, logs)
     if differs:
         reasons.append(f"VAL-01 diverso da quello della base su {', '.join(differs)}")
         outcome = "NO-GO" if outcome == "GO" else outcome
     return {"verdict": outcome, "reasons": reasons, "primaries": per_primary}
+
+
+def verdict_meta(card: Card, phase: str, results: dict, logs: list[str]) -> dict:
+    """La meta del 2026-11-27: contro ``simod_extr``, CAR vince e AED non perde su nessun log."""
+    base = BASES[0]
+    unmeasured = [log for log in logs if (b := results.get((log, phase, base))) and not g3b.measured(b)]
+    compared = [log for log in logs if log not in unmeasured]
+    one = g3b.verdict(g3b.Card(card.name, card.candidate, (base,), "case_arrival", "per costruzione"), phase, results, compared)
+    reasons = list(one["reasons"])
+    aed = one.get("bases", {}).get(base, {}).get("guard_losses", {}).get(g3b.LABELS["absolute_event"], [])
+    if len(aed) == 1:  # la guardia ne tollera uno, la meta nessuno
+        reasons.append(f"contro {base}: AED perde su {aed[0]}")
+    outcome = one["verdict"] if one["verdict"] != "GO" or not aed else "NO-GO"
+    differs = _val01_differs(card, phase, results, compared)
+    if differs:
+        reasons.append(f"VAL-01 diverso da quello della base su {', '.join(differs)}")
+        outcome = "NO-GO" if outcome == "GO" else outcome
+    if unmeasured:
+        reasons.append(f"esclusi, base non misurata: {', '.join(unmeasured)}")
+    return {"verdict": outcome, "reasons": reasons, "primaries": {g3b.LABELS["case_arrival"]: one}}
+
+
+def _val01_differs(card: Card, phase: str, results: dict, logs: list[str]) -> list[str]:
+    return [
+        log for log in logs
+        if (c := results.get((log, phase, card.candidate))) and (b := results.get((log, phase, "simod_extr")))
+        and c.get("cost", {}).get("val01") != b.get("cost", {}).get("val01")
+    ]
 
 
 def report(results: dict) -> tuple[str, dict]:
@@ -86,8 +115,8 @@ def report(results: dict) -> tuple[str, dict]:
         "",
         "## Verdetti",
         "",
-        "| Scheda | Fase | Verdetto | Motivi |",
-        "| --- | --- | --- | --- |",
+        "| Scheda | Fase | Regola | Verdetto | Motivi |",
+        "| --- | --- | --- | --- | --- |",
     ]
     verdicts = {}
     measured_cards = [c for c in CARDS if c.candidate in configs]
@@ -95,13 +124,16 @@ def report(results: dict) -> tuple[str, dict]:
         for phase in PHASES:
             if not any(k[1] == phase and k[2] == card.candidate for k in results):
                 continue
-            v = verdict(card, phase, results, logs)
-            verdicts[f"{card.name} / {phase}"] = v
-            lines.append(f"| {card.name} | {phase} | **{v['verdict']}** | {'; '.join(v['reasons']) or '—'} |")
+            for rule, judge in RULES.items():
+                v = judge(card, phase, results, logs)
+                verdicts[f"{card.name} / {phase} / {rule}"] = v
+                lines.append(f"| {card.name} | {phase} | {rule} | **{v['verdict']}** | {'; '.join(v['reasons']) or '—'} |")
     lines += ["", "## Primarie contro ogni base", "", "Vince / pari / perde sui log dove la primaria è identificabile.", "",
               "| Scheda | Fase | Primaria | Base | Vince / pari / perde | Perde su |", "| --- | --- | --- | --- | --- | --- |"]
     for key, v in verdicts.items():
-        name, phase = key.split(" / ")
+        name, phase, rule = key.split(" / ")
+        if rule != RULE_CARDS:
+            continue
         for label, one in v["primaries"].items():
             for base, b in one.get("bases", {}).items():
                 lines.append(f"| {name} | {phase} | {label} | {base} | {b['wins']} / {b['ties']} / {len(b['losses'])} | "
@@ -117,6 +149,10 @@ def report(results: dict) -> tuple[str, dict]:
             lines += [f"| {r['label']} | " + " | ".join(g3b._cell(r, m) for m in METRICS) + f" | {g3b._cost_cell(r)} |" for r in rows]
             lines.append("")
     return "\n".join(lines).rstrip() + "\n", verdicts
+
+
+RULE_CARDS = "regola delle schede"
+RULES = {RULE_CARDS: verdict, "meta del 2026-11-27": verdict_meta}
 
 
 def main() -> int:
