@@ -170,7 +170,7 @@ def test_stream_agent_events_records_first_token_usage_and_langsmith_config(monk
             self.usage_metadata = usage_metadata
 
     class FakeAgent:
-        def stream(self, _input, *, config, stream_mode):
+        def stream(self, _input, *, config, stream_mode, subgraphs=False):
             captured_config.update(config)
             assert stream_mode == ["messages", "updates"]
             yield FakeChunk("Ciao"), {"langgraph_node": "consult_macro_agent"}
@@ -228,7 +228,7 @@ def test_stream_agent_events_narrates_the_phases_the_agent_actually_goes_through
             self.usage_metadata = None
 
     class ToolUsingAgent:
-        def stream(self, _input, *, config, stream_mode):
+        def stream(self, _input, *, config, stream_mode, subgraphs=False):
             assert stream_mode == ["messages", "updates"]
             time.sleep(0.02)
             yield "updates", {
@@ -289,7 +289,7 @@ def test_progress_updates_never_leak_internal_names(monkeypatch):
             self.usage_metadata = None
 
     class CanvasAgent:
-        def stream(self, _input, *, config, stream_mode):
+        def stream(self, _input, *, config, stream_mode, subgraphs=False):
             yield "messages", (FakeChunk(""), {"langgraph_node": "canvas_construction_agent"})
             yield "messages", (FakeChunk("Pronto"), {"langgraph_node": "canvas_drawing_agent"})
 
@@ -326,7 +326,7 @@ def test_stream_agent_events_streams_canvas_subagent_text_but_hides_internal_chu
             self.usage_metadata = None
 
     class FakeAgent:
-        def stream(self, _input, *, config, stream_mode):
+        def stream(self, _input, *, config, stream_mode, subgraphs=False):
             assert stream_mode == ["messages", "updates"]
             yield FakeChunk('{"rows":[["Start","Task"]]}'), {
                 "langgraph_node": "canvas_layout_consultant_agent",

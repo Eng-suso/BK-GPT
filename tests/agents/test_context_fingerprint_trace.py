@@ -80,7 +80,7 @@ def test_the_turn_ledger_row_carries_the_last_context_fingerprint(monkeypatch):
     class _Agent:
         # Due chiamate al modello nello stesso turno: il contesto della seconda
         # e' quello su cui il modello ha scritto la risposta.
-        def stream(self, _input, *, config, stream_mode):
+        def stream(self, _input, *, config, stream_mode, subgraphs=False):
             usage = {"input_tokens": 5, "output_tokens": 1, "total_tokens": 6}
             note_context_fingerprint("1" * 64)
             yield _Chunk(usage), {"langgraph_node": "consult_macro_agent", "tags": [TURN_METERED_TAG]}

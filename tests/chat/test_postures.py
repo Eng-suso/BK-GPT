@@ -47,7 +47,7 @@ def test_a_routed_turn_streams_its_posture_to_the_ui(monkeypatch):
     from backend.services import agent_runtime
 
     class FakeAgent:
-        def stream(self, state, config=None, stream_mode=None):
+        def stream(self, state, config=None, stream_mode=None, subgraphs=False):
             yield ("updates", {"process_subgraph": {"detected_posture": "validate"}})
 
     monkeypatch.setattr(agent_runtime.settings, "delir_fake_llm", False)
@@ -79,7 +79,7 @@ def test_the_chosen_reasoning_selects_the_agent_build(monkeypatch):
     seen: dict = {}
 
     class FakeAgent:
-        def stream(self, state, config=None, stream_mode=None):
+        def stream(self, state, config=None, stream_mode=None, subgraphs=False):
             return iter(())
 
     def fake_get_agent(model_name=None, scope_type=None, reasoning_effort=None):

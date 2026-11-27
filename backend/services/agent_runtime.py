@@ -87,13 +87,13 @@ INTERNAL_AGENT_NODES = {
 # Nodes that report progress but whose token stream is not an answer to the user:
 # a router's structured decision, a subgraph wrapper replaying its child's tokens.
 #
-# Attenzione al raggio d'azione: `agent.stream(...)` gira senza `subgraphs=True`,
-# e in quel modo LangGraph consegna il messaggio scritto in stato attribuendolo
-# al nodo del grafo PIU' ESTERNO (`process_subgraph`, `canvas_subgraph`, ...).
-# I nomi annidati qui sotto e in INTERNAL_AGENT_NODES non arrivano mai, quindi
-# non filtrano: valgono solo i nodi di primo livello. Cio' che non deve essere
-# letto va tenuto fuori da `messages` alla fonte - vedi `findings_channel` in
-# `build_tool_chat_subgraph` e il nodo `process_report`.
+# `agent.stream(...)` gira con `subgraphs=True`: i token arrivano anche dai nodi
+# dei sotto-grafi, attribuiti al nodo che li scrive, ed e' cosi' che la risposta
+# esce parola per parola. Cio' che non deve essere letto va tenuto fuori dallo
+# stream alla fonte, con `unstreamed_config` (tag `nostream`): vedi
+# `findings_channel` in `build_tool_chat_subgraph` e il nodo `process_report`.
+# Filtrarlo qui non basta: LangGraph lo darebbe per consegnato e non
+# riconsegnerebbe il messaggio a fine nodo.
 NON_DELTA_AGENT_NODES = {
     "canvas_router",
     "patch_edit_subgraph",
@@ -357,10 +357,20 @@ def progress_event(
 def normalize_stream_event(event: Any) -> tuple[str, Any]:
     """Riporta un elemento dello stream a ``(modo, payload)``.
 
-    Con piu' `stream_mode` LangGraph antepone il nome del modo; con uno solo
-    consegna direttamente la coppia ``(chunk, metadata)``. Gli agenti finti dei
-    test usano ancora la forma corta, e devono continuare a funzionare.
+    Con piu' `stream_mode` LangGraph antepone il nome del modo; con
+    `subgraphs=True` antepone anche lo spazio del sotto-grafo
+    (``(namespace, modo, payload)``); con un modo solo consegna direttamente la
+    coppia ``(chunk, metadata)``. Gli agenti finti dei test usano ancora la
+    forma corta, e devono continuare a funzionare.
     """
+    if (
+        isinstance(event, tuple)
+        and len(event) == 3
+        and isinstance(event[0], tuple)
+        and isinstance(event[1], str)
+    ):
+        return event[1], event[2]
+
     if (
         isinstance(event, tuple)
         and len(event) == 2
@@ -386,7 +396,7 @@ def tool_calls_in_update(update: Any) -> list[dict]:
         update: Aggiornamento di stato emesso dal grafo.
 
     Returns:
-        list[dict]: Chiamate trovate, ognuna con ``name`` e ``args``.
+        list[dict]: Chiamate trovate, ognuna con ``name``, ``args`` e ``id``.
     """
     found: list[dict] = []
 
@@ -410,12 +420,15 @@ def tool_calls_in_update(update: Any) -> list[dict]:
 
         for call in calls:
             if isinstance(call, dict):
-                found.append({"name": call.get("name"), "args": call.get("args")})
+                found.append(
+                    {"name": call.get("name"), "args": call.get("args"), "id": call.get("id")}
+                )
             else:
                 found.append(
                     {
                         "name": getattr(call, "name", None),
                         "args": getattr(call, "args", None),
+                        "id": getattr(call, "id", None),
                     }
                 )
 
@@ -862,7 +875,13 @@ def stream_agent_events(
                     # consulente resta al buio proprio mentre l'agente cerca in
                     # memoria o rilegge le fonti, che e' l'attesa piu' lunga.
                     stream_mode=["messages", "updates"],
+                    # Senza, i token scritti dentro un sotto-grafo (la risposta
+                    # del consulente, del progetto, del processo) arrivano in un
+                    # blocco solo a fine turno: lo schermo resta fermo per tutto
+                    # il ragionamento (docs/load-test/README.md).
+                    subgraphs=True,
                 )
+                announced_tool_calls: set[str] = set()
 
                 for event in events:
                     if consumer_gone.is_set():
@@ -895,6 +914,12 @@ def stream_agent_events(
                             )
                         if emit_activity:
                             for call in tool_calls_in_update(payload):
+                                # La stessa chiamata arriva dal sotto-grafo e poi,
+                                # a fine nodo, dal grafo che lo contiene.
+                                if call.get("id"):
+                                    if call["id"] in announced_tool_calls:
+                                        continue
+                                    announced_tool_calls.add(call["id"])
                                 progress = progress_event(
                                     context=context,
                                     thread_id=thread_id,
