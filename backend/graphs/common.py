@@ -283,6 +283,24 @@ def _findings_digest(findings: list[dict]) -> str:
     )
 
 
+def with_contract_before_history(messages: list, contract: str) -> list:
+    """Il contratto del sotto-grafo subito dopo le istruzioni fisse, prima del contesto.
+
+    Il fornitore riusa dalla cache solo l'inizio identico del prompt (OpenAI:
+    prompt sopra i 1024 token, prefisso uguale fino al byte). Il contratto e'
+    fisso - istruzioni dell'agente piu' i suoi tool, migliaia di token - ma
+    stava in coda, dopo la conversazione: ogni turno, e ogni passo dopo una
+    tool call, lo ripagava per intero. Qui l'ordine e' quello che il fornitore
+    premia: cio' che non cambia mai (il primo messaggio di sistema, le
+    istruzioni del prodotto), il contratto, poi il contesto del thread e la
+    conversazione, che cresce solo in fondo.
+    """
+    contract_message = SystemMessage(content=contract)
+    if messages and isinstance(messages[0], SystemMessage):
+        return [messages[0], contract_message, *messages[1:]]
+    return [contract_message, *messages]
+
+
 def build_tool_chat_subgraph(
     state_schema,
     tools: list,
@@ -350,7 +368,7 @@ def build_tool_chat_subgraph(
         messages = build_context_messages(state)
 
         if subgraph_contract:
-            messages = [*messages, SystemMessage(content=subgraph_contract)]
+            messages = with_contract_before_history(messages, subgraph_contract)
 
         # Le passate precedenti non sono nel transcript: senza questo, ogni
         # specialista ripartirebbe da zero e rifarebbe il lavoro appena fatto.
