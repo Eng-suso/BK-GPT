@@ -37,6 +37,11 @@ function usage(overrides: Record<string, unknown> = {}) {
     trial: { ...window({ used_share: 0.1, resets_at: inHours(24 * 10) }), over: false },
     blocking: null,
     forecast: null,
+    audio: {
+      week: { used_seconds: 7_800, limit_seconds: 21_600, exhausted: false, resets_at: inHours(72) },
+      trial: { used_seconds: 10_800, limit_seconds: 36_000, exhausted: false, resets_at: inHours(240) },
+      blocking: null,
+    },
     ...overrides,
   };
 }
@@ -125,6 +130,51 @@ describe("UsageMenu", () => {
   });
 });
 
+describe("UsageMenu, registrazioni", () => {
+  it("mostra le ore di registrazione in chiaro", async () => {
+    http.mockResolvedValue(usage());
+    const user = setupUser();
+    render(<UsageMenu />, { wrapper });
+
+    await user.click(await screen.findByRole("button", { name: /Utilizzo/ }));
+
+    expect(screen.getByText("2 h 10 min su 6 h")).toBeVisible();
+    expect(screen.getByText("3 h su 10 h")).toBeVisible();
+    expect(screen.getByRole("progressbar", { name: "Ore di registrazione questa settimana" })).toHaveAttribute(
+      "aria-valuenow",
+      "36",
+    );
+  });
+
+  it("a ore finite avvisa che la chat continua", async () => {
+    http.mockResolvedValue(
+      usage({
+        audio: {
+          week: { used_seconds: 21_600, limit_seconds: 21_600, exhausted: true, resets_at: inHours(30) },
+          trial: { used_seconds: 21_600, limit_seconds: 36_000, exhausted: false, resets_at: inHours(240) },
+          blocking: "week",
+        },
+      }),
+    );
+    const user = setupUser();
+    render(<UsageMenu />, { wrapper });
+
+    await user.click(await screen.findByRole("button", { name: /Utilizzo/ }));
+
+    expect(screen.getByText("Ore di registrazione finite")).toBeVisible();
+    expect(screen.getByText(/La chat e il resto continuano/)).toBeVisible();
+  });
+});
+
+describe("formatDuration", () => {
+  it("scrive le durate come le dice una persona", async () => {
+    const { formatDuration } = await import("@/lib/date");
+    expect(formatDuration(7_800, "it")).toBe("2 h 10 min");
+    expect(formatDuration(2_700, "it")).toBe("45 min");
+    expect(formatDuration(21_600, "it")).toBe("6 h");
+  });
+});
+
 describe("headlineShare e usageTone", () => {
   it("un limite raggiunto vale sempre il pieno", () => {
     const window = { usedShare: 0.4, limited: true, exhausted: false, resetsAt: null };
@@ -137,6 +187,11 @@ describe("headlineShare e usageTone", () => {
       trialOver: true,
       blocking: "trial" as const,
       forecast: null,
+      audio: {
+        week: { usedSeconds: 0, limitSeconds: null, usedShare: 0, limited: false, exhausted: false, resetsAt: null },
+        trial: { usedSeconds: 0, limitSeconds: null, usedShare: 0, limited: false, exhausted: false, resetsAt: null },
+        blocking: null,
+      },
     };
     expect(headlineShare(blocked)).toBe(1);
   });

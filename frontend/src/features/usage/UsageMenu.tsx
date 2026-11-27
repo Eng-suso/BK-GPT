@@ -7,8 +7,8 @@ import { Meter, type MeterTone } from "@/components/data/Meter";
 import { InlineNotice } from "@/components/feedback/InlineNotice";
 import { Button } from "@/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
-import { daysUntil, formatDayMonth, formatUpcoming } from "@/lib/date";
-import { headlineShare, usageTone, useUsageQuery, type ActiveUsage, type UsageWindow } from "./api";
+import { daysUntil, formatDayMonth, formatDuration, formatUpcoming } from "@/lib/date";
+import { headlineShare, usageTone, useUsageQuery, type ActiveUsage, type AudioWindow, type UsageWindow } from "./api";
 
 // Gli stessi colori di `Meter`, per l'anello che non e' una barra.
 const RING_COLOR: Record<MeterTone, string> = {
@@ -70,7 +70,18 @@ export function UsageRing({ share, size = 28 }: { share: number; size?: number }
   );
 }
 
-function WindowRow({ title, window, caption }: { title: string; window: UsageWindow; caption: string }): React.JSX.Element {
+function WindowRow({
+  title,
+  window,
+  caption,
+  amount,
+}: {
+  title: string;
+  window: UsageWindow;
+  caption: string;
+  /** Al posto della percentuale: per l'audio, "2 h 10 min su 6 h". */
+  amount?: string;
+}): React.JSX.Element {
   const { t } = useTranslation("common");
   const share = shownShare(window);
   return (
@@ -78,7 +89,7 @@ function WindowRow({ title, window, caption }: { title: string; window: UsageWin
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-body-sm font-semibold text-foreground">{title}</p>
         <p className="shrink-0 text-xs tabular-nums text-muted-foreground">
-          {t("usage.used", { percent: percent(share) })}
+          {amount ?? t("usage.used", { percent: percent(share) })}
         </p>
       </div>
       <Meter value={percent(share)} label={title} tone={usageTone(share)} showValue={false} height={8} />
@@ -133,6 +144,13 @@ export function UsageMenu(): React.JSX.Element | null {
   );
 }
 
+function audioAmount(window: AudioWindow, locale: string, t: (key: string, options?: Record<string, unknown>) => string): string {
+  const used = formatDuration(window.usedSeconds, locale);
+  return window.limitSeconds === null
+    ? t("usage.audio.usedNoLimit", { used })
+    : t("usage.audio.usedOf", { used, limit: formatDuration(window.limitSeconds, locale) });
+}
+
 function UsagePanel({ usage }: { usage: ActiveUsage }): React.JSX.Element {
   const { t, i18n } = useTranslation("common");
   const locale = i18n.language || "it";
@@ -161,6 +179,16 @@ function UsagePanel({ usage }: { usage: ActiveUsage }): React.JSX.Element {
         {t(`usage.blocked.${key}.body`, { when: resetsAt ? upcoming(resetsAt) : "" })}
       </InlineNotice>
     );
+  } else if (usage.audio.blocking) {
+    // Le ore di registrazione finite non fermano la chat: lo si dice, in ambra.
+    const resetsAt = usage.audio[usage.audio.blocking].resetsAt;
+    banner = (
+      <InlineNotice tone="warning" title={t("usage.audio.blocked.title")}>
+        {usage.audio.blocking === "week" && resetsAt
+          ? t("usage.audio.blocked.week", { when: upcoming(resetsAt) })
+          : t("usage.audio.blocked.trial")}
+      </InlineNotice>
+    );
   } else if (usage.forecast) {
     banner = (
       <InlineNotice tone="warning" title={t("usage.forecast.title")}>
@@ -182,6 +210,25 @@ function UsagePanel({ usage }: { usage: ActiveUsage }): React.JSX.Element {
       <WindowRow title={t("usage.week.title")} window={usage.week} caption={weekCaption} />
       {usage.trial.limited || usage.trialOver ? (
         <WindowRow title={t("usage.trial.title")} window={usage.trial} caption={trialCaption} />
+      ) : null}
+      {usage.audio.week.limited || usage.audio.trial.limited ? (
+        <>
+          <p className="px-1 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {t("usage.audio.heading")}
+          </p>
+          <WindowRow
+            title={t("usage.audio.week")}
+            window={usage.audio.week}
+            amount={audioAmount(usage.audio.week, locale, t)}
+            caption={usage.audio.week.resetsAt ? t("usage.week.resets", { when: upcoming(usage.audio.week.resetsAt) }) : ""}
+          />
+          <WindowRow
+            title={t("usage.audio.trial")}
+            window={usage.audio.trial}
+            amount={audioAmount(usage.audio.trial, locale, t)}
+            caption={t("usage.audio.trialCaption")}
+          />
+        </>
       ) : null}
       <p className="px-1 text-xs leading-relaxed text-muted-foreground">{t("usage.explainer")}</p>
     </div>

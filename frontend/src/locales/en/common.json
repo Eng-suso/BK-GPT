@@ -413,6 +413,19 @@
         "body": "Your work stays available. To keep working, contact the DeliR team."
       }
     },
-    "explainer": "The count covers chat, document reading, the knowledge map and simulations. Work that has started always finishes: the limit only stops the next request."
+    "explainer": "The count covers chat, document reading, the knowledge map and simulations; recordings have their own hours. Work that has started always finishes: the limit only stops the next request.",
+    "audio": {
+      "heading": "Recordings",
+      "week": "Recording hours this week",
+      "trial": "Recording hours in the trial",
+      "trialCaption": "Live recordings and transcribed audio files",
+      "usedOf": "{{used}} of {{limit}}",
+      "usedNoLimit": "{{used}} used",
+      "blocked": {
+        "title": "Recording hours used up",
+        "week": "Chat and everything else keep working. You can record again {{when}}.",
+        "trial": "Chat and everything else keep working. To record more, contact the DeliR team."
+      }
+    }
   }
 }
