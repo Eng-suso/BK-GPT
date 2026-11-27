@@ -36,7 +36,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-from tests.simulation.benchmark.b3_2.attribution import CAUSES, Calendar, Execution, Waiting, _Busy, _merge, attribute
+from tests.simulation.benchmark.b3_2.attribution import CAUSES, BusyPeriods, Calendar, Execution, Waiting, attribute, merge_periods
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
@@ -70,7 +70,7 @@ def true_calendars(name: str) -> dict[str, Calendar]:
             hi = 86400.0 if hi >= 86340 else hi
             for day in range(DAYS.index(p["from"]), DAYS.index(p["to"]) + 1):
                 periods.append((day * 86400 + lo, day * 86400 + hi))
-        merged = _merge(periods)
+        merged = merge_periods(periods)
         calendars[cal["id"]] = Calendar(always=True) if merged == [(0.0, float(7 * 86400))] else Calendar(merged)
     by_profile = {}
     for profile in scenario["resource_profiles"]:
@@ -103,7 +103,7 @@ def load_truth(name: str, phase: str) -> tuple[list[Execution], list[Waiting]]:
     work = defaultdict(list)
     for e in executions:
         work[e.resource].append((e.start, e.end))
-    busy = {r: _Busy(v) for r, v in work.items()}
+    busy = {r: BusyPeriods(v) for r, v in work.items()}
     first = {}
     for e in executions:
         first[e.case_id] = min(first.get(e.case_id, e.start), e.start)
@@ -125,7 +125,7 @@ def load_truth(name: str, phase: str) -> tuple[list[Execution], list[Waiting]]:
     return executions, truths
 
 
-def _busy_on(busy: _Busy, a: float, b: float, calendar: Calendar) -> float:
+def _busy_on(busy: BusyPeriods, a: float, b: float, calendar: Calendar) -> float:
     total = 0.0
     for lo, hi in busy.intervals:
         lo, hi = max(lo, a), min(hi, b)

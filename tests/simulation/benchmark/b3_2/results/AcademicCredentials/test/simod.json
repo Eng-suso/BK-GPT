@@ -1,0 +1,157 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "AcademicCredentials",
+  "category": "osservabilita completa",
+  "phase": "test",
+  "config": "simod",
+  "label": "SIMOD senza ritardi (scenario fissato, base dell'ablazione)",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 398,
+    "target": 398
+  },
+  "identifiability": {
+    "cycle_time_w1": "identificabile",
+    "ngram": "identificabile",
+    "relative_event": "identificabile",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "NOT VALIDATED",
+    "true_parameters": "NOT VALIDATED",
+    "counterfactual": "NOT VALIDATED"
+  },
+  "status": "measured",
+  "simulated_cases": [
+    398,
+    398,
+    398,
+    398,
+    398,
+    398,
+    398,
+    398,
+    398,
+    398
+  ],
+  "metrics": {
+    "cycle_time_w1": {
+      "mean": 306.38994974874373,
+      "ci95": 1.4481440756180033,
+      "replicas": [
+        308.21608040201005,
+        307.39447236180905,
+        303.86934673366835,
+        306.68341708542715,
+        307.84422110552765,
+        304.0603015075377,
+        309.8969849246231,
+        306.4070351758794,
+        304.0678391959799,
+        305.45979899497485
+      ]
+    },
+    "ngram": {
+      "mean": 0.4870120689276278,
+      "ci95": 0.06803508276822912,
+      "replicas": [
+        0.33110474371219356,
+        0.4498426166689476,
+        0.5101596516690856,
+        0.5191269936443219,
+        0.4464359009440416,
+        0.5282858873410055,
+        0.35263835263835264,
+        0.5649061923869428,
+        0.6468096372782631,
+        0.5208107129931234
+      ]
+    },
+    "relative_event": {
+      "mean": 6579.704794531719,
+      "ci95": 1384.5661329283591,
+      "replicas": [
+        9600.687963211363,
+        7103.371883988495,
+        5982.864835629052,
+        5697.062259352191,
+        7070.845383849116,
+        5954.754360178971,
+        9874.124948331299,
+        4898.912642664846,
+        3670.1673784156706,
+        5944.2562896961845
+      ]
+    },
+    "absolute_event": {
+      "mean": 6836.254980092772,
+      "ci95": 1370.6673713186876,
+      "replicas": [
+        9667.429989461869,
+        7483.453785998841,
+        6271.247913440027,
+        5967.793037301848,
+        7202.858472008464,
+        6368.8650416451555,
+        10126.412907472793,
+        4846.712983980402,
+        3962.227452184057,
+        6465.5482174342615
+      ]
+    },
+    "circadian_event": {
+      "mean": 4.307926529705934,
+      "ci95": 0.18635489680167483,
+      "replicas": [
+        4.159751235446131,
+        4.177791304848054,
+        4.252437019245319,
+        4.37356568778612,
+        4.321201582932407,
+        4.144860014495384,
+        4.021955885175165,
+        4.4349040266209405,
+        4.966122212184,
+        4.226676328325823
+      ]
+    },
+    "case_arrival": {
+      "mean": 227.36884422110552,
+      "ci95": 57.53352049437855,
+      "replicas": [
+        149.19346733668343,
+        218.33417085427135,
+        124.73366834170854,
+        200.9572864321608,
+        261.7035175879397,
+        225.0075376884422,
+        253.06281407035175,
+        162.33417085427135,
+        269.4924623115578,
+        408.86934673366835
+      ]
+    }
+  },
+  "cost": {
+    "discovery_seconds": 123.3,
+    "discovery_peak_mb": 1097.1,
+    "simulation_seconds": [
+      0.354,
+      0.408,
+      0.474,
+      0.519,
+      0.482,
+      0.577,
+      0.323,
+      0.557,
+      0.75,
+      0.424
+    ],
+    "simulation_peak_mb": 175.6,
+    "val01": "non supera: I casi che arrivano a «Avanzar recepcion documentos» non escono più da quel tratto: dopo quell'attività il processo li rimanda indietro ogni volta, perché la strada per proseguire ha probabilità 0. La simulazione ripeterebbe quel tratto all'infinito e i risultati non avrebbero senso.\nCosa fare: dai a quella strada una probabilità maggiore di zero (per esempio la quota di casi che nella realtà va avanti dopo quell'attività) oppure ricalcola il modello dai dati storici del processo, po"
+  },
+  "b3_2": "tests/simulation/benchmark/b3_2/run.py"
+}

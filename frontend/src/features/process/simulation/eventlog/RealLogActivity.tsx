@@ -6,10 +6,11 @@ import { httpErrorMessage } from "@/lib/http";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
 
-import { formatDuration, MISSING_VALUE } from "../simulationResults";
+import { formatDuration, formatPercent, MISSING_VALUE } from "../simulationResults";
 import type { SimulationRun, SimulationSummary } from "../simulationTypes";
+import type { EventLogSummary } from "./eventLogTypes";
 import { useSimulationSection } from "../useSimulationSection";
-import { compareRealToSimulated, latestMappedLog, signedPercent } from "./realVsSimulated";
+import { compareRealToSimulated, latestMappedLog, signedPercent, waitingCausesFor } from "./realVsSimulated";
 import { useEventLogAnalysis, useEventLogs } from "./useEventLogImport";
 import "./eventLog.css";
 
@@ -78,6 +79,34 @@ export function RealLogActivity({ run, elementId }: { run: SimulationRun; elemen
               <dd>{row.realCount} → {row.simulatedCount}</dd>
             </div>
           </dl>
+          {summary && row.realWait !== null && <WaitingCauses summary={summary} elementId={elementId} />}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** B3.2: perche' si aspetta prima dell'attivita', nel log reale. Prima la causa che pesa di piu'. */
+function WaitingCauses({ summary, elementId }: { summary: EventLogSummary; elementId: string }): React.JSX.Element {
+  const { t } = useTranslation("process");
+  const result = waitingCausesFor(summary, elementId);
+  const title = t("simulation.eventLog.inspector.causes.title");
+  return (
+    <section className="sim-real-causes" aria-label={title}>
+      <h5>{title}</h5>
+      {result.kind === "unavailable" && <p className="sim-help">{t("simulation.eventLog.inspector.causes.unavailable")}</p>}
+      {result.kind === "none" && <p className="sim-help">{t("simulation.eventLog.inspector.causes.none")}</p>}
+      {result.kind === "causes" && (
+        <>
+          <dl>
+            {result.causes.map(({ cause, share }) => (
+              <div key={cause}>
+                <dt>{t(`simulation.eventLog.inspector.causes.${cause}`)}</dt>
+                <dd>{formatPercent(share)}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="sim-help">{t("simulation.eventLog.inspector.causes.how", { count: result.waiting, total: result.executions })}</p>
         </>
       )}
     </section>
