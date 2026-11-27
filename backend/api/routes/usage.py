@@ -5,11 +5,17 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.llm import budget
-from backend.security import AuthPrincipal, require_admin_principal, require_principal
+from backend.security import (
+    SUPABASE_PROVIDER,
+    AuthPrincipal,
+    account_tenant_id,
+    require_platform_admin,
+    require_principal,
+)
 from backend.settings import settings
 
 router = APIRouter(prefix="/v1/usage", tags=["usage"], dependencies=[Depends(require_principal)])
@@ -87,16 +93,41 @@ def _admin_view(current: budget.UsageStatus) -> dict:
     return {"user_id": current.user_id, **view}
 
 
+def _plan_tenant(user_id: str, admin: AuthPrincipal) -> str:
+    """Lo spazio in cui vive il piano di `user_id`.
+
+    Con gli account personali ognuno ha il suo spazio, quindi il piano di una
+    persona sta nel suo account e non in quello di chi lo amministra. Con il
+    token condiviso resta lo spazio della richiesta.
+
+    Raises:
+        HTTPException: 422 se, con gli account personali, `user_id` non e' l'id
+            (UUID) di una persona.
+    """
+    if admin.auth_mode != SUPABASE_PROVIDER:
+        return admin.tenant_id
+    try:
+        return account_tenant_id(user_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail="user_id deve essere l'id (UUID) dell'account."
+        ) from exc
+
+
 @router.get("/plans/{user_id}")
-def get_plan(user_id: str, _admin: AuthPrincipal = Depends(require_admin_principal)) -> dict:
+def get_plan(user_id: str, admin: AuthPrincipal = Depends(require_platform_admin)) -> dict:
     # Solo lettura: guardare il piano di un id non crea niente.
-    return _admin_view(budget.status(user_id))
+    return _admin_view(budget.status(user_id, tenant_id=_plan_tenant(user_id, admin)))
 
 
 @router.put("/plans/{user_id}")
 def put_plan(
     user_id: str,
     update: PlanUpdate,
-    _admin: AuthPrincipal = Depends(require_admin_principal),
+    admin: AuthPrincipal = Depends(require_platform_admin),
 ) -> dict:
-    return _admin_view(budget.update_plan(user_id, **update.model_dump()))
+    return _admin_view(
+        budget.update_plan(
+            user_id, tenant_id=_plan_tenant(user_id, admin), **update.model_dump()
+        )
+    )
