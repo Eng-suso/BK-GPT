@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 from decimal import Decimal
 
@@ -93,11 +94,13 @@ def _admin_view(current: budget.UsageStatus) -> dict:
     return {"user_id": current.user_id, **view}
 
 
-def _plan_tenant(user_id: str, admin: AuthPrincipal) -> str:
-    """Lo spazio in cui vive il piano di `user_id`.
+def _plan_owner(user_id: str, admin: AuthPrincipal) -> tuple[str, str]:
+    """Di chi e' il piano, e in quale spazio vive: `(user_id, tenant_id)`.
 
     Con gli account personali ognuno ha il suo spazio, quindi il piano di una
-    persona sta nel suo account e non in quello di chi lo amministra. Con il
+    persona sta nel suo account e non in quello di chi lo amministra. L'id si
+    normalizza come lo scrive Supabase (minuscolo, con i trattini): un UUID
+    scritto diverso creerebbe un piano che nessuna richiesta legge. Con il
     token condiviso resta lo spazio della richiesta.
 
     Raises:
@@ -105,19 +108,21 @@ def _plan_tenant(user_id: str, admin: AuthPrincipal) -> str:
             (UUID) di una persona.
     """
     if admin.auth_mode != SUPABASE_PROVIDER:
-        return admin.tenant_id
+        return user_id, admin.tenant_id
     try:
-        return account_tenant_id(user_id)
+        normalized = str(uuid.UUID(user_id))
     except ValueError as exc:
         raise HTTPException(
             status_code=422, detail="user_id deve essere l'id (UUID) dell'account."
         ) from exc
+    return normalized, account_tenant_id(normalized)
 
 
 @router.get("/plans/{user_id}")
 def get_plan(user_id: str, admin: AuthPrincipal = Depends(require_platform_admin)) -> dict:
     # Solo lettura: guardare il piano di un id non crea niente.
-    return _admin_view(budget.status(user_id, tenant_id=_plan_tenant(user_id, admin)))
+    owner, tenant_id = _plan_owner(user_id, admin)
+    return _admin_view(budget.status(owner, tenant_id=tenant_id))
 
 
 @router.put("/plans/{user_id}")
@@ -126,8 +131,5 @@ def put_plan(
     update: PlanUpdate,
     admin: AuthPrincipal = Depends(require_platform_admin),
 ) -> dict:
-    return _admin_view(
-        budget.update_plan(
-            user_id, tenant_id=_plan_tenant(user_id, admin), **update.model_dump()
-        )
-    )
+    owner, tenant_id = _plan_owner(user_id, admin)
+    return _admin_view(budget.update_plan(owner, tenant_id=tenant_id, **update.model_dump()))
