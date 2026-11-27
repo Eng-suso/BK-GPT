@@ -58,9 +58,9 @@ def report(dump_dir: Path, min_tokens: int = 1000) -> list[dict]:
         serials = [_serial(b) for b in bodies]
         if len(serials) < 2 or len(serials[0]) < min_tokens * 4:
             continue
-        for previous, (current, body) in zip(serials, zip(serials[1:], bodies[1:])):
+        for previous, (current, body) in zip(serials, zip(serials[1:], bodies[1:], strict=True), strict=False):
             same = 0
-            for a, b in zip(previous, current):
+            for a, b in zip(previous, current, strict=False):
                 if a != b:
                     break
                 same += 1
