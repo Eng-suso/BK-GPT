@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -41,7 +42,9 @@ from tests.simulation.benchmark.b3_2.attribution import (
     extraneous_delays,
     fit_closest,
     fit_duration,
+    on_shift_plus,
 )
+from tests.simulation.benchmark.log_distance import distances
 from tests.simulation.benchmark.g3b import run as g3b
 from tests.simulation.benchmark.run_baseline import replicas_error
 
@@ -56,6 +59,7 @@ CONFIGS = {
     "simod_attr_idle": "SIMOD senza ritardi + ritardi esterni con la risorsa libera e in orario (B3.2 v2)",
     "simod_attr_shift": "SIMOD senza ritardi + ritardi esterni senza il fuori orario della risorsa (B3.2 v3)",
     "simod_attr_closest": "come v3, distribuzione piu' vicina al campione (B3.2 v4)",
+    "simod_attr_calibrated": "come v3 piu' beta volte il fuori orario, beta scelto sull'input della discovery (B3.2 v5)",
     "simod_extr": g3b.CONFIGS["simod_extr"],
 }
 
@@ -89,6 +93,65 @@ def attributed_delays(prepared: g3b.Prepared, config: str) -> tuple[Path, dict]:
     return folder, {"seconds": diff["seconds"] + attr["seconds"], "peak_mb": diff["peak_mb"], "delays_seconds": attr["seconds"]}
 
 
+BETAS = (0.0, 0.25, 0.5, 0.75, 1.0)
+CALIBRATION_REPLICAS = 3
+CALIBRATION_METRICS = ("cycle_time_w1", "relative_event", "absolute_event")
+
+
+def _scenario_with(diff_folder: Path, delays: dict[str, dict], folder: Path) -> list[dict]:
+    """Scrive in ``folder`` il BPMN e lo scenario senza ritardi con i timer di ``delays``."""
+    bpmn, events = add_timers((diff_folder / "model.bpmn").read_text(encoding="utf-8"), delays)
+    scenario = json.loads((diff_folder / "scenario.json").read_text(encoding="utf-8"))
+    scenario["event_distribution"] = events
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "model.bpmn").write_text(bpmn, encoding="utf-8")
+    (folder / "scenario.json").write_text(json.dumps(scenario), encoding="utf-8")
+    return events
+
+
+def calibrated_delays(prepared: g3b.Prepared, seed: int) -> tuple[Path, dict]:
+    """v5: beta scelto simulando l'ultimo 20% dell'input della discovery (mai la validazione ne' il test).
+
+    Per ogni beta lo scenario con i timer simula i casi della coda dell'input (``protocol.train_validation``
+    sull'input) dal loro primo inizio, ``CALIBRATION_REPLICAS`` repliche; vince la somma piu' bassa di
+    W1, RED e AED, ognuna divisa per il suo valore con beta = 0. Come la fase dei ritardi di SIMOD,
+    lo scenario e' scoperto sull'input intero.
+    """
+    diff_folder, diff = g3b.simod_diff(prepared)
+
+    def build(folder: Path) -> dict:
+        began = time.perf_counter()
+        executions = [Execution(r.case_id, r.activity, (r.start or r.end).timestamp(), r.end.timestamp(), r.resource or "missing")
+                      for r in prepared.source]
+        waitings = attribute(executions)
+        _, holdout = protocol.train_validation(prepared.source_events)
+        cases, start = len({e.case_id for e in holdout}), min(e.start for e in holdout)
+        scores, peak = {}, 0.0
+        for beta in BETAS:
+            trial = folder / f"beta_{beta}"
+            _scenario_with(diff_folder, extraneous_delays(executions, waitings, measure=on_shift_plus(beta)), trial)
+            run = g3b.prosimos(trial / "model.bpmn", trial / "scenario.json",
+                               g3b.tool_args(cases, start, seed, CALIBRATION_REPLICAS, trial), trial, CALIBRATION_REPLICAS)
+            peak = max(peak, run.peak_mb)
+            measured_ = [distances(holdout, g3b.read_simulated(trial / f"sim_{r}.csv")) for r in range(CALIBRATION_REPLICAS)]
+            scores[beta] = {m: sum(d[m] for d in measured_) / len(measured_) for m in CALIBRATION_METRICS}
+        zero = scores[0.0]
+        total = {b: sum(v[m] / zero[m] if zero[m] else v[m] for m in CALIBRATION_METRICS) for b, v in scores.items()}
+        beta = min(BETAS, key=lambda b: (total[b], b))
+        events = _scenario_with(diff_folder, extraneous_delays(executions, waitings, measure=on_shift_plus(beta)), folder)
+        for b in BETAS:
+            shutil.rmtree(folder / f"beta_{b}", ignore_errors=True)
+        (folder / "delays.json").write_text(json.dumps({e["activity"]: e["distribution_params"][0]["value"] for e in events}, indent=2),
+                                            encoding="utf-8")
+        (folder / "calibration.json").write_text(json.dumps({"beta": beta, "scores": scores, "total": total}, indent=2), encoding="utf-8")
+        return {"seconds": round(time.perf_counter() - began, 1),
+                "peak_mb": max(peak, round(psutil.Process().memory_info().rss / 2**20, 1)), "beta": beta}
+
+    folder, attr = g3b._cached(prepared, f"simod_attr_calibrated_{seed}", build)
+    return folder, {"seconds": diff["seconds"] + attr["seconds"], "peak_mb": max(diff["peak_mb"], attr["peak_mb"]),
+                    "delays_seconds": attr["seconds"], "beta": attr["beta"]}
+
+
 def fixed_delays(prepared: g3b.Prepared, seed: int) -> tuple[Path, dict]:
     """Lo scenario senza ritardi con i soli ritardi di SIMOD; costo = discovery senza ritardi + ritardi."""
     diff_folder, diff = g3b.simod_diff(prepared)
@@ -120,6 +183,10 @@ def simulate(config: str, prepared: g3b.Prepared, out: Path, seed: int, replicas
     if config == "simod":
         folder, meta = g3b.simod_diff(prepared)
         cost = {"discovery_seconds": meta["seconds"], "discovery_peak_mb": meta["peak_mb"]}
+    elif config == "simod_attr_calibrated":
+        folder, meta = calibrated_delays(prepared, seed)
+        cost = {"discovery_seconds": meta["seconds"], "discovery_peak_mb": meta["peak_mb"], "delays_seconds": meta["delays_seconds"],
+                "beta": meta["beta"], "delays": json.loads((folder / "delays.json").read_text(encoding="utf-8"))}
     elif config == "simod_fixed_extr" or config in ATTRIBUTED:
         folder, meta = fixed_delays(prepared, seed) if config == "simod_fixed_extr" else attributed_delays(prepared, config)
         cost = {"discovery_seconds": meta["seconds"], "discovery_peak_mb": meta["peak_mb"], "delays_seconds": meta["delays_seconds"],

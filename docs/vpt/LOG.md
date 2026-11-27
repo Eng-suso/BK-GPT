@@ -129,6 +129,18 @@ Modello:
   `simod_attr_closest`, ritardi di v3 con la famiglia (fissa, esponenziale, normale, lognormale,
   uniforme, troncate come in Prosimos) scelta per distanza di Wasserstein minima dai quantili del
   campione (`fit_closest`, solo libreria standard). Valutazioni in validazione per i 3 log: 4 su 20.
+- **Esito scheda 3d, validazione: NO-GO (v4).** Identico a v3 sui due BPIC (la lognormale era già la
+  più vicina): la forma non è la causa. Diagnosi su BPIC 2017 W validazione (replica 0): durata
+  mediana dei casi reale 170 h, v3 116 h, SIMOD con ritardi 237 h; il 90% degli eventi reali finisce
+  entro il giorno 24, v3 entro il 18. W1 premia v3, AED la coda lunga di SIMOD: il ritardo giusto
+  sta fra v3 e v1, e il solo log non dice dove.
+- **Scheda 3e — v5** (prima della misura; base, primarie, guardie, log e regola della scheda 3):
+  `simod_attr_calibrated`, timer = ritardo in orario di v3 + β × il fuori orario dentro il ritardo
+  esterno, β in {0; 0,25; 0,5; 0,75; 1} scelto **sull'input della discovery**: si simula l'ultimo 20%
+  dei casi dell'input (3 repliche per β) e vince la somma minima di W1, RED e AED divise per il valore
+  a β = 0. La validazione e il test non entrano nella scelta; come nella fase dei ritardi di SIMOD,
+  lo scenario è scoperto sull'input intero. Il costo della calibrazione conta. Valutazioni in
+  validazione per i 3 log: 5 su 20.
 - **Difetto del banco di G3b, da correggere con Sohayb:** `within_intervals` usa `<`, quindi due
   risultati identici con IC nullo (sintetici di un giorno) risultano diversi e `compare` dà
   "perde". In G3b: 246 confronti identici; sulle primarie, 4 RED "persi" della scheda Attese in

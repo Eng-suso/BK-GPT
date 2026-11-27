@@ -26,7 +26,7 @@ from __future__ import annotations
 import bisect
 import math
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -323,7 +323,7 @@ def _batches(executions: Sequence[Execution], tolerance: float) -> dict[int, int
 
 
 def extraneous_delays(executions: Sequence[Execution], waitings: Sequence[Waiting], *, min_share: float = 0.05,
-                      measure: str = "extraneous", fit=None) -> dict[str, dict]:
+                      measure: str | Callable[[dict[str, float]], float] = "extraneous", fit=None) -> dict[str, dict]:
     """Per attivita' la distribuzione del ritardo esterno (formato Prosimos ``event_distribution``).
 
     Si considerano le esecuzioni con l'abilitazione osservabile, zeri compresi; un'attivita'
@@ -331,17 +331,23 @@ def extraneous_delays(executions: Sequence[Execution], waitings: Sequence[Waitin
     del lavoro di Chapela-Campa e Dumas). Il ritardo e' la quota ``extraneous`` (il batching no:
     lo spiega la risorsa). ``measure="idle"`` (v2) tiene solo i secondi del ritardo con la risorsa
     libera e in orario: il resto lo rifa' il simulatore con le sue code e i suoi calendari;
-    ``measure="on_shift"`` (v3) toglie solo il tempo fuori orario della risorsa.
+    ``measure="on_shift"`` (v3) toglie solo il tempo fuori orario della risorsa; una funzione dei
+    secondi dell'attesa sceglie da se' (v5: ``on_shift_plus(beta)``).
     """
     values: dict[str, list[float]] = defaultdict(list)
     for e, w in zip(executions, waitings, strict=True):
         if w.enabled is not None:
-            values[e.activity].append(w.seconds.get(measure, 0.0))
+            values[e.activity].append(measure(w.seconds) if callable(measure) else w.seconds.get(measure, 0.0))
     delays = {}
     for activity, xs in values.items():
         if sum(x > 0 for x in xs) / len(xs) > min_share:
             delays[activity] = (fit or fit_duration)(xs)
     return delays
+
+
+def on_shift_plus(beta: float) -> Callable[[dict[str, float]], float]:
+    """v5: il ritardo in orario piu' ``beta`` volte il fuori orario dentro il ritardo esterno."""
+    return lambda seconds: seconds.get("on_shift", 0.0) + beta * (seconds.get("extraneous", 0.0) - seconds.get("on_shift", 0.0))
 
 
 def fit_duration(xs: Sequence[float]) -> dict:
