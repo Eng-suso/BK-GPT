@@ -70,3 +70,128 @@ class TestTokenDiClaude:
             "input_tokens": 1_000, "output_tokens": 50, "input_token_details": {"cache_read": 500},
         })
         assert tokens.cache_write_input == 0
+
+
+# --- Il compito su Claude: modello, destinazione, client -----------------------
+
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage  # noqa: E402
+
+from backend.llm import LlmTask, OperationKind, operation, profile_for, run  # noqa: E402
+from backend.llm.claude_client import CACHE_BREAKPOINT, DeliRChatAnthropic, claude_client, with_cached_system  # noqa: E402
+from backend.llm.egress import ANTHROPIC_API_URL, Destination, route  # noqa: E402
+from backend.llm_config import MissingProviderKey  # noqa: E402
+
+RERANK_ON_HAIKU = '{"retrieval_rerank": "claude-haiku-5-5", "entity_resolution": "claude-haiku-5-5"}'
+
+
+@pytest.fixture
+def rerank_on_haiku(monkeypatch):
+    monkeypatch.setattr(settings, "llm_task_models_json", RERANK_ON_HAIKU)
+    monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-non-usata")
+
+
+class TestModelloPerCompito:
+    def test_il_compito_scelto_passa_a_claude(self, rerank_on_haiku):
+        assert profile_for(LlmTask.RETRIEVAL_RERANK).model == "claude-haiku-5-5"
+        assert profile_for(LlmTask.PLAN_EXTRACTION).model == settings.openai_model
+
+    @pytest.mark.parametrize("task", ["chat_turn", "embedding", "transcription", "memory_extraction"])
+    def test_i_compiti_fissi_non_si_spostano(self, monkeypatch, task):
+        monkeypatch.setattr(settings, "llm_task_models_json", f'{{"{task}": "claude-haiku-5-5"}}')
+        assert profile_for(LlmTask(task)).model != "claude-haiku-5-5"
+
+    def test_una_voce_sbagliata_non_ferma_le_altre(self, monkeypatch):
+        monkeypatch.setattr(
+            settings, "llm_task_models_json", '{"compito_che_non_esiste": "x", "retrieval_rerank": "claude-haiku-5-5"}'
+        )
+        assert profile_for(LlmTask.RETRIEVAL_RERANK).model == "claude-haiku-5-5"
+
+    def test_la_destinazione_segue_il_modello(self, rerank_on_haiku):
+        claude = route(Destination.LLM_CLAUDE)
+        assert claude.active and claude.url == ANTHROPIC_API_URL
+        assert set(claude.tasks) == {LlmTask.RETRIEVAL_RERANK, LlmTask.ENTITY_RESOLUTION}
+        assert LlmTask.RETRIEVAL_RERANK not in route(Destination.LLM_CHAT).tasks
+
+    def test_senza_compiti_su_claude_la_destinazione_e_spenta(self, monkeypatch):
+        monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-non-usata")
+        monkeypatch.setattr(settings, "llm_task_models_json", "")
+        assert not route(Destination.LLM_CLAUDE).active
+
+
+class TestIlClientClaude:
+    def test_senza_chiave_non_parte(self, monkeypatch):
+        monkeypatch.setattr(settings, "llm_task_models_json", RERANK_ON_HAIKU)
+        monkeypatch.setattr(settings, "anthropic_api_key", None)
+        with pytest.raises(MissingProviderKey, match="ANTHROPIC_API_KEY"):
+            claude_client(profile_for(LlmTask.RETRIEVAL_RERANK), input_characters=None, max_retries=0)
+
+    def test_un_compito_senza_ragionamento_lo_spegne(self, rerank_on_haiku):
+        client = claude_client(profile_for(LlmTask.RETRIEVAL_RERANK), input_characters=None, max_retries=0)
+        assert isinstance(client, DeliRChatAnthropic)
+        assert client.thinking == {"type": "disabled"}
+        assert client.effort == "low"
+
+    def test_un_compito_di_giudizio_ragiona(self, monkeypatch):
+        monkeypatch.setattr(settings, "llm_task_models_json", '{"plan_extraction": "claude-haiku-5-5"}')
+        monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-non-usata")
+        client = claude_client(profile_for(LlmTask.PLAN_EXTRACTION), input_characters=10_000, max_retries=0)
+        assert client.thinking == {"type": "adaptive"}
+        assert client.effort == "medium"
+
+
+class TestLaParteFissaInCache:
+    def test_i_messaggi_di_sistema_si_uniscono_in_testa_con_il_segnalibro(self):
+        prepared = with_cached_system([
+            SystemMessage(content="Sei un revisore."),
+            HumanMessage(content="Il caso."),
+            SystemMessage(content="Rispondi in JSON."),
+        ])
+        assert [type(m) for m in prepared] == [SystemMessage, HumanMessage]
+        blocks = prepared[0].content
+        assert [b["text"] for b in blocks] == ["Sei un revisore.", "Rispondi in JSON."]
+        assert blocks[-1]["cache_control"] == CACHE_BREAKPOINT
+        assert "cache_control" not in blocks[0]
+
+    def test_senza_sistema_la_richiesta_passa_com_e(self):
+        messages = [HumanMessage(content="ciao")]
+        assert with_cached_system(messages) == messages
+
+    def test_la_richiesta_ha_il_segnalibro_in_fondo_al_sistema(self, rerank_on_haiku):
+        """La richiesta vera, costruita senza mandarla: un secondo messaggio di
+        sistema in coda (lo schema del JSON libero) non la fa rifiutare."""
+        client = claude_client(profile_for(LlmTask.RETRIEVAL_RERANK), input_characters=None, max_retries=0)
+        payload = client._get_request_payload([
+            SystemMessage(content="Ordina i frammenti."),
+            HumanMessage(content="Domanda e frammenti."),
+            SystemMessage(content="Schema."),
+        ])
+        assert payload["system"][-1] == {"type": "text", "text": "Schema.", "cache_control": CACHE_BREAKPOINT}
+        assert [m["role"] for m in payload["messages"]] == ["user"]
+        assert "temperature" not in payload or payload["temperature"] is None
+
+
+class TestIlGatewaySuClaude:
+    def test_la_riga_conta_le_scritture_e_il_modello(self, monkeypatch, rerank_on_haiku):
+        written: list[dict] = []
+        monkeypatch.setattr("backend.llm.gateway.record", lambda **kw: written.append(kw))
+        built: list[str] = []
+
+        class _FakeClaude:
+            def stream(self, *_a, **_k):
+                yield AIMessage(content="ok", usage_metadata={
+                    "input_tokens": 2_000, "output_tokens": 30, "total_tokens": 2_030,
+                    "input_token_details": {"cache_read": 0, "cache_creation": 1_200},
+                })
+
+        def _fake_claude_client(profile, **_kw):
+            built.append(profile.model)
+            return _FakeClaude()
+
+        monkeypatch.setattr("backend.llm.claude_client.claude_client", _fake_claude_client)
+
+        with operation(OperationKind.PLAN_SYNTHESIS):
+            run(task=LlmTask.RETRIEVAL_RERANK, messages=[HumanMessage(content="x")])
+
+        assert built == ["claude-haiku-5-5"]
+        assert written[-1]["model"] == "claude-haiku-5-5"
+        assert written[-1]["tokens"].cache_write_input == 1_200
