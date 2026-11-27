@@ -18,6 +18,14 @@ USAGE_WEEK_BUDGET_USD=6
 USAGE_TRIAL_BUDGET_USD=20     # 0 = nessun tetto sulla prova
 USAGE_TRIAL_DAYS=14
 USAGE_UNPRICED_USD_PER_MILLION_TOKENS=10
+USAGE_WEEK_AUDIO_HOURS=6      # ore di registrazione a settimana; 0 = nessun tetto
+USAGE_TRIAL_AUDIO_HOURS=10    # ore di registrazione nella prova
+```
+
+Il listino dell'audio va a minuto:
+
+```bash
+LLM_PRICES_JSON={..., "gpt-realtime-whisper": {"per_minute": 0.017}, "gpt-4o-transcribe-diarize": {"per_minute": 0.006}}
 ```
 
 Note:
@@ -31,6 +39,19 @@ Note:
   dei consumi continua a contare.
 - **Il limite per persona va acceso solo con l'identità Supabase.** Con il token
   condiviso, chi è il consulente lo dice un header scelto dal client.
+
+## L'audio, in ore
+
+Registrazioni dal vivo e file audio trascritti hanno un tetto **in ore**,
+separato dai dollari dei modelli: per la settimana e per la prova. Il consulente
+lo vede nel pannello come "2 h 10 min su 6 h". A ore finite si fermano solo le
+nuove registrazioni e trascrizioni; la chat e il resto continuano.
+
+- **Dal vivo:** si contano i secondi di audio mandati a OpenAI, cioè quello che
+  si paga. La sessione lascia una riga `live_transcription` nel registro alla
+  chiusura e controlla il tetto all'apertura.
+- **File:** la durata viene dalla risposta della trascrizione; il tetto si
+  controlla nella rotta (`require_audio_available`).
 
 ## Le tre finestre
 

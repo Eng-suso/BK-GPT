@@ -82,9 +82,13 @@ $4.46.
 Il prompt più lungo della giornata intensa è di 43.670 token: sotto la soglia dei
 prompt lunghi di entrambi i modelli.
 
-## Un buco trovato con la stima
+## Un buco trovato con la stima (chiuso)
 
-**La trascrizione dal vivo non è misurata né limitata.** Il WebSocket
+**Chiuso il 2026-11-27:** la registrazione dal vivo ora lascia una riga nel
+registro con i secondi di audio e guarda il tetto delle ore all'apertura; l'audio
+ha il suo limite in ore (vedi `CONTATORE.md`).
+
+Com'era: **la trascrizione dal vivo non era misurata né limitata.** Il WebSocket
 `/live-transcription` va direttamente a OpenAI: non apre un'operazione, non scrive
 nel registro dei consumi e non passa dal contatore d'uso. Eppure è la voce più cara
 dell'uso intenso.
@@ -122,7 +126,9 @@ USAGE_SESSION_BUDGET_USD=1.20
 USAGE_WEEK_BUDGET_USD=5.00
 USAGE_TRIAL_BUDGET_USD=10.00
 USAGE_TRIAL_DAYS=14
-LLM_PRICES_JSON={"gpt-6-luna": {"input": 0.10, "output": 0.50, "cached_input": 0.01}, "claude-haiku-5-5": {"input": 0.10, "output": 0.50, "cached_input": 0.01}, "text-embedding-3-small": {"input": 0.02, "output": 0}}
+USAGE_WEEK_AUDIO_HOURS=6
+USAGE_TRIAL_AUDIO_HOURS=10
+LLM_PRICES_JSON={"gpt-6-luna": {"input": 0.10, "output": 0.50, "cached_input": 0.01}, "claude-haiku-5-5": {"input": 0.10, "output": 0.50, "cached_input": 0.01}, "text-embedding-3-small": {"input": 0.02, "output": 0}, "gpt-realtime-whisper": {"per_minute": 0.017}, "gpt-4o-transcribe-diarize": {"per_minute": 0.006}}
 ```
 
 **Il listino va configurato.** Senza, ogni riga si conta al prezzo di ripiego
