@@ -34,7 +34,14 @@ import psutil
 
 from tests.simulation.benchmark import protocol
 from tests.simulation.benchmark.eval_harness import DEFAULT_SEED, PAPER_REPLICAS
-from tests.simulation.benchmark.b3_2.attribution import Execution, add_timers, attribute, extraneous_delays
+from tests.simulation.benchmark.b3_2.attribution import (
+    Execution,
+    add_timers,
+    attribute,
+    extraneous_delays,
+    fit_closest,
+    fit_duration,
+)
 from tests.simulation.benchmark.g3b import run as g3b
 from tests.simulation.benchmark.run_baseline import replicas_error
 
@@ -48,11 +55,14 @@ CONFIGS = {
     "simod_attr_extr": "SIMOD senza ritardi + ritardi esterni dell'attribuzione delle attese (B3.2)",
     "simod_attr_idle": "SIMOD senza ritardi + ritardi esterni con la risorsa libera e in orario (B3.2 v2)",
     "simod_attr_shift": "SIMOD senza ritardi + ritardi esterni senza il fuori orario della risorsa (B3.2 v3)",
+    "simod_attr_closest": "come v3, distribuzione piu' vicina al campione (B3.2 v4)",
     "simod_extr": g3b.CONFIGS["simod_extr"],
 }
 
 
-ATTRIBUTED = {"simod_attr_extr": "extraneous", "simod_attr_idle": "idle", "simod_attr_shift": "on_shift"}
+# configurazione -> (quota del ritardo, scelta della distribuzione): v1, v2, v3, v4.
+ATTRIBUTED = {"simod_attr_extr": ("extraneous", fit_duration), "simod_attr_idle": ("idle", fit_duration),
+              "simod_attr_shift": ("on_shift", fit_duration), "simod_attr_closest": ("on_shift", fit_closest)}
 
 
 def attributed_delays(prepared: g3b.Prepared, config: str) -> tuple[Path, dict]:
@@ -63,7 +73,8 @@ def attributed_delays(prepared: g3b.Prepared, config: str) -> tuple[Path, dict]:
         began = time.perf_counter()
         executions = [Execution(r.case_id, r.activity, (r.start or r.end).timestamp(), r.end.timestamp(), r.resource or "missing")
                       for r in prepared.source]
-        delays = extraneous_delays(executions, attribute(executions), measure=ATTRIBUTED[config])
+        measure, fit = ATTRIBUTED[config]
+        delays = extraneous_delays(executions, attribute(executions), measure=measure, fit=fit)
         bpmn, events = add_timers((diff_folder / "model.bpmn").read_text(encoding="utf-8"), delays)
         scenario = json.loads((diff_folder / "scenario.json").read_text(encoding="utf-8"))
         scenario["event_distribution"] = events

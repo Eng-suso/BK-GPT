@@ -157,3 +157,14 @@ def test_identical_results_are_a_tie_and_g3b_is_left_alone():
     with report._ties_for_identical():
         assert g3b_report.compare is report.compare
     assert g3b_report.compare is report._g3b_compare
+
+
+def test_fit_closest_prefers_the_family_of_the_sample():
+    import random
+
+    from tests.simulation.benchmark.b3_2.attribution import fit_closest
+
+    rng = random.Random(1)
+    assert fit_closest([rng.uniform(100, 200) for _ in range(500)])["distribution_name"] == "uniform"
+    assert fit_closest([rng.expovariate(1 / 300) for _ in range(500)])["distribution_name"] == "expon"
+    assert fit_closest([max(0.0, rng.gauss(1000, 50)) for _ in range(500)])["distribution_name"] == "norm"

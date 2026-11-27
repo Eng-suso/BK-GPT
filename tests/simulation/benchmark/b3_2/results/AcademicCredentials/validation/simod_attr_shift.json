@@ -1,0 +1,175 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "AcademicCredentials",
+  "category": "osservabilita completa",
+  "phase": "validation",
+  "config": "simod_attr_shift",
+  "label": "SIMOD senza ritardi + ritardi esterni senza il fuori orario della risorsa (B3.2 v3)",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 318,
+    "target": 80
+  },
+  "identifiability": {
+    "cycle_time_w1": "NOT VALIDATED",
+    "ngram": "NOT VALIDATED",
+    "relative_event": "NOT VALIDATED",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "NOT VALIDATED",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "NOT VALIDATED",
+    "true_parameters": "NOT VALIDATED",
+    "counterfactual": "NOT VALIDATED"
+  },
+  "status": "measured",
+  "simulated_cases": [
+    80,
+    80,
+    80,
+    80,
+    80,
+    80,
+    80,
+    80,
+    80,
+    80
+  ],
+  "metrics": {
+    "cycle_time_w1": {
+      "mean": 37.975,
+      "ci95": 4.270287700292364,
+      "replicas": [
+        37.075,
+        27.8,
+        33.5625,
+        33.8875,
+        39.575,
+        39.8125,
+        36.8625,
+        39.6875,
+        40.775,
+        50.7125
+      ]
+    },
+    "ngram": {
+      "mean": 0.2935127152268012,
+      "ci95": 0.012969983363931546,
+      "replicas": [
+        0.2967741935483871,
+        0.3075684380032206,
+        0.2803347280334728,
+        0.3212312549329124,
+        0.2914572864321608,
+        0.27887788778877887,
+        0.26557377049180325,
+        0.2963855421686747,
+        0.3178542834267414,
+        0.27906976744186046
+      ]
+    },
+    "relative_event": {
+      "mean": 18.657968848080213,
+      "ci95": 1.903918505540396,
+      "replicas": [
+        17.340735653235654,
+        18.74993349042262,
+        16.049951818334172,
+        20.46248008112415,
+        15.543216745045347,
+        18.81724709114415,
+        16.31941354100445,
+        24.550060450355147,
+        18.661179524666366,
+        20.085470085470085
+      ]
+    },
+    "absolute_event": {
+      "mean": 221.47910744138258,
+      "ci95": 13.59313090420891,
+      "replicas": [
+        208.51001602564102,
+        186.88977937823046,
+        210.37634332579185,
+        216.11567660799653,
+        221.17013247396707,
+        229.5706710568843,
+        229.9275568181818,
+        219.54635550476047,
+        259.68307420527816,
+        233.00146901709402
+      ]
+    },
+    "circadian_event": {
+      "mean": 4.886685933257488,
+      "ci95": 0.861653140029063,
+      "replicas": [
+        5.851085298521088,
+        5.738068094218507,
+        3.011912785365858,
+        5.767528620660655,
+        5.746667964992181,
+        5.749587991771878,
+        3.4960141042315422,
+        5.5857656134817235,
+        3.097542284044192,
+        4.822686575287257
+      ]
+    },
+    "case_arrival": {
+      "mean": 219.46999999999997,
+      "ci95": 11.775287824887737,
+      "replicas": [
+        206.9625,
+        197.9375,
+        211.7625,
+        219.0125,
+        207.8625,
+        214.675,
+        229.2,
+        224.0625,
+        257.5,
+        225.725
+      ]
+    }
+  },
+  "cost": {
+    "discovery_seconds": 133.0,
+    "discovery_peak_mb": 1102.2,
+    "delays_seconds": 0.0,
+    "delays": {
+      "Validar solicitud": 20088.667,
+      "Evaluacion curso": 10941.29,
+      "Notificacion estudiante cancelacion soli": 252065.418,
+      "Validacion final": 161781.179,
+      "Avanzar recepcion documentos": 167654.0,
+      "Validar solicitud / pre-homologacion": 488498.722,
+      "Cancelar curso": 156313.167,
+      "Traer informacion estudiante - banner": 4487.882,
+      "Recepcion de documentos": 79236.0,
+      "Visto Bueno Cierre Proceso": 60392.448,
+      "Homologacion por grupo de cursos": 108424.711,
+      "Cancelar Solicitud": 20882.928,
+      "Transferir Creditos": 10352.917,
+      "Radicar Solicitud Homologacion": 2524.815,
+      "Revisar curso": 131455.539
+    },
+    "simulation_seconds": [
+      0.186,
+      0.085,
+      0.078,
+      0.088,
+      0.078,
+      0.08,
+      0.107,
+      0.087,
+      0.085,
+      0.086
+    ],
+    "simulation_peak_mb": 162.1,
+    "val01": "supera"
+  },
+  "b3_2": "tests/simulation/benchmark/b3_2/run.py"
+}

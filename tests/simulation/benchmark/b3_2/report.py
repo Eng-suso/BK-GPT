@@ -38,6 +38,8 @@ CARDS = (
     ("3b", Card("Attese attribuite v2: RED", "simod_attr_idle", ("simod_extr",), "relative_event", "scenario"), REAL),
     ("3c", Card("Attese attribuite v3: W1", "simod_attr_shift", ("simod_extr",), "cycle_time_w1", "scenario"), REAL),
     ("3c", Card("Attese attribuite v3: RED", "simod_attr_shift", ("simod_extr",), "relative_event", "scenario"), REAL),
+    ("3d", Card("Attese attribuite v4: W1", "simod_attr_closest", ("simod_extr",), "cycle_time_w1", "scenario"), REAL),
+    ("3d", Card("Attese attribuite v4: RED", "simod_attr_closest", ("simod_extr",), "relative_event", "scenario"), REAL),
 )
 
 

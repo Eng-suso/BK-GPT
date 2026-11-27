@@ -120,6 +120,15 @@ Modello:
   `simod_attr_shift`, il timer è il ritardo esterno di v1 meno il tempo fuori orario della risorsa
   (`measure="on_shift"`): restano i tratti con la risorsa occupata altrove, che il simulatore non
   rifà; esce la notte, che i calendari rifanno. Valutazioni in validazione per i 3 log: 3 su 20.
+- **Esito scheda 3c, validazione: NO-GO (v3).** W1 e RED vincono su BPIC 2012 W (36,7 ± 4,0; 22,1 ± 1,5)
+  e BPIC 2017 W (62,9 ± 2,8; 42,6 ± 1,8); AED perde su 2 log (BPIC 2017 W 82,4 contro 48,9;
+  AcademicCredentials 221 contro 173), pari su BPIC 2012 W. Diagnosi: con i ritardi di SIMOD sullo
+  stesso scenario AED resta 50,7: conta la forma. I nostri momenti danno lognormali con varianza
+  enorme (molti zeri e pochi ritardi lunghissimi); SIMOD sceglie la famiglia per distanza dal campione.
+- **Scheda 3d — v4** (prima della misura; base, primarie, guardie, log e regola della scheda 3):
+  `simod_attr_closest`, ritardi di v3 con la famiglia (fissa, esponenziale, normale, lognormale,
+  uniforme, troncate come in Prosimos) scelta per distanza di Wasserstein minima dai quantili del
+  campione (`fit_closest`, solo libreria standard). Valutazioni in validazione per i 3 log: 4 su 20.
 - **Difetto del banco di G3b, da correggere con Sohayb:** `within_intervals` usa `<`, quindi due
   risultati identici con IC nullo (sintetici di un giorno) risultano diversi e `compare` dà
   "perde". In G3b: 246 confronti identici; sulle primarie, 4 RED "persi" della scheda Attese in

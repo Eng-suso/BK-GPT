@@ -24,6 +24,7 @@ su fasce orarie settimanali (``Calendar``).
 from __future__ import annotations
 
 import bisect
+import math
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
@@ -322,7 +323,7 @@ def _batches(executions: Sequence[Execution], tolerance: float) -> dict[int, int
 
 
 def extraneous_delays(executions: Sequence[Execution], waitings: Sequence[Waiting], *, min_share: float = 0.05,
-                      measure: str = "extraneous") -> dict[str, dict]:
+                      measure: str = "extraneous", fit=None) -> dict[str, dict]:
     """Per attivita' la distribuzione del ritardo esterno (formato Prosimos ``event_distribution``).
 
     Si considerano le esecuzioni con l'abilitazione osservabile, zeri compresi; un'attivita'
@@ -339,7 +340,7 @@ def extraneous_delays(executions: Sequence[Execution], waitings: Sequence[Waitin
     delays = {}
     for activity, xs in values.items():
         if sum(x > 0 for x in xs) / len(xs) > min_share:
-            delays[activity] = fit_duration(xs)
+            delays[activity] = (fit or fit_duration)(xs)
     return delays
 
 
@@ -357,6 +358,60 @@ def fit_duration(xs: Sequence[float]) -> dict:
                 "distribution_params": [{"value": round(mean, 3)}, {"value": round(low, 3)}, {"value": round(high, 3)}]}
     return {"distribution_name": "lognorm",
             "distribution_params": [{"value": round(mean, 3)}, {"value": round(var, 3)}, {"value": round(low, 3)}, {"value": round(high, 3)}]}
+
+
+def fit_closest(xs: Sequence[float], points: int = 200) -> dict:
+    """La distribuzione per Prosimos piu' vicina al campione (distanza di Wasserstein sui quantili), v4.
+
+    Candidate dai momenti come ``fit_duration``: fissa, esponenziale, normale, lognormale, uniforme,
+    tutte troncate a ``[min, max]`` del campione come le campiona Prosimos (ricampiona fuori dai limiti).
+    """
+    from statistics import NormalDist
+
+    data = sorted(xs)
+    n = len(data)
+    mean = sum(data) / n
+    var = sum((x - mean) ** 2 for x in data) / max(1, n - 1)
+    low, high = data[0], data[-1]
+    if mean <= 0 or var ** 0.5 < 0.01 * mean:
+        return fit_duration(xs)
+    std = var ** 0.5
+    us = [(k + 0.5) / points for k in range(points)]
+    empirical = [data[min(n - 1, int(u * n))] for u in us]
+    unit = NormalDist()
+
+    def truncated(ppf, cdf) -> list[float]:
+        a, b = cdf(low), cdf(high)
+        return [min(high, max(low, ppf(a + (b - a) * u))) for u in us]
+
+    candidates: dict[str, tuple[list[float], dict]] = {}
+    scale = mean - low
+    if scale > 0:
+        candidates["expon"] = (
+            truncated(lambda q: low - scale * math.log(1 - min(q, 1 - 1e-12)), lambda x: 1 - math.exp(-(x - low) / scale)),
+            {"distribution_name": "expon", "distribution_params": [_v(mean), _v(low), _v(high)]},
+        )
+    normal = NormalDist(mean, std)
+    candidates["norm"] = (
+        truncated(lambda q: normal.inv_cdf(min(max(q, 1e-12), 1 - 1e-12)), normal.cdf),
+        {"distribution_name": "norm", "distribution_params": [_v(mean), _v(std), _v(low), _v(high)]},
+    )
+    sigma = math.sqrt(math.log(1 + var / mean**2))
+    mu = math.log(mean) - sigma**2 / 2
+    candidates["lognorm"] = (
+        truncated(lambda q: math.exp(mu + sigma * unit.inv_cdf(min(max(q, 1e-12), 1 - 1e-12))),
+                  lambda x: unit.cdf((math.log(x) - mu) / sigma) if x > 0 else 0.0),
+        {"distribution_name": "lognorm", "distribution_params": [_v(mean), _v(var), _v(low), _v(high)]},
+    )
+    candidates["uniform"] = ([low + (high - low) * u for u in us],
+                             {"distribution_name": "uniform", "distribution_params": [_v(low), _v(high)]})
+    candidates["fix"] = ([mean] * points, {"distribution_name": "fix", "distribution_params": [_v(mean)]})
+    best = min(candidates.values(), key=lambda c: sum(abs(a - b) for a, b in zip(c[0], empirical, strict=True)))
+    return best[1]
+
+
+def _v(x: float) -> dict:
+    return {"value": round(x, 3)}
 
 
 BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
