@@ -5,8 +5,8 @@ correzione di `DELIR_AUTH_PROVIDER` e RAD-01 + PROTO-02, PR #194).
 
 ## Punti attivi
 
-B3.2 bloccato (sezione `## B3.2`, decide Sohayb). Liberi, con dipendenze
-chiuse: **B3.1**, **B3.3**, **PERF-01**, **RAD-02** (tutti dopo G3b), **LIC-01**
+Nessuno in corso: G3b è fatto (12 schede NO-GO, sezione `## G3b`). Liberi, con dipendenze
+chiuse: **B3.1**, **B3.2**, **B3.3**, **PERF-01**, **RAD-02** (tutti dopo G3b), **LIC-01**
 (P0), **ANA-01**, **GT-01**. ENG-02 dopo LIC-01.
 
 ## Prompt per i prossimi agenti
