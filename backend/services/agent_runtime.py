@@ -424,7 +424,18 @@ def tool_calls_in_update(update: Any) -> list[dict]:
 
 
 def agent_checkpoint_thread_id(thread_id: str, scope_key: str | None) -> str:
-    return f"{scope_key or 'consultant'}:{thread_id}"
+    """La chiave della conversazione nel checkpointer LangGraph.
+
+    Il checkpointer conosce solo questa chiave: in un account personale porta
+    anche lo spazio di lavoro, cosi' l'id di un thread di un'altra persona non
+    ricarica la sua conversazione. Gli spazi condivisi restano com'erano, e le
+    conversazioni gia' salvate si ritrovano.
+    """
+    from backend.security import get_current_tenant_id, is_account_tenant
+
+    key = f"{scope_key or 'consultant'}:{thread_id}"
+    tenant_id = get_current_tenant_id()
+    return f"{tenant_id}:{key}" if is_account_tenant(tenant_id) else key
 
 
 def scope_fields(scope: ChatScope | None) -> dict[str, str | None]:
