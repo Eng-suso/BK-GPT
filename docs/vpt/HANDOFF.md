@@ -23,10 +23,13 @@ prima in validazione e poi in test (meta in `PLAN.md`). Scheda C1 (arrivi di A r
 `simod_extr_replay`) scritta in `LOG.md` prima della misura. Driver in
 `tests/simulation/benchmark/b3_1/` (riusa `g3b/run.py`, non lo cambia).
 
-- Stato (2026-11-26): due processi in background, log in `/var/tmp/delir-b3_1/{val,test}.log`:
-  validazione di `naive simod_extr simod_extr_replay` (C1) e test di `naive simod_extr` (solo la
-  base, il candidato in test si misura solo se passa la validazione). Poi C2 in validazione:
-  `uv run python tests/simulation/benchmark/b3_1/run.py --phases validation --configs simod_extr_days`.
+- Stato (2026-11-27): il container si e' riavviato a meta' misura; `/var/tmp` e' rimasto, quindi
+  cache SIMOD e venv ci sono ancora. Rilanciati due processi in background, log in
+  `/var/tmp/delir-b3_1/{val,test}.log`: validazione di `naive simod_extr simod_extr_replay
+  simod_extr_days` (C1 e C2 insieme, la scheda C2 e' gia' in `LOG.md`) e test di `naive simod_extr`
+  (solo le basi; un candidato in test si misura solo se passa la validazione). Fatti finora: BPIC W,
+  bpic2012 (SIMOD fuori budget), BPIC_2012_W in validazione; sintetici e BPIC_2012_W in test.
+  Poi `uv run python tests/simulation/benchmark/b3_1/report.py`.
 - Diagnosi di C1 e scheda C2 (`simod_extr_days`, giorni interi ricampionati) in `LOG.md`.
 - Valutazioni sulla validazione usate: 3 di 20 (C1; C2 diagnosi; C2 misura).
 - Si riprende: rilanciare gli stessi comandi, il driver salta ciò che è scritto in `b3_1/results/`
