@@ -30,6 +30,8 @@ LLM_PRICES_JSON={..., "gpt-realtime-whisper": {"per_minute": 0.017}, "gpt-4o-tra
 
 Note:
 
+- **Per i modelli Claude il listino vuole anche `cache_write`**, il prezzo della
+  scrittura in cache (1,25 volte l'ingresso): Anthropic la fa pagare, OpenAI no.
 - **I prezzi del listino vanno messi per tutti i modelli usati.** Una riga senza
   prezzo si conta a `USAGE_UNPRICED_USD_PER_MILLION_TOKENS`, che è alto di
   proposito: un costo sconosciuto fa scattare il limite prima, mai dopo.
