@@ -170,6 +170,53 @@ def test_worker_processes_job_and_records_result(scope, wait_projected):
     assert ingest_worker.drain_once() == 0
 
 
+def test_worker_drains_every_account_each_in_its_own_space(scope, monkeypatch):
+    """Due consulenti con un job ciascuno: il worker li trova e li drena entrambi.
+
+    Ognuno nel suo contesto RLS e nel suo spazio di lavoro: il consumo di un
+    account non finisce nel registro di un altro.
+    """
+    from backend.security import get_current_tenant_id
+
+    other = str(uuid.uuid4())
+    other_client = str(uuid.uuid4())
+    with MIGRATOR.begin() as conn:
+        conn.execute(
+            text("INSERT INTO consultant (id, email, display_name) VALUES (:i,:e,'q2')"),
+            {"i": other, "e": f"{other}@t.local"},
+        )
+        _ctx(conn, other)
+        conn.execute(
+            text("INSERT INTO client (id, consultant_id, name) VALUES (:i,:c,'Beta')"),
+            {"i": other_client, "c": other},
+        )
+    seen: list[tuple[str, str]] = []
+
+    def _write(**kw):
+        seen.append((kw["consultant_id"], get_current_tenant_id()))
+        return {"entities": 0, "relationships": 0, "chunks": 0}
+
+    monkeypatch.setattr(canonical, "write_evidence", _write)
+    try:
+        canonical.enqueue_evidence(**_sample_evidence(scope))
+        canonical.enqueue_evidence(
+            **_sample_evidence(
+                {**scope, "consultant": other, "client": other_client},
+                project_id=None, process_id=None,
+            )
+        )
+
+        assert ingest_worker.drain_once() == 2
+    finally:
+        with MIGRATOR.begin() as conn:
+            conn.execute(text("DELETE FROM consultant WHERE id = :i"), {"i": other})
+
+    assert sorted(seen) == sorted([
+        (scope["consultant"], get_current_tenant_id()),
+        (other, f"acct-{other}"),
+    ])
+
+
 def test_worker_failure_path_retries_then_dead_letters(scope, monkeypatch):
     # write_evidence che solleva -> retry finche' 'failed' (dead-letter)
     def _boom(**_kw):
