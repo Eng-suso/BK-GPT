@@ -136,7 +136,7 @@ def test_enqueue_is_client_scoped(scope):
 def test_worker_processes_job_and_records_result(scope, wait_projected):
     canonical.enqueue_evidence(**_sample_evidence(scope))
 
-    assert ingest_worker.drain_once() == 1
+    assert ingest_worker.drain_once(only_consultant=scope["consultant"]) == 1
 
     row = _queue_rows(scope)[0]
     assert row.status == "done"
@@ -167,7 +167,7 @@ def test_worker_processes_job_and_records_result(scope, wait_projected):
     assert wait_projected(_edge)
 
     # secondo giro: niente da fare (idempotenza del drain)
-    assert ingest_worker.drain_once() == 0
+    assert ingest_worker.drain_once(only_consultant=scope["consultant"]) == 0
 
 
 def test_worker_drains_every_account_each_in_its_own_space(scope, monkeypatch):
@@ -206,15 +206,16 @@ def test_worker_drains_every_account_each_in_its_own_space(scope, monkeypatch):
             )
         )
 
-        assert ingest_worker.drain_once() == 2
+        # Senza filtro: il worker deve trovare da solo i due consulenti. Su un
+        # database con altro lavoro in coda drena anche quello; qui conta che
+        # questi due ci siano, ognuno nel suo spazio.
+        assert ingest_worker.drain_once(limit=500) >= 2
     finally:
         with MIGRATOR.begin() as conn:
             conn.execute(text("DELETE FROM consultant WHERE id = :i"), {"i": other})
 
-    assert sorted(seen) == sorted([
-        (scope["consultant"], get_current_tenant_id()),
-        (other, f"acct-{other}"),
-    ])
+    assert (scope["consultant"], get_current_tenant_id()) in seen
+    assert (other, f"acct-{other}") in seen
 
 
 def test_a_big_backlog_does_not_starve_another_account(monkeypatch):
@@ -242,13 +243,13 @@ def test_worker_failure_path_retries_then_dead_letters(scope, monkeypatch):
     canonical.enqueue_evidence(**_sample_evidence(scope))
 
     for expected_attempts in (1, 2, 3, 4):
-        assert ingest_worker.drain_once() == 0  # nessun successo
+        assert ingest_worker.drain_once(only_consultant=scope["consultant"]) == 0  # nessun successo
         row = _queue_rows(scope)[0]
         assert row.attempts == expected_attempts
         assert row.status == "pending"
         assert row.last_error
 
-    assert ingest_worker.drain_once() == 0
+    assert ingest_worker.drain_once(only_consultant=scope["consultant"]) == 0
     row = _queue_rows(scope)[0]
     assert row.attempts == 5
     assert row.status == "failed"  # dead-letter
@@ -266,7 +267,7 @@ def test_worker_requeues_stuck_processing(scope):
             {"cl": scope["client"]},
         )
 
-    assert ingest_worker.drain_once() == 1
+    assert ingest_worker.drain_once(only_consultant=scope["consultant"]) == 1
     assert _queue_rows(scope)[0].status == "done"
 
 
@@ -274,7 +275,7 @@ def test_queue_stats_and_prune(scope):
     canonical.enqueue_evidence(**_sample_evidence(scope))
     assert ingest_worker.queue_stats()["pending"] == 1
 
-    ingest_worker.drain_once()
+    ingest_worker.drain_once(only_consultant=scope["consultant"])
     assert ingest_worker.queue_stats()["pending"] == 0
 
     with canonical_session(scope["consultant"], scope["client"]) as s:
