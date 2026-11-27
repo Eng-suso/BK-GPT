@@ -16,7 +16,7 @@ import logging
 
 from backend.memory import canonical_memory, gateway
 from backend.memory import scope as canonical_scope
-from backend.settings import settings
+from backend.security import get_current_consultant_id
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def build_playbook_context(
 
     try:
         result = gateway.procedural_retrieve(
-            consultant_id=settings.default_consultant_id,
+            consultant_id=get_current_consultant_id(),
             client_id=client_id,
             task_text=task_text or "",
             limit=limit,
@@ -57,7 +57,7 @@ def build_playbook_context(
 
     if record_usage:
         canonical_memory.record_playbook_usage(
-            settings.default_consultant_id,
+            get_current_consultant_id(),
             client_id=client_id,
             playbook_ids=[p["id"] for p in playbooks],
         )

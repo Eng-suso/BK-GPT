@@ -47,6 +47,8 @@ from backend.db import canonical_session
 from backend.memory import forget
 from backend.memory.knowledge_graph import canonical
 from backend.settings import settings
+from backend.memory import mem0_client
+from backend.security import get_current_consultant_id
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +94,7 @@ class EraseReport:
 # --------------------------------------------------------------------------- #
 
 def _consultant() -> str:
-    return settings.default_consultant_id
+    return get_current_consultant_id()
 
 
 def _lookup(table: str, workspace_id: str) -> Any | None:
@@ -199,7 +201,7 @@ def _forget_memories(client_id: str, where: str, params: dict[str, Any], reason:
         targets.extend({"memory_id": mid, "statement": row.text or ""} for mid in ids)
     outcome = forget.execute_forget(
         consultant_id=_consultant(),
-        mem0_user_id=settings.mem0_user_id,
+        mem0_user_id=mem0_client.mem0_user_id(_consultant()),
         targets=targets,
         reason=reason,
         client_id=client_id,

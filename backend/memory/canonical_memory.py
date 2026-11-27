@@ -14,6 +14,8 @@ appresi arriveranno col learning flow (P7).
 
 from __future__ import annotations
 
+from backend.memory.mem0_client import mem0_user_id
+
 import json
 import logging
 from datetime import date, datetime
@@ -56,7 +58,7 @@ def _emit_mem0(
     """
     payload = {
         "text": text_value,
-        "user_id": str(consultant_id),
+        "user_id": mem0_user_id(str(consultant_id)),
         "metadata": metadata,
     }
     session.execute(

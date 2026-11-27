@@ -5,7 +5,7 @@ La workspace (Postgres, database `workspace`) tiene id stringa tipo
 `process` canonical (uuid) con un upsert idempotente su `workspace_id`
 (migration 0007).
 
-Consulente = quello unico di default (`settings.default_consultant_id`).
+Consulente = quello dello spazio di lavoro corrente (`get_current_consultant_id`).
 Cliente = derivato dal campo `client` del progetto workspace.
 
 Se il canonical non e' configurato o il workspace non conosce l'id, `resolve`
@@ -23,6 +23,7 @@ from sqlalchemy import text
 from backend import workspace_database
 from backend.db import canonical_session
 from backend.settings import settings
+from backend.security import get_current_consultant_id
 
 logger = logging.getLogger(__name__)
 
@@ -98,13 +99,13 @@ def resolve_client_id(workspace_project_id: str) -> str | None:
         if not client_name:
             return None
         client_ws = f"client:{_slug(client_name)}"
-        with canonical_session(settings.default_consultant_id) as session:
+        with canonical_session(get_current_consultant_id()) as session:
             row = session.execute(
                 text(
                     "SELECT id FROM client "
                     "WHERE consultant_id = :c AND workspace_id = :w"
                 ),
-                {"c": settings.default_consultant_id, "w": client_ws},
+                {"c": get_current_consultant_id(), "w": client_ws},
             ).first()
         return str(row.id) if row else None
     except Exception:  # noqa: BLE001 — la lettura non deve far fallire il chiamante
@@ -133,7 +134,7 @@ def resolve_client(workspace_client_id: str) -> ScopeIds:
     client_name = str(workspace_database.get_client_name(workspace_client_id) or "").strip()
     if not client_name:
         raise RuntimeError(f"cliente workspace sconosciuto: {workspace_client_id}")
-    consultant_id = settings.default_consultant_id
+    consultant_id = get_current_consultant_id()
     with canonical_session(consultant_id) as session:
         client_id = _upsert(
             session, "client", f"client:{_slug(client_name)}", client_name,
@@ -156,7 +157,7 @@ def resolve(workspace_project_id: str, workspace_process_id: str | None = None) 
     if project is None:
         raise RuntimeError(f"progetto workspace sconosciuto: {workspace_project_id}")
 
-    consultant_id = settings.default_consultant_id
+    consultant_id = get_current_consultant_id()
     client_name = str(project.get("client") or "").strip()
     if not client_name:
         # Fail loud: senza cliente ogni progetto finirebbe nello stesso bucket
