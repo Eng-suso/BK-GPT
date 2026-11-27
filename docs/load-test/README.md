@@ -97,6 +97,12 @@ zero errori.
 | Primo pezzo di risposta, p95 | 10,8 s | 8,0 s |
 | Turno intero, p95 | 10,8 s | 11,2 s |
 
+La stessa correzione ha chiuso un buco nella spesa. Le chiamate al modello fatte
+dentro i sotto-grafi non arrivavano al conteggio del turno, quindi nemmeno al
+limite di spesa della persona. Ora arrivano: quelle in streaming dallo stream,
+quelle tenute fuori (`nostream`) da `UnstreamedUsageMeter`. I router dei
+sotto-grafi vanno nel registro come instradamento.
+
 Su consulente, progetto, processo e canvas il testo salvato è identico, carattere
 per carattere, a quello arrivato in streaming. Il p50 di 3,6 s è quasi tutto
 lavoro del modello finto prima della risposta (classificazione 1,2 s, router
