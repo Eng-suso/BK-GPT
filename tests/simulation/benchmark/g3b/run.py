@@ -481,7 +481,8 @@ CONFIGS = {
 }
 
 
-def evaluate(config: str, prepared: Prepared, *, seed: int, replicas: int) -> dict:
+def evaluate(config: str, prepared: Prepared, *, seed: int, replicas: int, simulate_fn=None, label: str | None = None) -> dict:
+    """Misura una configurazione; ``simulate_fn`` e ``label`` per i driver che aggiungono configurazioni (B3.x)."""
     out = prepared.work / "runs" / config
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
@@ -491,14 +492,14 @@ def evaluate(config: str, prepared: Prepared, *, seed: int, replicas: int) -> di
         "category": prepared.log.category,
         "phase": prepared.phase,
         "config": config,
-        "label": CONFIGS[config],
+        "label": label or CONFIGS[config],
         "seed": seed,
         "replicas": replicas,
         "cases": {"source": len({r.case_id for r in prepared.source}), "target": prepared.cases},
         "identifiability": prepared.identifiability,
     }
     try:
-        logs, cost = simulate(config, prepared, out, seed, replicas)
+        logs, cost = (simulate_fn or simulate)(config, prepared, out, seed, replicas)
     except OutOfBudget as exc:
         return {**base, "status": "out_of_budget", "reason": str(exc), "cost": {"seconds": exc.run.seconds, "peak_mb": exc.run.peak_mb}}
     except NotApplicable as exc:

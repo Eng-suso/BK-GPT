@@ -1,0 +1,161 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "Procure_to_Pay",
+  "category": "sintetico con verita nota",
+  "phase": "test",
+  "config": "simod_fixed_extr",
+  "label": "SIMOD senza ritardi + solo i ritardi estranei di SIMOD (risorse e calendari fissati)",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 500,
+    "target": 500
+  },
+  "identifiability": {
+    "cycle_time_w1": "identificabile",
+    "ngram": "identificabile",
+    "relative_event": "identificabile",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "identificabile",
+    "true_parameters": "identificabile",
+    "counterfactual": "identificabile"
+  },
+  "status": "measured",
+  "simulated_cases": [
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500
+  ],
+  "metrics": {
+    "cycle_time_w1": {
+      "mean": 557.2596,
+      "ci95": 38.50733697085907,
+      "replicas": [
+        577.744,
+        526.088,
+        525.708,
+        598.908,
+        581.55,
+        509.282,
+        675.18,
+        553.208,
+        536.238,
+        488.69
+      ]
+    },
+    "ngram": {
+      "mean": 0.24154619300009297,
+      "ci95": 0.0017113247885822418,
+      "replicas": [
+        0.24120522047370965,
+        0.24258064516129033,
+        0.24131991171879205,
+        0.23951547779273216,
+        0.24300568120913282,
+        0.24686683376886567,
+        0.24188964555740256,
+        0.23887512121538626,
+        0.2415645819901139,
+        0.2386388111135042
+      ]
+    },
+    "relative_event": {
+      "mean": 299.3752519209115,
+      "ci95": 19.761433444760662,
+      "replicas": [
+        309.91933772512505,
+        280.0086692547837,
+        282.4356353686568,
+        319.6373532457922,
+        309.9568361721089,
+        273.8328354415258,
+        361.05122627832566,
+        296.76785650005144,
+        293.560692195534,
+        266.58207702721177
+      ]
+    },
+    "absolute_event": {
+      "mean": 283.71375469949845,
+      "ci95": 18.26270330607289,
+      "replicas": [
+        293.8528742771394,
+        265.74421427586446,
+        272.6697473507999,
+        300.1014734520945,
+        295.68036867697487,
+        256.45406870517843,
+        339.08178478040605,
+        284.1476081199218,
+        278.3889524883701,
+        251.01645486823463
+      ]
+    },
+    "circadian_event": {
+      "mean": 0.18571619893995409,
+      "ci95": 0.012069425418483786,
+      "replicas": [
+        0.2215407818013436,
+        0.17972787795776807,
+        0.20054106771545113,
+        0.1628321687438488,
+        0.17966063239666008,
+        0.16970548168633987,
+        0.17814742858101146,
+        0.18274715028028896,
+        0.1975134407470066,
+        0.18474595948982223
+      ]
+    },
+    "case_arrival": {
+      "mean": 13.763,
+      "ci95": 2.764523498508742,
+      "replicas": [
+        16.308,
+        11.086,
+        7.59,
+        13.98,
+        13.418,
+        16.688,
+        20.646,
+        8.742,
+        14.59,
+        14.582
+      ]
+    }
+  },
+  "cost": {
+    "discovery_seconds": 200.8,
+    "discovery_peak_mb": 1093.8,
+    "delays_seconds": 51.0,
+    "delays": {
+      "Settle dispute with supplier Purchasing Agent": 14918.1
+    },
+    "simulation_seconds": [
+      0.713,
+      0.739,
+      0.734,
+      0.719,
+      0.741,
+      0.739,
+      0.733,
+      0.793,
+      0.767,
+      0.757
+    ],
+    "simulation_peak_mb": 178.9,
+    "val01": "supera"
+  },
+  "b3_2": "tests/simulation/benchmark/b3_2/run.py"
+}

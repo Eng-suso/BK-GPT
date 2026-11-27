@@ -1,0 +1,167 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "BPIC_2017_W",
+  "category": "osservabilita completa",
+  "phase": "validation",
+  "config": "simod_attr_closest",
+  "label": "come v3, distribuzione piu' vicina al campione (B3.2 v4)",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 5922,
+    "target": 1480
+  },
+  "identifiability": {
+    "cycle_time_w1": "identificabile",
+    "ngram": "identificabile",
+    "relative_event": "identificabile",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "NOT VALIDATED",
+    "true_parameters": "NOT VALIDATED",
+    "counterfactual": "NOT VALIDATED"
+  },
+  "status": "measured",
+  "simulated_cases": [
+    1480,
+    1480,
+    1480,
+    1480,
+    1480,
+    1480,
+    1480,
+    1480,
+    1480,
+    1480
+  ],
+  "metrics": {
+    "cycle_time_w1": {
+      "mean": 62.8727027027027,
+      "ci95": 2.8444128585394073,
+      "replicas": [
+        64.15067567567567,
+        60.76013513513514,
+        62.02635135135135,
+        60.58851351351351,
+        71.92364864864865,
+        65.67162162162163,
+        57.01756756756757,
+        62.34594594594594,
+        63.67364864864865,
+        60.56891891891892
+      ]
+    },
+    "ngram": {
+      "mean": 0.37057244835174147,
+      "ci95": 0.003944229517819154,
+      "replicas": [
+        0.36633039092055486,
+        0.3682694179482188,
+        0.37274603730965455,
+        0.37987790742601035,
+        0.36064659977703456,
+        0.366368487131199,
+        0.3735399470487463,
+        0.37173836733101917,
+        0.37625111967909025,
+        0.36995620894588677
+      ]
+    },
+    "relative_event": {
+      "mean": 42.634117975280546,
+      "ci95": 1.787207509879938,
+      "replicas": [
+        44.217996958872895,
+        42.74156736267573,
+        41.81431389204419,
+        41.329022780711796,
+        48.09020848257553,
+        42.67836638873755,
+        38.615862253473516,
+        43.42120897145583,
+        42.95293149639723,
+        40.47970116586121
+      ]
+    },
+    "absolute_event": {
+      "mean": 82.37939181954532,
+      "ci95": 3.9125543927380058,
+      "replicas": [
+        83.71102110771359,
+        77.84240757072521,
+        89.45649977534872,
+        89.99649640735822,
+        80.1767239458088,
+        87.50088721757898,
+        73.49877330562927,
+        82.38148998221263,
+        77.01379289681749,
+        82.21582598626024
+      ]
+    },
+    "circadian_event": {
+      "mean": 1.8533607919839437,
+      "ci95": 0.01974251416505557,
+      "replicas": [
+        1.876454132762401,
+        1.847882089775051,
+        1.8179911902975836,
+        1.9077717908461562,
+        1.8610384362616412,
+        1.826300576571175,
+        1.8729451242335449,
+        1.8369731036512058,
+        1.8285104842852826,
+        1.8577409911553964
+      ]
+    },
+    "case_arrival": {
+      "mean": 68.38412162162163,
+      "ci95": 4.334204852372623,
+      "replicas": [
+        69.51554054054054,
+        66.19391891891892,
+        77.30608108108108,
+        78.22094594594594,
+        60.92364864864865,
+        72.00945945945946,
+        62.14256756756757,
+        67.36013513513514,
+        62.138513513513516,
+        68.0304054054054
+      ]
+    }
+  },
+  "cost": {
+    "discovery_seconds": 1591.8,
+    "discovery_peak_mb": 8774.9,
+    "delays_seconds": 2.2,
+    "delays": {
+      "W_Call after offers": 92820.093,
+      "W_Shortened completion": 17270.148,
+      "W_Assess potential fraud": 25595.054,
+      "W_Call incomplete files": 40816.404,
+      "W_Handle leads": 1555.87,
+      "W_Validate application": 92789.54,
+      "W_Complete application": 36137.115
+    },
+    "simulation_seconds": [
+      2.209,
+      2.22,
+      2.211,
+      2.402,
+      2.06,
+      2.177,
+      2.249,
+      2.181,
+      2.208,
+      2.175
+    ],
+    "simulation_peak_mb": 203.4,
+    "val01": "supera"
+  },
+  "b3_2": "tests/simulation/benchmark/b3_2/run.py"
+}

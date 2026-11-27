@@ -18,6 +18,200 @@ Modello:
 
 ---
 
+## 2026-11-27 — B3.2 discovery delle attese — bloccato
+
+- Branch: `claude/discovery-attese-b3-2-goeah3` (il branch assegnato alla sessione cloud, al posto
+  di `feat/sim-discovery-waiting`). Dipendenze chiuse: G3b (#195).
+- Branch aperti rispetto a `main` (2026-11-26): `claude/vpt-g3b-ablation-3eh6xa`,
+  `spike/sim-g3b-ablation`, `claude/nice-newton-3kmoj9` solo indietro (già fusi);
+  `feat/canvas-agent-architecture` (26), `feat/mcp-server` (3), `claude/charming-hawking-0bmoev`
+  (3), `fix/sim-zero-fixed-durations` (1) fuori dal VPT, come nella review di RAD-00: non fusi.
+- **Scheda 1 — ablazione dei ritardi estranei** (PROTOCOL.md §7), scritta prima della misura:
+
+  | Campo | Contenuto |
+  | --- | --- |
+  | Ipotesi | i ritardi estranei di SIMOD, aggiunti a uno scenario con BPMN, risorse, calendari, durate e arrivi fissati, avvicinano la posizione degli eventi nel caso |
+  | Candidato | `simod_fixed_extr`: lo scenario di `simod` (SIMOD senza ritardi) più solo i timer della fase dei ritardi di SIMOD 5.2.1 (`ExtraneousDelaysOptimizer`, eclipse-aware, `relative_emd`, 20 iterazioni, 3 simulazioni, gli stessi parametri di `simod_extr`) scoperti sopra di esso |
+  | Base | `simod`, lo stesso scenario della stessa discovery senza timer: l'unica differenza sono i ritardi |
+  | Metrica primaria | RED |
+  | Guardie | W1, NGD, AED, CED, CAR; tempo e memoria (al massimo il doppio della base, budget del §6) |
+  | Log | i 23 log di sviluppo dove RED è identificabile (esclusi BPIC 2012 e BPIC 2013 incidents, NOT VALIDATED su RED dal §4); le guardie sugli stessi log |
+
+  - **GO** se, prima in validazione e poi in test: RED vince (IC 95% separati) sulla maggioranza
+    dei 23 log e non perde su nessuno; nessuna guardia perde su più di un log; costo entro il
+    budget e al massimo il doppio della base; lo scenario supera VAL-01. Fallito o fuori budget =
+    sconfitta. **NO-GO** altrimenti. Una valutazione per log e fase (nessuna griglia).
+  - **Metodo:** SIMOD 5.2.1 non ha un comando per la sola fase dei ritardi, ma la sua classe sì:
+    `b3_2/tools/simod_delays.py` legge il log come la CLI (`EventLog.from_path`, stesso
+    preprocessing) e chiama `ExtraneousDelaysOptimizer` con lo scenario dato come modello, poi
+    aggiunge i timer al BPMN e allo scenario come fa la pipeline (`add_timers_to_bpmn_model`,
+    `event_distribution`). A differenza di SIMOD la ricerca ha un seed (`random`, `numpy`,
+    `HYPEROPT_FMIN_SEED`). La discovery senza ritardi non ha seed: base e candidato usano la
+    stessa, rifatta in questo container (la cache di G3b non c'è). Costo del candidato = discovery
+    senza ritardi + ritardi.
+  - Prova del banco prima della misura (non conta): Pharmacy_1_timer validazione in una cartella
+    temporanea, timer scoperto su «Pick-up» (media 74 s) come nel modello vero (timer prima di
+    «Pick-up», 330 s); risultato cancellato.
+- **Scheda 2 — attribuzione delle attese per causa sui sintetici** (scritta prima della misura,
+  dopo un solo giro di prova su Pharmacy_1_timer validazione, 95,3%, contato come valutazione 1 di 20):
+
+  | Campo | Contenuto |
+  | --- | --- |
+  | Ipotesi | dal solo log (caso, attività, inizio, fine, risorsa) si separa l'attesa di ogni esecuzione in congestione, indisponibilità, ritardo esterno e batching guardando la risorsa all'indietro dall'inizio (occupata o fuori orario senza buchi = aspettava la risorsa; prima = ritardo esterno) |
+  | Candidato | `b3_2/attribution.py` v1: abilitazione dall'ultima attività non concorrente (sovrapposizione ≥ 50% dei casi), orari scoperti per gruppo di risorse con le stesse attività (fasce di un'ora aperte in ≥ 10% delle settimane, giornata senza buchi), tolleranza 1 s; solo libreria standard |
+  | Verità | i 20 modelli veri del dataset di Chapela-Campa e Dumas rigenerati con Prosimos 2.1 (1000 casi, seed 20261124, eventi nel log): timer = ritardo esterno; dall'abilitazione vera all'inizio fuori orario vero = indisponibilità, risorsa occupata = congestione. Batching e sospensioni non ci sono nei modelli |
+  | Metrica primaria | quota di attese con la causa giusta (causa con più secondi uguale), sui 16 log con timer insieme; attese = esecuzioni non prime del caso con attesa vera o stimata > 1 s |
+  | Guardie | la stessa quota sui 4 log senza timer; quota dei secondi attribuiti alla causa giusta |
+  | Fasi | validazione = prima metà dei casi (si sceglie qui), test = seconda metà, una volta |
+
+  - **GO** se la primaria è ≥ 90% in validazione e poi in test e la guardia sui 4 log senza timer
+    è ≥ 90%. Al massimo 20 valutazioni in validazione; il test non sceglie.
+  - Limiti dichiarati: l'attesa della prima attività del caso (dall'arrivo) non è osservabile;
+    sospensioni non identificabili senza ciclo di vita; i modelli non hanno batching, quindi il
+    batching si verifica solo come "mai attribuito a torto".
+  - **Esito scheda 2 (sintetici).** Valutazione 2 (v1 su metà dei casi): 87,3%. Diagnosi: dimezzare
+    i casi toglie alle risorse il lavoro dei casi dell'altra metà, e il log mostra buchi che non ci
+    sono (Requester_1 di Procure_to_Pay lavora senza pause, nel log dimezzato ha pause di minuti).
+    Correzione del banco, non della meta: validazione e test sono due log interi indipendenti dello
+    stesso modello (seed 20261124 e 20261125). Valutazione 3, v1 invariato: **validazione 95,0%**
+    (88.336 su 92.994 attese), 4 log senza timer 99,6%, secondi giusti 95,1%. **Test, una volta:
+    95,65%** (90.638 su 94.765), senza timer 99,7%, secondi giusti 95,3%. Peggiore Pharmacy_5_timers_after
+    (82-84%: timer dopo l'attività, poi la risorsa occupata: la congestione prende più secondi del
+    timer). **GO sui sintetici.** Valutazioni in validazione: 3 su 20.
+- **Scheda 3 — attese dell'attribuzione nel simulatore, sui reali** (scritta prima della misura):
+
+  | Campo | Contenuto |
+  | --- | --- |
+  | Ipotesi | la quota "ritardo esterno" delle attese, stimata dall'attribuzione e messa come timer davanti alle attività, avvicina durata dei casi e posizione degli eventi più dei ritardi estranei di SIMOD |
+  | Candidato | `simod_attr_extr`: lo scenario di `simod` più un timer per attività con ritardo in più del 5% delle esecuzioni; distribuzione dai momenti (fissa, esponenziale con CV fra 0,8 e 1,25, altrimenti lognormale), nessuna ricerca né scala; attribuzione v1 sull'input della discovery |
+  | Base | `simod_extr` ("SIMOD con ritardi estranei" di G3b, rifatto qui sulla stessa discovery senza ritardi) |
+  | Metriche primarie | W1 e RED, entrambe |
+  | Guardie | NGD, AED, CED, CAR; tempo e memoria |
+  | Log | i 3 reali con W1 e RED identificabili: AcademicCredentials, BPIC 2012 W, BPIC 2017 W (BPIC 2012 e 2013 NOT VALIDATED su W1 e RED) |
+
+  - **GO** se, in validazione e poi in test, W1 e RED vincono (IC 95% separati) su almeno 2 dei 3
+    log e non perdono su nessuno; nessuna guardia perde su più di un log; costo entro budget e al
+    massimo il doppio della base; VAL-01 superato. **NO-GO** altrimenti. Una valutazione per log e
+    fase. Per informazione (non decide) si misurano anche i 20 sintetici.
+- **Esito scheda 1, validazione: NO-GO.** RED contro `simod` (stessa discovery) su 22 log
+  (AcademicCredentials NV in validazione): vince 4, pari 18, perde 0; guardia CED perde su 2 log
+  (`b3_2/results.md`). Dove la fase dei ritardi mette timer, RED migliora: BPIC 2017 W 130,4 → 66,2,
+  Loan_Application 3 timer 26,3 → 19,0 e 5 timer 28,5 → 17,3, BPIC 2012 W 73,0 → 61,3 (IC 7,3);
+  W1 migliora su BPIC 2017 W (199 → 97) e peggiora su BPIC 2012 W (55 → 116) e AcademicCredentials
+  (104 → 227). **Ma su 15 sintetici su 20 la ricerca di SIMOD sceglie "nessun timer"** (prova con
+  α = 0 di hyperopt, mai battuta), anche dove i timer veri sono 3 o 5 (Pharmacy, Procure_to_Pay,
+  Insurance_Claims): il candidato è identico alla base. In G3b "SIMOD con ritardi" vinceva o perdeva
+  su quei log per le risorse e i calendari riottimizzati, non per i ritardi. Test lanciato per
+  completezza (non sceglie).
+- **Esito scheda 3, validazione: NO-GO (v1).** Contro `simod_extr` rifatto qui: BPIC 2012 W pari
+  (W1 126 ± 6,3 contro 113 ± 9,3; RED 61,9 ± 7,3 contro 57,5 ± 6,5); BPIC 2017 W perde (W1 111 ± 4,4
+  contro 98,5 ± 3,6; RED 79,7 ± 5,5 contro 65,0 ± 2,4). Diagnosi: il ritardo di v1 va dall'abilitazione
+  all'ultimo istante libero della risorsa e comprende tratti in cui era occupata o fuori orario, che il
+  simulatore rifà da sé con le sue code e i calendari di SIMOD: attese contate due volte, casi lunghi.
+- **Scheda 3b — v2** (prima della misura; stessa base, stesse primarie W1 e RED, stesse guardie, stessi
+  log e regola di GO della scheda 3): `simod_attr_idle`, il timer tiene solo i secondi del ritardo
+  esterno con la risorsa libera e in orario (`extraneous_delays(..., measure="idle")`). L'attribuzione
+  delle cause (scheda 2) non cambia. Valutazioni in validazione per i 3 log: 2 su 20.
+- **Esito scheda 3b, validazione: NO-GO (v2).** W1 e RED vincono su BPIC 2012 W (W1 28,1 ± 1,1 contro
+  113 ± 9,3; RED 24,2 ± 1,3 contro 57,5 ± 6,5) e su BPIC 2017 W (74,1 ± 1,4 contro 98,5 ± 3,6;
+  48,1 ± 0,74 contro 65,0 ± 2,4), ma la guardia AED perde su tutti e 3 i log (BPIC 2017 W 88,6 contro
+  48,9): con timer così corti gli eventi cadono troppo presto nel tempo assoluto.
+- **Scheda 3c — v3** (prima della misura; base, primarie, guardie, log e regola della scheda 3):
+  `simod_attr_shift`, il timer è il ritardo esterno di v1 meno il tempo fuori orario della risorsa
+  (`measure="on_shift"`): restano i tratti con la risorsa occupata altrove, che il simulatore non
+  rifà; esce la notte, che i calendari rifanno. Valutazioni in validazione per i 3 log: 3 su 20.
+- **Esito scheda 3c, validazione: NO-GO (v3).** W1 e RED vincono su BPIC 2012 W (36,7 ± 4,0; 22,1 ± 1,5)
+  e BPIC 2017 W (62,9 ± 2,8; 42,6 ± 1,8); AED perde su 2 log (BPIC 2017 W 82,4 contro 48,9;
+  AcademicCredentials 221 contro 173), pari su BPIC 2012 W. Diagnosi: con i ritardi di SIMOD sullo
+  stesso scenario AED resta 50,7: conta la forma. I nostri momenti danno lognormali con varianza
+  enorme (molti zeri e pochi ritardi lunghissimi); SIMOD sceglie la famiglia per distanza dal campione.
+- **Scheda 3d — v4** (prima della misura; base, primarie, guardie, log e regola della scheda 3):
+  `simod_attr_closest`, ritardi di v3 con la famiglia (fissa, esponenziale, normale, lognormale,
+  uniforme, troncate come in Prosimos) scelta per distanza di Wasserstein minima dai quantili del
+  campione (`fit_closest`, solo libreria standard). Valutazioni in validazione per i 3 log: 4 su 20.
+- **Esito scheda 3d, validazione: NO-GO (v4).** Identico a v3 sui due BPIC (la lognormale era già la
+  più vicina): la forma non è la causa. Diagnosi su BPIC 2017 W validazione (replica 0): durata
+  mediana dei casi reale 170 h, v3 116 h, SIMOD con ritardi 237 h; il 90% degli eventi reali finisce
+  entro il giorno 24, v3 entro il 18. W1 premia v3, AED la coda lunga di SIMOD: il ritardo giusto
+  sta fra v3 e v1, e il solo log non dice dove.
+- **Scheda 3e — v5** (prima della misura; base, primarie, guardie, log e regola della scheda 3):
+  `simod_attr_calibrated`, timer = ritardo in orario di v3 + β × il fuori orario dentro il ritardo
+  esterno, β in {0; 0,25; 0,5; 0,75; 1} scelto **sull'input della discovery**: si simula l'ultimo 20%
+  dei casi dell'input (3 repliche per β) e vince la somma minima di W1, RED e AED divise per il valore
+  a β = 0. La validazione e il test non entrano nella scelta; come nella fase dei ritardi di SIMOD,
+  lo scenario è scoperto sull'input intero. Il costo della calibrazione conta. Valutazioni in
+  validazione per i 3 log: 5 su 20.
+- **Esito scheda 3e, validazione: GO (v5).** β scelto sull'input: 0,5 (BPIC 2012 W), 0,75 (BPIC 2017 W,
+  AcademicCredentials). Contro `simod_extr`: BPIC 2012 W W1 82,2 ± 5,2 contro 113 ± 9,3, RED 38,1 ± 2,7
+  contro 57,5 ± 6,5; BPIC 2017 W W1 73,2 ± 2,8 contro 98,5 ± 3,6, RED 52,8 ± 2,2 contro 65,0 ± 2,4;
+  nessuna guardia perde (AED 61 pari, 41,7 contro 48,9 vince; AcademicCredentials AED 177 pari).
+  Test lanciato una volta sui 3 reali.
+- **Esito scheda 1, test: NO-GO** (RED 6/15/2 su 23 log; perde su AcademicCredentials, dove la fase
+  dei ritardi di SIMOD fallisce per overflow di date come in G3b, e su Procure_to_Pay_5_timers_after;
+  guardie AED e CED perdono su 3-4 log). **Ma sui reali l'effetto isolato dei ritardi è forte:** a
+  scenario fissato RED passa da 178 a 63,7 (BPIC 2012 W) e da 183 a 7,82 (BPIC 2017 W), W1 da 175 a
+  42,1 e da 253 a 17,9; su BPIC 2017 W i soli ritardi di SIMOD battono anche "B = A" (RED 7,82 ± 0,3
+  contro 11,4; W1 17,9 ± 1,6 contro 30,6). La NO-GO viene dai sintetici, dove la ricerca di SIMOD
+  sceglie "nessun timer" su 15 log su 20. In G3b "SIMOD con ritardi" era quasi pari a SIMOD senza
+  ritardi perché riottimizzava risorse e calendari: isolati, i ritardi contano sui reali.
+- **Esito scheda 3e, test: NO-GO (v5).** Contro `simod_extr`: BPIC 2012 W perde (W1 99,3 ± 1,5 contro
+  43,2 ± 2,0; RED 113 ± 1,3 contro 66,0 ± 1,5), BPIC 2017 W perde (W1 50,0 ± 1,4 contro 19,2 ± 2,3;
+  RED 45,4 ± 1,5 contro 8,57 ± 0,81); AcademicCredentials vince solo perché `simod_extr` fallisce
+  (overflow), e lo scenario v5 non supera VAL-01 lì (eredita il ciclo senza uscita della discovery
+  senza ritardi, come in G3b). β scelto: 0 (BPIC 2012 W), 0,5 (BPIC 2017 W), 0,25 (AcademicCredentials).
+- **Diagnosi (perché la validazione ha scelto male).** La validazione del §5 è l'ultimo 20% dei casi del
+  train, e la calibrazione di v5 simula l'ultimo 20% dell'input: in entrambe le finestre i casi lunghi
+  sono tagliati alla fine del train (BPIC 2017 W validazione: durata mediana reale 170 h, contro
+  casi del test molto più lunghi). Le finestre tagliate premiano ritardi corti: v2-v5 vincono in
+  validazione e perdono in test, mentre i ritardi lunghi di SIMOD perdono in validazione (W1 116 su
+  BPIC 2012 W) e vincono in test. Il controllo del §4 (tagliati a destra < 5%) guarda l'ultima
+  attività del caso, non i casi ancora aperti con attese lunghe: non lo vede.
+- **Decisione: B3.2 bloccato** (meta sui reali non raggiunta, meta sui sintetici raggiunta). Scegliere
+  altre varianti su questa validazione vorrebbe dire scegliere su una finestra distorta; il test non
+  sceglie. Sblocca Sohayb, con una di queste: (a) validazione per W1 e RED su log con casi lunghi
+  fatta di casi completi (finestra del fit che finisce prima, casi seguiti fino alla loro fine nel
+  train), cambio del §5; (b) per le attese, i ritardi di SIMOD a scenario fissato come base di B3 sui
+  reali (già misurati in test, scelta da fare prima di guardare altro); (c) un criterio del §4 sui
+  casi aperti a fine periodo. Valutazioni in validazione usate: 5 su 20 (scheda 3), 3 su 20 (scheda 2).
+- **Prodotto: niente in `main`.** Il porting dell'attribuzione (scheda 2, GO) è pronto sul branch
+  `claude/b3-2-perche-si-aspetta-prodotto`: `backend/eventlog/waiting.py` (solo libreria standard),
+  `waitingCauses` nei KPI del log reale quando inizio e persona ci sono sul 95% degli eventi, e
+  nell'ispettore dell'attività «Perché si aspetta» con le cause in linguaggio di business («Le persone
+  sono occupate in altro lavoro», «Fuori dall'orario di lavoro», «Si aspetta qualcosa da fuori:
+  clienti, fornitori, altri uffici», «Il lavoro si raccoglie e si fa a lotti»). Gate UX fatto lì
+  (Playwright desktop 1440 × 900 e Pixel 7, `docs/vpt/ux/B3.2/` sul branch): letti tutti gli
+  screenshot, niente gergo, risposta prima del dettaglio, niente testo tagliato né scroll
+  orizzontale, axe WCAG 2 A/AA senza violazioni; corretto un dato del fixture incoerente (30
+  esecuzioni accanto a «3 → 3»). Entra in `main` solo se Sohayb decide che la meta dei sintetici basta
+  per la parte visibile, o dopo il GO sui reali.
+- **Code review** (`code-review`, livello alto, sul diff contro `origin/main`): 10 rilievi. Corretti:
+  orari letti nell'ora locale del log (prima in UTC); abilitazione registrata usata così com'è; eventi
+  senza persona che abilitano le altre attività; niente batching con inizi registrati al minuto; quote
+  per il simulatore (`idle`, `on_shift`) solo a richiesta, costo ora lineare (160.000 eventi in 2,0 s,
+  prima 16,6 s); niente cause nei KPI di periodo; l'ispettore non dice «parte appena può» quando il log
+  non lo sa, nasconde le cause sotto lo 0,5% e non mostra «0 attese»; voce delle skill in LOG.
+  Motivato e lasciato come limite noto con test `xfail(strict)`: chi compare poco nel log ha un orario
+  stretto (cambiarlo ora cambierebbe l'algoritmo validato e misurato; seguito proposto: orario comune
+  per i gruppi con pochi eventi, con scheda). Motivato: la finestra delle cause usa la regola di
+  concorrenza, quella dell'attesa media dei KPI no (per costruzione diverse sui rami paralleli).
+- **`simplify`:** i 4 revisori in parallelo si sono fermati sul limite di uso dell'API; fatto a mano sul
+  codice di ricerca: tolto il riepilogo per attività dal banco (vive sul branch del prodotto),
+  nessuna funzione morta, nessun duplicato con G3b (il driver riusa `g3b/run.py`: `evaluate`, budget,
+  cache, misura). Il `compare` del report è sostituito solo dentro un `with` per non toccare G3b.
+- Nessun codice del prodotto in `main`: niente ast-grep del backend da applicare qui (lanciato sul
+  branch del prodotto: 0 rilievi), niente `security-review` (nessuna autenticazione né tenant).
+- Skill: `code-review`, `simplify` (a mano), `react-ui-patterns` per l'ispettore; gate UX con
+  Playwright e axe come da WORKFLOW (`ui-visual-validator` non caricata: lettura degli screenshot
+  fatta direttamente).
+- **Difetto del banco di G3b, da correggere con Sohayb:** `within_intervals` usa `<`, quindi due
+  risultati identici con IC nullo (sintetici di un giorno) risultano diversi e `compare` dà
+  "perde". In G3b: 246 confronti identici; sulle primarie, 4 RED "persi" della scheda Attese in
+  validazione (Insurance_Claims, 3 e 5 timer dopo) sono pari. Nessun verdetto cambia (nessuna scheda
+  arrivava alla maggioranza). `g3b/report.py` non si tocca qui; `b3_2/report.py::compare` conta pari
+  i risultati identici. Correzione proposta: `<=` o uguaglianza esplicita in `within_intervals`.
+
+---
+
 ## 2026-11-26 — G3b benchmark dei motori scientifici — fatto
 
 - Branch / PR: `spike/sim-g3b-ablation`, #195, CI verde. Dipendenze chiuse: PROTO-01 (#190).

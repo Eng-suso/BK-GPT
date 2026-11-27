@@ -1,0 +1,164 @@
+{
+  "g3b": "tests/simulation/benchmark/g3b/run.py",
+  "log": "Loan_Application",
+  "category": "sintetico con verita nota",
+  "phase": "test",
+  "config": "simod_fixed_extr",
+  "label": "SIMOD senza ritardi + solo i ritardi estranei di SIMOD (risorse e calendari fissati)",
+  "seed": 20261124,
+  "replicas": 10,
+  "cases": {
+    "source": 500,
+    "target": 500
+  },
+  "identifiability": {
+    "cycle_time_w1": "identificabile",
+    "ngram": "identificabile",
+    "relative_event": "identificabile",
+    "absolute_event": "identificabile",
+    "circadian_event": "identificabile",
+    "case_arrival": "identificabile",
+    "processing_time": "identificabile",
+    "resources": "identificabile",
+    "waiting_causes": "identificabile",
+    "true_parameters": "identificabile",
+    "counterfactual": "identificabile"
+  },
+  "status": "measured",
+  "simulated_cases": [
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500,
+    500
+  ],
+  "metrics": {
+    "cycle_time_w1": {
+      "mean": 28.9118,
+      "ci95": 6.447472120128071,
+      "replicas": [
+        27.604,
+        37.334,
+        12.024,
+        22.192,
+        27.672,
+        38.832,
+        37.606,
+        21.3,
+        38.276,
+        26.278
+      ]
+    },
+    "ngram": {
+      "mean": 0.11029967363584539,
+      "ci95": 0.007559843024630008,
+      "replicas": [
+        0.10139682999203879,
+        0.120178148121543,
+        0.10406313943291436,
+        0.10534306991540741,
+        0.12732209202629322,
+        0.11471877020329,
+        0.1239798452913207,
+        0.1073142358586593,
+        0.09623733719247468,
+        0.10244326832451243
+      ]
+    },
+    "relative_event": {
+      "mean": 17.209753623295306,
+      "ci95": 4.069011628784006,
+      "replicas": [
+        18.06506604402041,
+        20.309765018198213,
+        6.009889547641151,
+        13.330829647454143,
+        15.911539268257094,
+        24.75780361525362,
+        20.831922458599486,
+        11.40749087971649,
+        22.977372407471538,
+        18.495857346340912
+      ]
+    },
+    "absolute_event": {
+      "mean": 16.875987230000717,
+      "ci95": 1.7163904464619475,
+      "replicas": [
+        17.007693362702273,
+        17.301952451342697,
+        15.046153801070883,
+        18.69213955542204,
+        15.756345342507922,
+        18.609605637459897,
+        12.586198200352781,
+        18.901164790494057,
+        14.463557900031333,
+        20.395061258623283
+      ]
+    },
+    "circadian_event": {
+      "mean": 0.3331696346735043,
+      "ci95": 0.019536729807493054,
+      "replicas": [
+        0.3186240597531352,
+        0.34733765030788993,
+        0.32744704052955886,
+        0.3162245516627851,
+        0.31755816928301317,
+        0.3341582577636076,
+        0.2983746497889068,
+        0.36658525819575516,
+        0.31631876326956515,
+        0.389067946180826
+      ]
+    },
+    "case_arrival": {
+      "mean": 7.078799999999999,
+      "ci95": 1.1403031819242457,
+      "replicas": [
+        6.17,
+        5.56,
+        9.224,
+        6.07,
+        6.622,
+        8.482,
+        5.528,
+        10.04,
+        6.232,
+        6.86
+      ]
+    }
+  },
+  "cost": {
+    "discovery_seconds": 195.20000000000002,
+    "discovery_peak_mb": 1121.8,
+    "delays_seconds": 60.9,
+    "delays": {
+      "Approve application": 12732.4,
+      "Cancel application": 6482.4,
+      "Prepare home insurance quote": 333.4,
+      "Reject application": 2422.9
+    },
+    "simulation_seconds": [
+      0.693,
+      0.759,
+      0.843,
+      0.768,
+      0.911,
+      0.706,
+      0.788,
+      0.863,
+      0.815,
+      0.745
+    ],
+    "simulation_peak_mb": 178.0,
+    "val01": "supera"
+  },
+  "b3_2": "tests/simulation/benchmark/b3_2/run.py"
+}

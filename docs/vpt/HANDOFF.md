@@ -16,6 +16,35 @@ Ognuno in una sessione nuova sul repository `eng-suso/bk-gpt`, dal `main` aggior
 Nessun prompt aperto: G3b e RAD-01 + PROTO-02 sono chiusi. Il prossimo punto parte da
 `PLAN.md` e dalla sezione `## G3b` qui sotto.
 
+## B3.2 (bloccato il 2026-11-27, `claude/discovery-attese-b3-2-goeah3`)
+
+Discovery delle attese. Sintetici **GO**, reali **NO-GO**: decide Sohayb. Tutto nella voce B3.2 di
+[`LOG.md`](./LOG.md) (schede 1, 2, 3-3e scritte prima delle misure).
+
+```bash
+tests/simulation/benchmark/g3b/setup_envs.sh        # basta il venv simod
+uv run python tests/simulation/benchmark/b3_2/run.py                    # scheda 1: simod, simod_fixed_extr (val e test)
+uv run python tests/simulation/benchmark/b3_2/run.py --logs AcademicCredentials BPIC_2012_W BPIC_2017_W --configs simod_extr simod_attr_calibrated
+uv run python tests/simulation/benchmark/b3_2/report.py                 # results.md, verdicts.json
+/var/tmp/delir-g3b/envs/simod/bin/python tests/simulation/benchmark/b3_2/tools/truth_logs.py --inputs datasets/extraneous-delays/inputs/synthetic --out /var/tmp/delir-b32/truth/validation --seed 20261124 <i 20 nomi>
+uv run python tests/simulation/benchmark/b3_2/attribution_eval.py --phase validation   # scheda 2 (test: seed 20261125)
+```
+
+- **Attribuzione delle attese (scheda 2): GO.** Causa giusta nel 95,0% (validazione) e 95,65% (test)
+  delle attese dei 16 sintetici con timer; 99,7% senza timer. Codice in `b3_2/waiting.py`.
+- **Ablazione dei ritardi (scheda 1): NO-GO**, ma sui reali i ritardi di SIMOD a scenario fissato
+  sono forti in test (BPIC 2017 W RED 183 → 7,8, meglio di "B = A" 11,4). Sui sintetici la ricerca di
+  SIMOD non mette timer (15 log su 20).
+- **Attese attribuite nel simulatore (schede 3-3e): NO-GO.** v5 vince in validazione e perde in test:
+  la validazione (ultimo 20% del train) taglia i casi lunghi e premia ritardi corti.
+- **Per Sohayb:** (a) validazione di W1 e RED con casi completi (cambio del §5); (b) i ritardi di SIMOD a
+  scenario fissato come base delle attese di B3; (c) un criterio del §4 sui casi aperti; (d) se la
+  parte visibile («Perché si aspetta», gate UX fatto) può entrare con la sola meta dei sintetici: è
+  pronta su `claude/b3-2-perche-si-aspetta-prodotto`; (e) il difetto di `within_intervals` di G3b.
+- Seguiti: orario comune per gruppi di risorse con pochi eventi (limite noto, test `xfail` sul branch
+  del prodotto); budget di validazione rimasto: 15 (scheda 3), 17 (scheda 2).
+- `g3b/run.py::evaluate` accetta `simulate_fn` e `label` (opzionali): G3b invariato.
+
 ## G3b (fatto il 2026-11-26, `spike/sim-g3b-ablation`)
 
 Benchmark dei motori scientifici sui 25 log di sviluppo × 2 fasi × 9 configurazioni (450

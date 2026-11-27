@@ -1,0 +1,305 @@
+{
+  "pooled_timer_logs": 0.9499107469299095,
+  "results": [
+    {
+      "log": "Insurance_Claims_1_timer",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 1779,
+      "right": 1779,
+      "accuracy": 1.0,
+      "seconds_share_right": 0.9999999997489999,
+      "confusion": {
+        "contention->contention": 876,
+        "extraneous->extraneous": 903
+      }
+    },
+    {
+      "log": "Insurance_Claims_3_timers",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 3059,
+      "right": 3059,
+      "accuracy": 1.0,
+      "seconds_share_right": 0.8770246178335805,
+      "confusion": {
+        "contention->contention": 884,
+        "extraneous->extraneous": 2175
+      }
+    },
+    {
+      "log": "Insurance_Claims_5_timers",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 4417,
+      "right": 4417,
+      "accuracy": 1.0,
+      "seconds_share_right": 0.8516992667816483,
+      "confusion": {
+        "contention->contention": 875,
+        "extraneous->extraneous": 3542
+      }
+    },
+    {
+      "log": "Insurance_Claims_5_timers_after",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 3131,
+      "right": 3131,
+      "accuracy": 1.0,
+      "seconds_share_right": 0.9999999996372656,
+      "confusion": {
+        "contention->contention": 869,
+        "extraneous->extraneous": 2262
+      }
+    },
+    {
+      "log": "Loan_Application_1_timer",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 6684,
+      "right": 6276,
+      "accuracy": 0.9389587073608617,
+      "seconds_share_right": 0.9326287546060048,
+      "confusion": {
+        "contention->contention": 4717,
+        "contention->none": 28,
+        "extraneous->contention": 348,
+        "extraneous->extraneous": 535,
+        "unavailability->contention": 30,
+        "unavailability->none": 2,
+        "unavailability->unavailability": 1024
+      }
+    },
+    {
+      "log": "Loan_Application_3_timers",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 6863,
+      "right": 6329,
+      "accuracy": 0.9221914614600029,
+      "seconds_share_right": 0.9229804576952387,
+      "confusion": {
+        "contention->contention": 4259,
+        "contention->none": 36,
+        "extraneous->contention": 459,
+        "extraneous->extraneous": 835,
+        "unavailability->contention": 36,
+        "unavailability->none": 3,
+        "unavailability->unavailability": 1235
+      }
+    },
+    {
+      "log": "Loan_Application_5_timers",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 6635,
+      "right": 5962,
+      "accuracy": 0.8985681989449887,
+      "seconds_share_right": 0.9322263710750018,
+      "confusion": {
+        "contention->contention": 3599,
+        "contention->none": 26,
+        "extraneous->contention": 619,
+        "extraneous->extraneous": 1120,
+        "unavailability->contention": 28,
+        "unavailability->unavailability": 1243
+      }
+    },
+    {
+      "log": "Loan_Application_5_timers_after",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 7470,
+      "right": 6656,
+      "accuracy": 0.8910307898259705,
+      "seconds_share_right": 0.9175973494562145,
+      "confusion": {
+        "contention->contention": 4308,
+        "contention->none": 42,
+        "extraneous->contention": 737,
+        "extraneous->extraneous": 843,
+        "unavailability->contention": 34,
+        "unavailability->none": 1,
+        "unavailability->unavailability": 1505
+      }
+    },
+    {
+      "log": "Pharmacy_1_timer",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 1956,
+      "right": 1888,
+      "accuracy": 0.9652351738241309,
+      "seconds_share_right": 0.9709860900964146,
+      "confusion": {
+        "contention->contention": 951,
+        "extraneous->contention": 68,
+        "extraneous->extraneous": 928,
+        "unavailability->unavailability": 9
+      }
+    },
+    {
+      "log": "Pharmacy_3_timers",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 4018,
+      "right": 3683,
+      "accuracy": 0.9166251866600299,
+      "seconds_share_right": 0.9515799563026748,
+      "confusion": {
+        "contention->contention": 1031,
+        "extraneous->contention": 335,
+        "extraneous->extraneous": 2638,
+        "unavailability->unavailability": 14
+      }
+    },
+    {
+      "log": "Pharmacy_5_timers",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 5805,
+      "right": 5494,
+      "accuracy": 0.9464254952627046,
+      "seconds_share_right": 0.9666360768527283,
+      "confusion": {
+        "contention->contention": 853,
+        "extraneous->batching": 22,
+        "extraneous->contention": 289,
+        "extraneous->extraneous": 4619,
+        "unavailability->unavailability": 22
+      }
+    },
+    {
+      "log": "Pharmacy_5_timers_after",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 3590,
+      "right": 3016,
+      "accuracy": 0.8401114206128134,
+      "seconds_share_right": 0.909911887807166,
+      "confusion": {
+        "contention->contention": 523,
+        "extraneous->batching": 12,
+        "extraneous->contention": 562,
+        "extraneous->extraneous": 2479,
+        "unavailability->unavailability": 14
+      }
+    },
+    {
+      "log": "Procure_to_Pay_1_timer",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 8745,
+      "right": 8703,
+      "accuracy": 0.995197255574614,
+      "seconds_share_right": 0.9973631947655555,
+      "confusion": {
+        "contention->contention": 4094,
+        "extraneous->contention": 42,
+        "extraneous->extraneous": 177,
+        "unavailability->unavailability": 4432
+      }
+    },
+    {
+      "log": "Procure_to_Pay_3_timers",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 9577,
+      "right": 9465,
+      "accuracy": 0.9883053148167484,
+      "seconds_share_right": 0.9967470708667502,
+      "confusion": {
+        "contention->contention": 3993,
+        "extraneous->batching": 5,
+        "extraneous->contention": 107,
+        "extraneous->extraneous": 1086,
+        "unavailability->unavailability": 4386
+      }
+    },
+    {
+      "log": "Procure_to_Pay_5_timers",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 9679,
+      "right": 9175,
+      "accuracy": 0.9479285050108482,
+      "seconds_share_right": 0.9922468038125317,
+      "confusion": {
+        "contention->contention": 3117,
+        "extraneous->batching": 6,
+        "extraneous->contention": 498,
+        "extraneous->extraneous": 1612,
+        "unavailability->unavailability": 4446
+      }
+    },
+    {
+      "log": "Procure_to_Pay_5_timers_after",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 9586,
+      "right": 9303,
+      "accuracy": 0.9704777800959733,
+      "seconds_share_right": 0.9925835541146973,
+      "confusion": {
+        "contention->contention": 3536,
+        "extraneous->contention": 283,
+        "extraneous->extraneous": 1255,
+        "unavailability->unavailability": 4512
+      }
+    },
+    {
+      "log": "Insurance_Claims",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 868,
+      "right": 868,
+      "accuracy": 1.0,
+      "seconds_share_right": 1.0,
+      "confusion": {
+        "contention->contention": 868
+      }
+    },
+    {
+      "log": "Loan_Application",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 5500,
+      "right": 5432,
+      "accuracy": 0.9876363636363636,
+      "seconds_share_right": 0.9444160553697856,
+      "confusion": {
+        "contention->contention": 4551,
+        "contention->none": 36,
+        "unavailability->contention": 32,
+        "unavailability->unavailability": 881
+      }
+    },
+    {
+      "log": "Pharmacy",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 906,
+      "right": 906,
+      "accuracy": 1.0,
+      "seconds_share_right": 1.0,
+      "confusion": {
+        "contention->contention": 904,
+        "unavailability->unavailability": 2
+      }
+    },
+    {
+      "log": "Procure_to_Pay",
+      "phase": "validation",
+      "variant": "v1",
+      "waits": 8925,
+      "right": 8925,
+      "accuracy": 1.0,
+      "seconds_share_right": 1.0,
+      "confusion": {
+        "contention->contention": 4466,
+        "unavailability->unavailability": 4459
+      }
+    }
+  ]
+}
