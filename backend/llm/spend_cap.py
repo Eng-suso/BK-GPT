@@ -26,6 +26,7 @@ rete di sicurezza per cio' che il registro non vede. Lo rende raro.
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -45,6 +46,7 @@ MESSAGE = (
 )
 
 _cache: tuple[float, Decimal] | None = None
+logger = logging.getLogger(__name__)
 
 
 class SpendCapReached(MissingProviderKey):
@@ -59,8 +61,10 @@ def _limit() -> Decimal | None:
 def spent_last_24h(now: datetime | None = None) -> Decimal:
     """La spesa delle ultime 24 ore, modelli e audio, di tutti i tenant.
 
-    Le righe senza prezzo si contano al prezzo di ripiego, pessimista, come nel
-    contatore d'uso: un costo sconosciuto fa scattare il freno prima, mai dopo.
+    Le righe dei modelli senza prezzo si contano al prezzo di ripiego,
+    pessimista, come nel contatore d'uso: un costo sconosciuto fa scattare il
+    freno prima, mai dopo. L'audio senza prezzo al minuto non ha un ripiego
+    sensato a token e resta fuori: il suo tetto e' in ore, nel contatore.
     """
     from backend.llm import ledger
 
@@ -80,7 +84,14 @@ def tripped() -> bool:
         return False
     now = time.monotonic()
     if _cache is None or now - _cache[0] > _CACHE_SECONDS:
-        _cache = (now, spent_last_24h())
+        try:
+            _cache = (now, spent_last_24h())
+        except Exception:  # noqa: BLE001 - il freno non deve fermare le code se il registro non risponde
+            # Si tiene l'ultima lettura (o nessun freno, se non ce n'e' una) e si
+            # riprova alla prossima scadenza della cache, invece di sollevare
+            # dentro i loop dei worker o a ogni chiamata.
+            logger.warning("tetto di spesa: lettura del registro fallita", exc_info=True)
+            _cache = (now, _cache[1] if _cache is not None else Decimal(0))
     return _cache[1] >= limit
 
 
@@ -95,7 +106,8 @@ def check() -> None:
 
 
 def reset_cache() -> None:
-    """Dimentica l'ultima lettura. Per i test e dopo che l'amministratore alza il tetto."""
+    """Dimentica l'ultima lettura. Per i test: il tetto si rilegge dai settings a
+    ogni chiamata, quindi alzarlo vale subito anche senza questa funzione."""
     global _cache
     _cache = None
 
