@@ -180,6 +180,11 @@ class Settings(BaseSettings):
     # Le soglie sono in dollari stimati dal listino, cioe' nella stessa unita'
     # in cui il fornitore fattura. Al consulente si mostrano come percentuale.
     usage_limits_enabled: bool = False
+    # Il freno d'emergenza (backend/llm/spend_cap.py): tetto di spesa di tutta
+    # l'installazione sulle ultime 24 ore, in dollari stimati dal listino. Vale
+    # anche con i limiti per consulente spenti, e ferma anche il lavoro in
+    # background: le code si fermano e riprendono da sole. 0 = spento.
+    usage_hard_cap_daily_usd: float = 0.0
     # La sessione parte dal primo uso e dura queste ore (come Claude e Codex).
     usage_session_hours: float = 5.0
     usage_session_budget_usd: float = 1.5
