@@ -129,7 +129,13 @@ def _client(profile: TaskProfile, input_characters: int | None):
     if profile.provider is Provider.ANTHROPIC:
         from backend.llm.claude_client import claude_client
 
-        return claude_client(profile, input_characters=input_characters, max_retries=_max_retries(profile))
+        return claude_client(
+            model=profile.model,
+            max_tokens=profile.max_output_tokens or settings.model_max_tokens,
+            timeout=timeout_for_input(input_characters if profile.scales_with_input else None),
+            max_retries=_max_retries(profile),
+            effort=profile.reasoning_effort,
+        )
 
     from langchain_openai import ChatOpenAI
 
