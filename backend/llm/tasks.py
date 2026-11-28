@@ -96,22 +96,41 @@ class TaskProfile:
     def model(self) -> str:
         """Il modello del compito.
 
-        Per i compiti di conversazione oggi e' uno solo, dai settings: scegliere
-        per compito e' P4, e va fatto con gli eval in mano, non a intuito. Il
-        punto di questo registro e' che quando quel giorno arriva si cambia
-        **qui**, e non in dieci moduli.
+        Di default e' quello di conversazione, dai settings; un compito puo'
+        averne un altro in `LLM_TASK_MODELS_JSON`, scelto con gli eval in mano.
+        La chat (`chat_turn`, con l'instradamento e il riassunto che la seguono)
+        passa da `chat_model()`, che vale anche per il runtime.
 
-        Due compiti fanno eccezione e nessuno dei due e' una scelta di qualita':
-        l'embedding, il cui modello decide la dimensione dei vettori gia'
-        scritti (un contratto, non un parametro), e la trascrizione, che ha un
-        modello suo configurabile.
+        Restano fissi l'embedding, il cui modello decide la dimensione dei
+        vettori gia' scritti (un contratto, non un parametro), e l'audio, che ha
+        i suoi modelli configurabili.
         """
-        chosen = task_models().get(self.task)
+        if self.task is LlmTask.CHAT_TURN or self.task in CHAT_FOLLOWER_TASKS:
+            chosen = chat_model()
+        else:
+            chosen = task_models().get(self.task)
         if chosen:
             return chosen
         if self.model_setting:
             return str(getattr(settings, self.model_setting, "") or settings.openai_model)
         return self.model_name or settings.openai_model
+
+    @property
+    def max_retries(self) -> int:
+        """Quanti tentativi concede l'SDK a questo compito.
+
+        La regola e' quella di P0, applicata per compito: si ritenta dove non c'e'
+        nessun altro che ritenta. Un compito con una coda dietro fallisce e la
+        coda lo riprende con il suo backoff; un turno di chat non ha niente
+        dietro, e un rate limit transitorio diventerebbe un errore in faccia al
+        consulente.
+        """
+        return settings.agent_max_retries if self.retry else settings.model_max_retries
+
+    @property
+    def output_cap(self) -> int:
+        """Il tetto sull'uscita, o quello del client quando il profilo non lo dice."""
+        return self.max_output_tokens or settings.model_max_tokens
 
     @property
     def provider(self) -> Provider:
@@ -275,11 +294,24 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
 NON_CHAT_TASKS = frozenset({LlmTask.EMBEDDING, LlmTask.TRANSCRIPTION, LlmTask.LIVE_TRANSCRIPTION})
 #: I compiti che esegue Mem0 con i suoi client (`backend/llm/mem0_meter.py`).
 MEM0_TASKS = frozenset({LlmTask.MEMORY_EXTRACTION, LlmTask.MEMORY_EMBEDDING})
-#: I compiti del client della chat (`chat_client.py`), che oggi parla solo
-#: OpenAI: la versione di langchain-core del progetto non regge Claude nella chat.
-CHAT_CLIENT_TASKS = frozenset({LlmTask.CHAT_TURN, LlmTask.CONTEXT_ROUTING, LlmTask.THREAD_SUMMARY})
+#: I compiti che girano con il modello della chat, quello di `chat_model()`: il
+#: runtime costruisce i tre client con lo stesso modello (`agent.normalize_model_name`).
+CHAT_FOLLOWER_TASKS = frozenset({LlmTask.CONTEXT_ROUTING, LlmTask.THREAD_SUMMARY})
 #: I compiti il cui modello non si sceglie in `LLM_TASK_MODELS_JSON`.
-FIXED_MODEL_TASKS = NON_CHAT_TASKS | MEM0_TASKS | CHAT_CLIENT_TASKS
+FIXED_MODEL_TASKS = NON_CHAT_TASKS | MEM0_TASKS | CHAT_FOLLOWER_TASKS
+
+
+def chat_model() -> str | None:
+    """Il modello scelto per la chat in `LLM_TASK_MODELS_JSON`, se e' permesso.
+
+    Un nome fuori da `CHAT_MODELS` non vale: sostituirebbe ogni richiesta di
+    chat con un modello che il fornitore non conosce. L'avvio lo dice
+    (`egress.assert_egress_is_defensible`).
+    """
+    from backend.settings import CHAT_MODELS
+
+    chosen = task_models().get(LlmTask.CHAT_TURN)
+    return chosen if chosen in CHAT_MODELS else None
 
 
 def task_models() -> dict[LlmTask, str]:

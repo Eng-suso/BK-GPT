@@ -30,7 +30,7 @@ configurazione la accende; una destinazione spenta resta elencata.
 | Chiave | Fornitore (default) | Host di default | Cosa riceve | Attiva quando | Compiti |
 |---|---|---|---|---|---|
 | `llm_chat` | OpenAI, o il fornitore di `OPENAI_BASE_URL` | `api.openai.com` | Interviste, testi dei documenti, messaggi di chat, piani di processo, scenari | `OPENAI_API_KEY` impostata | Tutti tranne embedding e trascrizione (vedi §2) |
-| `llm_claude` | Anthropic (Claude) | `api.anthropic.com` | Come `llm_chat`, per i soli compiti assegnati a un modello `claude-...` | `ANTHROPIC_API_KEY` impostata e almeno un compito in `LLM_TASK_MODELS_JSON` su Claude | Quelli di `LLM_TASK_MODELS_JSON` con un modello `claude-...`; mai la chat, l'embedding, l'audio o Mem0 |
+| `llm_claude` | Anthropic (Claude) | `api.anthropic.com` | Come `llm_chat`, per i soli compiti assegnati a un modello `claude-...` | `ANTHROPIC_API_KEY` impostata e almeno un compito in `LLM_TASK_MODELS_JSON` su Claude | Quelli di `LLM_TASK_MODELS_JSON` con un modello `claude-...`, compresa la chat (`chat_turn`, con instradamento e riassunto); mai l'embedding, l'audio o Mem0 |
 | `llm_embedding` | OpenAI | `api.openai.com` | Frammenti di documenti e interviste | `OPENAI_API_KEY` impostata | `embedding` |
 | `transcription` | OpenAI | `api.openai.com` | **File audio** delle interviste (voce = dato personale) | `OPENAI_API_KEY` impostata | `transcription` |
 | `transcription_live` | OpenAI Realtime | `api.openai.com` (wss) | **Audio dal microfono** in tempo reale | `OPENAI_API_KEY` impostata | `live_transcription` (WebSocket diretto; una riga nel registro per sessione, con i secondi di audio) |

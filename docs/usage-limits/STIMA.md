@@ -55,15 +55,15 @@ costruito davvero, e quindi come il fornitore lo mette in cache (sezione sotto).
 | | Tipica | Intensa |
 |---|---|---|
 | **Totale, GPT-6 Luna** | **$0.21** | **$3.50** |
-| **Totale, Claude Haiku 5.5**, se anche la chat fosse su Haiku | **$0.23** | **$3.63** |
+| **Totale, Claude Haiku 5.5**, con anche la chat su Haiku | **$0.23** | **$3.63** |
 | di cui trascrizione dal vivo | — | $2.04 (58%) |
 | di cui file audio | — | $0.36 (10%) |
 | di cui modelli di linguaggio (Luna) | $0.21 | $1.10 |
 | di cui la chat (Luna) | $0.14 | $0.74 |
 | di cui embedding | $0.0004 | $0.002 |
 
-Senza cache la giornata intensa sale a $4.63, per entrambi i modelli. Oggi Haiku
-può fare i compiti del gateway, non la chat (vedi «Come si usano Luna e Haiku»).
+Senza cache la giornata intensa sale a $4.63, per entrambi i modelli. Haiku può
+fare i compiti del gateway e la chat (vedi «Come si usano Luna e Haiku»).
 
 ### La cache, e perché decide il costo della chat
 
@@ -217,19 +217,21 @@ DELIR_EGRESS_ALLOWED_HOSTS=...,api.anthropic.com   # in staging e prod
    compito; sotto i 512 token Anthropic non mette in cache e non fa pagare
    niente. Il registro conta le scritture in cache (`cache_write_input_tokens`) e
    le valorizza a `cache_write` del listino.
-2. **La chat resta su Luna.** Per Claude nella chat (turno, instradamento,
-   riassunto) serve una versione di `langchain-core` più recente di quella fissata
-   nel progetto: la 1.4.0 regge solo `langchain-anthropic` 1.4.4, che non accetta
-   istruzioni di sistema a metà conversazione, e il contratto dello specialista
-   sta in coda al prompt. È un aggiornamento della pila langchain, da fare a sé.
+2. **Anche la chat può passare a Claude** (dal 2026-11-28, con la pila
+   langchain aggiornata): `{"chat_turn": "claude-haiku-5-5"}`. Instradamento e
+   riassunto seguono il modello della chat. Nella chat i segnalibri della cache
+   sono due: alla fine del sistema e alla fine della conversazione, così ogni
+   passo rilegge dalla cache il passo prima; il contratto dello specialista resta
+   in coda, come messaggio di sistema a metà conversazione.
 3. **Anthropic va registrato fra i fornitori** prima di accenderlo in produzione
    (`docs/compliance/fornitori-e-invii-dati.md`, oggi NOT VALIDATED), e il suo
    host aggiunto a `DELIR_EGRESS_ALLOWED_HOSTS`.
 4. **Mem0 usa `gpt-4o-mini`** (`MEM0_LLM_MODEL`). Per restare su Luna e Haiku va
    impostato `MEM0_LLM_MODEL=gpt-6-luna`.
 5. **Ripartizione suggerita**, da validare con gli eval:
-   - Luna per la chat e per l'estrazione del piano, che con molte fonti può
-     superare i 100K token, dove Haiku costerebbe 5 volte tanto;
+   - Luna per l'estrazione del piano, che con molte fonti può superare i 100K
+     token, dove Haiku costerebbe 5 volte tanto; la chat su Luna o su Haiku, da
+     decidere con gli eval della chat;
    - Haiku per i compiti piccoli con schema stretto: rerank, giudizio sulle
      entità, what-if, racconto, abbinamento delle affermazioni (l'instradamento
      segue la chat).

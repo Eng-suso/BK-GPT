@@ -30,6 +30,7 @@ from backend.process_understanding import (
     ProcessUnderstandingQualityReport,
 )
 from backend.llm import TRANSIENT_PROVIDER_ERRORS, LlmTask, chat_client
+from backend.llm.tasks import chat_model
 from backend.settings import (
     ALLOWED_MODELS,
     DEFAULT_OPENAI_MODEL,
@@ -465,6 +466,14 @@ def summarize_history(state: dict, summarize: Callable[[str, list], str]) -> dic
 
 
 def normalize_model_name(model_name: str | None = None) -> str:
+    """Il modello della chat: quello scelto per `chat_turn`, se c'e', se no il richiesto.
+
+    `LLM_TASK_MODELS_JSON` vince sulla richiesta: e' una scelta di chi installa,
+    mentre il nome che arriva dal frontend e' fisso e non e' una scelta.
+    """
+    chosen = chat_model()
+    if chosen:
+        return chosen
     if not model_name:
         return settings.openai_model
 

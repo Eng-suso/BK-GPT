@@ -415,8 +415,17 @@ configure_langsmith_environment()
 
 DEFAULT_OPENAI_MODEL = os.getenv("OPENAI_MODEL", settings.openai_model)
 
+# I modelli che una richiesta di chat puo' nominare. Solo OpenAI: chi chiama non
+# puo' scegliere un altro fornitore, cioe' un'altra destinazione dei dati.
 ALLOWED_MODELS = {
     "gpt-5.6-luna",
+}
+
+# I modelli che chi installa puo' scegliere per la chat in LLM_TASK_MODELS_JSON.
+# Claude sta qui e non sopra: e' una scelta della configurazione, dichiarata
+# nell'inventario delle destinazioni (llm_claude), mai della richiesta.
+CHAT_MODELS = ALLOWED_MODELS | {
+    "claude-haiku-5-5",
 }
 
 Path("data").mkdir(exist_ok=True)
