@@ -144,7 +144,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1536m
+          # Misurato: sotto i 600 MB con 20 persone insieme (docs/load-test/).
+          # 256 MB sono passati al servizio di backup (docker-compose.backup.yml).
+          memory: 1280m
 
 volumes:
   delir_appdata:
