@@ -17,7 +17,9 @@ OpenAI, ed e' per queste che esiste un modulo suo:
   messaggi di sistema consecutivi, e un secondo in testa lo rifiuta. Qui quelli
   iniziali si uniscono in uno. Quelli che arrivano dopo la conversazione (il
   contratto dello specialista, in coda al prompt della chat) restano al loro
-  posto: Claude li accetta a meta' conversazione;
+  posto: Claude li accetta a meta' conversazione, ma solo dopo un turno
+  dell'utente o di un tool. Dopo un turno dell'assistente diventano una
+  richiesta, che e' cio' che sono;
 - **ragionamento spento.** Con il ragionamento acceso langchain-anthropic non
   forza il tool dell'output strutturato (una risposta in prosa fallirebbe senza
   ripiego) e il ragionamento consuma `max_tokens` prima della risposta; nella
@@ -30,7 +32,7 @@ from __future__ import annotations
 from typing import Any
 
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import BaseMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from backend.llm.egress import ANTHROPIC_API_URL, Destination, require
 from backend.llm.local_tracer import local_callbacks
@@ -68,14 +70,27 @@ class DeliRChatAnthropic(ChatAnthropic):
 
 
 def merge_leading_system(messages: list[BaseMessage]) -> list[BaseMessage]:
-    """I messaggi di sistema iniziali uniti in uno; gli altri restano dove sono."""
+    """I messaggi di sistema iniziali uniti in uno; gli altri restano dove sono.
+
+    Un messaggio di sistema subito dopo un turno dell'assistente diventa una
+    richiesta: Claude non lo accetta li', e langchain-anthropic rifiuterebbe la
+    richiesta intera.
+    """
     lead = 0
     while lead < len(messages) and isinstance(messages[lead], SystemMessage):
         lead += 1
-    if lead < 2:
-        return messages
-    blocks = [block for message in messages[:lead] for block in _text_blocks(message.content)]
-    return [SystemMessage(content=blocks), *messages[lead:]]
+    head: list[BaseMessage] = (
+        [SystemMessage(content=[block for m in messages[:lead] for block in _text_blocks(m.content)])]
+        if lead > 1
+        else list(messages[:lead])
+    )
+    rest: list[BaseMessage] = []
+    for message in messages[lead:]:
+        after_assistant = bool(rest) and isinstance(rest[-1], AIMessage)
+        if isinstance(message, SystemMessage) and after_assistant:
+            message = HumanMessage(content=message.content)
+        rest.append(message)
+    return [*head, *rest]
 
 
 def with_cache_breakpoints(payload: dict, *, conversation: bool) -> dict:

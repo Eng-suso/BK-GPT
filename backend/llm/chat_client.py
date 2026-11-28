@@ -99,7 +99,10 @@ def chat_client(
             max_retries=max_retries,
             effort=reasoning_effort or profile.reasoning_effort,
             streaming=streaming,
-            cache_conversation=True,
+            # Solo il turno rimanda il prompt di prima allungato: instradamento e
+            # riassunto sono chiamate singole, e il segnalibro in fondo farebbe
+            # pagare una scrittura che nessuno rilegge.
+            cache_conversation=task is LlmTask.CHAT_TURN,
             stream_usage=True,
             metadata=langsmith_metadata(model_name, delir_model_name=model_name),
             tags=[*langsmith_tags("llm", tag), TURN_METERED_TAG],
