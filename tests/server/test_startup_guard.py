@@ -309,3 +309,53 @@ def test_the_legacy_anon_key_is_accepted_as_publishable(supabase_guarded, monkey
     monkeypatch.setattr(settings, "supabase_publishable_key", _legacy_key("anon"))
 
     assert assert_environment_is_defensible() == "guarded"
+
+
+def _example_env() -> dict[str, str]:
+    """Le variabili di `ops/.env.example`: la configurazione che si copia in produzione."""
+    from pathlib import Path
+
+    values: dict[str, str] = {}
+    for line in (Path(__file__).resolve().parents[2] / "ops" / ".env.example").read_text(
+        encoding="utf-8"
+    ).splitlines():
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            values[key.strip()] = value.strip()
+    return values
+
+
+def test_the_price_list_of_the_example_covers_every_model_it_configures(guarded, monkeypatch):
+    """Chi copia `.env.example` parte: chat, Mem0, embedding e audio hanno un prezzo."""
+    example = _example_env()
+    monkeypatch.setattr(settings, "usage_limits_enabled", True)
+    monkeypatch.setattr(settings, "llm_prices_json", example["LLM_PRICES_JSON"])
+    monkeypatch.setattr(settings, "openai_model", example["OPENAI_MODEL"])
+    monkeypatch.setattr(settings, "mem0_llm_model", example["MEM0_LLM_MODEL"])
+    monkeypatch.setattr(settings, "mem0_database_url", "postgresql://mem0")
+    monkeypatch.setattr(settings, "openai_transcription_model", example["OPENAI_TRANSCRIPTION_MODEL"])
+    monkeypatch.setattr(
+        settings, "openai_live_transcription_model", example["OPENAI_LIVE_TRANSCRIPTION_MODEL"]
+    )
+
+    assert assert_environment_is_defensible() == "guarded"
+    # Anche i modelli scelti per compito (Haiku) sono nel listino.
+    import json
+
+    from backend.llm.prices import price_for
+
+    for model in json.loads(example["LLM_TASK_MODELS_JSON"]).values():
+        assert price_for(model) is not None, model
+
+
+def test_a_model_without_a_price_stops_the_start(guarded, monkeypatch):
+    """Mem0 su un modello fuori listino: le sue righe costerebbero cento volte il vero."""
+    example = _example_env()
+    monkeypatch.setattr(settings, "usage_limits_enabled", True)
+    monkeypatch.setattr(settings, "llm_prices_json", example["LLM_PRICES_JSON"])
+    monkeypatch.setattr(settings, "openai_model", "gpt-6-luna")
+    monkeypatch.setattr(settings, "mem0_database_url", "postgresql://mem0")
+    monkeypatch.setattr(settings, "mem0_llm_model", "gpt-4o-mini")
+
+    with pytest.raises(RuntimeError, match="non ha il prezzo di: gpt-4o-mini"):
+        assert_environment_is_defensible()

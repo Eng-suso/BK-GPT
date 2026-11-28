@@ -98,8 +98,8 @@ function TaskReviewConversation({ node, scope, open, draft, onDraft, onPropose, 
   onDraft: (value: string) => void; onPropose: (kind: ReviewActionKind, detail: string, returnTarget: HTMLButtonElement | null) => void; onSimulation: () => void;
 }) {
   const { t } = useTranslation("process");
-  const sessions = useChatSessions(scope, "gpt-5.6-luna");
-  const stream = useChatStream({ scope, selectedModel: "gpt-5.6-luna", choices: { posture: "review", autonomy: "manual", reasoning: "medium" }, activeSession: sessions.activeSession, currentThreadId: sessions.currentThreadId, ensureThread: sessions.ensureThread, selectThread: sessions.selectThread, commitTranscript: sessions.commitTranscript });
+  const sessions = useChatSessions(scope, "gpt-6-luna");
+  const stream = useChatStream({ scope, selectedModel: "gpt-6-luna", choices: { posture: "review", autonomy: "manual", reasoning: "medium" }, activeSession: sessions.activeSession, currentThreadId: sessions.currentThreadId, ensureThread: sessions.ensureThread, selectThread: sessions.selectThread, commitTranscript: sessions.commitTranscript });
   const messages = stream.liveThreadId && stream.liveThreadId === sessions.currentThreadId ? stream.liveMessages ?? [] : sessions.activeSession?.messages ?? [];
   const proposalTrigger = React.useRef<HTMLButtonElement | null>(null);
   const input = React.useRef<HTMLTextAreaElement>(null);

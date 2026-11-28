@@ -178,7 +178,7 @@ def test_un_ingestione_lascia_la_sua_spesa_nel_registro(scope, rete_finta, ws):
     )
     assert job_id
 
-    assert ingest_worker.drain_once() == 1
+    assert ingest_worker.drain_once(only_consultant=str(settings.default_consultant_id)) == 1
 
     # Il lavoro e' andato a buon fine: senza questo, un registro vuoto avrebbe
     # due spiegazioni e il test non distinguerebbe fra loro.
@@ -235,7 +235,7 @@ def test_la_spesa_dell_ingestione_usa_gli_id_workspace_come_la_chat(scope, rete_
         source_text="La tesoreria verifica gli incassi ogni mattina.",
     )
 
-    assert ingest_worker.drain_once() == 1
+    assert ingest_worker.drain_once(only_consultant=str(settings.default_consultant_id)) == 1
 
     righe = _righe_del_registro(ws["project"])
     assert righe
@@ -262,7 +262,7 @@ def test_un_job_accodato_prima_ricade_sugli_id_canonical(scope, rete_finta, ws):
         source_text="La tesoreria verifica gli incassi ogni mattina.",
     )
 
-    assert ingest_worker.drain_once() == 1
+    assert ingest_worker.drain_once(only_consultant=str(settings.default_consultant_id)) == 1
 
     righe = _righe_del_registro(scope["project"])
     assert righe

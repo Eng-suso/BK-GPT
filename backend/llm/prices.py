@@ -14,7 +14,7 @@ configurati sono quelli veri.
 Configurazione: `LLM_PRICES_JSON` in `.env`, dollari (o euro: l'unita' e' quella
 che ci metti, il codice non converte) per **milione** di token.
 
-    LLM_PRICES_JSON={"gpt-5.6-luna": {"input": 0.20, "output": 1.20, "cached_input": 0.02}}
+    LLM_PRICES_JSON={"gpt-6-luna": {"input": 0.10, "output": 0.50, "cached_input": 0.01}}
 
 Per i modelli Claude va anche `cache_write`: Anthropic fattura la scrittura in
 cache (1,25 volte l'ingresso con la durata di 5 minuti), OpenAI no.
@@ -124,6 +124,33 @@ def _parse(raw: str) -> dict[str, ModelPrice]:
 def price_for(model: str) -> ModelPrice | None:
     """Il prezzo di un modello, o `None` se non e' configurato."""
     return _load().get((model or "").strip().lower())
+
+
+def configured_models() -> set[str]:
+    """Ogni modello che questa configurazione puo' chiamare, e quindi fatturare.
+
+    Il modello di ogni compito (chat, gateway, embedding, trascrizione dei file),
+    la trascrizione dal vivo e l'estrattore di Mem0, quando Mem0 e' acceso.
+    """
+    from backend.llm.tasks import LlmTask, profile_for
+    from backend.settings import settings
+
+    models = {profile_for(task).model for task in LlmTask}
+    models.add(settings.openai_live_transcription_model)
+    if settings.mem0_database_url:
+        models.add(settings.mem0_llm_model)
+    return {m.strip().lower() for m in models if m and m.strip()}
+
+
+def unpriced_models() -> list[str]:
+    """I modelli configurati che il listino non conosce.
+
+    Una loro riga nel registro si conterebbe al prezzo di ripiego, pessimista di
+    proposito (`usage_unpriced_usd_per_million_tokens`): con i limiti di spesa
+    accesi una persona verrebbe fermata dopo pochi turni per una spesa che non
+    ha fatto.
+    """
+    return sorted(m for m in configured_models() if price_for(m) is None)
 
 
 def estimate_cost(

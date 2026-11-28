@@ -133,6 +133,10 @@ async def chat(request: Request):
                           "tool_choice": body.get("tool_choice"),
                           "system": str((body.get("messages") or [{}])[0].get("content"))[:80]}),
               flush=True)
+    if os.environ.get("FAKE_DUMP_DIR"):
+        dump = Path(os.environ["FAKE_DUMP_DIR"])
+        dump.mkdir(parents=True, exist_ok=True)
+        (dump / f"{time.time():.6f}-{uuid.uuid4().hex[:6]}.json").write_text(json.dumps(body), encoding="utf-8")
     model = body.get("model", "fake")
     prompt_chars = len(json.dumps(body.get("messages", [])))
     text, tool_call = _structured(body)

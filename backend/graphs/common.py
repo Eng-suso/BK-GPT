@@ -18,6 +18,7 @@ from backend.graphs.agent_budget import (
     exhausted_reason,
     run_started_at,
 )
+from backend.llm_streaming import unstreamed_config
 from backend.memory.procedural.skill_loader import message_content_to_text
 
 logger = logging.getLogger(__name__)
@@ -302,13 +303,15 @@ def build_tool_chat_subgraph(
     quello che il consulente deve leggere e' una risposta sola, scritta alla
     fine, non una sintesi per passata.
 
-    Non e' una preferenza di stile: sotto un sottografo annidato lo stream di
-    LangGraph consegna il messaggio scritto in stato, attribuito al nodo piu'
-    esterno, quindi non c'e' nome di nodo ne' tag su cui filtrare a valle.
-    Cio' che non deve essere letto non deve entrare in `messages`.
+    Il runtime chiede a LangGraph i token anche dai sotto-grafi
+    (`subgraphs=True`): la passata muta chiama il modello con
+    `unstreamed_config` (tag `nostream`), cosi' i suoi token non escono, e cio'
+    che non deve essere letto non entra in `messages`.
 
     I messaggi con tool call restano sempre in `messages`: sono l'appiglio a cui
-    ToolNode aggancia i risultati, e non hanno testo da leggere.
+    ToolNode aggancia i risultati. In una passata muta ci restano senza testo:
+    LangGraph li consegna a fine nodo, e un preambolo ("cerco nelle
+    interviste...") arriverebbe al consulente.
     """
 
     def agent_node(state, config: RunnableConfig):
@@ -357,10 +360,15 @@ def build_tool_chat_subgraph(
 
         response = None
 
-        for chunk in llm_with_tools.stream(messages, config=config):
+        # Una passata muta (findings_channel) non scrive al consulente: i suoi
+        # token restano fuori dallo stream del turno, alla fonte.
+        call_config = unstreamed_config(config) if findings_channel else config
+        for chunk in llm_with_tools.stream(messages, config=call_config):
             response = chunk if response is None else response + chunk
 
         response = response or AIMessage(content="")
+        if findings_channel and getattr(response, "tool_calls", None) and response.content:
+            response = response.model_copy(update={"content": ""})
 
         spent = {
             STARTED_AT_KEY: started_at,

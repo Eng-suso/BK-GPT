@@ -49,6 +49,22 @@ def timeout_for_input(characters: int | None) -> int:
     return min(max(floor, scaled), settings.model_timeout_max_seconds)
 
 
+def prompt_cache_body(task_name: str) -> dict[str, Any] | None:
+    """Il `prompt_cache_key` di OpenAI per un compito, nel corpo della richiesta.
+
+    OpenAI instrada sulla stessa cache le richieste con la stessa chiave: con
+    piu' persone che mandano lo stesso prefisso (istruzioni e tool di un
+    compito) il riuso sale e i token in ingresso si pagano a prezzo di cache.
+    La chiave e' il compito, non la persona: il prefisso condiviso e' quello.
+
+    Solo verso OpenAI: con `OPENAI_BASE_URL` puntato su un fornitore
+    compatibile un campo sconosciuto potrebbe essere rifiutato. `None` = niente.
+    """
+    if settings.openai_base_url or not settings.llm_prompt_cache_key:
+        return None
+    return {"prompt_cache_key": f"delir:{task_name}"}
+
+
 def chat_openai_kwargs(
     *,
     max_tokens: int | None = None,

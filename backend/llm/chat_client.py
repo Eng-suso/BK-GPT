@@ -32,7 +32,7 @@ from backend.llm.local_tracer import local_callbacks
 from backend.llm.providers import Provider, provider_of
 from backend.llm.tasks import LlmTask, profile_for
 from backend.llm_streaming import TURN_METERED_TAG
-from backend.llm_config import MissingProviderKey, timeout_for_input
+from backend.llm_config import MissingProviderKey, prompt_cache_body, timeout_for_input
 from backend.settings import (
     effective_langsmith_model_name,
     langsmith_metadata,
@@ -151,6 +151,9 @@ def chat_client(
     }
     if settings.openai_base_url:
         kwargs["base_url"] = settings.openai_base_url
+    cache_body = prompt_cache_body(task.value)
+    if cache_body:
+        kwargs["extra_body"] = cache_body
     if streaming:
         # Senza questo i pezzi arrivano senza `usage_metadata` e il turno
         # risulterebbe da zero token: e' la stessa trappola delle chiamate

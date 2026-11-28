@@ -66,20 +66,47 @@ Dettaglio per operazione, con gli esempi di errore se ce ne fossero:
 3. **La VM vera.** Qui c'erano 4 CPU invece di 2. Va rifatto il test sulla VM
    prima di aprire alle persone.
 
-## Difetto trovato: la risposta non arriva parola per parola
+## Difetto trovato e corretto: la risposta non arrivava parola per parola
 
-Il primo pezzo di risposta arriva insieme all'ultimo: `chat_first_token` è
-uguale a `chat_turn` in tutte le misure.
+Nelle prime misure il primo pezzo di risposta arrivava insieme all'ultimo:
+`chat_first_token` era uguale a `chat_turn`.
 
-La causa: la risposta del consulente si genera dentro un sotto-grafo LangGraph
-(`consulting_subgraph`), e `agent.stream(...)` in
-`backend/services/agent_runtime.py` non chiede gli eventi dei sotto-grafi. Il
-browser riceve così un solo `delta`, a risposta finita, dopo tutto il turno.
+**Causa.** Le risposte di consulente, progetto, processo e canvas si scrivono
+dentro un sotto-grafo LangGraph, e `agent.stream(...)` in
+`backend/services/agent_runtime.py` non chiedeva gli eventi dei sotto-grafi. Il
+browser riceveva un solo `delta`, a risposta finita, dopo tutto il turno.
 
-Con il modello vero vuol dire 10–20 secondi di schermo fermo, mostrando solo la
-fase in corso. Non dipende dal carico. La correzione va fatta con cura: le
-passate degli specialisti devono restare mute verso il consulente
-(`findings_channel`).
+**Correzione.**
+
+- `agent.stream(..., subgraphs=True)`.
+- Le chiamate che non sono la risposta escono dallo stream alla fonte, con il
+  tag `nostream` di LangGraph (`unstreamed_config` in `backend/llm_streaming.py`).
+  Sono le passate degli specialisti (`findings_channel`) e la prima stesura di
+  `process_report`, che il controllo delle fonti può far riscrivere.
+- `tests/agents/test_subgraph_streaming.py` lo prova su un grafo LangGraph vero:
+  la risposta arriva a pezzi, mentre la passata muta e la bozza scartata non
+  arrivano mai.
+
+**Misura** con 10 persone per 5 minuti
+([dettaglio](2026-11-27-10-persone-streaming/results.md)): 1.400 operazioni,
+zero errori.
+
+| | Prima | Dopo |
+|---|---:|---:|
+| Primo pezzo di risposta, p50 | 6,6 s | 3,6 s |
+| Primo pezzo di risposta, p95 | 10,8 s | 8,0 s |
+| Turno intero, p95 | 10,8 s | 11,2 s |
+
+La stessa correzione ha chiuso un buco nella spesa. Le chiamate al modello fatte
+dentro i sotto-grafi non arrivavano al conteggio del turno, quindi nemmeno al
+limite di spesa della persona. Ora arrivano: quelle in streaming dallo stream,
+quelle tenute fuori (`nostream`) da `UnstreamedUsageMeter`. I router dei
+sotto-grafi vanno nel registro come instradamento.
+
+Su consulente, progetto, processo e canvas il testo salvato è identico, carattere
+per carattere, a quello arrivato in streaming. Il p50 di 3,6 s è quasi tutto
+lavoro del modello finto prima della risposta (classificazione 1,2 s, router
+1,2 s, primo token 0,8 s).
 
 ## Rifarlo
 

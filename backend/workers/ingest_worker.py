@@ -147,13 +147,19 @@ def _fail(consultant: str, job_id: int, error: str) -> None:
         )
 
 
-def drain_once(limit: int = 20) -> int:
+def drain_once(limit: int = 20, *, only_consultant: str | None = None) -> int:
     """Processa fino a `limit` job, consulente per consulente. Ritorna quanti ne ha completati.
 
     Il limite si divide fra chi ha lavoro in coda: un account con cento
     documenti da leggere non fa aspettare quello che ne ha caricato uno.
+
+    Args:
+        limit: Job al massimo, in questa passata.
+        only_consultant: Limita la passata a un consulente. Serve a chi drena a
+            mano (e ai test, su un database con altro lavoro in coda), come
+            `only_tenant_id` negli altri worker.
     """
-    consultants = _consultants(("pending", "processing"))
+    consultants = [only_consultant] if only_consultant else _consultants(("pending", "processing"))
     if not consultants:
         return 0
     share = max(1, limit // len(consultants))

@@ -295,7 +295,7 @@ def test_the_mode_sent_with_a_request_reaches_the_agent_run(monkeypatch):
     seen: dict = {}
 
     class FakeAgent:
-        def stream(self, state, config=None, stream_mode=None):
+        def stream(self, state, config=None, stream_mode=None, subgraphs=False):
             seen["chat_mode"] = state.get("chat_mode")
             seen["bound_mode"] = active_mode()
             return iter(())
@@ -329,7 +329,7 @@ def test_a_request_without_a_mode_runs_as_conversation(monkeypatch):
     seen: dict = {}
 
     class FakeAgent:
-        def stream(self, state, config=None, stream_mode=None):
+        def stream(self, state, config=None, stream_mode=None, subgraphs=False):
             """
             Record the requested chat mode and produce an empty event stream.
             

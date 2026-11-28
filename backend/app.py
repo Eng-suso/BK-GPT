@@ -199,6 +199,17 @@ def auth_configuration_problems() -> list[str]:
             "prezzo pessimista e i limiti di spesa scatterebbero dopo pochi turni. "
             "Imposta il listino dei modelli usati."
         )
+    elif settings.usage_limits_enabled:
+        from backend.llm.prices import unpriced_models
+
+        missing = unpriced_models()
+        if missing:
+            problems.append(
+                "LLM_PRICES_JSON non ha il prezzo di: " + ", ".join(missing) + ". Le loro "
+                "chiamate si conterebbero al prezzo pessimista e i limiti di spesa "
+                "scatterebbero per una spesa mai fatta. Aggiungili al listino "
+                "(docs/usage-limits/STIMA.md)."
+            )
 
     origins = [o.strip() for o in settings.delir_cors_origins.split(",") if o.strip()]
     if not origins or "*" in origins:

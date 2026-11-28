@@ -47,6 +47,15 @@ jobs:
       - name: Install Python dependencies
         run: uv sync --locked
 
+      # La prova di ripristino dei backup (tests/server/test_backup_restore.py)
+      # gira gli script veri: servono age e rclone. Il repository apt di
+      # Microsoft del runner fa fallire `apt-get update`: si toglie prima.
+      - name: Install backup tools (age, rclone)
+        run: |
+          sudo grep -rlZ 'packages.microsoft.com' /etc/apt/sources.list.d/ 2>/dev/null | xargs -0 -r sudo rm -f
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age rclone
+
       - name: Ruff check
         run: uv run ruff check backend tests
 

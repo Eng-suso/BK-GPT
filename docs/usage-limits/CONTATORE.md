@@ -10,7 +10,7 @@ il pannello è in `frontend/src/features/usage/`.
 Nel `.env` del backend:
 
 ```bash
-LLM_PRICES_JSON={"gpt-5.6-luna": {"input": 0.20, "output": 1.20, "cached_input": 0.02}}
+LLM_PRICES_JSON={"gpt-6-luna": {"input": 0.10, "output": 0.50, "cached_input": 0.01}, "claude-haiku-5-5": {"input": 0.10, "output": 0.50, "cached_input": 0.01, "cache_write": 0.125}, "text-embedding-3-small": {"input": 0.02, "output": 0}, "gpt-realtime-whisper": {"per_minute": 0.017}, "gpt-4o-transcribe-diarize": {"per_minute": 0.006}}
 USAGE_LIMITS_ENABLED=true
 USAGE_SESSION_HOURS=5
 USAGE_SESSION_BUDGET_USD=1.5

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from contextlib import nullcontext
 from queue import Empty, Queue
@@ -8,6 +9,8 @@ from threading import Lock
 from threading import Thread
 from typing import Any, Iterator
 from uuid import UUID
+
+from langchain_core.callbacks import BaseCallbackHandler
 
 from backend.agent import CONTEXT_ROUTER_NODE, NODE_TASKS, SUMMARY_NODE, get_agent, normalize_model_name
 from backend.agents.context_budget import collect_context_fingerprints, latest_context_fingerprint
@@ -76,9 +79,12 @@ INTERNAL_AGENT_NODES = {
     "ensure_current_plan",
     "load_context",
     "load_workspace_records",
+    "load_project_context",
     "consulting_router",
+    "consult_router",
     "project_router",
     "process_router",
+    "evaluate_plan_review",
     "evaluate_process_iteration",
     "evaluate_canvas_completion",
     "refresh_canvas_context_after_work",
@@ -87,13 +93,13 @@ INTERNAL_AGENT_NODES = {
 # Nodes that report progress but whose token stream is not an answer to the user:
 # a router's structured decision, a subgraph wrapper replaying its child's tokens.
 #
-# Attenzione al raggio d'azione: `agent.stream(...)` gira senza `subgraphs=True`,
-# e in quel modo LangGraph consegna il messaggio scritto in stato attribuendolo
-# al nodo del grafo PIU' ESTERNO (`process_subgraph`, `canvas_subgraph`, ...).
-# I nomi annidati qui sotto e in INTERNAL_AGENT_NODES non arrivano mai, quindi
-# non filtrano: valgono solo i nodi di primo livello. Cio' che non deve essere
-# letto va tenuto fuori da `messages` alla fonte - vedi `findings_channel` in
-# `build_tool_chat_subgraph` e il nodo `process_report`.
+# `agent.stream(...)` gira con `subgraphs=True`: i token arrivano anche dai nodi
+# dei sotto-grafi, attribuiti al nodo che li scrive, ed e' cosi' che la risposta
+# esce parola per parola. Cio' che non deve essere letto va tenuto fuori dallo
+# stream alla fonte, con `unstreamed_config` (tag `nostream`): vedi
+# `findings_channel` in `build_tool_chat_subgraph` e il nodo `process_report`.
+# Filtrarlo qui non basta: LangGraph lo darebbe per consegnato e non
+# riconsegnerebbe il messaggio a fine nodo.
 NON_DELTA_AGENT_NODES = {
     "canvas_router",
     "patch_edit_subgraph",
@@ -113,7 +119,7 @@ def is_internal_agent_node(node_name: str) -> bool:
         bool: `True` if the node is an internal node or ends with ``"_tools"``,
             `False` otherwise.
     """
-    return node_name in INTERNAL_AGENT_NODES or node_name.endswith("_tools")
+    return node_name in INTERNAL_AGENT_NODES or node_name == "tools" or node_name.endswith("_tools")
 
 
 def _canvas_base_versions(scope: ChatScope | None) -> dict[str, int | None]:
@@ -206,6 +212,49 @@ def prompt_version_for(task: LlmTask) -> str | None:
 
         degradation_counters.bump("llm_usage", "prompt_version_unavailable", detail=task.value)
         return None
+
+
+class UnstreamedUsageMeter(BaseCallbackHandler):
+    """Conta la spesa delle chiamate della chat che non passano dallo stream.
+
+    Le chiamate con `unstreamed_config` (tag `nostream`: le passate degli
+    specialisti, la prima stesura del rapporto) LangGraph non le inoltra nello
+    stream del turno, quindi il loro `usage_metadata` non arriva dove il turno
+    somma i token. Pagate lo sono lo stesso, e contano per il limite di spesa
+    della persona: le si legge qui, a chiamata finita, per nodo.
+
+    Solo quelle: le altre le conta gia' lo stream, e contarle due volte
+    gonfierebbe il registro.
+    """
+
+    def __init__(self) -> None:
+        self._nodes: dict[UUID, str] = {}
+        self._lock = Lock()
+        self.usage_by_node: dict[str, dict[str, Any]] = {}
+
+    def on_chat_model_start(self, serialized, messages, *, run_id, tags=None, metadata=None, **kwargs):
+        from langgraph.constants import TAG_NOSTREAM
+
+        tags = tags or []
+        if TAG_NOSTREAM in tags and TURN_METERED_TAG in tags:
+            with self._lock:
+                self._nodes[run_id] = str((metadata or {}).get("langgraph_node") or "")
+
+    def on_llm_end(self, response, *, run_id, **kwargs):
+        with self._lock:
+            node = self._nodes.pop(run_id, None)
+        if node is None:
+            return
+        for generations in getattr(response, "generations", None) or []:
+            for generation in generations:
+                usage = getattr(getattr(generation, "message", None), "usage_metadata", None)
+                if usage:
+                    with self._lock:
+                        merge_usage_metadata(self.usage_by_node.setdefault(node, {}), dict(usage))
+
+    def on_llm_error(self, error, *, run_id, **kwargs):
+        with self._lock:
+            self._nodes.pop(run_id, None)
 
 
 def record_turn_usage(
@@ -357,10 +406,20 @@ def progress_event(
 def normalize_stream_event(event: Any) -> tuple[str, Any]:
     """Riporta un elemento dello stream a ``(modo, payload)``.
 
-    Con piu' `stream_mode` LangGraph antepone il nome del modo; con uno solo
-    consegna direttamente la coppia ``(chunk, metadata)``. Gli agenti finti dei
-    test usano ancora la forma corta, e devono continuare a funzionare.
+    Con piu' `stream_mode` LangGraph antepone il nome del modo; con
+    `subgraphs=True` antepone anche lo spazio del sotto-grafo
+    (``(namespace, modo, payload)``); con un modo solo consegna direttamente la
+    coppia ``(chunk, metadata)``. Gli agenti finti dei test usano ancora la
+    forma corta, e devono continuare a funzionare.
     """
+    if (
+        isinstance(event, tuple)
+        and len(event) == 3
+        and isinstance(event[0], tuple)
+        and isinstance(event[1], str)
+    ):
+        return event[1], event[2]
+
     if (
         isinstance(event, tuple)
         and len(event) == 2
@@ -375,6 +434,16 @@ def normalize_stream_event(event: Any) -> tuple[str, Any]:
     return "messages", (event, {})
 
 
+def stream_namespace(event: Any) -> tuple | None:
+    """Lo spazio del sotto-grafo da cui viene l'evento: `()` il grafo esterno.
+
+    `None` se l'evento non lo dice (un modo solo, o gli agenti finti dei test).
+    """
+    if isinstance(event, tuple) and len(event) == 3 and isinstance(event[0], tuple):
+        return event[0]
+    return None
+
+
 def tool_calls_in_update(update: Any) -> list[dict]:
     """Raccoglie le chiamate a tool contenute in un aggiornamento di stato.
 
@@ -386,7 +455,7 @@ def tool_calls_in_update(update: Any) -> list[dict]:
         update: Aggiornamento di stato emesso dal grafo.
 
     Returns:
-        list[dict]: Chiamate trovate, ognuna con ``name`` e ``args``.
+        list[dict]: Chiamate trovate, ognuna con ``name``, ``args`` e ``id``.
     """
     found: list[dict] = []
 
@@ -410,12 +479,15 @@ def tool_calls_in_update(update: Any) -> list[dict]:
 
         for call in calls:
             if isinstance(call, dict):
-                found.append({"name": call.get("name"), "args": call.get("args")})
+                found.append(
+                    {"name": call.get("name"), "args": call.get("args"), "id": call.get("id")}
+                )
             else:
                 found.append(
                     {
                         "name": getattr(call, "name", None),
                         "args": getattr(call, "args", None),
+                        "id": getattr(call, "id", None),
                     }
                 )
 
@@ -676,6 +748,7 @@ def stream_agent_events(
     # due compiti con due profili, e sommarli renderebbe invisibile il piu'
     # economico dei due proprio mentre si decide quanto farlo ragionare.
     usage_by_node: dict[str, dict[str, Any]] = {}
+    unstreamed_meter = UnstreamedUsageMeter()
     narrator = ProgressNarrator()
     run_tags = langsmith_tags(
         "consultant-chat",
@@ -857,12 +930,19 @@ def stream_agent_events(
                         "run_name": "DeliR scoped agent",
                         "tags": run_tags,
                         "metadata": run_metadata,
+                        "callbacks": [unstreamed_meter],
                     },
                     # "updates" porta le chiamate a tool: senza questo modo il
                     # consulente resta al buio proprio mentre l'agente cerca in
                     # memoria o rilegge le fonti, che e' l'attesa piu' lunga.
                     stream_mode=["messages", "updates"],
+                    # Senza, i token scritti dentro un sotto-grafo (la risposta
+                    # del consulente, del progetto, del processo) arrivano in un
+                    # blocco solo a fine turno: lo schermo resta fermo per tutto
+                    # il ragionamento (docs/load-test/README.md).
+                    subgraphs=True,
                 )
+                announced_tool_calls: set[str] = set()
 
                 for event in events:
                     if consumer_gone.is_set():
@@ -872,6 +952,7 @@ def stream_agent_events(
                         break
 
                     stream_mode_name, payload = normalize_stream_event(event)
+                    namespace = stream_namespace(event)
 
                     if stream_mode_name == "updates":
                         posture_seen = detected_posture(payload)
@@ -893,8 +974,19 @@ def stream_agent_events(
                                     ).model_dump(),
                                 )
                             )
-                        if emit_activity:
+                        # Al livello piu' esterno l'update di un sotto-grafo porta
+                        # tutto lo storico della conversazione, chiamate dei turni
+                        # passati comprese: raccontarle ora riporterebbe la UI a
+                        # una fase finita. Le chiamate di questo turno arrivano
+                        # gia' dall'interno del sotto-grafo, mentre succedono.
+                        if emit_activity and namespace != ():
                             for call in tool_calls_in_update(payload):
+                                key = call.get("id") or json.dumps(
+                                    [call.get("name"), call.get("args")], sort_keys=True, default=str
+                                )
+                                if key in announced_tool_calls:
+                                    continue
+                                announced_tool_calls.add(key)
                                 progress = progress_event(
                                     context=context,
                                     thread_id=thread_id,
@@ -1082,6 +1174,8 @@ def stream_agent_events(
             # che fallisce a meta' ha gia' pagato i token che ha consumato, ed e'
             # proprio la spesa che si vuole vedere - quella senza un risultato in
             # mano. Non solleva: la contabilita' non rovina un turno.
+            for node, usage in unstreamed_meter.usage_by_node.items():
+                merge_usage_metadata(usage_by_node.setdefault(node, {}), usage)
             record_turn_usage(
                 usage_by_node,
                 model=selected_model,
