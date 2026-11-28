@@ -29,6 +29,7 @@ from langchain_openai import ChatOpenAI
 
 from backend.llm.egress import Destination, require
 from backend.llm.local_tracer import local_callbacks
+from backend.llm.providers import Provider, provider_of
 from backend.llm.tasks import LlmTask, profile_for
 from backend.llm_streaming import TURN_METERED_TAG
 from backend.llm_config import MissingProviderKey, timeout_for_input
@@ -61,8 +62,12 @@ def chat_client(
     streaming: bool,
     tag: str,
     reasoning_effort: str | None = None,
-) -> DeliRChatOpenAI:
+) -> Any:
     """Il client di un compito di chat, costruito dal suo profilo.
+
+    Un modello `claude-...` (scelto in `LLM_TASK_MODELS_JSON` per `chat_turn`)
+    da' un client Claude, con la cache sulla parte fissa e sulla conversazione:
+    vedi `backend/llm/claude_client.py`.
 
     Args:
         task: `CHAT_TURN` o `CONTEXT_ROUTING`. Il profilo decide ragionamento,
@@ -81,14 +86,31 @@ def chat_client(
             `langchain_openai` ricadrebbe sulla variabile d'ambiente e i test
             tornerebbero a pagare.
     """
+    profile = profile_for(task)
+    max_tokens = profile.max_output_tokens or settings.model_max_tokens
+    max_retries = settings.agent_max_retries if profile.retry else settings.model_max_retries
+    if provider_of(model_name) is Provider.ANTHROPIC:
+        from backend.llm.claude_client import claude_client
+
+        return claude_client(
+            model=model_name,
+            max_tokens=max_tokens,
+            timeout=timeout_for_input(None),
+            max_retries=max_retries,
+            effort=reasoning_effort or profile.reasoning_effort,
+            streaming=streaming,
+            cache_conversation=True,
+            stream_usage=True,
+            metadata=langsmith_metadata(model_name, delir_model_name=model_name),
+            tags=[*langsmith_tags("llm", tag), TURN_METERED_TAG],
+        )
+
     if not settings.openai_api_key:
         raise MissingProviderKey(
             "OPENAI_API_KEY non configurata: il client della chat non puo' essere costruito."
         )
 
     require(Destination.LLM_CHAT)
-    profile = profile_for(task)
-    max_tokens = profile.max_output_tokens or settings.model_max_tokens
     kwargs: dict[str, Any] = {
         "model": model_name,
         "api_key": settings.openai_api_key,
@@ -98,7 +120,7 @@ def chat_client(
         # `retry=True` nel profilo vuol dire "dietro non c'e' nessuna coda": un
         # 429 transitorio diventerebbe un errore in faccia al consulente a meta'
         # conversazione.
-        "max_retries": settings.agent_max_retries if profile.retry else settings.model_max_retries,
+        "max_retries": max_retries,
         "streaming": streaming,
         "langsmith_provider": settings.langsmith_provider,
         "langsmith_model_name": effective_langsmith_model_name(model_name),

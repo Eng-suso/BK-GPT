@@ -106,7 +106,9 @@ class TaskProfile:
         scritti (un contratto, non un parametro), e la trascrizione, che ha un
         modello suo configurabile.
         """
-        chosen = task_models().get(self.task)
+        # L'instradamento e il riassunto girano con il modello della chat: lo
+        # sceglie `chat_turn`, e il registro deve dire il modello che ha girato.
+        chosen = task_models().get(LlmTask.CHAT_TURN if self.task in CHAT_FOLLOWER_TASKS else self.task)
         if chosen:
             return chosen
         if self.model_setting:
@@ -275,11 +277,11 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
 NON_CHAT_TASKS = frozenset({LlmTask.EMBEDDING, LlmTask.TRANSCRIPTION, LlmTask.LIVE_TRANSCRIPTION})
 #: I compiti che esegue Mem0 con i suoi client (`backend/llm/mem0_meter.py`).
 MEM0_TASKS = frozenset({LlmTask.MEMORY_EXTRACTION, LlmTask.MEMORY_EMBEDDING})
-#: I compiti del client della chat (`chat_client.py`), che oggi parla solo
-#: OpenAI: la versione di langchain-core del progetto non regge Claude nella chat.
-CHAT_CLIENT_TASKS = frozenset({LlmTask.CHAT_TURN, LlmTask.CONTEXT_ROUTING, LlmTask.THREAD_SUMMARY})
+#: I compiti che girano con il modello della chat, quello di `chat_turn`: il
+#: runtime costruisce i tre client con lo stesso modello (`agent.build_agent`).
+CHAT_FOLLOWER_TASKS = frozenset({LlmTask.CONTEXT_ROUTING, LlmTask.THREAD_SUMMARY})
 #: I compiti il cui modello non si sceglie in `LLM_TASK_MODELS_JSON`.
-FIXED_MODEL_TASKS = NON_CHAT_TASKS | MEM0_TASKS | CHAT_CLIENT_TASKS
+FIXED_MODEL_TASKS = NON_CHAT_TASKS | MEM0_TASKS | CHAT_FOLLOWER_TASKS
 
 
 def task_models() -> dict[LlmTask, str]:

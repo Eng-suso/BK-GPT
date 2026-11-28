@@ -12,11 +12,12 @@ from decimal import Decimal
 import anthropic
 import httpx
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from pydantic import BaseModel
 
 from backend.llm import LlmTask, OperationKind, operation, profile_for, run
-from backend.llm.claude_client import CACHE_BREAKPOINT, DeliRChatAnthropic, claude_client, with_cached_system
+from backend.llm.chat_client import chat_client
+from backend.llm.claude_client import CACHE_BREAKPOINT, DeliRChatAnthropic, merge_leading_system
 from backend.llm.egress import ANTHROPIC_API_URL, Destination, route
 from backend.llm.gateway import reset_structured_output_memory
 from backend.llm.prices import estimate_cost
@@ -97,7 +98,7 @@ class TestModelloPerCompito:
         assert profile_for(LlmTask.RETRIEVAL_RERANK).model == "claude-haiku-5-5"
         assert profile_for(LlmTask.PLAN_EXTRACTION).model == settings.openai_model
 
-    @pytest.mark.parametrize("task", ["chat_turn", "embedding", "transcription", "memory_extraction"])
+    @pytest.mark.parametrize("task", ["context_routing", "embedding", "transcription", "memory_extraction"])
     def test_i_compiti_fissi_non_si_spostano(self, monkeypatch, task):
         monkeypatch.setattr(settings, "llm_task_models_json", f'{{"{task}": "claude-haiku-5-5"}}')
         assert profile_for(LlmTask(task)).model != "claude-haiku-5-5"
@@ -120,18 +121,25 @@ class TestModelloPerCompito:
         assert not route(Destination.LLM_CLAUDE).active
 
 
+def _gateway_client(task: LlmTask):
+    from backend.llm.gateway import _client
+
+    return _client(profile_for(task), None)
+
+
 class TestIlClientClaude:
     def test_senza_chiave_non_parte(self, monkeypatch):
         monkeypatch.setattr(settings, "llm_task_models_json", RERANK_ON_HAIKU)
         monkeypatch.setattr(settings, "anthropic_api_key", None)
         with pytest.raises(MissingProviderKey, match="ANTHROPIC_API_KEY"):
-            claude_client(profile_for(LlmTask.RETRIEVAL_RERANK), input_characters=None, max_retries=0)
+            _gateway_client(LlmTask.RETRIEVAL_RERANK)
 
     def test_un_compito_senza_ragionamento_lo_spegne(self, rerank_on_haiku):
-        client = claude_client(profile_for(LlmTask.RETRIEVAL_RERANK), input_characters=None, max_retries=0)
+        client = _gateway_client(LlmTask.RETRIEVAL_RERANK)
         assert isinstance(client, DeliRChatAnthropic)
         assert client.thinking == {"type": "disabled"}
-        assert client.effort == "low"
+        assert client.reasoning_effort == "low"
+        assert not client.cache_conversation
 
     def test_un_compito_di_giudizio_spende_di_piu_ma_non_ragiona(self, monkeypatch):
         """Con il ragionamento acceso il tool dell'output strutturato non e' piu'
@@ -139,57 +147,88 @@ class TestIlClientClaude:
         `effort`."""
         monkeypatch.setattr(settings, "llm_task_models_json", '{"plan_extraction": "claude-haiku-5-5"}')
         monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-non-usata")
-        client = claude_client(profile_for(LlmTask.PLAN_EXTRACTION), input_characters=10_000, max_retries=0)
+        client = _gateway_client(LlmTask.PLAN_EXTRACTION)
         assert client.thinking == {"type": "disabled"}
-        assert client.effort == "medium"
+        assert client.reasoning_effort == "medium"
 
     def test_l_host_e_quello_dichiarato_anche_con_una_variabile_d_ambiente(self, monkeypatch, rerank_on_haiku):
         monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://proxy.example.com")
-        client = claude_client(profile_for(LlmTask.RETRIEVAL_RERANK), input_characters=None, max_retries=0)
-        assert client.anthropic_api_url == ANTHROPIC_API_URL
+        assert _gateway_client(LlmTask.RETRIEVAL_RERANK).anthropic_api_url == ANTHROPIC_API_URL
 
 
 class TestLaParteFissaInCache:
-    def test_i_messaggi_di_sistema_iniziali_si_uniscono_con_il_segnalibro(self):
-        prepared = with_cached_system([
+    def test_i_messaggi_di_sistema_iniziali_si_uniscono(self):
+        prepared = merge_leading_system([
             SystemMessage(content="Sei un revisore."),
             SystemMessage(content="Rispondi in JSON."),
             HumanMessage(content="Il caso."),
         ])
         assert [type(m) for m in prepared] == [SystemMessage, HumanMessage]
-        blocks = prepared[0].content
-        assert [b["text"] for b in blocks] == ["Sei un revisore.", "Rispondi in JSON."]
-        assert blocks[-1]["cache_control"] == CACHE_BREAKPOINT
-        assert "cache_control" not in blocks[0]
+        assert [b["text"] for b in prepared[0].content] == ["Sei un revisore.", "Rispondi in JSON."]
 
     def test_un_sistema_dopo_la_conversazione_resta_al_suo_posto(self):
-        prepared = with_cached_system([
-            SystemMessage(content="Base."),
-            HumanMessage(content="Documento."),
-            AIMessage(content="Bozza."),
-            SystemMessage(content="Correggi il campo X."),
-        ])
-        assert [type(m) for m in prepared] == [SystemMessage, HumanMessage, AIMessage, HumanMessage]
-        assert prepared[-1].content == "Correggi il campo X."
+        messages = [SystemMessage(content="Base."), HumanMessage(content="Documento."), SystemMessage(content="Contratto.")]
+        assert merge_leading_system(messages) == messages
 
-    def test_senza_sistema_la_richiesta_passa_com_e(self):
-        messages = [HumanMessage(content="ciao")]
-        assert with_cached_system(messages) == messages
-
-    def test_la_richiesta_ha_il_segnalibro_in_fondo_al_sistema(self, rerank_on_haiku):
-        """La richiesta vera, costruita senza mandarla: un secondo messaggio di
-        sistema in coda (lo schema del JSON libero) non la fa rifiutare."""
-        client = claude_client(profile_for(LlmTask.RETRIEVAL_RERANK), input_characters=None, max_retries=0)
-        payload = client._get_request_payload([
+    def test_il_gateway_segna_solo_il_sistema(self, rerank_on_haiku):
+        """Una chiamata singola: il segnalibro in fondo alla richiesta farebbe
+        pagare la scrittura su un contenuto che nessuno rilegge."""
+        payload = _gateway_client(LlmTask.RETRIEVAL_RERANK)._get_request_payload([
             SystemMessage(content="Ordina i frammenti."),
+            SystemMessage(content="Rispondi in JSON."),
             HumanMessage(content="Domanda e frammenti."),
-            SystemMessage(content="Schema."),
         ])
-        assert payload["system"] == [
-            {"type": "text", "text": "Ordina i frammenti.", "cache_control": CACHE_BREAKPOINT}
-        ]
-        assert [m["role"] for m in payload["messages"]] == ["user"]
+        assert payload["system"][-1] == {"type": "text", "text": "Rispondi in JSON.", "cache_control": CACHE_BREAKPOINT}
+        assert "cache_control" not in payload["system"][0]
+        assert "cache_control" not in str(payload["messages"])
         assert "temperature" not in payload or payload["temperature"] is None
+
+
+class TestLaChatSuClaude:
+    """La chat: il passo dopo rilegge dalla cache tutto il passo prima."""
+
+    @pytest.fixture
+    def chat_on_haiku(self, monkeypatch):
+        monkeypatch.setattr(settings, "llm_task_models_json", '{"chat_turn": "claude-haiku-5-5"}')
+        monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-non-usata")
+
+    def test_la_chat_e_chi_la_segue_girano_su_claude(self, chat_on_haiku):
+        from backend.agent import normalize_model_name
+
+        assert normalize_model_name("gpt-5.6-luna") == "claude-haiku-5-5"
+        assert profile_for(LlmTask.CONTEXT_ROUTING).model == "claude-haiku-5-5"
+        assert profile_for(LlmTask.THREAD_SUMMARY).model == "claude-haiku-5-5"
+        assert LlmTask.CHAT_TURN in route(Destination.LLM_CLAUDE).tasks
+
+    def test_il_client_della_chat_e_claude_e_misurato(self, chat_on_haiku):
+        from backend.llm_streaming import TURN_METERED_TAG
+
+        client = chat_client(LlmTask.CHAT_TURN, model_name="claude-haiku-5-5", streaming=True, tag="t", reasoning_effort="high")
+        assert isinstance(client, DeliRChatAnthropic)
+        assert client.cache_conversation and client.streaming and client.stream_usage
+        assert TURN_METERED_TAG in client.tags
+        assert client.reasoning_effort == "high"
+
+    def test_segnalibri_sul_sistema_e_sulla_fine_della_conversazione(self, chat_on_haiku):
+        """La forma del prompt della chat: sistema in testa, storia, tool, e il
+        contratto dello specialista in coda."""
+        client = chat_client(LlmTask.CHAT_TURN, model_name="claude-haiku-5-5", streaming=True, tag="t")
+        payload = client._get_request_payload([
+            SystemMessage(content="Memoria procedurale."),
+            SystemMessage(content="Scope del processo."),
+            HumanMessage(content="Aggiorna il piano."),
+            AIMessage(content="", tool_calls=[{"name": "read_process_plan", "args": {}, "id": "c1"}]),
+            ToolMessage(content="Il piano.", tool_call_id="c1"),
+            SystemMessage(content="Contratto dello specialista."),
+        ])
+        assert payload["system"][-1]["cache_control"] == CACHE_BREAKPOINT
+        roles = [m["role"] for m in payload["messages"]]
+        assert roles[-1] == "system"  # il contratto, al suo posto
+        last_turn = payload["messages"][-2]
+        assert last_turn["role"] == "user"
+        assert last_turn["content"][-1]["cache_control"] == CACHE_BREAKPOINT
+        marks = str(payload["messages"]).count("cache_control")
+        assert marks == 1
 
 
 class TestIlGatewaySuClaude:
@@ -205,8 +244,8 @@ class TestIlGatewaySuClaude:
                     "input_token_details": {"cache_read": 0, "cache_creation": 1_200},
                 })
 
-        def _fake_claude_client(profile, **_kw):
-            built.append(profile.model)
+        def _fake_claude_client(**kwargs):
+            built.append(kwargs["model"])
             return _FakeClaude()
 
         monkeypatch.setattr("backend.llm.claude_client.claude_client", _fake_claude_client)
