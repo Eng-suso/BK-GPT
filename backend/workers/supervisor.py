@@ -19,11 +19,15 @@ from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from typing import TypeVar
 
+from backend.llm import spend_cap
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
 
 _STATS_EVERY_SECONDS = 120.0
+# Ogni quanto una coda in pausa ricontrolla il tetto di spesa. La lettura del
+# registro e' in cache per 30 secondi in `spend_cap`: piu' spesso non serve.
+_CAP_PAUSE_SECONDS = 30.0
 _PRUNE_EVERY_SECONDS = 3600.0
 
 # Executor dedicato: le passate di drain fanno I/O bloccante (Postgres, Neo4j,
@@ -53,7 +57,20 @@ async def _drain_loop(
     loop = asyncio.get_running_loop()
     next_report = loop.time()
     next_prune = loop.time() + _PRUNE_EVERY_SECONDS
+    paused = False
     while True:
+        # Il freno d'emergenza: a tetto raggiunto la coda non prende lavori. Non
+        # li fa fallire - fallendo andrebbero in dead-letter dopo i tentativi -
+        # li lascia dove sono, e ripartono quando la finestra delle 24 ore scorre.
+        if await _run(spend_cap.tripped):
+            if not paused:
+                logger.warning("%s: in pausa, tetto di spesa dell'installazione raggiunto", name)
+                paused = True
+            await asyncio.sleep(_CAP_PAUSE_SECONDS)
+            continue
+        if paused:
+            logger.info("%s: riprende, la spesa e' tornata sotto il tetto", name)
+            paused = False
         try:
             processed = await _run(drain_once)
         except asyncio.CancelledError:

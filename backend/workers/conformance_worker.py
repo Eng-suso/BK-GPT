@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import time
 
+from backend.llm import spend_cap
 from backend import workspace_database as wd
 from backend.security import reset_current_tenant_id, set_current_tenant_id
 
@@ -179,6 +180,7 @@ def prune() -> int:
 def run_forever(idle_sleep: float = _IDLE_SLEEP_SECONDS) -> None:
     logger.info("conformance_worker avviato")
     while True:
+        spend_cap.pause_while_tripped("conformance_worker")
         try:
             processed = drain_and_sweep()
         except Exception:  # noqa: BLE001 - una passata storta non ferma il loop

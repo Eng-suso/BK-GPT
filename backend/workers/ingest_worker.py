@@ -27,6 +27,7 @@ from functools import lru_cache
 
 from sqlalchemy import create_engine, text
 
+from backend.llm import spend_cap
 from backend.db import canonical_session
 from backend.llm import OperationKind, operation
 from backend.memory.knowledge_graph import canonical
@@ -274,6 +275,7 @@ def prune(older_than_days: int = 14) -> int:
 def run_forever(idle_sleep: float = 1.0) -> None:
     logger.info("ingest_worker avviato")
     while True:
+        spend_cap.pause_while_tripped("ingest_worker")
         try:
             processed = drain_once()
         except Exception:  # noqa: BLE001
