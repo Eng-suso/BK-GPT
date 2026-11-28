@@ -71,14 +71,14 @@ def _wrap(method: Any, task: LlmTask) -> Any:
         outcome, error_kind = Outcome.OK, None
         try:
             # Il freno d'emergenza vale anche per i client di Mem0, che non
-            # passano dal gateway: la riga dice `refused`, e Mem0 ripiega come
-            # senza chiave.
+            # passano dal gateway: la riga dice `refused`, e chi legge o scrive
+            # la memoria ripiega come per ogni altro guasto di Mem0.
             spend_cap.check()
             response = method(*args, **kwargs)
+            return response
         except spend_cap.SpendCapReached as exc:
             outcome, error_kind = Outcome.REFUSED, type(exc).__name__
             raise
-            return response
         except BaseException as exc:
             outcome, error_kind = classify_failure(exc)
             raise
