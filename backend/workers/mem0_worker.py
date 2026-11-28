@@ -24,6 +24,7 @@ from functools import lru_cache
 
 from sqlalchemy import create_engine, text
 
+from backend.llm import spend_cap
 from backend.llm import OperationKind, operation
 from backend.memory import mem0_client
 from backend.memory.mem0_client import Mem0Disabled
@@ -240,6 +241,7 @@ def queue_stats() -> dict[str, int]:
 def run_forever(idle_sleep: float = 3.0) -> None:
     logger.info("mem0_worker avviato")
     while True:
+        spend_cap.pause_while_tripped("mem0_worker")
         try:
             processed = drain_once()
         except Exception:  # noqa: BLE001

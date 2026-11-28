@@ -27,6 +27,7 @@ from functools import lru_cache
 
 from sqlalchemy import create_engine, text
 
+from backend.llm import spend_cap
 from backend.db import canonical_session
 from backend.llm import OperationKind, operation
 from backend.memory.knowledge_graph import canonical
@@ -134,7 +135,19 @@ def _finish(consultant: str, job_id: int, counts: dict) -> None:
         )
 
 
-def _fail(consultant: str, job_id: int, error: str) -> None:
+def _fail(consultant: str, job_id: int, error: str, *, consume_attempt: bool = True) -> None:
+    if not consume_attempt:
+        with canonical_session(consultant) as session:
+            session.execute(
+                text(
+                    "UPDATE kg_ingest_queue "
+                    "SET status = 'pending', attempts = GREATEST(attempts - 1, 0), "
+                    "    last_error = :e, updated_at = now() "
+                    "WHERE id = :i"
+                ),
+                {"e": error[:2000], "i": job_id},
+            )
+        return
     with canonical_session(consultant) as session:
         session.execute(
             text(
@@ -175,6 +188,12 @@ def _drain_consultant(consultant: str, limit: int) -> int:
     done = 0
     for row in claimed:
         job_id = int(row.id)
+        # Il freno puo' scattare a meta' del lotto gia' preso: i job che restano
+        # tornano in coda senza partire e senza consumare il tentativo, invece di
+        # restare `processing` o di finire in dead-letter.
+        if spend_cap.tripped():
+            _fail(consultant, job_id, spend_cap.MESSAGE, consume_attempt=False)
+            continue
         raw = dict(row.payload)
         payload = {k: v for k, v in raw.items() if k in canonical.EVIDENCE_KEYS}
         try:
@@ -199,6 +218,11 @@ def _drain_consultant(consultant: str, limit: int) -> int:
                 user_id=raw.get("user_id"),
             ):
                 counts = canonical.write_evidence(**payload)
+        except spend_cap.SpendCapReached as exc:
+            # Il freno d'emergenza non e' un difetto del job: torna in coda senza
+            # consumare il tentativo.
+            _fail(consultant, job_id, str(exc), consume_attempt=False)
+            continue
         except Exception as exc:  # noqa: BLE001 — un job storto non ferma il worker
             logger.exception("kg_ingest_queue job %s fallito", job_id)
             _fail(consultant, job_id, str(exc))
@@ -274,6 +298,7 @@ def prune(older_than_days: int = 14) -> int:
 def run_forever(idle_sleep: float = 1.0) -> None:
     logger.info("ingest_worker avviato")
     while True:
+        spend_cap.pause_while_tripped("ingest_worker")
         try:
             processed = drain_once()
         except Exception:  # noqa: BLE001

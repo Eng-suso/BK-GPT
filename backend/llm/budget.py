@@ -471,12 +471,26 @@ def _current(user_id: str, tenant_id: str | None, *, open_session: bool) -> Usag
     return current
 
 
+def _check_installation() -> None:
+    """Il freno d'emergenza (`spend_cap`), con la stessa via del limite del consulente.
+
+    Vale anche con i limiti per consulente spenti: e' un tetto di chi installa,
+    non della prova.
+    """
+    from backend.llm import spend_cap
+
+    if spend_cap.tripped():
+        raise UsageLimitReached(spend_cap.MESSAGE, "installation")
+
+
 def check(user_id: str | None, *, tenant_id: str | None = None) -> None:
     """Ferma una richiesta nuova ai modelli oltre il limite.
 
     Raises:
-        UsageLimitReached: Se una finestra dei modelli e' esaurita o la prova e' finita.
+        UsageLimitReached: Se una finestra dei modelli e' esaurita, la prova e'
+            finita, o l'installazione ha raggiunto il tetto delle 24 ore.
     """
+    _check_installation()
     if not settings.usage_limits_enabled or not user_id:
         return
     current = _current(user_id, tenant_id, open_session=True)
@@ -489,8 +503,10 @@ def check_audio(user_id: str | None, *, tenant_id: str | None = None) -> None:
 
     Raises:
         UsageLimitReached: Se le ore della settimana o della prova sono finite,
-            o la prova e' terminata.
+            la prova e' terminata, o l'installazione ha raggiunto il tetto delle
+            24 ore.
     """
+    _check_installation()
     if not settings.usage_limits_enabled or not user_id:
         return
     current = _current(user_id, tenant_id, open_session=False)

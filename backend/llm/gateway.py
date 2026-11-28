@@ -37,6 +37,7 @@ import anthropic
 import openai
 from pydantic import BaseModel
 
+from backend.llm import spend_cap
 from backend.llm.operation import current_operation
 from backend.llm.providers import Provider
 from backend.llm.tasks import LlmTask, TaskProfile, profile_for
@@ -125,7 +126,11 @@ def _client(profile: TaskProfile, input_characters: int | None):
     `max_retries` si passa al **costruttore**, non con `bind`: `bind` aggiunge
     kwargs alla chiamata API, e il fornitore rifiuterebbe un parametro che non
     conosce. E' una policy del client, non un argomento della richiesta.
+
+    Il freno d'emergenza sta qui, prima di costruire il client: chi chiama tratta
+    `SpendCapReached` come una chiave mancante, e la riga dice `refused`.
     """
+    spend_cap.check()
     if profile.provider is Provider.ANTHROPIC:
         from backend.llm.claude_client import claude_client
 
@@ -617,6 +622,7 @@ def _embedding_client() -> Any:
             `chat_openai_kwargs`: senza chiave l'SDK ricadrebbe su
             `OPENAI_API_KEY` dell'ambiente, e i test tornerebbero a pagare.
     """
+    spend_cap.check()
     if not settings.openai_api_key:
         raise MissingProviderKey(
             "OPENAI_API_KEY non configurata: nessun client di embedding puo' "
@@ -787,8 +793,9 @@ async def transcribe(*, file: Any, options: dict[str, Any]) -> Any:
         raise MissingProviderKey("OPENAI_API_KEY non configurata: trascrizione non eseguibile.")
 
     try:
+        spend_cap.check()
         require(Destination.TRANSCRIPTION)
-    except EgressBlocked as exc:
+    except (EgressBlocked, spend_cap.SpendCapReached) as exc:
         record(
             operation=operation,
             task=LlmTask.TRANSCRIPTION.value,

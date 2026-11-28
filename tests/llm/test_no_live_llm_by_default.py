@@ -97,3 +97,15 @@ def test_i_test_non_consumano_la_quota_di_tracce():
         "i test stanno tracciando su LangSmith: consumano la quota mensile che "
         "serve a osservare la produzione"
     )
+
+
+def test_nemmeno_claude_paga_senza_opt_in():
+    """Con la chiave di Anthropic nel `.env`, un test senza `live_llm` non la
+    vede: ne' nei settings, ne' nell'ambiente, ne' come scelta di modello."""
+    import os
+
+    from backend.settings import settings
+
+    assert settings.anthropic_api_key is None
+    assert settings.llm_task_models_json == ""
+    assert "ANTHROPIC_API_KEY" not in os.environ

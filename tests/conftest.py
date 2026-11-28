@@ -329,8 +329,14 @@ def _provider_calls_are_opt_in(request, monkeypatch):
 
     monkeypatch.setattr(settings, "openai_api_key", None)
     monkeypatch.setattr(settings, "tavily_api_key", None)
+    # Anche Claude: con ANTHROPIC_API_KEY nel `.env` e un compito su Claude in
+    # LLM_TASK_MODELS_JSON, un test qualsiasi pagherebbe Anthropic. La scelta dei
+    # modelli si azzera con la chiave: un test che la vuole la imposta da se'.
+    monkeypatch.setattr(settings, "anthropic_api_key", None)
+    monkeypatch.setattr(settings, "llm_task_models_json", "")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     _drop_cached_provider_clients()
 
 

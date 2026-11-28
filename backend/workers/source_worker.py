@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import time
 
+from backend.llm import spend_cap
 from backend import workspace_database as wd
 from backend.security import reset_current_tenant_id, set_current_tenant_id
 from backend.settings import settings
@@ -329,6 +330,7 @@ def queue_stats() -> dict[str, int]:
 def run_forever(idle_sleep: float = _IDLE_SLEEP_SECONDS) -> None:
     logger.info("source_worker avviato")
     while True:
+        spend_cap.pause_while_tripped("source_worker")
         try:
             processed = drain_once()
         except Exception:  # noqa: BLE001 - una passata storta non ferma il loop

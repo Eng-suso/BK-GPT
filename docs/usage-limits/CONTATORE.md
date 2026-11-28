@@ -42,6 +42,33 @@ Note:
 - **Il limite per persona va acceso solo con l'identità Supabase.** Con il token
   condiviso, chi è il consulente lo dice un header scelto dal client.
 
+## Il freno d'emergenza: un tetto per tutta l'installazione
+
+```bash
+USAGE_HARD_CAP_DAILY_USD=15   # 0 = spento
+```
+
+Il contatore per consulente ferma la richiesta successiva, ma lascia finire il
+lavoro già accettato: lettura dei file, grafo, memoria, ricostruzione del piano.
+Un difetto che fa partire cento chiamate in background non lo ferma nessun
+limite per persona. Questo tetto sì: guarda quanto ha speso **tutta
+l'installazione nelle ultime 24 ore** (dal registro dei consumi, le righe senza
+prezzo al prezzo di ripiego) e, quando lo supera:
+
+- **le code si fermano**: i worker non prendono lavori nuovi, che restano in
+  coda e ripartono da soli quando la finestra delle 24 ore scorre (anche i
+  worker in processi a sé, `python -m backend.workers.*`);
+- **le chiamate nuove si rifiutano**: gateway, client della chat, Mem0. La riga
+  del registro dice `refused` / `SpendCapReached`, e ogni funzione che sa andare
+  avanti senza chiave (rerank lessicale, entità per regole) fa lo stesso;
+- **chat, azioni dirette e registrazioni rispondono 429** con un messaggio per il
+  consulente.
+
+Vale anche con `USAGE_LIMITS_ENABLED=false`. Non sostituisce il limite di spesa
+sulla console di OpenAI e di Anthropic, che resta la rete di sicurezza per ciò
+che il registro non vede: lo rende raro. Come scegliere il valore: due o tre
+volte la spesa di una giornata intensa di tutti i consulenti attivi.
+
 ## L'audio, in ore
 
 Registrazioni dal vivo e file audio trascritti hanno un tetto **in ore**,

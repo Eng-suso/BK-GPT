@@ -34,6 +34,7 @@ from functools import lru_cache
 
 from sqlalchemy import create_engine, text
 
+from backend.llm import spend_cap
 from backend.memory.knowledge_graph import neo4j_store, projection_state, projector
 from backend.memory.knowledge_graph.projector import InvalidGraphPayload
 from backend.settings import settings
@@ -240,6 +241,7 @@ def client_projection_state(client_id: str) -> projection_state.ProjectionState 
 def run_forever(idle_sleep: float = 2.0) -> None:
     logger.info("graph_worker avviato")
     while True:
+        spend_cap.pause_while_tripped("graph_worker")
         try:
             processed = drain_once()
         except Exception:  # noqa: BLE001
