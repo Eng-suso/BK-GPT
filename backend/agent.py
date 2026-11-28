@@ -30,7 +30,7 @@ from backend.process_understanding import (
     ProcessUnderstandingQualityReport,
 )
 from backend.llm import TRANSIENT_PROVIDER_ERRORS, LlmTask, chat_client
-from backend.llm.tasks import task_models
+from backend.llm.tasks import chat_model
 from backend.settings import (
     ALLOWED_MODELS,
     DEFAULT_OPENAI_MODEL,
@@ -471,13 +471,9 @@ def normalize_model_name(model_name: str | None = None) -> str:
     `LLM_TASK_MODELS_JSON` vince sulla richiesta: e' una scelta di chi installa,
     mentre il nome che arriva dal frontend e' fisso e non e' una scelta.
     """
-    chosen = task_models().get(LlmTask.CHAT_TURN)
-    if chosen and chosen in ALLOWED_MODELS:
-        return chosen
+    chosen = chat_model()
     if chosen:
-        # Un nome sbagliato sostituirebbe ogni richiesta di chat con un modello
-        # che non esiste: si dice e si resta su quello richiesto.
-        logger.error("LLM_TASK_MODELS_JSON: %r non e' fra i modelli permessi per la chat", chosen)
+        return chosen
     if not model_name:
         return settings.openai_model
 

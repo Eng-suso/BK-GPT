@@ -131,7 +131,7 @@ def _client(profile: TaskProfile, input_characters: int | None):
 
         return claude_client(
             model=profile.model,
-            max_tokens=profile.max_output_tokens or settings.model_max_tokens,
+            max_tokens=profile.output_cap,
             timeout=timeout_for_input(input_characters if profile.scales_with_input else None),
             max_retries=_max_retries(profile),
             effort=profile.reasoning_effort,
@@ -160,15 +160,8 @@ def _client(profile: TaskProfile, input_characters: int | None):
 
 
 def _max_retries(profile: TaskProfile) -> int:
-    """Quanti tentativi concede l'SDK a questo compito.
-
-    La regola e' quella di P0, qui applicata per compito invece che per modulo:
-    si ritenta dove non c'e' nessun altro che ritenta. Un compito con una coda
-    dietro fallisce e la coda lo riprende con il suo backoff; un turno di chat
-    non ha niente dietro, e un rate limit transitorio diventerebbe un errore in
-    faccia al consulente.
-    """
-    return settings.agent_max_retries if profile.retry else settings.model_max_retries
+    """Quanti tentativi concede l'SDK a questo compito: vedi `TaskProfile.max_retries`."""
+    return profile.max_retries
 
 
 # Un solo modo di classificare un guasto, condiviso con le chiamate di Mem0.

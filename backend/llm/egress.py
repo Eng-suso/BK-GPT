@@ -161,6 +161,11 @@ def _llm_url_for(task: LlmTask) -> str:
         return OPENAI_API_URL
     if profile_for(task).provider is Provider.ANTHROPIC:
         return ANTHROPIC_API_URL
+    return _openai_chat_url()
+
+
+def _openai_chat_url() -> str:
+    """L'endpoint OpenAI dei compiti di conversazione: `openai_base_url`, se c'e'."""
     return (settings.openai_base_url or OPENAI_API_URL).rstrip("/")
 
 
@@ -181,7 +186,7 @@ def routes() -> list[EgressRoute]:
     # L'endpoint OpenAI dei compiti di conversazione. Non si legge dal turno di
     # chat: anche la chat puo' passare a Claude, e allora `llm_chat` direbbe
     # l'host di Anthropic per i compiti che restano su OpenAI.
-    chat_url = (settings.openai_base_url or OPENAI_API_URL).rstrip("/")
+    chat_url = _openai_chat_url()
     claude_tasks = _tasks_for(ANTHROPIC_API_URL, chat=True)
     return [
         EgressRoute(
@@ -334,7 +339,13 @@ def assert_egress_is_defensible() -> None:
         RuntimeError: Con l'elenco di tutte le destinazioni bloccate, non solo
             della prima: chi configura le sistema in un giro.
     """
-    claude = route(Destination.LLM_CLAUDE)
+    from backend.llm.tasks import chat_model, task_models
+
+    chosen_chat = task_models().get(LlmTask.CHAT_TURN)
+    if chosen_chat and chat_model() is None:
+        logger.error("LLM_TASK_MODELS_JSON: %r non e' fra i modelli permessi per la chat: resta quello di default", chosen_chat)
+    current = routes()
+    claude = next(item for item in current if item.destination == Destination.LLM_CLAUDE)
     if claude.tasks and not settings.anthropic_api_key:
         # Una scelta di modello senza la chiave non e' un invio bloccato: e' ogni
         # chiamata di quei compiti che fallira'. Con la chat fra questi, la chat
@@ -346,7 +357,7 @@ def assert_egress_is_defensible() -> None:
         if not environment_is_open():
             raise RuntimeError(message)
         logger.error(message)
-    blocked = [item for item in routes() if item.active and not is_allowed(item)]
+    blocked = [item for item in current if item.active and not is_allowed(item)]
     if blocked:
         dettaglio = ", ".join(f"{item.destination.value} -> {item.host}" for item in blocked)
         raise RuntimeError(
