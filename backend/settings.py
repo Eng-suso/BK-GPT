@@ -7,7 +7,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     openai_api_key: str | None = None
-    openai_model: str = "gpt-5.6-luna"
+    # GPT-6 Luna: il modello di conversazione e di ogni compito che non ne sceglie
+    # un altro (Haiku per i compiti piccoli: LLM_TASK_MODELS_JSON).
+    openai_model: str = "gpt-6-luna"
     # Un endpoint compatibile OpenAI al posto di api.openai.com, per i client di
     # chat. In produzione resta vuoto: lo impostano i test che girano su un
     # modello gratuito o economico (Gemini, Ollama), vedi `tests/live_llm.py`.
@@ -50,9 +52,10 @@ class Settings(BaseSettings):
     # history interna di Mem0 (change-log ADD/UPDATE/DELETE): in-memory, niente
     # file su disco. Le memorie vere stanno in pgvector, non qui.
     mem0_history_db_path: str = ":memory:"
-    # modello per l'estrazione fatti di Mem0: serve JSON mode. Override se il
-    # tuo account non ha gpt-4o-mini.
-    mem0_llm_model: str = "gpt-4o-mini"
+    # modello per l'estrazione fatti di Mem0: serve JSON mode. Lo stesso della
+    # chat, cosi' il listino ha un prezzo solo e nessuna riga si conta al prezzo
+    # di ripiego.
+    mem0_llm_model: str = "gpt-6-luna"
     # Estrazione fatti su un endpoint compatibile OpenAI diverso da api.openai.com
     # (Gemini, Ollama), per lavorare dati di test senza spendere la chiave vera.
     # L'embedder resta sempre OpenAI: lo schema pgvector e' fisso a 1536
@@ -413,7 +416,7 @@ configure_langsmith_environment()
 DEFAULT_OPENAI_MODEL = os.getenv("OPENAI_MODEL", settings.openai_model)
 
 ALLOWED_MODELS = {
-    "gpt-5.6-luna",
+    "gpt-6-luna",
 }
 
 Path("data").mkdir(exist_ok=True)

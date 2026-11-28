@@ -49,7 +49,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
 }) => {
   const { t, i18n } = useTranslation("chat");
   // Un solo modello disponibile: il nome si legge nel dialogo di stato.
-  const [selectedModel] = useState("gpt-5.6-luna");
+  const [selectedModel] = useState("gpt-6-luna");
   // Postura e autonomia valgono per la conversazione, non per il thread:
   // cambiarle cambia il prossimo turno e non biforca la sessione.
   const [posture, setPosture] = useState<ChatPosture>(DEFAULT_CHAT_POSTURE);
