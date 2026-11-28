@@ -248,7 +248,7 @@ origine privata, nessuna porta inbound sulla VM.
   preflight; da un dominio arbitrario no.
 - **Note:** _(vuoto)_
 
-### A8 — Backup Postgres off-host + restore testato  ⬜
+### A8 — Backup Postgres off-host + restore testato  🟡
 - **Cosa:** cron notturno sulla VM: `pg_dump` dei **tre** database sullo stesso
   cluster — `delir` (canonical, DR-critico), `workspace` (stato operativo +
   checkpoint LangGraph), `mem0` (vector store Mem0, schema self-managed dalla
@@ -264,7 +264,20 @@ origine privata, nessuna porta inbound sulla VM.
   cron entry.
 - **Accettazione:** un restore completo in un DB vuoto riproduce lo stato;
   runbook seguito da zero riesce in < RTO dichiarato.
-- **Note:** _(vuoto)_
+- **Note (2026-11-28):** fatto nel codice, provato in locale. `ops/backup/`
+  (runbook in `README.md`):
+  - `pg_dump` dei tre database nella stessa fotografia del conteggio righe, più
+    i file caricati;
+  - cifrato con age verso una chiave pubblica e caricato con rclone su OCI;
+  - servizio notturno in `ops/docker-compose.backup.yml`, `unhealthy` se l'ultimo
+    backup riuscito ha più di 26 ore.
+
+  Ripristino provato su un cluster nuovo: 62 tabelle e 295.883 righe uguali,
+  migrazioni a head, RLS attiva, 13 s. RPO 24 h, RTO dichiarato 1 h.
+  `tests/server/test_backup_restore.py` lo prova in CI.
+
+  **Aperto (Sohayb):** chiave age, bucket OCI e Customer Secret Key. Poi la
+  prima prova di ripristino dal bucket vero, annotata nel runbook.
 
 ### A9 — Script re-proiezione Neo4j dal canonical  ⬜
 - **Cosa:** `scripts/reproject_neo4j_from_canonical.py` — cammina
