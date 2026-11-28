@@ -13,6 +13,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / "ops" / "docker-compose.yml"
 PROD = ROOT / "ops" / "docker-compose.prod.yml"
+BACKUP = ROOT / "ops" / "docker-compose.backup.yml"
 
 #: 12 GB della VM meno ~1 GB per il sistema e cloudflared.
 MEMORY_BUDGET_BYTES = 11 * 1024**3
@@ -27,9 +28,10 @@ def _bytes(value: str) -> int:
 
 
 def _merged_services() -> dict[str, dict]:
-    base = yaml.safe_load(BASE.read_text(encoding="utf-8"))["services"]
-    prod = yaml.safe_load(PROD.read_text(encoding="utf-8"))["services"]
-    return {name: {**base.get(name, {}), **prod.get(name, {})} for name in base.keys() | prod.keys()}
+    """La produzione intera: dati, app e backup notturno."""
+    files = [yaml.safe_load(f.read_text(encoding="utf-8"))["services"] for f in (BASE, PROD, BACKUP)]
+    names = set().union(*(f.keys() for f in files))
+    return {name: {k: v for f in files for k, v in f.get(name, {}).items()} for name in names}
 
 
 def _memory_limit(service: dict) -> str | None:
@@ -95,3 +97,14 @@ def test_local_stacks_keep_the_shared_token_unless_told_otherwise():
     staging = yaml.safe_load(staging_path.read_text(encoding="utf-8"))["services"]["app"]["environment"]
     assert staging["DELIR_AUTH_PROVIDER"] == "${DELIR_AUTH_PROVIDER:-token}"
     assert staging["USAGE_LIMITS_ENABLED"] == "${USAGE_LIMITS_ENABLED:-false}"
+
+
+def test_production_is_backed_up_every_night_and_encrypted_for_someone_else():
+    """Il backup cifra con una chiave pubblica: chi entra nella VM non sa decifrarlo."""
+    backup = yaml.safe_load(BACKUP.read_text(encoding="utf-8"))["services"]["backup"]
+    env = backup["environment"]
+    assert env["BACKUP_AGE_RECIPIENT"].startswith("${BACKUP_AGE_RECIPIENT:?")
+    assert "BACKUP_AGE_IDENTITY" not in env
+    assert "delir_appdata:/appdata:ro" in backup["volumes"]
+    assert backup["healthcheck"]["test"] == ["CMD", "/backup/run.sh", "health"]
+
