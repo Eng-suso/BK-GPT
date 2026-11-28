@@ -15,6 +15,11 @@ Configurazione: `LLM_PRICES_JSON` in `.env`, dollari (o euro: l'unita' e' quella
 che ci metti, il codice non converte) per **milione** di token.
 
     LLM_PRICES_JSON={"gpt-6-luna": {"input": 0.10, "output": 0.50, "cached_input": 0.01}}
+
+Per i modelli Claude va anche `cache_write`: Anthropic fattura la scrittura in
+cache (1,25 volte l'ingresso con la durata di 5 minuti), OpenAI no.
+
+    LLM_PRICES_JSON={"claude-haiku-5-5": {"input": 0.10, "output": 0.50, "cached_input": 0.01, "cache_write": 0.125}}
 """
 
 from __future__ import annotations
@@ -48,6 +53,9 @@ class ModelPrice:
     input: Decimal
     output: Decimal
     cached_input: Decimal | None = None
+    # I token scritti in cache, per i fornitori che li fanno pagare a parte
+    # (Anthropic). `None`: si contano al prezzo di input, che e' il caso OpenAI.
+    cache_write: Decimal | None = None
     # Per i modelli che si pagano a minuto di audio (la trascrizione dal vivo):
     # il prezzo di un minuto. Si somma al costo dei token, se ce ne sono.
     per_minute: Decimal | None = None
@@ -107,6 +115,7 @@ def _parse(raw: str) -> dict[str, ModelPrice]:
             input=token_in,
             output=token_out,
             cached_input=_decimal(entry.get("cached_input")),
+            cache_write=_decimal(entry.get("cache_write")),
             per_minute=per_minute,
         )
     return prices
@@ -150,6 +159,7 @@ def estimate_cost(
     input_tokens: int,
     output_tokens: int,
     cached_input_tokens: int = 0,
+    cache_write_input_tokens: int = 0,
     audio_seconds: int = 0,
 ) -> Decimal | None:
     """Il costo stimato di una chiamata, o `None` se il modello non ha prezzo.
@@ -160,9 +170,12 @@ def estimate_cost(
 
     Args:
         model: Il nome del modello, come lo riporta il fornitore.
-        input_tokens: Token letti, **compresi** quelli serviti dalla cache.
+        input_tokens: Token letti, **compresi** quelli serviti dalla cache e
+            quelli scritti in cache.
         output_tokens: Token prodotti, ragionamento compreso.
         cached_input_tokens: Quanti degli `input_tokens` venivano dalla cache.
+        cache_write_input_tokens: Quanti degli `input_tokens` sono stati scritti
+            in cache. Si pagano a `cache_write` quando il listino lo dice.
         audio_seconds: I secondi di audio, per i modelli con un prezzo al minuto.
 
     Returns:
@@ -173,13 +186,17 @@ def estimate_cost(
     if price is None:
         return None
 
-    cached = max(0, min(cached_input_tokens, max(0, input_tokens)))
-    full_price_input = max(0, input_tokens) - cached
+    total_input = max(0, input_tokens)
+    cached = max(0, min(cached_input_tokens, total_input))
+    written = max(0, min(cache_write_input_tokens, total_input - cached))
+    full_price_input = total_input - cached - written
     cached_rate = price.cached_input if price.cached_input is not None else price.input
+    write_rate = price.cache_write if price.cache_write is not None else price.input
 
     total = (
         Decimal(full_price_input) * price.input
         + Decimal(cached) * cached_rate
+        + Decimal(written) * write_rate
         + Decimal(max(0, output_tokens)) * price.output
     ) / _PER_MILLION
     if price.per_minute is not None:

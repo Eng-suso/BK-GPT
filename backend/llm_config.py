@@ -72,6 +72,7 @@ def chat_openai_kwargs(
     reasoning_effort: str = "medium",
     verbosity: str = "low",
     input_characters: int | None = None,
+    model: str | None = None,
 ) -> dict[str, Any]:
     """kwargs per `ChatOpenAI(**chat_openai_kwargs())` — non-streaming, task-scoped.
 
@@ -82,6 +83,9 @@ def chat_openai_kwargs(
         input_characters: Lunghezza dell'input, quando chi chiama la conosce. Il
             timeout ne segue la scala (`timeout_for_input`). Omesso, si usa il
             pavimento: giusto per i compiti corti, non per un'intervista.
+        model: Il modello, quando non e' quello di conversazione
+            (`LLM_TASK_MODELS_JSON`). I parametri di ragionamento si decidono
+            su questo, non sul modello di conversazione.
 
     Raises:
         MissingProviderKey: Se non c'e' una chiave configurata. Chi chiama non
@@ -102,7 +106,7 @@ def chat_openai_kwargs(
     require(Destination.LLM_CHAT)
     kwargs: dict[str, Any] = {
         "api_key": settings.openai_api_key,
-        "model": settings.openai_model,
+        "model": model or settings.openai_model,
         "temperature": temperature,
         "timeout": timeout_for_input(input_characters),
         "max_retries": settings.model_max_retries,
@@ -113,7 +117,7 @@ def chat_openai_kwargs(
         kwargs["base_url"] = settings.openai_base_url
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
-    if supports_reasoning_controls(settings.openai_model):
+    if supports_reasoning_controls(kwargs["model"]):
         kwargs["reasoning_effort"] = reasoning_effort
         kwargs["verbosity"] = verbosity
     return kwargs

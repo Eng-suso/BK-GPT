@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     # riuso della cache dei prompt fra persone diverse. Spento da solo quando
     # OPENAI_BASE_URL punta a un altro fornitore.
     llm_prompt_cache_key: bool = True
+    # Claude (Anthropic), per i compiti del gateway che lo scelgono in
+    # `llm_task_models_json`. Senza chiave un compito su Claude non parte, e lo
+    # dice: non ricade in silenzio su un altro fornitore.
+    anthropic_api_key: str | None = None
+    # Il modello di un compito, quando non e' quello di conversazione: JSON
+    # {"retrieval_rerank": "claude-haiku-5-5"}. Vedi backend/llm/tasks.py.
+    llm_task_models_json: str = ""
     openai_transcription_model: str = "gpt-4o-transcribe-diarize"
     openai_live_transcription_model: str = "gpt-realtime-whisper"
     # Lingua attesa dell'audio (ISO-639-1). Passata all'API su entrambi i path e

@@ -54,6 +54,9 @@ class TokenUsage:
     output: int = 0
     reasoning: int = 0
     cached_input: int = 0
+    #: I token scritti in cache. Solo Anthropic li conta e li fa pagare a parte;
+    #: come `cached_input`, sono un sottoinsieme di `input`.
+    cache_write_input: int = 0
 
 
 def record(
@@ -104,6 +107,7 @@ def record(
         input_tokens=counted.input,
         output_tokens=counted.output,
         cached_input_tokens=counted.cached_input,
+        cache_write_input_tokens=counted.cache_write_input,
         audio_seconds=audio_seconds,
     )
 
@@ -130,6 +134,7 @@ def record(
                     output_tokens=counted.output,
                     reasoning_tokens=counted.reasoning,
                     cached_input_tokens=counted.cached_input,
+                    cache_write_input_tokens=counted.cache_write_input,
                     audio_seconds=max(0, int(audio_seconds)),
                     outcome=outcome,
                     error_kind=error_kind,
@@ -220,13 +225,21 @@ def tokens_from_usage_metadata(metadata: object) -> TokenUsage:
         return TokenUsage()
 
     input_details = metadata.get("input_token_details")
+    inputs = input_details if isinstance(input_details, dict) else {}
     output_details = metadata.get("output_token_details")
 
     return TokenUsage(
         input=_count(metadata.get("input_tokens")),
         output=_count(metadata.get("output_tokens")),
         reasoning=_count((output_details or {}).get("reasoning") if isinstance(output_details, dict) else 0),
-        cached_input=_count((input_details or {}).get("cache_read") if isinstance(input_details, dict) else 0),
+        cached_input=_count(inputs.get("cache_read")),
+        # langchain-anthropic mette le scritture in `cache_creation`, oppure, quando
+        # Anthropic le divide per durata, nelle due voci per TTL (e allora
+        # `cache_creation` vale 0): la somma le conta una volta sola.
+        cache_write_input=sum(
+            _count(inputs.get(key))
+            for key in ("cache_creation", "ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens")
+        ),
     )
 
 
