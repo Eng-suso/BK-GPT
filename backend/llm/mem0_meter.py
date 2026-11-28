@@ -19,6 +19,7 @@ import functools
 import time
 from typing import Any
 
+from backend.llm import spend_cap
 from backend.llm.operation import Operation, OperationKind, current_operation, new_operation
 from backend.llm.tasks import LlmTask, profile_for
 from backend.llm.usage import (
@@ -69,7 +70,14 @@ def _wrap(method: Any, task: LlmTask) -> Any:
         response: Any = None
         outcome, error_kind = Outcome.OK, None
         try:
+            # Il freno d'emergenza vale anche per i client di Mem0, che non
+            # passano dal gateway: la riga dice `refused`, e Mem0 ripiega come
+            # senza chiave.
+            spend_cap.check()
             response = method(*args, **kwargs)
+        except spend_cap.SpendCapReached as exc:
+            outcome, error_kind = Outcome.REFUSED, type(exc).__name__
+            raise
             return response
         except BaseException as exc:
             outcome, error_kind = classify_failure(exc)

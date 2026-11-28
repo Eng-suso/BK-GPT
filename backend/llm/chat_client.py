@@ -90,6 +90,9 @@ def chat_client(
             `langchain_openai` ricadrebbe sulla variabile d'ambiente e i test
             tornerebbero a pagare.
     """
+    from backend.llm import spend_cap
+
+    spend_cap.check()
     profile = profile_for(task)
     max_tokens = profile.output_cap
     max_retries = profile.max_retries
