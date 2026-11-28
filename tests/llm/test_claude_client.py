@@ -302,3 +302,52 @@ def test_il_client_openai_decide_i_parametri_sul_modello_del_compito(monkeypatch
     kwargs = chat_openai_kwargs(model="gpt-4.1-mini")
     assert kwargs["model"] == "gpt-4.1-mini"
     assert "reasoning_effort" not in kwargs
+
+
+class TestLaChatSuClaudeDallaReview:
+    """I casi trovati dalla code review della PR che porta la chat su Claude."""
+
+    @pytest.fixture
+    def chat_on_haiku(self, monkeypatch):
+        monkeypatch.setattr(settings, "llm_task_models_json", '{"chat_turn": "claude-haiku-5-5"}')
+        monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-non-usata")
+
+    def test_llm_chat_resta_sull_host_di_openai(self, chat_on_haiku):
+        chat = route(Destination.LLM_CHAT)
+        assert chat.host == "api.openai.com"
+        assert LlmTask.PLAN_EXTRACTION in chat.tasks
+        assert LlmTask.CHAT_TURN not in chat.tasks
+
+    def test_un_sistema_dopo_l_assistente_diventa_richiesta(self, chat_on_haiku):
+        client = chat_client(LlmTask.CHAT_TURN, model_name="claude-haiku-5-5", streaming=True, tag="t")
+        payload = client._get_request_payload([
+            SystemMessage(content="Base."),
+            HumanMessage(content="Documento."),
+            AIMessage(content="Bozza."),
+            SystemMessage(content="Contratto."),
+            SystemMessage(content="Lavoro gia' svolto."),
+        ])
+        roles = [m["role"] for m in payload["messages"]]
+        assert roles[:3] == ["user", "assistant", "user"]
+        assert "Contratto." in str(payload["messages"][2]["content"])
+
+    def test_instradamento_e_riassunto_segnano_solo_il_sistema(self, chat_on_haiku):
+        for task in (LlmTask.CONTEXT_ROUTING, LlmTask.THREAD_SUMMARY):
+            client = chat_client(task, model_name="claude-haiku-5-5", streaming=False, tag="t")
+            assert not client.cache_conversation
+
+    def test_un_nome_sbagliato_non_sostituisce_la_chat(self, monkeypatch):
+        from backend.agent import normalize_model_name
+
+        monkeypatch.setattr(settings, "llm_task_models_json", '{"chat_turn": "claude-haiku-55"}')
+        assert normalize_model_name("gpt-5.6-luna") == "gpt-5.6-luna"
+
+    def test_senza_chiave_l_avvio_lo_dice(self, monkeypatch):
+        from backend.llm import egress
+
+        monkeypatch.setattr(settings, "llm_task_models_json", '{"chat_turn": "claude-haiku-5-5"}')
+        monkeypatch.setattr(settings, "anthropic_api_key", None)
+        monkeypatch.setattr(egress, "environment_is_open", lambda: False)
+        monkeypatch.setattr(egress, "is_allowed", lambda _item: True)
+        with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+            egress.assert_egress_is_defensible()

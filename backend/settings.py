@@ -417,6 +417,7 @@ DEFAULT_OPENAI_MODEL = os.getenv("OPENAI_MODEL", settings.openai_model)
 
 ALLOWED_MODELS = {
     "gpt-5.6-luna",
+    "claude-haiku-5-5",
 }
 
 Path("data").mkdir(exist_ok=True)

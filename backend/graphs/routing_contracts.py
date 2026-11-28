@@ -4,6 +4,7 @@ import json
 import logging
 from typing import Any, Literal
 
+import anthropic
 import openai
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import BaseMessage, SystemMessage
@@ -795,6 +796,7 @@ def parse_routing_decision(
 ROUTER_RECOVERABLE_ERRORS: tuple[type[BaseException], ...] = (
     *TRANSIENT_PROVIDER_ERRORS,
     openai.OpenAIError,
+    anthropic.AnthropicError,
     OutputParserException,
     ValidationError,
 )

@@ -472,8 +472,12 @@ def normalize_model_name(model_name: str | None = None) -> str:
     mentre il nome che arriva dal frontend e' fisso e non e' una scelta.
     """
     chosen = task_models().get(LlmTask.CHAT_TURN)
-    if chosen:
+    if chosen and chosen in ALLOWED_MODELS:
         return chosen
+    if chosen:
+        # Un nome sbagliato sostituirebbe ogni richiesta di chat con un modello
+        # che non esiste: si dice e si resta su quello richiesto.
+        logger.error("LLM_TASK_MODELS_JSON: %r non e' fra i modelli permessi per la chat", chosen)
     if not model_name:
         return settings.openai_model
 
