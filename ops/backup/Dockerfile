@@ -5,10 +5,11 @@
 FROM pgvector/pgvector:pg16
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends age rclone python3-minimal ca-certificates \
+    && apt-get install -y --no-install-recommends age rclone python3 ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --chmod=0755 backup.sh restore.sh run.sh /backup/
+# python3 intero, non -minimal: manifesto e controllo di salute usano json.
 WORKDIR /backup
 
 # Ne' segreti ne' chiavi nell'immagine: tutto arriva dall'ambiente. La chiave

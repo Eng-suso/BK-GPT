@@ -21,7 +21,7 @@
 #   BACKUP_RETENTION_DAYS            default 30: i backup piu' vecchi si cancellano dalla destinazione
 #   BACKUP_WORK_DIR                  default /tmp/delir-backup
 #   BACKUP_STATUS_FILE               se impostata, ci scrive l'esito (JSON) per il controllo di salute
-set -euo pipefail
+set -Eeuo pipefail
 
 : "${BACKUP_AGE_RECIPIENT:?serve BACKUP_AGE_RECIPIENT (chiave pubblica age)}"
 : "${BACKUP_REMOTE:?serve BACKUP_REMOTE (destinazione rclone)}"
@@ -47,7 +47,7 @@ status() {
 }
 
 cleanup() { rm -rf "$WORK" "${WORK_ROOT:?}/${NAME}.tar" "${WORK_ROOT:?}/${NAME}.tar.age"; }
-fail() { log "FALLITO: $*"; status failed "$*"; cleanup; exit 1; }
+fail() { trap - ERR; log "FALLITO: $*"; status failed "$*"; cleanup; exit 1; }
 trap 'fail "errore alla riga $LINENO"' ERR
 
 mkdir -p "$WORK"
@@ -60,6 +60,8 @@ dump_database() {
   local db="$1"
   local counts="$WORK/${db}.counts"
   coproc PSQL { psql -X -qAt -v ON_ERROR_STOP=1 -d "$db"; }
+  # Il PID si salva subito: quando il coprocesso esce bash cancella PSQL_PID.
+  local psql_pid=$PSQL_PID
   echo "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY; SELECT pg_export_snapshot();" >&"${PSQL[1]}"
   local snapshot
   read -r snapshot <&"${PSQL[0]}"
@@ -77,7 +79,7 @@ SQL
   pg_dump --snapshot="$snapshot" -Fc -d "$db" -f "$WORK/${db}.dump"
   echo "COMMIT;" >&"${PSQL[1]}"
   exec {PSQL[1]}>&-
-  wait "$PSQL_PID" 2>/dev/null || true
+  wait "$psql_pid" 2>/dev/null || true
   log "$db: $(wc -l < "$counts") tabelle, $(du -h "$WORK/${db}.dump" | cut -f1)"
 }
 
@@ -106,7 +108,8 @@ for db in dbs:
     manifest["databases"][db] = {"dump": f"{db}.dump", "rows": rows}
     (work / f"{db}.counts").unlink()
 for path in sorted(work.iterdir()):
-    manifest["files"][path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    with path.open("rb") as f:  # a pezzi: un archivio di file caricati supera la memoria del container
+        manifest["files"][path.name] = hashlib.file_digest(f, "sha256").hexdigest()
 (work / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 PY
 

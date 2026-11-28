@@ -17,7 +17,7 @@
 #   BACKUP_REMOTE                    da dove scaricare (per un nome o per latest)
 #   BACKUP_APPDATA_DIR               default /appdata: dove tornano i file caricati (--live)
 #   BACKUP_WORK_DIR                  default /tmp/delir-restore
-set -euo pipefail
+set -Eeuo pipefail
 
 MODE=""
 CONFIRMED=""
@@ -44,7 +44,16 @@ STARTED=$(date +%s)
 log() { echo "[restore] $*" >&2; }
 mkdir -p "$WORK_ROOT"
 WORK="$(mktemp -d "${WORK_ROOT}/run-XXXXXX")"
-trap 'rm -rf "$WORK"' EXIT
+CHECK_DATABASES=()
+# Anche quando la prova fallisce: niente copie di dati dei clienti lasciate sul cluster.
+on_exit() {
+  for target in "${CHECK_DATABASES[@]}"; do
+    psql -X -q -d postgres -c "DROP DATABASE IF EXISTS \"$target\" WITH (FORCE)" >/dev/null 2>&1 || \
+      log "ATTENZIONE: non sono riuscito a cancellare $target, va tolto a mano"
+  done
+  rm -rf "$WORK"
+}
+trap on_exit EXIT
 
 # 1. Il file cifrato.
 if [ -f "$SOURCE" ]; then
@@ -71,7 +80,9 @@ import hashlib, json, pathlib, sys
 d = pathlib.Path(sys.argv[1])
 manifest = json.loads((d / "manifest.json").read_text())
 for name, digest in manifest["files"].items():
-    if hashlib.sha256((d / name).read_bytes()).hexdigest() != digest:
+    with (d / name).open("rb") as f:
+        actual = hashlib.file_digest(f, "sha256").hexdigest()
+    if actual != digest:
         sys.exit(f"sha256 diverso per {name}: il backup e' corrotto")
 PY
 log "integrita' verificata"
@@ -109,6 +120,7 @@ PY
 if [ "$MODE" = check ]; then
   for db in $DATABASES; do
     target="${db}_restore_check"
+    CHECK_DATABASES+=("$target")
     psql -X -q -v ON_ERROR_STOP=1 -d postgres -c "DROP DATABASE IF EXISTS \"$target\" WITH (FORCE)" -c "CREATE DATABASE \"$target\""
     pg_restore --exit-on-error -d "$target" "$DIR/$db.dump"
     compare_rows "$db" "$target"
@@ -134,4 +146,4 @@ if [ -f "$DIR/appdata.tar.gz" ]; then
   log "file caricati ripristinati in $APPDATA_DIR"
 fi
 log "RIPRISTINO COMPLETATO in $(( $(date +%s) - STARTED )) s. Poi: avviare l'app (migrazioni a head),"
-log "e ricostruire il grafo Neo4j: python -m scripts.kg_reproject --apply"
+log "e ricostruire il grafo Neo4j, cliente per cliente: python -m scripts.kg_reproject --client <uuid> --apply"

@@ -58,8 +58,11 @@ o se l'ultimo è fallito. Un backup a mano:
 Sul tuo computer, con la chiave privata. Non tocca niente di vivo: ripristina in
 database temporanei `<db>_restore_check`, confronta le righe di ogni tabella
 con il manifesto del backup (contate nella stessa fotografia del dump), poi li
-cancella. Serve un Postgres 16 raggiungibile, per esempio quello della VM
-attraverso Tailscale, o uno locale.
+cancella, anche se la prova fallisce. Serve un Postgres 16 con i ruoli di DeliR:
+quello della VM attraverso Tailscale, o uno locale inizializzato con
+`ops/postgres/init/` (per esempio lo stack di sviluppo, `cd ops && docker
+compose up -d postgres`). Un Postgres qualsiasi non basta: il dump assegna
+tabelle e regole ai ruoli `delir_*`.
 
 ```bash
 export PGHOST=... PGPORT=5432 PGUSER=delir_super PGPASSWORD=...
@@ -82,10 +85,15 @@ data ed esito qui sotto.
    ruoli e database vuoti.
 2. **App ferma.** Ripristino:
    ```bash
-   docker compose ... run --rm -v ~/delir-backup-key.txt:/key.txt:ro \
-     -e BACKUP_AGE_IDENTITY=/key.txt -v delir_appdata:/appdata \
-     backup /backup/restore.sh --live --yes latest
+   cd ops
+   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.backup.yml \
+     run --rm --no-deps \
+     -v ~/delir-backup-key.txt:/key.txt:ro -e BACKUP_AGE_IDENTITY=/key.txt \
+     -v delir_appdata:/restore-appdata -e BACKUP_APPDATA_DIR=/restore-appdata \
+     backup restore --live --yes latest
    ```
+   Il servizio monta i file caricati in sola lettura su `/appdata`: per
+   riscriverli si monta lo stesso volume, scrivibile, su `/restore-appdata`.
    Lo script verifica l'integrità del file (sha256 del manifesto), sovrascrive i
    database, confronta le righe con il manifesto e rimette i file caricati.
 3. Avvio dell'app. Le migrazioni sono già a head: il dump le contiene.
