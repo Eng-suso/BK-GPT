@@ -93,6 +93,12 @@ def rerank_on_haiku(monkeypatch):
     monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-non-usata")
 
 
+@pytest.fixture
+def chat_on_haiku(monkeypatch):
+    monkeypatch.setattr(settings, "llm_task_models_json", '{"chat_turn": "claude-haiku-5-5"}')
+    monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-non-usata")
+
+
 class TestModelloPerCompito:
     def test_il_compito_scelto_passa_a_claude(self, rerank_on_haiku):
         assert profile_for(LlmTask.RETRIEVAL_RERANK).model == "claude-haiku-5-5"
@@ -186,11 +192,6 @@ class TestLaParteFissaInCache:
 
 class TestLaChatSuClaude:
     """La chat: il passo dopo rilegge dalla cache tutto il passo prima."""
-
-    @pytest.fixture
-    def chat_on_haiku(self, monkeypatch):
-        monkeypatch.setattr(settings, "llm_task_models_json", '{"chat_turn": "claude-haiku-5-5"}')
-        monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-non-usata")
 
     def test_la_chat_e_chi_la_segue_girano_su_claude(self, chat_on_haiku):
         from backend.agent import normalize_model_name
@@ -304,13 +305,9 @@ def test_il_client_openai_decide_i_parametri_sul_modello_del_compito(monkeypatch
     assert "reasoning_effort" not in kwargs
 
 
-class TestLaChatSuClaudeDallaReview:
-    """I casi trovati dalla code review della PR che porta la chat su Claude."""
 
-    @pytest.fixture
-    def chat_on_haiku(self, monkeypatch):
-        monkeypatch.setattr(settings, "llm_task_models_json", '{"chat_turn": "claude-haiku-5-5"}')
-        monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-non-usata")
+class TestLaChatSuClaudeTieneLeDestinazioni:
+    """Le destinazioni dei dati e la configurazione, con la chat su Claude."""
 
     def test_llm_chat_resta_sull_host_di_openai(self, chat_on_haiku):
         chat = route(Destination.LLM_CHAT)
@@ -351,3 +348,16 @@ class TestLaChatSuClaudeDallaReview:
         monkeypatch.setattr(egress, "is_allowed", lambda _item: True)
         with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
             egress.assert_egress_is_defensible()
+
+    def test_una_richiesta_non_puo_scegliere_claude(self, monkeypatch):
+        """Dalla security review: il nome del modello viene dalla richiesta, e
+        chi chiama non deve poter spostare i dati del cliente su un altro
+        fornitore. Claude per la chat lo sceglie solo chi installa."""
+        from backend.agent import normalize_model_name
+        from backend.llm.egress import EgressBlocked
+
+        monkeypatch.setattr(settings, "llm_task_models_json", RERANK_ON_HAIKU)
+        monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-non-usata")
+        assert normalize_model_name("claude-haiku-5-5") != "claude-haiku-5-5"
+        with pytest.raises(EgressBlocked, match="chat_turn"):
+            chat_client(LlmTask.CHAT_TURN, model_name="claude-haiku-5-5", streaming=True, tag="t")

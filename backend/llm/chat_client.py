@@ -23,7 +23,7 @@ gli altri.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langchain_openai import ChatOpenAI
 
@@ -39,6 +39,10 @@ from backend.settings import (
     langsmith_tags,
     settings,
 )
+
+
+if TYPE_CHECKING:
+    from backend.llm.claude_client import DeliRChatAnthropic
 
 
 class DeliRChatOpenAI(ChatOpenAI):
@@ -62,7 +66,7 @@ def chat_client(
     streaming: bool,
     tag: str,
     reasoning_effort: str | None = None,
-) -> Any:
+) -> "DeliRChatOpenAI | DeliRChatAnthropic":
     """Il client di un compito di chat, costruito dal suo profilo.
 
     Un modello `claude-...` (scelto in `LLM_TASK_MODELS_JSON` per `chat_turn`)
@@ -87,25 +91,39 @@ def chat_client(
             tornerebbero a pagare.
     """
     profile = profile_for(task)
-    max_tokens = profile.max_output_tokens or settings.model_max_tokens
-    max_retries = settings.agent_max_retries if profile.retry else settings.model_max_retries
+    max_tokens = profile.output_cap
+    max_retries = profile.max_retries
+    # Il runtime somma nel registro solo i pezzi di questi client: sono gli
+    # unici che non scrivono la loro riga da se'.
+    tags = [*langsmith_tags("llm", tag), TURN_METERED_TAG]
+    metadata = langsmith_metadata(model_name, delir_model_name=model_name)
+    effort = reasoning_effort or profile.reasoning_effort
     if provider_of(model_name) is Provider.ANTHROPIC:
         from backend.llm.claude_client import claude_client
+        from backend.llm.egress import EgressBlocked, route
+
+        # La chat va ad Anthropic solo se chi installa l'ha scelto: e' allora che
+        # l'inventario la elenca fra i compiti di `llm_claude`. Un nome arrivato
+        # da altrove non sposta i dati di un cliente verso un altro fornitore.
+        if LlmTask.CHAT_TURN not in route(Destination.LLM_CLAUDE).tasks:
+            raise EgressBlocked(
+                f"La chat su {model_name} non e' dichiarata: va scelta in LLM_TASK_MODELS_JSON (chat_turn)."
+            )
 
         return claude_client(
             model=model_name,
             max_tokens=max_tokens,
             timeout=timeout_for_input(None),
             max_retries=max_retries,
-            effort=reasoning_effort or profile.reasoning_effort,
+            effort=effort,
             streaming=streaming,
             # Solo il turno rimanda il prompt di prima allungato: instradamento e
             # riassunto sono chiamate singole, e il segnalibro in fondo farebbe
             # pagare una scrittura che nessuno rilegge.
             cache_conversation=task is LlmTask.CHAT_TURN,
             stream_usage=True,
-            metadata=langsmith_metadata(model_name, delir_model_name=model_name),
-            tags=[*langsmith_tags("llm", tag), TURN_METERED_TAG],
+            metadata=metadata,
+            tags=tags,
         )
 
     if not settings.openai_api_key:
@@ -127,11 +145,9 @@ def chat_client(
         "streaming": streaming,
         "langsmith_provider": settings.langsmith_provider,
         "langsmith_model_name": effective_langsmith_model_name(model_name),
-        "metadata": langsmith_metadata(model_name, delir_model_name=model_name),
-        # Il runtime somma nel registro solo i pezzi di questi client: sono gli
-        # unici che non scrivono la loro riga da se'.
-        "tags": [*langsmith_tags("llm", tag), TURN_METERED_TAG],
-        "reasoning_effort": reasoning_effort or profile.reasoning_effort,
+        "metadata": metadata,
+        "tags": tags,
+        "reasoning_effort": effort,
     }
     if settings.openai_base_url:
         kwargs["base_url"] = settings.openai_base_url
