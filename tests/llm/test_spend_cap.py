@@ -150,3 +150,43 @@ class TestLeCodeSiFermano:
         calls = iter([True, True, False])
         monkeypatch.setattr(spend_cap, "tripped", lambda: next(calls))
         spend_cap.pause_while_tripped("t", poll_seconds=0)
+
+
+class TestDallaReview:
+    def test_mem0_restituisce_la_risposta_con_il_freno_spento(self, monkeypatch):
+        """Il `return` era finito dopo un `raise`: ogni chiamata di Mem0 tornava None."""
+        from backend.llm import mem0_meter
+
+        monkeypatch.setattr(settings, "usage_hard_cap_daily_usd", 0.0)
+        monkeypatch.setattr(mem0_meter, "record", lambda **kw: None)
+        metered = mem0_meter._wrap(lambda **kw: "risposta", LlmTask.MEMORY_EXTRACTION)
+        with operation(OperationKind.PLAN_SYNTHESIS):
+            assert metered(model="gpt-test") == "risposta"
+
+    def test_un_registro_che_non_risponde_non_ferma_le_code(self, monkeypatch):
+        monkeypatch.setattr(settings, "usage_hard_cap_daily_usd", 5.0)
+
+        def broken(now=None):
+            raise RuntimeError("database giu'")
+
+        monkeypatch.setattr(spend_cap, "spent_last_24h", broken)
+        assert spend_cap.tripped() is False
+
+    def test_un_registro_che_non_risponde_tiene_l_ultima_lettura(self, monkeypatch):
+        monkeypatch.setattr(settings, "usage_hard_cap_daily_usd", 5.0)
+        monkeypatch.setattr(spend_cap, "spent_last_24h", lambda now=None: Decimal("9"))
+        assert spend_cap.tripped()
+        monkeypatch.setattr(spend_cap, "_CACHE_SECONDS", -1.0)
+
+        def broken(now=None):
+            raise RuntimeError("database giu'")
+
+        monkeypatch.setattr(spend_cap, "spent_last_24h", broken)
+        assert spend_cap.tripped()
+
+    def test_per_le_code_il_freno_e_credito_finito(self):
+        """`exhausted`: non consuma tentativi e mette in pausa la coda."""
+        from backend.workers import retry
+
+        failure = retry.classify(spend_cap.SpendCapReached(spend_cap.MESSAGE), attempts=4)
+        assert failure.kind == "exhausted"

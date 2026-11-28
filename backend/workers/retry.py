@@ -160,7 +160,15 @@ def is_rate_limit(exc: BaseException) -> bool:
 
 
 def is_quota_exhausted(exc: BaseException) -> bool:
-    """Se il provider rifiuta perche' credito o quota sono finiti, non per banda."""
+    """Se il provider rifiuta perche' credito o quota sono finiti, non per banda.
+
+    Vale anche il freno d'emergenza dell'installazione (`spend_cap`): per la coda
+    e' lo stesso caso, aspettare finche' qualcosa cambia senza bruciare tentativi.
+    """
+    from backend.llm.spend_cap import SpendCapReached
+
+    if isinstance(exc, SpendCapReached):
+        return True
     body = getattr(exc, "body", None)
     if isinstance(body, dict):
         nested = body.get("error")
