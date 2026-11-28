@@ -28,7 +28,12 @@ def test_drain_loop_survives_errors_and_stops_on_cancel():
         task = asyncio.create_task(
             supervisor._drain_loop("t", drain, lambda: {"pending": 0, "stuck": 0}, 0.01)
         )
-        await asyncio.sleep(0.1)
+        # Si aspetta che le passate ci siano state, non un tempo fisso: le
+        # passate girano sul pool di thread condiviso, e sotto il carico della
+        # suite intera 100 ms non bastavano per quattro.
+        deadline = asyncio.get_running_loop().time() + 5
+        while calls["n"] < 4 and asyncio.get_running_loop().time() < deadline:
+            await asyncio.sleep(0.01)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
