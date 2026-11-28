@@ -94,10 +94,12 @@ services:
       USAGE_LIMITS_ENABLED: ${USAGE_LIMITS_ENABLED:-true}
       LLM_PRICES_JSON: ${LLM_PRICES_JSON:-}
       USAGE_SESSION_HOURS: ${USAGE_SESSION_HOURS:-5}
-      USAGE_SESSION_BUDGET_USD: ${USAGE_SESSION_BUDGET_USD:-1.5}
-      USAGE_WEEK_BUDGET_USD: ${USAGE_WEEK_BUDGET_USD:-6}
-      USAGE_TRIAL_BUDGET_USD: ${USAGE_TRIAL_BUDGET_USD:-20}
+      USAGE_SESSION_BUDGET_USD: ${USAGE_SESSION_BUDGET_USD:-1.20}
+      USAGE_WEEK_BUDGET_USD: ${USAGE_WEEK_BUDGET_USD:-5.00}
+      USAGE_TRIAL_BUDGET_USD: ${USAGE_TRIAL_BUDGET_USD:-10.00}
       USAGE_TRIAL_DAYS: ${USAGE_TRIAL_DAYS:-14}
+      USAGE_WEEK_AUDIO_HOURS: ${USAGE_WEEK_AUDIO_HOURS:-6}
+      USAGE_TRIAL_AUDIO_HOURS: ${USAGE_TRIAL_AUDIO_HOURS:-10}
       # Compatibilita' col pilota a tenant singolo. Un deploy multi-tenant puo'
       # configurare default e allowlist separatamente.
       DELIR_DEFAULT_TENANT_ID: ${DELIR_DEFAULT_TENANT_ID:-${DELIR_TENANT_ID:?serve DELIR_TENANT_ID o DELIR_DEFAULT_TENANT_ID}}
@@ -117,13 +119,21 @@ services:
       DOCLING_SERVE_URL: http://docling:5001
       SOURCE_STORAGE_ROOT: /app/data
       OPENAI_API_KEY: ${OPENAI_API_KEY:?serve OPENAI_API_KEY}
+      # GPT-6 Luna per la chat e i compiti lunghi, Claude Haiku 5.5 per i compiti
+      # piccoli (LLM_TASK_MODELS_JSON). Ogni modello va anche in LLM_PRICES_JSON.
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-6-luna}
+      MEM0_LLM_MODEL: ${MEM0_LLM_MODEL:-gpt-6-luna}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_TASK_MODELS_JSON: ${LLM_TASK_MODELS_JSON:-}
+      OPENAI_TRANSCRIPTION_MODEL: ${OPENAI_TRANSCRIPTION_MODEL:-gpt-4o-transcribe-diarize}
+      OPENAI_LIVE_TRANSCRIPTION_MODEL: ${OPENAI_LIVE_TRANSCRIPTION_MODEL:-gpt-realtime-whisper}
       LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
       # I fornitori esterni registrati (docs/compliance/fornitori-e-invii-dati.md).
       # Una destinazione attiva fuori lista blocca l'avvio: accendere LangSmith o
       # Tavily, o spostare un compito su un altro LLM, vuol dire anche aggiungere
       # qui il suo host, dopo averlo registrato.
-      DELIR_EGRESS_ALLOWED_HOSTS: ${DELIR_EGRESS_ALLOWED_HOSTS:-api.openai.com}
+      DELIR_EGRESS_ALLOWED_HOSTS: ${DELIR_EGRESS_ALLOWED_HOSTS:-api.openai.com,api.anthropic.com}
       # Davanti c'e' cloudflared sulla stessa rete docker: l'IP del client
       # vero arriva negli header inoltrati.
       FORWARDED_ALLOW_IPS: "*"

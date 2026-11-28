@@ -114,9 +114,10 @@ a memoria.
   `EgressBlocked` e il rifiuto finisce nel registro dei consumi (fail closed).
 - **In sviluppo** una lista vuota permette tutto, ma una lista non vuota vale già:
   la configurazione di produzione si prova in locale.
-- `ops/docker-compose.prod.yml` e `ops/docker-compose.staging.yml` dichiarano
-  `api.openai.com` come unico host. Accendere LangSmith o Tavily vuol dire
-  anche aggiungere il loro host, dopo averli registrati qui.
+- `ops/docker-compose.prod.yml` dichiara `api.openai.com` e `api.anthropic.com`
+  (Claude Haiku 5.5 per i compiti piccoli, con `LLM_TASK_MODELS_JSON`);
+  `ops/docker-compose.staging.yml` solo `api.openai.com`. Accendere LangSmith o
+  Tavily vuol dire anche aggiungere il loro host, dopo averli registrati qui.
 - Mem0 e la ricerca web, se bloccati, **si spengono** invece di uscire.
 
 ## 5. Aggiungere un LLM o un fornitore alla pipeline
